@@ -5,6 +5,7 @@ response serialization; the tool contracts (schemas) live in
 harness/mcp_schemas.py as pure data, and the lane-scheduling policy
 (which serial worker runs each tool) lives in harness/mcp_lanes.py.
 """
+import hmac
 import json
 import math
 import os
@@ -105,7 +106,7 @@ class McpServer:
                  max_panelists=3, use_free=True, stdin=None, stdout=None,
                  allow_verify=False, allow_write=False, allowed_roots=None,
                  tool_timeout=None, caller=None, auth_token=None,
-                 hourglass=None):
+                 hourglass=None, trust_client_info=True):
         self.transport = transport
         self.api_key = api_key
         self.governor = governor
@@ -152,6 +153,14 @@ class McpServer:
         # enabled merely because a protocol client can reach this process.
         self.allow_verify = bool(allow_verify)
         self.allow_write = bool(allow_write)
+        # Whether initialize clientInfo may define this connection's trust
+        # identity. True for the stdio transport, where the peer is the
+        # embedding host and its claim is only as strong as the process
+        # boundary. Any transport that carries an untrusted peer must pass
+        # False: clientInfo is the client's own claim about who it is, and
+        # honoring it would let a remote peer name a caller that has already
+        # earned trust and inherit that caller's ledger history and score.
+        self.trust_client_info = bool(trust_client_info)
         self.allowed_roots = [os.path.realpath(os.path.abspath(root))
                               for root in (allowed_roots or [])]
 
@@ -286,9 +295,17 @@ class McpServer:
         return " ".join(kept.split())[:64]
 
     def _capture_caller(self, params):
-        """Name the stdio peer from initialize clientInfo for the evidence
-        loop: subsequent ledger appends on this connection carry it, so
-        per-caller trust can tell peers apart. Unknown peers stay "mcp"."""
+        """Name the peer from initialize clientInfo for the evidence loop:
+        subsequent ledger appends on this connection carry it, so per-caller
+        trust can tell peers apart. Unknown peers stay "mcp".
+
+        A transport carrying an untrusted peer leaves the operator-assigned
+        caller untouched (see trust_client_info). The ledger is the trust
+        root, so on a network boundary the peer's own claim about its
+        identity is exactly what must not feed it.
+        """
+        if not self.trust_client_info:
+            return
         try:
             info = params.get("clientInfo") or {}
             name = self._sanitize_caller_part(info.get("name"))
@@ -405,7 +422,11 @@ class McpServer:
         params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
         meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
         token = meta.get("harness_token") or params.get("harness_token")
-        if token is None or not isinstance(token, str) or token != self.auth_token:
+        # compare_digest, not ==: this gate is a shared secret, and a
+        # byte-wise compare leaks it to a patient prober through response
+        # timing. Cheap to do right, and invisible when it is done.
+        if (token is None or not isinstance(token, str)
+                or not hmac.compare_digest(token, self.auth_token)):
             return {"jsonrpc": "2.0", "id": msg.get("id"),
                     "error": {"code": -32001,
                               "message": "unauthorized: harness_token required"}}
