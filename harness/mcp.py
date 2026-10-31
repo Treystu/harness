@@ -1575,18 +1575,24 @@ class McpServer:
             self.stdout.flush()
 
 
-def _handle_cli_flags(argv, *, stdout=None):
-    """DF-DOCS-2: `harness-mcp --help` / `--version` must answer and exit
-    without touching stdio-JSON-RPC mode -- an operator checking the entry
-    point (or a packaging smoke test) should never block on a server that's
-    waiting for a JSON-RPC frame on stdin. Returns an exit code (int) if a
-    flag was handled, or None to fall through to serving. Kept separate
-    from main() so it can be exercised without starting a server."""
-    stdout = stdout or sys.stdout
+def _handle_cli_flags(argv, *, stdout=None, stderr=None):
+    """Handle the MCP executable's small flag surface before stdio serving.
+
+    Help takes precedence when both display flags are supplied, and repeated
+    flags are idempotent. Unknown arguments return argparse's conventional
+    status 2 instead of being mistaken for a no-argument server launch.
+    """
+    stdout = sys.stdout if stdout is None else stdout
+    stderr = sys.stderr if stderr is None else stderr
     args = list(argv if argv is not None else sys.argv[1:])
-    if "--version" in args:
-        stdout.write("harness-mcp {}\n".format(__version__))
-        return 0
+    allowed = {"--help", "-h", "--version"}
+    unknown = [arg for arg in args if arg not in allowed]
+    if unknown:
+        stderr.write(
+            "usage: harness-mcp [--help] [--version]\n"
+            "harness-mcp: error: unrecognized arguments: {}\n".format(
+                " ".join(unknown)))
+        return 2
     if "--help" in args or "-h" in args:
         stdout.write(
             "usage: harness-mcp [--help] [--version]\n\n"
@@ -1597,6 +1603,9 @@ def _handle_cli_flags(argv, *, stdout=None):
             "  --help, -h   show this message and exit\n"
             "  --version    print the server version and exit\n"
         )
+        return 0
+    if "--version" in args:
+        stdout.write("harness-mcp {}\n".format(__version__))
         return 0
     return None
 
@@ -1630,4 +1639,4 @@ def main(argv=None):  # pragma: no cover - thin wiring; exercised via smoke test
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
