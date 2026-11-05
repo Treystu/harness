@@ -767,3 +767,43 @@ Evidence on `c53c914`:
 The issue-flush report row now records FLUSH-0/1 as landed on lane and
 FLUSH-2/3 open. FLUSH-2 remains next; the prior pass's audit read is not
 claimed as met here.
+## 2026-11-05 (third pass) - FLUSH-2 verified by a non-author read; relaunch takeover line
+
+Conformance read of `787bb8f` (panel + deterministic instrument identity and
+rotation, oscillation breaker, calibration pinning) against the commission's
+FLUSH-2 row. What the code actually does, checked against the text rather than
+the commit message:
+
+- Instrument rotation is keyed `(aspect, angle, instrument, identity)`, so the
+  same aspect under the same angle through a *different* instrument is new
+  work and the same question twice is marked `repeated` rather than counted.
+  The default loop still supports exactly one instrument (Jev) and refuses
+  anything else by name -- the FLUSH-1 refusal survives, which is what
+  `test_flush_one_refuses_a_non_jev_instrument` pins.
+- `OscillationBreaker` requires a recorded cure before a regression, then
+  looks for a repeated suffix of length at most three: `A, B, A, B` escalates
+  as the combined cure packet `A, B` once, naming both cures and stating that
+  re-curing a member in isolation is not progress. A second detection of the
+  same aspect+cycle returns `None`, so the loop escalates once instead of
+  spinning. `stop_ready()` refuses saturation while an escalated cycle is
+  unclosed.
+- `pin_judge_version` sets the first version silently and, on a change, writes
+  `calibration_rebaselined` with scores before and after; register findings
+  are untouched, which is the commission's "rebaselines scores, not findings".
+
+Executed on `787bb8f` this pass (local, this host, 2026-11-05):
+
+- `python -m unittest tests.test_flush_loop tests.test_architecture` ->
+  `Ran 43 tests`, `OK`.
+- `python -m ruff check harness tests` -> `All checks passed!`.
+- Full battery: `python -m unittest discover -s tests -t .` ->
+  `Ran 5666 tests in 421.424s`, `OK (skipped=73)`, exit 0 (5660 before this
+  slice).
+- Hosted check-runs on `787bb8f`: still the billing lock, so no CI claim.
+
+Relaunch-takeover readiness line (required by the oversight steering of
+2026-11-05T12:58Z on #442), read from the ledger repo rather than assumed:
+retrospective **not received** (`GET /repos/Treystu/slow-lane-ledger/contents/harness`
+lists only `ci`, `handoff.md`, `log`, `plans`, `readiness`, `reviews`; no
+`driving-retrospective-2026-11-05.md`), spec **not filed**, shadow runs
+**0/5**, duty state **GPT lane**. Takeover is supervised and unasserted.
