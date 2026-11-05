@@ -54,6 +54,7 @@ from .errors import HarnessError
 from .lifecycle import LifecycleCoordinator
 from .fireworks import compare_fireworks_vs_openrouter
 from .fireworks_probe import run_fireworks_probe
+from .flush_loop import AspectVerdict, EventLedger, FlushError, FlushLoop
 from .overlay import run_overlay
 from .routing_table import (
     SNAPSHOT_PRICE_TABLE,
@@ -2145,8 +2146,6 @@ def _cmd_flush(opts, settings):
     Live judging arrives with FLUSH-2's instrument rotation; this surface
     exists so the loop's state is inspectable and reproducible today.
     """
-    from .flush_loop import AspectVerdict, EventLedger, FlushError, FlushLoop
-
     campaign_path = Path(opts.campaign)
     if not campaign_path.is_file():
         raise FlushError(f"campaign file not found: {campaign_path}")
