@@ -720,5 +720,21 @@ TOOL_SCHEMAS = [
         }},
         "annotations": {"readOnlyHint": True, "openWorldHint": True},
     },
+    {
+        "name": "flush_run",
+        "title": "Saturation (flush) campaign state",
+        "description": (
+            "When: a caller needs the state of a saturation (flush) campaign "
+            "that the CLI ran, without running anything itself. "
+            "In: the campaign file path and an optional ledger path; the "
+            "ledger defaults to the same path the CLI writes. "
+            "Out: passes, clean-expansion streak, refusals, INFO REQUESTS, "
+            "escalated oscillation cycles and claimed stops, projected from "
+            "the event ledger; read-only, and never a judge call."),
+        "inputSchema": {"type": "object", "properties": {
+            "campaign": {"type": "string", "description": "Path to the campaign JSON the CLI ran"},
+            "ledger": {"type": "string", "description": "Event ledger path (default: <campaign>.events.jsonl)"},
+        }, "required": ["campaign"]},
+        "annotations": {"readOnlyHint": True, "openWorldHint": False},
+    },
 ]
-

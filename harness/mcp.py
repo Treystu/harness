@@ -45,6 +45,7 @@ from . import osal
 from .executor import DEFAULT_PLAN_WORKERS, PlanExecutor
 from .mcp_lanes import LANES, lane_for
 from .mcp_schemas import TOOL_SCHEMAS
+from .flush_loop import campaign_state, default_ledger_path
 from driver_core.audit import lint_tool_descriptions
 from .mcp_log import log_tool_call
 from .jev_completion import dogfood_phase, score_all_phases
@@ -659,6 +660,15 @@ class McpServer:
             else:
                 continuation_task_id = validate_mcp_task_id(continuation_task_id)
                 self.ledger.require_offered_task_id(continuation_task_id)
+
+        if name == "flush_run":
+            campaign = args.get("campaign")
+            if not isinstance(campaign, str) or not campaign.strip():
+                raise HarnessError("flush_run requires a campaign path")
+            ledger_path = args.get("ledger") or default_ledger_path(campaign)
+            state = campaign_state(ledger_path)
+            state["ledger"] = ledger_path
+            return state
 
         if name == "ask":
             prompt = validate_mcp_prompt(args.get("prompt"))

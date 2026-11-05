@@ -1279,6 +1279,26 @@ def sd_contributing():
 
 # ---------------------------------------------------------------- runner
 
+def sd_flush_canaries():
+    """The saturation loop must catch the defects it was built to refuse.
+
+    The canaries plant a claim with no read, a delta-free pass, a "noted"
+    disposition, a one-pass stop and a panel instrument on the Jev-only loop,
+    then score the loop on whether it refused each one. A missed canary fails
+    here by name; a rule that only measured "the suite ran" would pass while
+    the loop stopped catching anything.
+    """
+    try:
+        from harness.flush_canary import run_canary_suite
+        result = run_canary_suite()
+    except Exception as exc:  # a broken canary is a failed gate
+        return 0.0, f"canary suite errored: {type(exc).__name__}: {exc}"
+    found, missed = result["found"], result["missed"]
+    return _pass(bool(result["ok"]),
+                 f"all {len(found)} planted flush-loop defects caught",
+                 f"found={found} missed={missed}")
+
+
 def sd_corpus_integrity():
     """The audit evidence corpus is hash-pinned: every tracked dogfood
     artifact and audit report must match audits/self/corpus_manifest.json.
@@ -1703,7 +1723,9 @@ CHECKS = {
            ("D11", "corpus integrity (SHA-256 pinned)",
             sd_corpus_integrity),
            ("D12", "changed lines suite-executed (coverage)",
-            sd_coverage_changed)],
+            sd_coverage_changed),
+           ("D13", "flush-loop planted-defect canaries all caught",
+            sd_flush_canaries)],
 }
 
 DIM_NAMES = {"A": "Security", "R": "Reliability",

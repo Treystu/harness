@@ -4,12 +4,13 @@ FLUSH-0 (the contracts) and FLUSH-1 (the loop + CLI surface) of the saturation
 (flush) loop commissioned 2026-11-04. The contracts are the rules a pass
 cannot talk its way around -- Rule 0 ("never without changes"), the gap
 register's two exit states, materiality with its tail promotion, and the
-append-only event ledger. The loop rotates angles, admits or refuses passes,
-records what the judge said, and reports the stop rule with its reasons. There
-is no panel, no deterministic rotation, no oscillation breaker and no cold-run
-instrument here: those are FLUSH-2 and FLUSH-3, and neither the loop nor the
-CLI makes a network call -- the judge is injected, and ``harness flush``
-replays the verdicts a campaign file carries.
+append-only event ledger. The loop rotates angles and instruments, admits or
+refuses passes, records what the judges said, escalates an oscillation cycle
+once as a combined cure packet, pins the judge version, and reports the stop
+rule with its reasons. Panel, deterministic and cold-run instruments are
+identities the caller supplies a judge for; nothing here makes a network call,
+and ``harness flush`` replays the verdicts a campaign file carries. The
+planted-defect canaries that keep the loop honest live in ``flush_canary``.
 
 The reason the rules live in their own layer is the failure they prevent. A
 saturation claim is only worth what its weakest pass is worth, and two passes
@@ -416,6 +417,27 @@ def record_pass(ledger, *, identity, delta, campaign=""):
     return event
 
 
+def record_judged(ledger, *, number, identity_digest, clean, expansion,
+                  campaign=""):
+    """Log the judgment of an admitted pass.
+
+    ``pass_admitted`` says a pass was allowed to run; this says what it
+    produced. The campaign's state is projected from the ledger alone, so a
+    reader (CLI, MCP, or a later session) can recompute the streak without
+    trusting a summary someone wrote.
+    """
+    event = {
+        "event": "pass_judged",
+        "campaign": campaign,
+        "pass": int(number),
+        "identity": str(identity_digest),
+        "clean": bool(clean),
+        "expansion": bool(expansion),
+    }
+    ledger.append(event)
+    return event
+
+
 def record_refusal(ledger, *, reason, campaign=""):
     """Log a refusal: a refused pass is a fact about the loop, not a no-op."""
     event = {"event": "pass_refused", "campaign": campaign,
@@ -449,6 +471,12 @@ DETERMINISTIC_INSTRUMENT = "deterministic"
 FLUSH_ONE_INSTRUMENTS = (JEV_INSTRUMENT,)
 FLUSH_TWO_INSTRUMENTS = (JEV_INSTRUMENT, PANEL_INSTRUMENT,
                          DETERMINISTIC_INSTRUMENT)
+
+#: FLUSH-3's cold run: a non-author read of the same target. It is an
+#: instrument like the others, so "the final pass includes a cold run" is
+#: visible in the pass's own instrument list rather than in a separate claim.
+COLD_RUN_INSTRUMENT = "cold-run"
+FLUSH_THREE_INSTRUMENTS = FLUSH_TWO_INSTRUMENTS + (COLD_RUN_INSTRUMENT,)
 
 #: The stop bar, verbatim from the commission: combined >= 95, every axis >= 85,
 #: no axis below 60.
@@ -737,6 +765,7 @@ class FlushLoop:
         expansion = bool(new_angles or new_instruments)
 
         material, info, verdicts, repeated = [], [], [], []
+        cold_basis = ""
         regressions = []
         escalation = None
         for aspect in aspects:
@@ -760,6 +789,11 @@ class FlushLoop:
                             f"verdict is for {verdict.aspect!r} but aspect "
                             f"{aspect!r} was asked")
                     verdicts.append(verdict)
+                    if (instrument == COLD_RUN_INSTRUMENT
+                            and not verdict.missing_record.strip()):
+                        # The basis that names the cold reader, not whichever
+                        # verdict happened to be first.
+                        cold_basis = cold_basis or verdict.basis
                     for axis, value in verdict.scores.items():
                         self.scores[str(axis)] = float(value)
                     if verdict.missing_record.strip():
@@ -820,6 +854,12 @@ class FlushLoop:
             repeated_calls=tuple(repeated), regressions=tuple(regressions),
             escalation=escalation)
         self.passes.append(outcome)
+        if cold_basis:
+            self.cold_run_pass = outcome.number
+            self.cold_run_basis = cold_basis
+        record_judged(self.ledger, number=outcome.number,
+                      identity_digest=identity.digest, clean=clean,
+                      expansion=expansion, campaign=self.campaign)
         return outcome
 
     def close_finding(self, finding_id, *, cure, read, aspect=""):
@@ -973,3 +1013,73 @@ def _call_label(aspect, angle, instrument):
     if instrument == JEV_INSTRUMENT:
         return f"{aspect}/{angle}"
     return f"{aspect}/{angle}/{instrument}"
+
+def default_ledger_path(campaign_path):
+    """Where a campaign's events live when no path is given.
+
+    One default for every surface: the CLI writes and the MCP tool reads the
+    same file for the same campaign, or "the two agree" is a coincidence.
+    """
+    return f"{campaign_path}.events.jsonl"
+
+
+def campaign_state(ledger):
+    """The campaign's state, projected from its event ledger alone.
+
+    One reader for every surface: ``harness flush --status`` and the MCP
+    ``flush_run`` tool both call this, so the two cannot disagree about how
+    many passes ran, how long the clean streak is, or what is still owed. The
+    ledger is the only input -- a summary written by whoever ran the loop is
+    exactly the thing that drifts.
+    """
+    events = ledger.read() if isinstance(ledger, EventLedger) \
+        else EventLedger(ledger).read()
+    state = {
+        "campaign": "",
+        "passes": 0,
+        "judged": 0,
+        "clean_expansion_streak": 0,
+        "longest_clean_streak": 0,
+        "refusals": 0,
+        "info_requests": [],
+        "escalations": [],
+        "stops": [],
+        "last_identity": "",
+    }
+    streak = 0
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("event")
+        if not state["campaign"] and event.get("campaign"):
+            state["campaign"] = str(event["campaign"])
+        if kind == "pass_admitted":
+            state["passes"] += 1
+            state["last_identity"] = str(event.get("identity", ""))
+        elif kind == "pass_judged":
+            state["judged"] += 1
+            streak = (streak + 1
+                      if event.get("clean") and event.get("expansion") else 0)
+            state["clean_expansion_streak"] = streak
+            state["longest_clean_streak"] = max(
+                state["longest_clean_streak"], streak)
+        elif kind == "pass_refused":
+            state["refusals"] += 1
+        elif kind == "info_request":
+            state["info_requests"].append({
+                "aspect": str(event.get("aspect", "")),
+                "missing_record": str(event.get("missing_record", "")),
+            })
+        elif kind == "oscillation_escalated":
+            state["escalations"].append({
+                "aspect": str(event.get("aspect", "")),
+                "cycle": list(event.get("cycle") or ()),
+            })
+        elif kind == "stop":
+            state["stops"].append({
+                "streak": event.get("streak"),
+                "basis": str(event.get("basis", "")),
+                "combined": event.get("combined"),
+            })
+    state["clean_expansion_streak"] = streak
+    return state

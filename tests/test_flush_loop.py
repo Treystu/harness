@@ -340,7 +340,7 @@ class LoopInfoRequestTests(unittest.TestCase):
         self.assertEqual(self.calls, ["scale"],
                          "Rule 0 refusal must not spend a judge call")
         self.assertEqual([event["event"] for event in self.ledger.read()],
-                         ["pass_admitted", "pass_refused"])
+                         ["pass_admitted", "pass_judged", "pass_refused"])
 
     def test_a_pass_without_an_aspect_is_refused(self):
         loop = FlushLoop(ledger=self.ledger, judge=self._judge, campaign="c1")
@@ -430,7 +430,8 @@ class FlushCliTests(unittest.TestCase):
             events = [json.loads(line) for line in
                       ledger.read_text(encoding="utf-8").splitlines()]
             self.assertEqual([e["event"] for e in events],
-                             ["pass_admitted", "pass_admitted"])
+                             ["pass_admitted", "pass_judged",
+                              "pass_admitted", "pass_judged"])
 
     def test_flush_cli_claims_the_stop_only_when_the_rule_is_met(self):
         from harness.cli import _cmd_flush
@@ -712,6 +713,110 @@ class FlushTwoCliTests(unittest.TestCase):
                        if event["event"] == "oscillation_escalated"]
         self.assertEqual(len(escalations), 1)
         self.assertEqual(escalations[0]["packet"]["cycle"], ["gap-1"])
+class CanaryTests(unittest.TestCase):
+    """The planted-defect gate: the loop must catch what it claims to catch."""
+
+    def test_canary_loop_finds_all_planted_defects(self):
+        from harness.flush_canary import CANARIES, run_canary_suite
+        planted = sorted(name for name, _runner in CANARIES)
+        result = run_canary_suite()
+        self.assertTrue(result["ok"], result["missed"])
+        self.assertEqual(sorted(result["found"]), planted)
+        self.assertEqual(result["missed"], [])
+        for name in planted:
+            self.assertTrue(result["detail"][name]["found"], name)
+            self.assertTrue(result["detail"][name]["evidence"], name)
+
+    def test_a_rotated_canary_run_finds_the_same_defects(self):
+        from harness.flush_canary import run_canary_suite
+        baseline = run_canary_suite()
+        rotated = run_canary_suite(seed=2)
+        self.assertTrue(rotated["ok"], rotated["missed"])
+        self.assertEqual(sorted(rotated["found"]), sorted(baseline["found"]))
+
+
+class ColdRunTests(unittest.TestCase):
+    """FLUSH-3: the cold run is an instrument that names its own reader."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.ledger = EventLedger(Path(self._tmp.name) / "cold.jsonl")
+        self.records = [EvidenceRecord("ev-1", "the gate pack")]
+
+    def _judges(self):
+        def jev(*, aspect, angle, target, records):
+            return AspectVerdict(aspect=aspect, basis="dossier:ev-1@v1")
+
+        def cold(*, aspect, angle, target, records):
+            return AspectVerdict(aspect=aspect,
+                                 basis="cold reader B, dossier:ev-1@v1")
+
+        return {"jev": jev, "cold-run": cold}
+
+    def test_the_cold_run_instrument_marks_its_own_pass(self):
+        from harness.flush_loop import FLUSH_THREE_INSTRUMENTS
+        loop = FlushLoop(ledger=self.ledger, judges=self._judges(),
+                         campaign="c-cold",
+                         supported_instruments=FLUSH_THREE_INSTRUMENTS)
+        outcome = loop.run_pass(target="t", records=self.records,
+                                angles=["flaw-hunt"], aspects=["scale"],
+                                instruments=("jev", "cold-run"))
+        self.assertEqual(outcome.number, 1)
+        self.assertEqual(loop.cold_run_pass, 1)
+        self.assertIn("cold reader B", loop.cold_run_basis)
+        self.assertEqual(loop.passes[-1].clean, True)
+
+    def test_the_jev_only_loop_still_refuses_the_cold_run(self):
+        loop = FlushLoop(ledger=self.ledger, judge=self._judges()["jev"],
+                         campaign="c-cold")
+        with self.assertRaises(FlushError) as raised:
+            loop.run_pass(target="t", records=self.records,
+                          angles=["flaw-hunt"], aspects=["scale"],
+                          instruments=("cold-run",))
+        self.assertIn("exactly one instrument", str(raised.exception))
+
+
+class StateParityTests(unittest.TestCase):
+    """One ledger, two surfaces: the MCP read and the CLI read must agree."""
+
+    def test_mcp_and_cli_read_same_campaign_state(self):
+        from harness.cli import _cmd_flush
+        from harness.cli_parser import build_parser
+        from harness.flush_loop import default_ledger_path
+        from harness.mcp import McpServer
+
+        with tempfile.TemporaryDirectory() as tmp:
+            campaign = Path(tmp) / "parity.json"
+            campaign.write_text(json.dumps({
+                "campaign": "c-parity",
+                "target": "the gate pack",
+                "passes": [
+                    {"angles": ["flaw-hunt"], "aspects": ["scale"],
+                     "records": [{"id": "ev-1", "content": "pack"}],
+                     "verdicts": {"scale": {"basis": "dossier:ev-1@v1"}},
+                     "cold_run": "reader B"},
+                    {"angles": ["flaw-hunt", "red-team"], "aspects": ["scale"],
+                     "records": [{"id": "ev-1", "content": "pack"}],
+                     "verdicts": {"scale": {"basis": "dossier:ev-1@v1"}}}],
+            }), encoding="utf-8")
+            opts = build_parser().parse_args(
+                ["flush", "--campaign", str(campaign), "--json"])
+            with redirect_stdout(io.StringIO()):
+                _cmd_flush(opts, mock.Mock())
+            status_opts = build_parser().parse_args(
+                ["flush", "--campaign", str(campaign), "--status", "--json"])
+            with redirect_stdout(io.StringIO()):
+                cli_state = _cmd_flush(status_opts, mock.Mock())
+
+            server = McpServer(transport=mock.Mock(), api_key="k",
+                               governor=mock.Mock(), ledger=mock.Mock(),
+                               router=mock.Mock(), engine=mock.Mock())
+            mcp_state = server._invoke("flush_run", {"campaign": str(campaign)})
+            self.assertEqual(cli_state, mcp_state)
+            self.assertEqual(mcp_state["ledger"], default_ledger_path(campaign))
+            self.assertEqual(mcp_state["passes"], 2)
+            self.assertGreaterEqual(mcp_state["clean_expansion_streak"], 0)
 
 
 if __name__ == "__main__":

@@ -912,6 +912,9 @@ def build_parser():
     pfl.add_argument("--extended-instruments", action="store_true",
                      help="allow panel and deterministic instruments "
                           "(FLUSH-2 rotation); default is Jev-only")
+    pfl.add_argument("--status", action="store_true",
+                     help="read the campaign state from its ledger (no pass, "
+                          "no judge call)")
     pfl.add_argument("--json", action="store_true",
                      help="emit raw JSON only (no banner)")
     _add_output_flags(pfl)

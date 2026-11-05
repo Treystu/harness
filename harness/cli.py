@@ -67,7 +67,7 @@ from .spend import discover_free_models
 from .filesafety import VERIFY_TIMEOUT, validate_target_file, validate_verify_command
 from .flush_loop import (AspectVerdict, EventLedger, FLUSH_ONE_INSTRUMENTS,
                          FLUSH_TWO_INSTRUMENTS, FlushError, FlushLoop,
-                         JEV_INSTRUMENT)
+                         JEV_INSTRUMENT, campaign_state, default_ledger_path)
 from .gate_runner import (GATES, GATE_ORDER, STAGE_GATE_TIMEOUT, gate_help,
                           run_gate)
 from .paths import REPO_ROOT
@@ -2265,7 +2265,15 @@ def _cmd_flush(opts, settings):
                     "every close needs finding, cure and read")
         return instruments, closes
 
-    ledger_path = opts.ledger or f"{campaign_path}.events.jsonl"
+    ledger_path = opts.ledger or default_ledger_path(campaign_path)
+    if getattr(opts, "status", False):
+        # The status face is a read of the ledger the run face writes: no
+        # judge, no pass, nothing appended. The MCP `flush_run` tool calls the
+        # same projection, so the two surfaces cannot disagree.
+        result = campaign_state(ledger_path)
+        result["ledger"] = ledger_path
+        _emit(result, opts.out, force_json=getattr(opts, "json", False))
+        return result
     loop = FlushLoop(
         ledger=EventLedger(ledger_path), judges=judges,
         supported_instruments=supported,
