@@ -35,6 +35,59 @@ def _executor(*, allow_write=True, dry_run=False):
                     dry_run=dry_run, audit=MemoryAuditLog())
 
 
+class _Buffer:
+    def __init__(self):
+        self.value = ""
+
+
+class FakeCtypes:
+    """The one ``ctypes`` call the window API makes, without a real library."""
+
+    @staticmethod
+    def create_unicode_buffer(size):
+        return _Buffer()
+
+
+class FakeUser32:
+    """A user32 stand-in built out of the cases the matcher must refuse.
+
+    Hidden (4), a title differing by case (2) or whitespace (3), an empty
+    title (6), two windows with one title (1 and 5, an ambiguity), and a
+    window that exists but refuses to hand its title over (7).
+    """
+
+    def __init__(self):
+        self.titles = {1: "Harness smoke target",
+                       2: "Harness Smoke Target",
+                       3: "Harness smoke target ",
+                       4: "Harness smoke target",
+                       5: "Harness smoke target",
+                       6: "",
+                       7: "Harness smoke target"}
+        self.visible = {1, 2, 3, 5, 6, 7}
+        self.unreadable = {7}
+
+    def EnumWindows(self, proc, _param):
+        for hwnd in sorted(self.titles):
+            proc(hwnd, 0)
+        return True
+
+    def IsWindowVisible(self, hwnd):
+        return hwnd in self.visible
+
+    def GetWindowTextLengthW(self, hwnd):
+        return len(self.titles[hwnd])
+
+    def GetWindowTextW(self, hwnd, buffer, size):
+        if hwnd in self.unreadable:
+            return 0
+        buffer.value = self.titles[hwnd][:size - 1]
+        return len(buffer.value)
+
+    def SetForegroundWindow(self, hwnd):
+        return hwnd == 1
+
+
 class WildcardTests(unittest.TestCase):
     """There is no wildcard grant, for any class."""
 
@@ -345,8 +398,6 @@ class InputBackendTests(unittest.TestCase):
     def test_native_backend_is_unavailable_on_unsupported_platforms(self):
         self.assertIsNone(osal.native_input_backend(platform="linux"))
 
-    @unittest.skipUnless(osal.platform_name() == "windows",
-                         "the in-repo default binds the real user32")
     def test_native_backend_ships_an_in_repo_window_api(self):
         """The documented ``DRIVER_NATIVE_INPUT`` path must be buildable.
 
@@ -355,12 +406,90 @@ class InputBackendTests(unittest.TestCase):
         instead of producing a backend -- and ``input_backends()`` therefore
         stayed empty on every machine. That is the state the coordinator
         probe measured, so the default is now the in-repo user32 binding.
+
+        The platform library is injected so the claim is measured on every
+        host: what this pins is that no caller-supplied window API is needed
+        any more and that the default is the in-repo one, named.
         """
-        backend = osal.native_input_backend(platform="windows")
+        binding = (FakeCtypes, FakeUser32(), lambda visit: visit)
+        with mock.patch.object(osal, "platform_name", return_value="windows"), \
+                mock.patch.object(osal, "_bind_user32", return_value=binding):
+            backend = osal.native_input_backend(platform="windows")
         self.assertIsNotNone(backend)
         assert backend is not None
         self.assertEqual(backend.name, osal.WINDOWS_INPUT_BACKEND_NAME)
+        self.assertEqual(backend.platform, "windows")
         self.assertEqual(backend.supported_kinds, ("focus",))
+
+    def test_a_binding_that_says_no_keeps_its_own_words(self):
+        """An OsalError from the binding is reported as itself.
+
+        Wrapping it would replace the sentence that names what is actually
+        missing with a generic message about ctypes.
+        """
+
+        def explode():
+            raise OsalError("user32 refused the console session")
+
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            with self.assertRaises(OsalError) as caught:
+                osal._WindowsWindowApi(bind=explode)
+        self.assertIn("refused the console session", str(caught.exception))
+
+    def test_the_binding_declares_every_entry_point_it_uses(self):
+        """The declaration block is provable where user32 does not exist.
+
+        An undeclared argument type or restype is the defect that survives
+        to the one machine that could notice it, so the block is exercised
+        against injected modules instead of being trusted until a Windows
+        run happens to touch it.
+        """
+
+        class FakeWintypes:
+            BOOL = "BOOL"
+            HWND = "HWND"
+            LPARAM = "LPARAM"
+            LPWSTR = "LPWSTR"
+
+        class Entry:
+            def __init__(self):
+                self.argtypes = None
+                self.restype = None
+
+        class DeclaredUser32:
+            def __init__(self):
+                for name in ("EnumWindows", "IsWindowVisible",
+                             "GetWindowTextLengthW", "GetWindowTextW",
+                             "SetForegroundWindow"):
+                    setattr(self, name, Entry())
+
+        seen = {}
+
+        class FakeCtypes:
+            c_int = "c_int"
+
+            @staticmethod
+            def WinDLL(name, **kwargs):
+                seen["dll"] = (name, kwargs)
+                return DeclaredUser32()
+
+            @staticmethod
+            def WINFUNCTYPE(*types):
+                return ("WINFUNCTYPE",) + types
+
+        module, user32, enum_proc = osal._bind_user32(
+            ctypes_module=FakeCtypes, wintypes_module=FakeWintypes)
+        self.assertIs(module, FakeCtypes)
+        self.assertEqual(seen["dll"][0], "user32")
+        self.assertTrue(seen["dll"][1].get("use_last_error"))
+        self.assertEqual(enum_proc, ("WINFUNCTYPE", "BOOL", "HWND", "LPARAM"))
+        self.assertEqual(user32.EnumWindows.argtypes, (enum_proc, "LPARAM"))
+        self.assertEqual(user32.EnumWindows.restype, "BOOL")
+        self.assertEqual(user32.IsWindowVisible.argtypes, ("HWND",))
+        self.assertEqual(user32.GetWindowTextLengthW.restype, "c_int")
+        self.assertEqual(user32.GetWindowTextW.argtypes,
+                         ("HWND", "LPWSTR", "c_int"))
+        self.assertEqual(user32.SetForegroundWindow.restype, "BOOL")
 
     def test_the_default_window_api_fails_closed_away_from_windows(self):
         """Binding user32 is refused by name, not by an import error."""
@@ -386,50 +515,15 @@ class InputBackendTests(unittest.TestCase):
         two matches are an ambiguity rather than a pick.
         """
 
-        class Buffer:
-            def __init__(self):
-                self.value = ""
-
-        class FakeCtypes:
-            @staticmethod
-            def create_unicode_buffer(size):
-                return Buffer()
-
-        class FakeUser32:
-            def __init__(self):
-                self.titles = {1: "Harness smoke target",
-                               2: "Harness Smoke Target",
-                               3: "Harness smoke target ",
-                               4: "Harness smoke target",
-                               5: "Harness smoke target",
-                               6: ""}
-                self.visible = {1, 2, 3, 5, 6}
-
-            def EnumWindows(self, proc, _param):
-                for hwnd in sorted(self.titles):
-                    proc(hwnd, 0)
-                return True
-
-            def IsWindowVisible(self, hwnd):
-                return hwnd in self.visible
-
-            def GetWindowTextLengthW(self, hwnd):
-                return len(self.titles[hwnd])
-
-            def GetWindowTextW(self, hwnd, buffer, size):
-                buffer.value = self.titles[hwnd][:size - 1]
-                return len(buffer.value)
-
-            def SetForegroundWindow(self, hwnd):
-                return hwnd == 1
-
         with mock.patch.object(osal, "platform_name", return_value="windows"):
             api = osal._WindowsWindowApi(
                 bind=lambda: (FakeCtypes, FakeUser32(), lambda visit: visit))
 
         # Hidden (4) excluded; case (2) and whitespace (3) are different
-        # windows; the empty title (6) reads as no title at all.
+        # windows; the empty title (6) reads as no title at all, and a title
+        # the window refuses to hand over (7) is not a target either.
         self.assertEqual(api._title_of(6), "")
+        self.assertEqual(api._title_of(7), "")
         self.assertEqual(api.find_exact_visible("Harness smoke target"),
                          [1, 5])
         self.assertEqual(api.find_exact_visible("Harness Smoke Target"), [2])

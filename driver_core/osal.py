@@ -1272,16 +1272,26 @@ def input_backend_supports(backend, kind):
     return kind in supported
 
 
-def _bind_user32():
+def _bind_user32(*, ctypes_module=None, wintypes_module=None):
     """Load ``user32`` and declare the entry points the window API uses.
 
     Bound lazily and never at module import time: a module that bound
     ``user32`` on import would make this whole package unimportable on a
     machine without it, which is a far larger failure than the one this
     capability is allowed to cause.
+
+    ``ctypes_module``/``wintypes_module`` are a test seam: the declaration
+    block below is the part that can be wrong (an argument type, a restype,
+    a missing entry point), and it is worth proving on a machine that has no
+    ``user32`` at all rather than only on the one platform that does. The
+    defaults load the real modules.
     """
-    import ctypes
-    from ctypes import wintypes
+    if ctypes_module is None:
+        import ctypes as ctypes_module
+    if wintypes_module is None:
+        from ctypes import wintypes as wintypes_module
+    ctypes = ctypes_module
+    wintypes = wintypes_module
 
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND,
