@@ -40,10 +40,10 @@ version: 2.1
 # (single-OS images; the installed-package legs rebuild the wheel
 # in-job -- CircleCI has no cross-job artifact store equivalent in
 # this config -- and smoke the same wheel layout). Checkout hygiene
-# is ported as its own job. The other Actions-era jobs (Change scope,
-# changed-file typecheck, Driving hygiene, UI Playwright smoke by
-# that name, handoff scope) are NOT required contexts and stay
-# unported in this pass.
+# is ported as its own job. Driving hygiene was ported later (#440) as
+# the blocking `driving-hygiene` job. The other Actions-era jobs
+# (Change scope, changed-file typecheck, UI Playwright smoke by that
+# name, handoff scope) are NOT required contexts and stay unported.
 #
 # Secrets/variables, set on the CircleCI project, never in this file:
 #   OPENROUTER_API_KEY  optional. The audit's live model-freshness
@@ -196,6 +196,17 @@ jobs:
             fi
             echo "working tree clean; eol inventory:"
             git ls-files --eol | awk '{print $1}' | sort | uniq -c
+
+  driving-hygiene:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          name: Demonstrate deterministic check fixtures
+          command: python -m unittest tests.test_driving_hygiene -v
+      - run:
+          name: Scan PR text, diff, credentials, and issue plans
+          command: python scripts/driving_hygiene_ci.py
 
   ui-playwright-smoke:
     executor: python-node
@@ -414,6 +425,9 @@ workflows:
       - checkout-hygiene:
           context: github-statuses
           name: "Checkout hygiene"
+      - driving-hygiene:
+          context: github-statuses
+          name: "driving-hygiene"
       - ui-playwright-smoke:
           context: github-statuses
       - audit:
