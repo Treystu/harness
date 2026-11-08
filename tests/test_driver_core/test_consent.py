@@ -77,6 +77,7 @@ class FakeUser32:
         self.visible = {1, 2, 3, 5, 6, 7}
         self.unreadable = {7}
         self.unreadable_length = set()
+        self.zero_copy_without_error = set()
         self.raise_visible = set()
         self.enum_fail_after = None
         self.focused = []
@@ -102,6 +103,8 @@ class FakeUser32:
         return len(self.titles[hwnd])
 
     def GetWindowTextW(self, hwnd, buffer, size):
+        if hwnd in self.zero_copy_without_error:
+            return 0
         if hwnd in self.unreadable:
             FakeCtypes.set_last_error(5)
             return 0
@@ -585,6 +588,23 @@ class InputBackendTests(unittest.TestCase):
                 "focus", target="Harness smoke target")
         self.assertFalse(ok)
         self.assertIn("GetWindowTextW failed", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_zero_copy_without_last_error_after_positive_length_refuses(self):
+        user32 = FakeUser32()
+        user32.visible = {1, 7}
+        user32.unreadable.clear()
+        user32.zero_copy_without_error.add(7)
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("after a positive GetWindowTextLengthW result", detail)
         self.assertEqual(user32.focused, [])
 
     def test_failed_enumeration_discards_partial_matches(self):

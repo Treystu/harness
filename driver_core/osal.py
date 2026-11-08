@@ -1360,7 +1360,9 @@ class _WindowsWindowApi:
                 f"GetWindowTextW failed for window {int(hwnd)} "
                 f"(Win32 error {error})")
         if copied == 0:
-            return ""
+            raise OsalError(
+                f"GetWindowTextW returned no text for window {int(hwnd)} "
+                "after a positive GetWindowTextLengthW result")
         return buffer.value
 
     def find_exact_visible(self, title):
