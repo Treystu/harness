@@ -14,6 +14,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from driver_core import osal
 from driver_core.actions import DEFAULT_VOCABULARY
@@ -344,11 +345,83 @@ class InputBackendTests(unittest.TestCase):
     def test_native_backend_is_unavailable_on_unsupported_platforms(self):
         self.assertIsNone(osal.native_input_backend(platform="linux"))
 
-    def test_native_backend_without_a_window_api_fails_closed(self):
-        """The opt-in path must name what is missing, not raise NameError."""
-        with self.assertRaises(RuntimeError) as caught:
-            osal.native_input_backend(platform="windows")
-        self.assertIn("injected window API", str(caught.exception))
+    def test_native_backend_ships_an_in_repo_window_api(self):
+        """The documented ``DRIVER_NATIVE_INPUT`` path must be buildable.
+
+        The backend used to require a window API that nothing in this repo
+        supplied, so enabling the documented switch on Windows raised
+        instead of producing a backend -- and ``input_backends()`` therefore
+        stayed empty on every machine. That is the state the coordinator
+        probe measured, so the default is now the in-repo user32 binding.
+        """
+        backend = osal.native_input_backend(platform="windows")
+        self.assertIsNotNone(backend)
+        assert backend is not None
+        self.assertEqual(backend.name, osal.WINDOWS_INPUT_BACKEND_NAME)
+        self.assertEqual(backend.supported_kinds, ("focus",))
+
+    def test_the_default_window_api_fails_closed_away_from_windows(self):
+        """Binding user32 is refused by name, not by an import error."""
+        with mock.patch.object(osal, "platform_name", return_value="linux"):
+            with self.assertRaises(OsalError) as caught:
+                osal._WindowsWindowApi()
+        self.assertIn("user32", str(caught.exception))
+
+    def test_registering_the_native_backend_is_what_fills_health(self):
+        """Nothing registers implicitly; one explicit call does."""
+
+        class WindowApi:
+            def find_exact_visible(self, title):
+                return [7] if title == "Harness smoke target" else []
+
+            def focus(self, hwnd, title):
+                return True
+
+        self.assertEqual(osal.input_backends(), {})
+        osal.register_native_input_backend(platform="windows",
+                                           window_api=WindowApi())
+        self.addCleanup(osal.disable_input_backend, "windows")
+        reported = osal.input_backends()["windows"]
+        self.assertEqual(reported.name, osal.WINDOWS_INPUT_BACKEND_NAME)
+        self.assertEqual(reported.supported_kinds, ("focus",))
+        ok, detail = osal.send_input("focus", target="Harness smoke target")
+        self.assertTrue(ok, detail)
+        ok, detail = osal.send_input("click", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("does not support 'click'", detail)
+
+    def test_the_native_backend_refuses_an_undeclared_platform(self):
+        with self.assertRaises(OsalError) as caught:
+            osal.register_native_input_backend(platform="linux")
+        self.assertIn("Windows-only", str(caught.exception))
+
+    def test_native_focus_still_needs_consent_for_the_exact_title(self):
+        """Registration is capability existence; consent is permission."""
+        focused = []
+
+        class WindowApi:
+            def find_exact_visible(self, title):
+                return [11] if title == "Harness smoke target" else []
+
+            def focus(self, hwnd, title):
+                focused.append(title)
+                return True
+
+        osal.register_native_input_backend(platform="windows",
+                                           window_api=WindowApi())
+        self.addCleanup(osal.disable_input_backend, "windows")
+        executor = _executor()
+        with self.assertRaises(ConsentError):
+            executor.execute("focus", {"target": "Harness smoke target"})
+        with self.assertRaises(ConsentError):
+            executor.execute("focus", {"target": "Harness smoke target"},
+                             consent=Consent(True, "focus",
+                                             {"target": "Another window"}))
+        result = executor.execute(
+            "focus", {"target": "Harness smoke target"},
+            consent=Consent(True, "focus", {"target": "Harness smoke target"}))
+        self.assertTrue(result.ok, result)
+        self.assertEqual(focused, ["Harness smoke target"])
 
     def test_a_backend_can_be_withdrawn_at_runtime(self):
         """Observe the machine, never drive it -- as a policy, not an

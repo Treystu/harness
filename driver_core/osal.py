@@ -913,6 +913,11 @@ INPUT_KINDS = ("click", "type", "key", "focus", "scroll", "submit")
 #: module docstring for why empty is the shipped state.
 _INPUT_BACKENDS = {}
 
+#: The name the in-repo native Windows backend reports itself under, so a
+#: health read can name the capability instead of printing a repr. Stable
+#: on purpose: an operator script may branch on it.
+WINDOWS_INPUT_BACKEND_NAME = "windows-user32-focus"
+
 
 def register_input_backend(platform, backend):
     """Register the backend that performs synthetic input on ``platform``.
@@ -1267,6 +1272,83 @@ def input_backend_supports(backend, kind):
     return kind in supported
 
 
+class _WindowsWindowApi:
+    """The window operations the native backend needs, via ``user32``.
+
+    Deliberately tiny: enumerate top-level windows, read exact titles, and
+    bring one to the foreground. Nothing here moves a cursor, synthesises a
+    keystroke, reads a window's contents or closes anything, so a backend
+    built on this API cannot do more than the one kind it declares.
+
+    The binding is created per instance rather than at import time. A module
+    that binds ``user32`` on import would make the whole package unimportable
+    on a machine without it, which is a far larger failure than the one this
+    capability is allowed to cause; here the failure is a named refusal at
+    the moment somebody asks for native input.
+    """
+
+    name = "windows-user32"
+
+    def __init__(self):
+        if platform_name() != "windows":
+            raise OsalError(
+                f"the native window API binds Windows user32, which does not "
+                f"exist on {platform_name()!r}")
+        try:
+            import ctypes
+            from ctypes import wintypes
+        except Exception as exc:  # pragma: no cover - platform dependent
+            raise OsalError(
+                f"native Windows input needs ctypes and user32: {exc}") from None
+        self._ctypes = ctypes
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        self._user32 = user32
+        self._enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND,
+                                             wintypes.LPARAM)
+        user32.EnumWindows.argtypes = (self._enum_proc, wintypes.LPARAM)
+        user32.EnumWindows.restype = wintypes.BOOL
+        user32.IsWindowVisible.argtypes = (wintypes.HWND,)
+        user32.IsWindowVisible.restype = wintypes.BOOL
+        user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
+        user32.GetWindowTextLengthW.restype = ctypes.c_int
+        user32.GetWindowTextW.argtypes = (wintypes.HWND, wintypes.LPWSTR,
+                                          ctypes.c_int)
+        user32.GetWindowTextW.restype = ctypes.c_int
+        user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
+        user32.SetForegroundWindow.restype = wintypes.BOOL
+
+    def _title_of(self, hwnd):
+        length = self._user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return ""
+        buffer = self._ctypes.create_unicode_buffer(length + 1)
+        if self._user32.GetWindowTextW(hwnd, buffer, length + 1) <= 0:
+            return ""
+        return buffer.value
+
+    def find_exact_visible(self, title):
+        """Handles of visible top-level windows whose title is exactly title."""
+        found = []
+
+        def visit(hwnd, _param):
+            if self._user32.IsWindowVisible(hwnd) and self._title_of(hwnd) == title:
+                found.append(int(hwnd))
+            return True
+
+        self._user32.EnumWindows(self._enum_proc(visit), 0)
+        return found
+
+    def focus(self, hwnd, title):
+        """Ask Windows to bring one window to the foreground.
+
+        ``SetForegroundWindow`` is refused by the shell when the calling
+        process is not already the foreground process; that refusal is real
+        and is reported as one, because pretending the window moved would be
+        the exact class of lie this package exists to prevent.
+        """
+        return bool(self._user32.SetForegroundWindow(hwnd))
+
+
 def native_input_backend(platform=None, *, window_api=None):
     """Return the opt-in native backend available on ``platform``.
 
@@ -1276,18 +1358,16 @@ def native_input_backend(platform=None, *, window_api=None):
     widen the exact consent the operator supplied. Other platforms and kinds
     remain refused until they have equally bounded implementations.
 
-    ``window_api`` supplies the small window operations used below. There is
-    no default implementation, so omitting it fails closed with a named error
-    instead of a ``NameError`` from a class that does not exist.
+    ``window_api`` supplies the small window operations used below; omitting
+    it uses the in-repo :class:`_WindowsWindowApi`. Having a backend object
+    is not permission to drive: it becomes reachable through
+    :func:`send_input` only when a host registers it, and every mutating
+    action still needs consent for its exact parameters.
     """
     platform = platform or platform_name()
     if platform != "windows":
         return None
-    if window_api is None:
-        raise RuntimeError(
-            "native Windows input needs an injected window API; "
-            "driver_core ships no default implementation")
-    api = window_api
+    api = _WindowsWindowApi() if window_api is None else window_api
 
     def focus_backend(kind, *, value=None, target=None):
         if kind != "focus":
@@ -1305,8 +1385,41 @@ def native_input_backend(platform=None, *, window_api=None):
             return False, f"Windows refused to focus the window titled {target!r}"
         return True, "focused exact-title window"
 
+    focus_backend.name = WINDOWS_INPUT_BACKEND_NAME
+    focus_backend.platform = platform
     focus_backend.supported_kinds = ("focus",)
     return freeze_input_backend(focus_backend)
+
+
+def register_native_input_backend(platform=None, *, window_api=None):
+    """Register the in-repo native backend for this machine, and report it.
+
+    This is the explicit act the empty shipped state is waiting for. It is
+    deliberately a function call rather than an import side effect or a
+    settings default: what a machine may be *driven* by is a deployment
+    decision, so it takes a caller that decided, not a flag that happened to
+    be set in the environment of a process nobody was watching.
+
+    Registration is capability existence, never action permission. ``focus``
+    is declared ``MUTATING``, so every request still has to carry consent for
+    exactly ``(focus, {"target": <window title>})`` -- see
+    :meth:`driver_core.executor.Executor.check_consent`. A backend registered
+    here cannot widen that, and :func:`disable_input_backend` withdraws it
+    again without a restart.
+
+    Returns the registered backend record. Raises :class:`OsalError` on a
+    platform with no native implementation instead of returning a backend
+    that would refuse every request.
+    """
+    platform = platform or platform_name()
+    backend = native_input_backend(platform, window_api=window_api)
+    if backend is None:
+        raise OsalError(
+            f"no native input backend is implemented for {platform!r}; the "
+            f"in-repo backend is Windows-only, so an embedding application "
+            f"must supply one on this platform")
+    register_input_backend(platform, backend)
+    return backend
 
 
 class _FrozenInputBackend:
@@ -1324,6 +1437,15 @@ class _FrozenInputBackend:
     @property
     def supported_kinds(self):
         return self._supported_kinds
+
+    @property
+    def name(self):
+        """The backend's own name, so a health read can print one."""
+        return getattr(self._backend, "name", type(self._backend).__name__)
+
+    @property
+    def platform(self):
+        return getattr(self._backend, "platform", None)
 
     def __call__(self, kind, *, value=None, target=None):
         return self._backend(kind, value=value, target=target)
