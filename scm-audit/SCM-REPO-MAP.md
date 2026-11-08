@@ -1,0 +1,3512 @@
+# REPO-MAP — Harness through the hourglass
+
+- generated: 2026-09-25T17:17:14Z  |  pack: `harness-repo-summary-v1`  |  schema: repo-summary-v1
+- coverage: 3638 judged (3419 live / 219 fallback), 0 pending, stop=`complete`
+- spend: $0.014033 over 3638 calls (3341173 in / 826147 out tokens) of $0.25 run budget
+- every keyed call was preflighted, settled, and appended to the autonomy ledger at site=`repo_summary` (`harness ledger verify` proves the chain)
+- markers: **[fallback]** = keyword fallback (never presented as live) | **[?]** = an axis below 0.5 confidence (near-tie; the seat may flip it run to run)
+
+## Axis tallies (declared keys only; `unmatched` is honest, never smoothed)
+
+- **stage** (3638): condense=1155, adjudicate=883, prep=545, cross_cutting=378, dispatch=345, waist=238, unmatched=94
+- **brief_treatment** (3638): exclude_raw=3070, signature=223, unmatched=153, cited_window=70, grounded_claim=64, failure_evidence=58
+- **handling** (3638): code_owned=1714, scout=1586, unmatched=174, standard=99, frontier=65
+
+## Attention
+
+- notable: include when goal touches it: 1791
+- background: omit from a tight brief: 1272
+- central: in any repo-wide waist brief: 356
+- unmatched: 219
+- mean winning probability: 0.562153
+
+## Nouls (threshold 0.5, code-owned)
+
+- parallel_safe: true=20 false=3399 unanswered=0
+- waist_relevant: true=42 false=3377 unanswered=0
+
+## Stage: prep
+
+- `HANDOFF/STATE/.hermes-tmp.94124` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/U2_TOPIC_CONSTANTS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/_ios_before_inventory.txt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ORCHESTRATOR_START_HERE.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/PQC_SEEDING_SECURITY_HARDENING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cloud/orchestrator/main.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `scripts/p2_06_scratch.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scratch/view_diff.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/_ios_migration_pre_status.txt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scratch/list_groq_models.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/debug-session.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/PQC_07_ATTEMPT4_DRAFT_UNREVIEWED.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/DOC_PASS_TRACKER.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/E-02_PQC_07_FORCE_RATCHET_SAME_DEFE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/message/types.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/engine.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/diagnose_message_issue.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/behaviour/listen_addresses.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/archive/commands/swarm.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/bin/conn-fanout.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/count_braces.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `reference/historical/snapshot_mesh2.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/OllamaQuotaScraper.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/CORE_SWEEP_04_systemic_unix_epoch_expect_pattern.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/A3_ROUTING_PEER_SEEN_ANALYSIS_2026-08-10.md` — attention: background: omit from a tight brief — brief_treatment=grounded_claim, handling=scout **[?]**
+- `SUPPORT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cloud/mesh/profiles/ble_nearby.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_SCOPING_UDP_QUIC_ADMISSION_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/list_b1_tasks.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/U2_topic_constants.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/routing/global.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scratch/discover_mdns.js` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/adb_diagnose.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_compile_fixes_4.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/QWEN_IDENTITY_CANONICALIZATION_CRITICAL.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_REQUEST_IOS_LOGS_REGRESSION_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/UNIFY_CODEBASE_DECONFLICT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/MessageOrder.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/add_file.rb` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `skills/mesh-diagnostics/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/android_emulator_setup_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `scripts/fireworks_opinion.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/prompts/coordinator.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/MORPH_LITE_HANDOFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/P2_NON_SWARM_TRANSPORT_ROUTING_FEED.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `docs/TODO_TESTS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/build_wiring_graph.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/fix_hybrid.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/connection/supported_protocols.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/eprintln_to_tracing_inventory.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/discovery/REPO_MAP.jsonl` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/KMP_UNBLOCK_DESKTOP_BRIDGE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_IDENTITY_001_ANR_FIXES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_IDENTITY_002_NICKNAME_AND_STATE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/A-05_U6_iOS_receipt_unification.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/D-01_FARM_TESTRUNNER_REST_API_GAP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docker/provision_contacts.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/tests/helpers/xcrun` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/ollama_catalog.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/plans/snazzy-spinning-dongarra.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/hooks/session_orientation.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/BLUETOOTH_DISCOVERY_PARITY_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_003_Identity_Import_UI.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_03_IDENTITY_V2_KEYBUNDLE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/manager.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-08_UNIFIED_BACKLOG.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/P1_CORE_003_Mycorrhizal_Routing_Activation.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T14_PREEXISTING_DHT_BUGS_TICKET_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/gpt/WINDOWS_IOS_BUILD_PARITY_REQUEST_2026-08-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/dspy/modules.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/wifi_direct.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `gradlew.bat` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/OllamaQuotaScraper.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/qwen_mdns_worker.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/soak_boot.cmd` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/IMMEDIATE_NEXT_STEPS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_CORE_CROSS_B1B2B8.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/gpt/MAC_WINDOWS_BLE_PARITY_QUEUE_2026-08-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/REPO_MAP_android.jsonl` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/desktopMain/kotlin/com/scmessenger/shared/desktop/ContactList.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/runbooks/HARNESS_MCP_SETUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `reference/historical/snapshot_mesh.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/watch_message_send.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/APP_SHARING_IOS_PARITY_CROSS_INSTALL_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_IDENTITY_002d_Remaining_Validation_and_UDL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P3_ANDROID_NEEDS_PLANNING_SMARTTRANSPORTROUTER_DEAD_PARAMS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `android/gradlew.bat` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/routing/mod.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/BURNDOWN_SCRIPT_GUIDE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/ollama_monitor.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `CONTRIBUTING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/P2_ANDROID_FCM_001_Push_Notifications.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_android_hardening.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/P1_ANDROID_UNIFFI_CURVE_CHECK_RELOCATION.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=standard **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/ShareReceiver.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/install-clean.bat` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scratch/sweep.py` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `.claude/scripts/process_alive.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/ANDROID_FRESH_INSTALL_RUN2_READY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P3_ANDROID_NEEDS_PLANNING_IDENTITY_STATE_NO_REGRESS_FROM_READY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/gpt/WINDOWS_BLE_ONDATARECEIVED_NEVER_RETURNS_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_LOG_BUNDLE_PROTOCOL_2026-08-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/V040_LEDGER_SEEDING_AND_GOSSIP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/service/BootReceiver.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/inbox.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/transport/abstraction.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/AUTO_UPDATE_PLAN_ALPHA.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/scripts/batch_splitter.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_IOS_LANE_KICKOFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `cli/build.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ANDROID_RELEASE_SIGNING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/rules/DELEGATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `scripts/install.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/query_repograph.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T1.1/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/scripts/sync_pool.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/CLI_PARITY_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/IN_PROGRESS/GITHUB_V1_0_0_RUNNER_SETUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/IN_PROGRESS/PQC09_HYBRID_ONION_INVESTIGATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/INVESTIGATE_ANDROID_DIAL_NETWORKERROR.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/task_wire_getAvailableTransports.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_BEACH_JOIN_PHASE0_1_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/BLE_OFFLINE_DEMO_PLAYBOOK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/FIVE_NODE_UNIFIED_TEST_PLAN_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/identity_state_regression_fix_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/plans/smart_transport_router_params_cleanup_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/P1_ANDROID_COLDSTART_NOTIFICATION_AND_SCAFFOLD_2026-09-16.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/P2_ANDROID_KOTLIN_WARNING_TRIAGE_2026-09-14.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/STUBS_AND_UNIMPLEMENTED.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/plans/CONTACT_PERSISTENCE_FIX_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/orchestration/BACKUP_AGENTS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Data/TopicManager.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/parse_ios_log.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/repository-production-readiness/tasks.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_IMPLEMENTATION_PLAN_WIFI_IDENTITY_2026-09-21.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/FABLE5_FOLLOWUP_F4_F7_F8.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/PR_MERGE_UNIFY_PLAN_2026-08-04.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/P2_WIRE_ENVELOPE_TRUNCATION_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `iOS/assert-generated-path.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `mobile/build.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/aws_node_ip.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/generate_wiring_patch_manifest.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `scripts/p2_06_strict_fix.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/P1_DIAL_POLICY_CHECKLIST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/GRACEFUL_AF_DIAL_POLICY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_SUITE_NEGOTIATION_TEST_FAILURES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_T13_FDHT_KADEMLIA_DISCLOSURE_PROPOSAL_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/FIVE_NODE_RUN_2_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/hint_store.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/agent_monitor.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/analyze_issues.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/pr_scope.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/triage_lane.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `.kiro/specs/scmessenger-rust-transformation/phase1-lock-catalog.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/DESKTOP_BRIDGE_WIRING_SPEC.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/LAUNCH_NEXT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-05_ORCHESTRATION_INDEX.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/AWS_CLOUD_NODE_PRELAUNCH_CHECKLIST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T7_ANDROID_PARITY_STAGING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/IOS_ANDROID_PAIRED_CAPTURE_REQUEST_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/todo/D3_SELF_RECIPIENT_POISON_GUARD.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `cloud/mesh/Dockerfile.cli` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/routing/negative_cache.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/DSP_SCM_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/WS13.6_COMPATIBILITY_MIGRATION_MATRIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/iOS_BUILD_DEPLOY_GUIDE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/p2_06_compile_fixes_2.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.qwen/commands/CTO.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V1_0_0_EXECUTION_PLAN.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/INVESTIGATE_IDENTITY_OPTIONAL_RELAY_MODE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_01_DEPENDENCY_MLKEM.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/A-04_U5_Android_receipt_unificatio.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/IN_PROGRESS_task_security_tooling.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/SubnetProbe.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/relay/delegate_prewarm.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/transport/wifi_aware.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/build.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/QUICKSTART.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/scripts/build-rust.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ops/LOG_EXTRACTION_STANDARD.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/platform/CLI_SETUP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/build_desktop.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/clean_target.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_compile_fixes_3.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/orchestration/QUICKSTART_OLLAMA.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE0-UNWRAP-REMEDIATION-NEEDED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/IN_PROGRESS/U2_TOPIC_CONSTANTS_CENTRALIZE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATOR_TAKEOVER_2026-08-09_WINDOWS_LANE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-08_ORCHESTRATOR_LIVE.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/IN_PROGRESS_task_swarm_fixes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_MINIMUM_UNBLOCK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/results/FARM_SIM_V1_0_0_EXECUTION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/dashboard/PeerListScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/main.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ANDROID_COMPLETION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/REPO_LAYOUT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/SCRIPT_IMPLEMENTATION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Transport/LocalTransportFallback.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Views/Onboarding/OnboardingFlow.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/resource_manager.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/skills/docs-sync/SKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/D-03_iOS_XCTest_target_register_SC.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P4_ANDROID_RECEIPT_UNIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_cli_swarm_stats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/research/2026-06-05_DYNAMIC_PORT_DISCOVERY_RESEARCH.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/U4_receipt_encoding.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/gradle/wrapper/gradle-wrapper.jar` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/ble_mesh.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/resume_prefetch.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docker/build.Dockerfile` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/analyze_mesh.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/triage.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/scripts/structural_cartographer.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/C-05_P1_14_hostile_network_test_lo.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/CROSS_OS_BUILD_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/plans/PRODUCTION_ROADMAP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/correlate_relay_flap_windows.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/get_peer_ids.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE1-COMPLETE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/DISCOVERY_ISSUE_DIAGNOSIS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/P1_WASM_002_NOTIFICATION_VERIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ANDROID_SWEEP_02_NEEDS_PLANNING_smart_transport_router_unused_params.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/D-01_FARM_TESTRUNNER_REST_API.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/gpt/WINDOWS_QWEN_CONSOLIDATION_REQUEST_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/QWEN_ITERATION_PLAN_2026-07-08.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/CODEBASE_UNIFICATION_PLAN.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF_AUDIT/REPO_MAP_other.jsonl` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/implementation_plan-5-3-26.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `android/.claude/orchestrator_manager.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/ble/scanner.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ORCHESTRATION_PLAYBOOK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/APP_VERSION_0.1.2_ALPHA_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/fable5_readiness_prompt.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/copy-bindings.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/capture_logs.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/ensure_models.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/preflight.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/merge_models.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/SMALL_FIXES_STATUS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/WIRING_TASK_INDEX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/T-04_T2.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/docs/SCHEMA_VERSIONING_MAP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P2_CORE_Bootstrap_Test_Depends_On_Unset_Env_Var.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T4_ROUTING_FEED_ON_CONNECTION_ESTABLISHED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/todo/GHOST_LEDGER_PRUNE_G1_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/RequestsInboxScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/crypto/negotiation.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/README.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/DEPLOYMENT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/platform/ANDROID_SETUP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `scripts/get-node-info.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/lake_route.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/model_manager.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/run_local_micro.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/COORDINATION_FALLBACK_PROTOCOL_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/RECOVERY_READINESS_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-06_HERMES_LOCAL_ONLY_SWITCH.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/CEO_CTO_SPINDOWN_AND_BOARD_PASS_3_2026-09-11.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/PQC_08_LEGACY_PATH_RETIREMENT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_safe_clear_proposal_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_CODEX_TAKEOVER_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/P1_SECURITY_RUSTLS_RUSTSEC_2026_0285_TRACKING.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=standard **[?]**
+- `android/app/src/main/java/com/scmessenger/android/network/NetworkTypeDetector.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BleScanner.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/ble_daemon.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/dspy/teleprompt.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/relay_health.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/build.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/PLATFORM_OPTIMIZATION_GUIDE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/WS13.6_HANDOVER_ABANDON_RUNBOOK.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/TRANSPORT_OPTIMIZATION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/ops/MAC_PLATFORM_BUILD_UNIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Views/Contacts/ContactsListView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `reference/historical/parse_connections.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `scripts/comprehensive_log_capture.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/generate_interop_matrix.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/jev_canonical_check.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.bob/skills/gemini-orchestrator/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.bob/skills/swarm/SKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/skills/delegate/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/tasks.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `AgentSwarmCline/scmessenger_swarm/swarm.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `FFI_WIRING_BURNDOWN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/ALPHA_TEST_LUCAS_JOSH_SETUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/GEMINI_ORCHESTRATOR_QUICKSTART.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/ORCHESTRATOR_TAKEOVER_2026-08-10_WINDOWS_LANE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/T-03_T1.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_SECURITY_002_Anti_Abuse_Controls.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_T11_UNRESOLVED_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_V040_V050_FOUR_NODE_PARITY_KICKOFF_2026-08-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/MILESTONE_RELEASE_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/V040_V050_FIVE_NODE_GATE_PLAN_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/cli_orphaned_modules_cleanup_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/todo/CORE_DIAL_CANDIDATE_DOUBLE_CIRCUIT_PRUNE_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/REJECTED/task_epic_wiring_draft.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/observability_tests.rs_chunk2.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/build.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/relay/peer_exchange.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/optimized_engine.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/mod.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/releases/RELEASE_SYNC_PLAN_V0.1.2_TO_V0.2.0.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/build-headless.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/delegate_task.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=standard **[?]**
+- `scripts/rebuild_ios_core.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/connection/pool/dial_ranker.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/detailed_mapping_update.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/scripts/targeted_reindex.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/README.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cloud/orchestrator/handlers/__init__.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/relay/client.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/NAT_TRAVERSAL_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/SIMPLE_INSTALL_IOS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/DETAILED-APLHA-0.1.2-PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/P1_ANDROID_FABLE_5_DISCOVERY_REPORT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/orchestration/LUCAS_JOSH_AND_FARM_SIM_REMAINING_TASKS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/platform/IOS_SETUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/ViewModels/ContactsViewModel.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/build_xcframework.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/generate_swift_bindings.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_add_fields.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/p2_06_compile_fixes.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.bob/skills/scmqwen/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codebuff_deploy/aws/launch.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.mimocode/plans/1781817574397-sunny-mountain.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/UNIFIED_V040_3NODE_PARITY_PLAN_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_MERGE_TRAIN_PLAN_2026-09-24.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/D-04_Emulator_instrumented_test_job.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/T-02_T1.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/scmessenger_rust_audit_optimization_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/MdnsServiceDiscovery.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/WifiTransportManager.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/setup-android-test-mocks.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/MILESTONE_PLAN_V0.2.0_ALPHA.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/SIMPLE_INSTALL_ANDROID.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/WASM_TRANSPORT_PARITY_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/fable5plan.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/test-plan-p0-fix.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/orchestration/SCM_UNIFIED_LAKE_ORCHESTRATION.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/platform/WASM_SETUP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/jq_wrapper.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `skills/philosophy-enforcer/references/interview-protocol.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/commands/orchestrate.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.qwen/commands/orchestrate.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260908T120957Z_PREFLIGHT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/MICROBATCH_ANDROID_KOTLIN_WIRING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T2_UNIFY_PEER_LEDGER_STORES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/freebuff/queue/V050_WP2_ROUTING_FEED_ALL_TRANSPORTS_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_ALL_NODES_FRESH_5NODE_GO_2026-08-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/implementation_plan_5.9.26.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/review/V040_S5_JOSH_WAN_RUNBOOK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/CO_A005_DOCTRINE_COPY_PLAN_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/RequestsInboxViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/build-scripts/build-android.bat` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/install-clean.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/GEMINI_ORCHESTRATOR_RUNBOOK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/ID_UNIFICATION_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/ANDROID_FIX_PLAN_2026-03-14.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/install-sim.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scm_v1_farm_queue.jsonl` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/build_desktop.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/device/README.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `scripts/generate_flow_map.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_encrypt.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/qwen_p1_13_docs_worker.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/qwen_p2_worker.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/archive/commands/scm.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/plans/bootstrap-wiring-qr-ip-bluetooth-plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/NEXT_STEPS_COMPLETION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CORE_SWEEP_03_ble_gatt_traits_never_implemented.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier
+- `HANDOFF/done/P0_JSONRPC_PARITY_EXPANSION_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_BEACH_JOIN_CONTINUATION_2026-09-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/gpt/WINDOWS_REQUEST_RELEASE_READINESS_AND_UNIFICATION_2026-07-29.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `REMAINING_WORK_TRACKING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `TRACKING_PRE_V040_TAG_WORK.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cloud/worker/android_worker_startup.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `cloud/worker/wasm_worker_startup.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/routing/multipath.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/routing/neighborhood.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/DOCUMENT_STATUS_INDEX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/IMPLEMENTATION_PATH_BUCKETS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/leanstral-execution-workflow.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `headless/main.js` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/agy_run.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_encrypt_v2.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_sm_migration.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/device/p1_16_ble_data_path.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.mimocode/plans/1781473320242-sunny-pixel.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/RECOVER_UNSAVED_WORK_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/V040_0_LANE_UNIFY_MERGE_TRAIN_2026-09-23.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_AWS_LEG_AND_FINAL_TREE_ARTIFACTS_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/U3_retry_policy.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/DEPENDENCY_DEBT_TOOLCHAIN_UPGRADE_2026-08-28.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `core/src/bin/gen_kotlin.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/crypto/mod.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/crypto/pq/hybrid.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/crypto/ratchet.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/local.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/REPO_MAP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/WS12.29_KNOWN_ISSUES_BURNDOWN_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/resolve-coredevice.jq` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `log-visualizer/server.mjs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/generate_uniffi_kotlin.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/qwen_p1_13_worker.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/scm.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/P1_PRUNE_CLAUDE_DATA_2026-08-08.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_agent_ironcore_stub.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/implementation_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `core/src/crypto/pq/mod.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/drift/frame.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/SWARM_IMPLEMENTATION_ROADMAP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/V0.2.0_PHASE_EXECUTION_PROMPTS.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `reference/shamir.ts` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `reference/double-ratchet.ts` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/archive/commands/scmorc.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE1-KICKOFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATOR_HANDOFF_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/data/IdentityCreationCoordinator.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/data/TopicManager.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/SmartTransportRouter.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/relay/protocol.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/bootstrap-topology.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/plans/PRODUCTION_ROADMAP_PRIORITIZED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS_V040_PARITY_IMPLEMENTATION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `reference/x3dh.ts` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/dry_run_5node_allocation.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/qwen_p1_05_worker.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/handler/map_out.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/local_cartographer.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.mimocode/plans/1781397817451-kind-otter.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/POST_GREEN_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_DIAG_PLAN_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/WIRING_MASTER_EXECUTION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/V040_ORCHESTRATION_PLAN.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/planfromclaudeforhermes.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/data/MeshRepository.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/bin/gen_swift.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/internet.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/multiport.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/MULTI_MODEL_ORCHESTRATION_STRATEGY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/qwen_p1_11_worker.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `.agents/skills/orchestrate/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/archive/commands/gemini-orchestrator.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/build_repo_index.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/ANTIGRAVITY_WIRING_IMPLEMENTATION_PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/archive/PQC_00_MASTER_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/phase_1a_compilation_baseline.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/UNIFICATION_V3_DELIVERY_CONVERGENCE_PLAN.md` — attention: central: in any repo-wide waist brief — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `cli/src/seed_dial.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/drift/sketch.rs` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=code_owned **[?]**
+- `core/src/drift/sync.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/relay/bootstrap.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/bin/gen_kotlin.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `headless/index.html` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_sm_hybrid.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/handler/select.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.bob/skills/scm/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.bob/skills/scmorc/SKILL.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.mimocode/plans/1781404997454-misty-orchid.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `CLAUDE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/SCMORC_KICKOFF_PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_task_ironcore_full.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_prepare_onion_message.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/bootstrap.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `cloud/scripts/orchestrator_startup.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/mod.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/archive/commands/scmqwen.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.mimocode/plans/1781820178810-happy-planet.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATOR_TAKEOVER_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/COMMIT_CHECKPOINT_PROMPT_multi-repo-2026-09-11.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/RFC1918_MESH_ROUTING_SPEC_2026-08-08.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `core/src/privacy/onion.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/COMMIT_CHECKPOINT_PROMPT_push-enabled-2026-09-11.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CEO_CTO_SYNC_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/TransportManager.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/worker/startup.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `cli/src/cli.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/keys.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=signature, handling=code_owned **[?]**
+- `core/README.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/identity/keys.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/store/storage.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/orchestration/unified-v1-orchestration-plan.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/scmessenger_rust_implementation_prompt.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/orchestration/SCM_V1_FARM_BUILD_MASTER_BACKLOG.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Transport/SmartTransportRouter.swift` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/done/GEMINI_SCMORC_DRIVER_2026-07-07.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `docker/entrypoint.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/orchestrator_manager.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/MASTER_SPRINT_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/DREAM_2026-08-06.md` — attention: central: in any repo-wide waist brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/discovery.rs_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `SHIP_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/ARCHITECTURE_MODULE_MAP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/ORCHESTRATION_CONTROL_PLANE_V2_DRAFT_PR.md` — attention: unmatched **[fallback]**
+- `HANDOFF/archive/BOOTSTRAP_TOPOLOGY_WIRING.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/P2_CLI_Orphaned_History_And_Contacts_Modules.md` — attention: unmatched **[fallback]**
+- `HANDOFF/plans/MEETING_MODE_DESIGN.md` — attention: unmatched **[fallback]**
+- `docs/historical/NAT_REFACTOR_PLAN.md` — attention: unmatched — handling=frontier **[fallback]**
+- `docs/historical/V0.2.1_ALPHA_ROLLOUT_PLAN.md` — attention: unmatched **[fallback]**
+- `docs/historical/plans/CELLULAR_NAT_SOLUTION.md` — attention: unmatched — brief_treatment=grounded_claim **[fallback]**
+
+## Stage: condense
+
+- `patch/libp2p-tcp/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/archive/commands/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/EXECUTION_NOTES_ARCHIVE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/scripts/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/test.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ARCHIVE_WORK_TRACKING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/test_websocket.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cli/tests/integration.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/android_logcat_4-23-26.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/REMAINING_WORK_TRACKING_ARCHIVE_2026.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/dummy.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/BRIEF_2026-08-31_state_pacing_and_next.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/integration_registration_protocol.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/behaviour/peer_addresses.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `wasm/CLI-WASM-logs.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/rules/rust.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/iron_core.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `reference/historical/continue_working_on_this.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/rules/android.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/rules/no-emojis.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/res/drawable/ic_splash.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/CompleteThis.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_LOG_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/res/drawable/ic_launcher_foreground.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/diagnostics/DiagnosticsBundleFormatter.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/examples/nat_reflection_demo.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/session-reports/Latest_Updates.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/todo/P1_ASYNC_DELIVERY_RECEIPTS_DO_NOT_CONVERGE_2026-08-10.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `docs/historical/session-reports/notes.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Generated/apiFFI.h` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ORCHESTRATOR_SESSION.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/REJECTED/[STALE]_BATCH_MICRO_084716.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `reference/historical/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `LICENSE` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/META-INF/MANIFEST.MF` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/android_logcat_4-22-26.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/SCMessengerSKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Views/Settings/DiagnosticsView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/device/d7_offline_proximity.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/CHANGELOG.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/CONTACT_VISIBILITY_DEBUG.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/projects/C--Users-kanal-Documents-Github-SCMessenger/memory/MEMORY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/main/java/com/scmessenger/android/ui/components/StatusIndicator.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_SUMMARY_2026-03-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/privacy_policy.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/plans/GEMINI_UI_GUIDE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/listen_opts.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-10_gradle_pid` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/NETWORKERROR_OBSERVABILITY_GAP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/ContactDisplayName.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Generated/api.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/behaviour/toggle.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.github/pull_request_template.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/CI_RED_ON_MAIN_ALL_FEATURES.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T_ANDROIDTEST_COMPILE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=scout **[?]**
+- `docs/fieldtest/TARGET_CLEANUP_2026-08-08.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/QUICKCONNECT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `scripts/advanced_monitor.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/device/p1_17_wifi_direct.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/scmdriver.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T1.5/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/archive/P1_STALE_BUILD_PROVENANCE_INVALIDATES_SHA_CLAIMS_2026-08-09.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/INVESTIGATE_OUTBOX_RETRY_MECHANISM.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P6_FFI_SNAPSHOT_DRIFT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Views/NotificationGuidanceView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessengerCore.xcframework/ios-arm64-simulator/Headers/SCMessengerCore.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `ollama_cfg/CLI_REFERENCE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/ffi-snapshots/kotlin-symbols.txt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T3.2/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/shared/src/desktopMain/kotlin/com/scmessenger/shared/platform/PlatformNotifier.desktop.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/desktop_bridge.udl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/notification.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.github/ISSUE_TEMPLATE/ci_cd.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `CHANGELOG.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/IN_PROGRESS_task_wire_isStorageStateCritical.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_12_TRANSPORT_TLS_PQ.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/NARC_MASTER_TRACKER.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/FINAL_STATUS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/DRIFTNET_MESH_BLUEPRINT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/LOCAL_PROGRESS_CHECKPOINT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/ops/LOG_EXTRACTION_QUICK_REF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessengerCore.xcframework/ios-arm64-simulator/Headers/scmessenger_core.modulemap` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P2_OUTBOX_FLUSH_ON_RECONNECT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_07_RATCHET_COMPILE_FIX_V2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_forceRestartScanning.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_3NODE_DELIVERY_TRACE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T_CONN_LIMITS_MULTIPORT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/shared/src/androidMain/kotlin/com/scmessenger/shared/platform/PlatformNotifier.android.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/message/codec.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/IOS_LOCAL_MERGE_2026-07-22.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iosdesign.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Generated/apiFFI.modulemap` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `shared/src/desktopMain/kotlin/com/scmessenger/shared/Platform.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T5.6/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T1.4/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/WINDOWS_BLE_PANIC_TOKIO_SPAWN_OUTSIDE_RUNTIME.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ANDROID_ADD_CONTACT_BUTTON_HIDDEN_AND_SAVE_FAILS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_ANDROID_003_BLE_SCAN_STABILIZATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/TASK_CI_IOS_MACOS_RUNNER_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ios-compile/IOS_COMPILE_FIX_MDNS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/task_wire_add_discovered_peer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/IOS_ANDROID_BIDIRECTIONAL_DEBUG_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/IOS_MACOS_PR139_STATUS_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_5NODE_TEST_ANDROID_STATE_2026-08-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/D8_CUSTODY_DELIVERY_RECEIPT_STATUS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/theme/Type.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/IOS_PATH_MIGRATION_REPORT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T1.3/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T4.3/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/LEDGER_SHARING_ANDROID_NODE_VISIBILITY_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_task_wire_ConnectionQualityIndicator.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_PLAYSTORE_001_Compliance_and_Assets.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P2_ANDROID_BLE_MAC_Rotation_Breaks_Session_Continuity.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/U5_ANDROID_RECEIPT_UNIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_filterMessagesByTopic.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onScanFailed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onScanResult.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onServiceFound.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_T13_B_done_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/BLOCK_DUAL_FLAVOR_DESIGN_2026-08-06.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF_AUDIT/output/DiagnosticsBundleFormatter.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/DiagnosticsBundleFormatterTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/model/ServiceState.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/RELEASE_NOTES_v0.4.0-alpha.1.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/PLAN_REVIEW.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/FINAL_SESSION_SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/releases/RELEASE_NOTES_V0.2.0_DRAFT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/runbooks/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessengerCore.xcframework/ios-arm64-simulator/Headers/scmessenger_core.h` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessengerCore.xcframework/ios-arm64/Headers/scmessenger_core.h` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessengerCore.xcframework/ios-arm64/Headers/scmessenger_core.modulemap` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `patch/if-watch/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `tasks/T2.1/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T3.4/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/rules/build.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-06_OVERNIGHT_BRIEF.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/U6_IOS_RECEIPT_UNIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_018_Notification_Channel_Init_and_Manifest_Cleanup.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_CONTACTS_FAB_REAPPEAR.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P2_ANDROID_HARDCODED_STRINGS_CONTACTS_SETTINGS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/PQC_02_ENVELOPE_V2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_meshvpn_enable.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_IdenticonFromHex.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_MessageInput.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_decode_rejects_short_buffer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_find_by_nickname.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/D4_MOBILE_BRIDGE_HISTORY_FLAVOR_MATCHING_2026-08-30.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cli/src/landing.html` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `core/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/message/identity_envelope.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/SPRINT_PLAN_OPTIMIZATION_BUNDLE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/REMEDIATION_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/IMPLEMENTATION_STATUS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/PEER_ID_RESOLUTION_FIX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_FINAL_SUMMARY_2026-03-10_ID_FIX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/commands/BOD.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-10_assembleDebug_pid` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/ANDROID_SWEEP_01_hardcoded_strings_contacts_settings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_003_Build_Fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_017_Settings_ANR_Debug.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/P1_ANDROID_025_Google_Play_Services_Defensive_Check.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P2_IOS_ContactManagerFix_TryBang_FFI_Crash_Risk.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_MICRO_004_Install_Windows_GNU_Target.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_ContactDetailScreen.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_attemptBleRecovery.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getAvailableTransportsSorted.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getSubscribedTopicsList.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/FileLoggingTree.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/CLI_MACOS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_FINAL_SUMMARY_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_SUMMARY_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessengerCore.xcframework/ios-arm64/Headers/SCMessengerCore.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/context_extractor.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-05_UNIFFI_BINDING_RACE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/DELEGATE_SCOPED_FILES_ALLOWLIST_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/FIX_DELEGATE_PARSER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_IDENTITY_003_PERSISTENCE_HARDENING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/RUST_MOBILE_BRIDGE_BOOTSTRAP_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/TASK_CI_IOS_BINDINGS_DRIFT_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_wasm_jsonrpc_expansion.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/ios-compile/IOS_COMPILE_FIX_2ERRORS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_security_tooling.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_getNotificationStats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_handleBleFailure.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_onServiceRegistered.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_try_enable_bluetooth.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_unknown_sender_defaults_to_direct_message_request.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_T267_DELTA_ADDENDUM_REQUEST_17fa959f_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/todo/P1_GHOST_GUARD_OWN_TOPIC_MESSAGE_LOSS_2026-09-16.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF_AUDIT/output/ErrorBanner.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/TimestampUtils.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/resume_prefetch.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/notification_defaults.rs` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `core/src/util.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/DOCKER_TEST_SETUP_COMPLETE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/SOVEREIGN_MESH_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/FINAL_SESSION_REPORT_2026-03-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_SUMMARY_CONTACT_PERSISTENCE_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `mobile/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `scripts/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/generate_wiring_burndown.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T3.1/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T5.9/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/A-09_RELAY_DISCOVERY_DIAL_AMPLIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/PROMISCUOUS_ACCEPT_UNROUTABLE_ADDR_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_task_wire_getRetryDelay.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_026_Foreground_Service_Android_12_Crash_Fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_SECURITY_001_Bounded_Retention_Enforcement.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_UI_001_Chat_Empty_Loading.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_mDNS_Self_Loopback_Discovery.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_10_MLDSA_IDENTITY_SIGNATURES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_fix_windows_linker.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_forwarding_capability.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_handleScanFailure.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_notification_roundtrip_for_ui_state.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onDiscoveryStopped.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onRegistrationFailed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_onStartDiscoveryFailed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onStopDiscoveryFailed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/retired/task_wire_force_state_for_test.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshForegroundService.kt_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/adaptive_ttl.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/CLI_WINDOWS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/COMPLETE_STATUS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/iOS_LOG_EXTRACTION_SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/pinch_zoom_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/scmessenger-roo-code-features-plan.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ops/QUICKSTART_IOS_LOGS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/ContentView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `patch/if-watch-full/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/ffi-snapshots/swift-symbols.txt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/behaviour/external_addresses.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/stream.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claudeignore` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE1-TASK1.4-COMPLETE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/phase1-status-summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/FARM_SIM_PHASE_2_3_EXECUTION_SUMMARY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/AND-SEND-BTN-001_P0_Send_Button_Fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/FARM_WS_F1_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_NETWORK_002_RELAY_CONNECTIVITY_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_Inbound_Libp2p_Listener_Not_Externally_Reachable.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_CORE_Rate_Limited_Negotiation_Failure_Signal.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/P2_ANDROID_IDENTITY_QR_PRERENDER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P2_BUILD_001_Core_Integration_Test_Fixes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_network_detector_debounce.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_advertise_service.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getBootstrapNodesForSettings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getNetworkDiagnosticsSnapshot.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_best_forwarding_path.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onDiscoveryStarted.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_shouldUseTransport.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T_LEDGER_IP_CHURN_AUTONOMOUS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_GO_IOS_MACOS_POST_PR138_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/DiagnosticsScreen.kt_chunk2.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MockTestHelper.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/negative_cache.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/data/IdentityCreationEvent.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BlePayloadDiagnostics.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/dashboard/TopologyScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/CLI_LINUX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/DEVICE_PEER_RELATIONSHIP_ANALYSIS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/NATURE_INSPIRED_MESH_PHILOSOPHY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_LOG_2026-03-10_FINAL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/rules/NO_EMOJIS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Views/Navigation/MainTabView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/CLI_DRIVER_DISCOVERY_QUICKSTART.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/STATE/agent1_complete.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/IN_PROGRESS_P0_ANDROID_024_IDENTITY_GENERATION_REGRESSION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_001_TRANSPORT_IDENTITY_AND_CONTACT_RECOVERY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/P1-11_Listen_Side_Adaptive_Port_Selection.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/P1_GRACEFUL_DIAL_POLICY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/TASK_INFRA_CLAUDE_PATH_FIX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/phase_4_documentation_polish.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_PeerListScreen.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_disabled_notifications_suppress_delivery.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_find_by_public_key.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_isPortLikelyBlocked.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onServiceLost.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_storage_pressure_state_uses_synthetic_snapshot_when_probe_unavailable.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/RoleNavigationPolicyTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/timing.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/chat/MessageBubble.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cli/src/server.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/session-reports/MESH_DEBUG_RCA_2026-03-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/MESSAGE_DELIVERY_RCA_2026-03-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/releases/RELEASE_NOTES_V0.2.0_ANDROID.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `reference/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `tasks/T2.3/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/stream_protocol.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_3NODE_LOG_ANALYSIS_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/P2_RESTORE_UPNP_ON_0_7_0_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/A-04_ANDROID_RECEIPT_UNIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_016_Settings_Screen_42s_Hang.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_IDENTITY_002_Implementation_Summary_2026-04-24.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_CLI_Transport_Negotiation_Failure_On_Android_Inbound_Dial.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/PQC_05_HYBRID_KEM_MODULE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_MICRO_DEPRECATION_001_BleGattServer_API31_ExecutorOverload.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_BUILD_003_Gradle_Rust_Android_Build_Parallelization_And_Incremental_Fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_multidevice_blocking.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_add_websocket.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_best_relays.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_cleanup_stale_connections.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_getActiveTransports.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_isServiceHealthy.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onStartSuccess.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_override_ble_advertise_interval.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_recordConnectionFailure.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_resetHealth.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_shouldRetryMessage.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V050_SEC03_STORAGE_MIGRATION_BRIEF_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/WINDOWS_ANDROID_PROBE_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/.context_cache/PQC_07_PQ_RATCHET.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/DeliveryStateMapperTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/landing.html` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `cli/src/ble_windows.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/desktop_bridge.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/BOOTSTRAP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/FUSION_LITE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/INSTALL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/V1_KNOWN_LIMITATIONS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/IMPLEMENTATION_SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/PHANTOM_PEERS_BUG.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/web/PLAY_STORE_LISTING_COPY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `gradlew` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/behaviour/either.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/projects/C--Users-kanal-Documents-Github-SCMessenger/memory/micro_agent_benchmark.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.kiro/specs/repository-production-readiness/task13-implementation-summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `DOCUMENTATION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/DISCOVERY_STATUS_SUMMARY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/ANDROID_OVERHAUL_STATUS_2026-04-23.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S3_T1_BLE_CORE_FORWARDING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/D-05_UNWRAP_PANIC_HARDENING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_008_Kotlin_Compile_Fixes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_009_Settings_Screen_Regression_Debug.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_06_HYBRID_SESSION_INIT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_07_PQ_RATCHET.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/PQC_08_COMPILE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_nickname_datastore_fallback.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_healthy_relays.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_notification_serialization.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_observeNetworkStats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_primeRelayBootstrapConnectionsLegacy.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_updateHeartbeat.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_updateMaxRelayBudget.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V050_C4_IDENTITY_AWARE_RELAY_ADMISSION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_IOS_LANE_FINDINGS_2026-07-28.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/P1_DOCKER_CONTROL_API_SECURITY_HARDENING_2026-09-16.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF_AUDIT/output/DiagnosticsReporter.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/MeshForegroundServiceTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/observability_tests.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/ble/beacon.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/NAT_TRAVERSAL_GUIDE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/plans/HANDOFF_NEARBY_PEERS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/WASM_CLI_INTEGRATION_SUMMARY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Utils/QRCodeGenerator.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `shared/src/commonMain/kotlin/com/scmessenger/shared/SharedApp.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/translation.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_onPeerDisconnected.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_T1_HALF2_done_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/prompts/ollama_expert.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/AGENT_HANDOFF_GUIDANCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/agent3_complete.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260910T021100Z_ANR_RECURRENCE_CONTROL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/ORCHESTRATE_FARM_SIM_FIX_AND_RETEST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/PQC_09_HYBRID_ONION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_P0_ANDROID_IDENTITY_GENERATION_ARGON2_OPT_LEVEL_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_007_NETWORK_DIAGNOSTICS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_CLI_001_Daemon_Smoke_Test_FINDINGS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_DESKTOP_BRIDGE_Missing_Linux_Cfg_Gate_On_ble_Module.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/P0_TRANSPORT_001_CLI_Android_LAN_Unification_SUMMARY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/TASK_DELEGATE_DIFF_MODE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_MICRO_ANR_001_MeshRepository_RelayIdentity_SafeReturn.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_MICRO_ANR_003_ForegroundService_RunningState_SafeReturn.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_duplicates_are_suppressed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_getKnownTopicsList.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_getNetworkDiagnosticsReport.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getTransportHealthSummary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_fallback_relays.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_healthy_connections.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_permission.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_unhealthy_connections.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_micro_start_refresh.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_onUnregistrationFailed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_resetNotificationStats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_searchContacts.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_start_refresh.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_verify_registration_message_rejects_peer_identity_mismatch.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/E01B_DESIGN_SPEC_V4.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/ConversationsViewModelTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/NetworkFailureMetrics.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/SettingsViewModelTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/relay_custody.rs_chunk7.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/MeshApp.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/ConversationsScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/MeshServiceViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/desktopMain/kotlin/com/scmessenger/shared/desktop/Main.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/SCMessengerApp.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/jev_packs.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T5.1/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `wasm/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `GEMINI.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S6_T2_CONTACT_QR_SHARING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_WS13_6_TIGHT_PAIR_MIGRATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CONTACT_LOOKUP_PUBKEY_FLAVOR_MISS_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_023_Deep_Linking_for_Identity_Sharing.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_LAN_Discovery_Not_Feeding_Bootstrap_Peer_Count.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/PQC_04_SUITE_NEGOTIATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/U2_TOPIC_CONSTANTS_UNIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_MeshSettingsScreen.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_autoSubscribeToPeerTopics.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_disableTransport.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_getNetworkFailureSummary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_history_via_api.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_storage_pressure_emergency_mode_rejects_non_critical_and_recovers.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_T_WATCHDOG_POSITIVE_TEST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/BlockedPeersScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ContactsViewModelTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/IdentityFlowRegressionTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshEventBus.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/NetworkDiagnostics.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/StatusIndicator.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/invite.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/observability.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/network/NetworkDiagnostics.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/chat/MessageInput.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/message/ephemeral.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/NON_MD_FOLLOWUP_CLASSIFICATION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/WASM_INTEGRATION_ANALYSIS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/PHASES_4-15_GUIDE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/COMPLETE_SESSION_REPORT_2026-03-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/troubleshooting/BUILD_ISSUES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/handler/either.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/NETWORKERROR_PART_B_FULL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P2_IOS_Silent_TryQuestion_Swallows_Contact_And_Topic_Actions.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/[VALIDATED]_MICRO_ANR_002_MeshRepository_EmptyMessageId_SafeReturn.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onServiceUnregistered.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/MeshServiceViewModelTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/CLAUDE_REFERENCE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/ViewModels/OnboardingViewModel.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/repository-production-readiness/phase2-summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE2-KICKOFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE3-LAUNCH-PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/MDNS_FIX_COMPLETE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_3NODE_REDEPLOY_E8C8F52B_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_FLEET_STATUS_51EDAC4B_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/P1_CLI_CANNOT_REPLY_TO_UNSAVED_PEER_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_CLI_WASM.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/CORE_LIB_TEST_COMPILE_BREAK.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/FIX_UNIFFI_HISTORY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/P0_ANDROID_006_COROUTINE_CANCELLATION_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_CLI_002_LAN_Message_Test.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/P1-12_Advertise_Dial_Remember_Adaptive_Port_Selection.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_CORE_003_Privacy_Modules_Activation.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_CORE_004_Outbox_Flush_Completion.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_CORE_005_DSPy_Programmatic_Integration.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/PQC_08_TEST_CALLSITE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_FIX_ANDROID_BUILD_001_MSVC_Target_Alignment.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p0_theme_regression_fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_android_hardening_remnants.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_ErrorState.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_custody_deduplicates_same_destination_and_message_id.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_detect_browser.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_force_ratchet.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_formatted_time.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_getHealthStatus.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_available_paths.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_is_ble_available.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_is_prefetch_complete.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_proptest_wrong_key_fails.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_relay_request_missing_ws13_fields_deserialize_with_defaults.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_showPeerDiscoveredNotification.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_show_permission_guidance.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_signed_registration_request_rejects_malformed_identity_id.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_token_bucket_refills_after_elapsed_time.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_T8_RESTORE_DIAGNOSTICS_FORMATTER_TEST.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T_AND06_KOTLIN_COLLAPSE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/DeliveryStateSurface.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/PeerIdValidator.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/history.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/internet.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/padding.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/task20-build-reproducibility-summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/security/AGY_EVIDENCE_SWEEP_c3dae2de.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/peerid_to_pubkey.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/connection/pool/task.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/FARM_UNIFICATION_STRATEGY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T224500Z_HANG_HOLISTIC_RCA.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S2_T3_MESSAGE_DEDUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/OUTBOX_FLUSH_ON_CONNECT_RETRY.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/P0_IOS_001_Field_Binary_Deployment.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_TransportManager_LAN_Discovery_Never_Starts.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/P1_CORE_005_Warnings_Cleanup.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_IDENTITY_001_Unified_ID_System.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_checkAndRecordMessage.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_currentCount.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_formatReportForUser.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_is_prefetch_in_progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_mark_refresh_failed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_negative_cache_stats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_next_refresh_hint.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_notif_mesh_topology.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_observePeers.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_override_relay_priority_threshold.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_parse_response.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_peer_id_public_key_extraction_roundtrips_for_ed25519_peers.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_peers_needing_reconnect.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_set_notes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_signed_deregistration_request_rejects_same_source_and_target_device.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/V040_RELEASE_NOTES_DRAFT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF_AUDIT/output/AnrWatchdog.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ChatViewModelTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/DiagnosticsScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/NetworkStatusDialog.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/PerformanceMonitor.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ShareReceiver.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ephemeral.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/peer_broadcast.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/MeshApplication.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/contacts/AddContactScreen.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/ble/gatt.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/LAN_AUTO_DISCOVERY_STRATEGY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/RELAY_OPERATOR_GUIDE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/SCRIPT_SANITY_CHECK_PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/Gemini_Strategy_Supplement.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `docs/historical/INTEGRATION_COMPLETE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/RCA_IOS_INCOMPLETE_DATA_ERROR_2026-03-11.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/COMPLETE_IMPLEMENTATION_SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/SESSION_REPORT_2026-03-10_ID_UNIFICATION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/platform/DOCKER_QUICKSTART.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Services/CoreDelegateImpl.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T5.2/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/connection/pool/concurrent_dial.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.agents/skills/docs-sync/SKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codebuff_deploy/rev/pr251.diff` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE0-COMPLETION-PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/OC_HANDOFF_2026-09-25.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATION_TOKEN_REDUCTION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/P1_DIAL_POLICY_DIFFS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/SESSION_HANDOFF_2026-07-20_CI_FIX.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/NETWORKERROR_PART_A.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_BUILD_001_Core_Integration_Test_Fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_SECURITY_004_Forward_Secrecy_Implementation.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_WINDOWS_001_CLI_Integration_Test_Stabilization.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/P2_ANDROID_IDENTITY_SCROLL_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p0_deprecation_api_migration.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_ironcore_placeholders.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_abusive_peer_burst_is_rate_limited_but_other_peer_still_passes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_calculate_dynamic_ttl.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_clearPeerCache.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_compute_ble_adjustment.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getAnrStats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getBlockedCount.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_all_connection_stats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_bootstrap_candidates.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_identity_wire_shape.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_hasDnsFailures.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_jsonrpc_get_identity.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_jsonrpc_send_message_roundtrip.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_known_contact_defaults_to_direct_message.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_logMessageDeliveryAttempt.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_markCorrupted.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_onResolveFailed.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_registration_payload_canonical_bytes_are_stable.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_remove_rtc_connection.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_resetServiceStats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_3NODE_BASELINE_AND_UPDATE_PLAN_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_SOL_ULTRA_PQC07_RATCHET_DESYNC_2026-08-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/gpt/IOS_MACOS_PR139_STATUS_2026-08-07.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/core_ble_gatt_traits_cleanup_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/ANDROID_CI_APK_SIGNATURE_BLOCKS_INPLACE_UPGRADE_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/ANDROID_FFI_IN_COMPOSITION_BUILD_KILLER_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/todo/CELL_ROUTE_AWS_001_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/AddContactScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/NetworkTypeDetector.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/TopicManager.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/TransportHealthMonitor.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/WifiDirectTransport.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/contacts_bridge.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/dedup.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/health.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/mobile_bridge.rs_chunk4.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/java/com/scmessenger/android/ui/identity/IdentityCreationFlow.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/gradlew` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `cli/src/transport_api.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/crypto/encrypt.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/troubleshooting/RUNTIME_ISSUES.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/TaskGovernor.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/orchestrator_status.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/connection/error.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `AgentSwarmCline/scmessenger_swarm/observability_docs.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/FARM_SIM_PLAN_2026_07_17.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/SESSION_HANDOFF_2026-07-20_LUCAS_JOSH_ALPHA.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-06_OVerseer_PHASE1_RECOVERED_AND_RESTORED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/P0_NO_RELAY_FALLBACK_FOR_ROAMING_PEERS_2026-08-10.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/P1_TEST_FIXTURE_ADDRESSES_LEAKED_INTO_LIVE_LEDGER_2026-08-09.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/AND-CONTACTS-WIPE-001_P0_Android_Contacts_Recovery.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S1_T1_FIX_ANDROID_BUILD.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/NETWORKERROR_PART_C.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_IOS_002_Parity_and_Cross_OS_Unification_FINDINGS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_QR_Code_Identity_Export_Extremely_Slow.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/done/Z-02_Regenerate_one_self_contained.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_InfoBanner.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_convergence_marker_rejects_invalid_shape.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_convergence_marker_requires_local_tracking_context.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_create_receiver_session.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_exportDiagnosticsAsync.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_fromValue.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getDedupStats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_default_settings.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_nonce_length_invariant.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onStartFailure.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_proptest_envelope_field_lengths.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_recordUiTiming.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_scan_for_advertisements.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_signed_registration_request_rejects_tampered_payload.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_timeout_budget_summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_toLogString.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T1_NODE_BOOT_SEED_DIAL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_PR133_TRACKING_2026-08-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_PR139_RESUME_STATE_2026-08-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/OC_DOGFOOD_INCORPORATION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/[VALIDATED]_task_p1_multidevice_blocking.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/RECEIPT_GAP_ANALYSIS_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_T13_FDHT_DELTA_ADDENDUM_17fa959f_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/BackoffStrategy.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/BleQuotaManager.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ContactImportParser.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ContactsScreen.kt_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/JoinMeshScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MdnsServiceDiscovery.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshForegroundService.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/NotificationHelper.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/UniffiIntegrationTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/findmy.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/surgeon_graph.py_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/wifi_aware.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/identity/IdentityScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/ChatScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/DashboardScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/ble/mod.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/IMPLEMENTATION_SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/ID_MANAGEMENT_ANALYSIS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/PLATFORM_SUPPORT_MATRIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/SWARMBRIDGE_INTEGRATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/UNIFFI_0.31_MIGRATION_PLANNING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/MEMORY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/RCA_IOS_43K_SEND_FAILURES_2026-03-17.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/EXECUTIVE_SUMMARY_2026-03-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Models/Models.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/parse_orchestration_footer.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/connection/pool.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/phase0-completion-summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/COMMIT_CHECKPOINT_PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/FARM_SIM_EXECUTION_STATUS_2026-07-18.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATION_SUMMARY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/RELEASE_READINESS_FIXES_DRAFT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_3NODE_RCA_2026-09-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_ORCHESTRATION_COMPLETE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_S2_T4_RELAY_BOOTSTRAP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S5_T1_PRIVACY_COMPLIANCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_ANR_BatteryReceiver_Synchronous_FFI_Call.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/TASK_VERSION_BUMP_0_3_5.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_IN_PROGRESS_P0_NETWORK_001_BOOTSTRAP_FALLBACK_IMPLEMENTATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_convergence_marker_accepts_when_custody_exists_locally.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_current_discovery_phase.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_drift_store_size.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_last_profile.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_is_permission_granted.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_load_device_id.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_on_ble_data_received.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_prefetch_stats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_proptest_ratchet_forward_secrecy.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_remove_websocket.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_storage_pressure_purge_prioritizes_non_identity_then_identity.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CANDIDATE_MERGE_CONFLICT_BRIEF_2026-09-04.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/gpt/GPT_MAC_PR139_TAKEOVER_2026-08-07.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/B1_DNS_HARDENING_ATTEMPT1.patch` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/P0_SCMESSENGER_WIFI_DELIVERY_IDENTITY_TRANSPORT_CANONICAL_2026-09-21.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF_AUDIT/output/BleBackoffStrategy.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/Identicon.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/IdentityViewModel.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshSettingsScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MessageInput.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/PeerKeyUtils.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/WifiAwareTransport.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/cli.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/contacts/ContactDetailScreen.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/MainViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/plans/NAT_TRAVERSAL_IMPLEMENTATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/RELAY_PEER_DISCOVERY_IMPLEMENTATION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `vendor/libp2p-swarm-0.48.0/src/behaviour.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codebuff_deploy/aws/capt.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/CEO_STATE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ORCHESTRATION_IMPLEMENTATION_GUIDE.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/PEER_ID_TRIAD_UNIFICATION_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/SESSION_HANDOFF_2026-08-04_IDENTITY_AND_RUN2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-06_OVerseer_PHASE3_ALL_THREE_PHASES_SHIPPED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/phase1_complete.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_TEMPLATE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_MERGE_EXECUTION_LOG_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_S4_T1_ANR_ELIMINATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_S4_T4_IDENTITY_CACHE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CORE_SWEEP_02_iron_core_bridge_manager_double_fallback_panic.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/P0_ANDROID_010_Logcat_Full_RCA.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/U3_RETRY_POLICY_CORE.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/task_wire_PowerSettingsScreen.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_add_step.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_cheap_heuristics_reject_invalid_payload_shapes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_clear_unreachable_peer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_converge_delivered_for_message_removes_matching_pending_records.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_derive_key_always_32_bytes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_disable_location_background.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_ed25519_conversion_produces_32_bytes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_for_local_peer_prefers_explicit_custody_dir_override.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_foreground_direct_messages_follow_foreground_toggle.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getAllAnrEvents.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getLastFailure.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_overrides.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_registration_state_info.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_hasPortBlocking.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_on_entering_foreground.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_on_read.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_proptest_sign_verify_roundtrip.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_run_optimization.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_touch_endpoint.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_unknown_method_error.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_unregister_endpoint.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_IOS_LANE_COMPLETION_2026-07-28.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/T1_BLOCK_FLAVOR_FIX_DESIGN_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/review/V040_T13_FDHT_DELTA_ADDENDUM_2_90f37d8f_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/todo/P1_ANDROID_COMPOSE_CRASH_RECURRENCE_2026-09-15.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/CircuitBreaker.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ContactDetailScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk10.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk18.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk20.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk24.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepositoryTest.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/OnboardingScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/PowerSettingsScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ServiceHealthMonitor.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/TopologyScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/logs.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/smart_retry.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/sweeper.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `Harness/handoff/UNIFIED_V040_3NODE_PARITY_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/OnboardingScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/ContactsViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/IdentityViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/gradlew-no-daemon` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/privacy/padding.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/EDGE_CASE_READINESS_MATRIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/DOCKER_TEST_QUICKREF.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/leanstral-integration.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `scripts/Run-Cartographer-Auto.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `vendor/libp2p-swarm-0.48.0/src/handler/one_shot.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/INFRASTRUCTURE_REDESIGN_2026-07-18.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/STATE/agent2_complete.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V1_0_0_UNIFICATION_PLAN.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/P0_NO_MOBILE_BOOTSTRAP_MEANS_NO_OFF_LAN_RENDEZVOUS_2026-08-10.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S1_T4_CI_PIPELINE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S4_T2_NOTIFICATION_RELIABILITY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/MICRO_RUST_CLIPPY_CLEANUP_001.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/MICRO_RUST_CLIPPY_CLEANUP_002.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_SECURITY_004_Identity_Backup_Encryption.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_SECURITY_005_Audit_Logging_System.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_024_Manual_Dark_Light_Theme_Toggle.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_CLI_BLE_Outbound_TX_Path_Missing.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=standard **[?]**
+- `HANDOFF/done/P3_IOS_SimulateBackgroundProcessing_Missing_Maintenance_Steps.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_ANDROID_020_Permission_Request_Loop_Fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_can_bootstrap_others.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_close_all_notifications.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_emergency_recover.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getTotalAnrEvents.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_activity.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_signature.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_micro_overall_score.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/done/task_wire_proptest_different_ciphertexts_same_plaintext.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_reset_circuit_breakers.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_267_RECHECK_TRIAGED_2026-09-03.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_NIMBLE_RECYCLE_FIX_DONE_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/review/A2_DURABLE_DELIVERY_DESIGN_PANEL_R2_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T13_FDHT_DELTA_ADDENDUM_3_15228404_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/todo/D2_SEED_DIAL_REDIAL_MISSING_SEED_PEER.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/todo/P1_CONTACT_RECOVERY_WRITES_PEERID_AS_PUBLIC_KEY_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF_AUDIT/output/BleAdvertiser.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/BleL2capManager.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/BootReceiver.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ConversationsScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk16.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk17.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk19.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/NetworkDetector.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/integration.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/reflection.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/ContactsScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/orchestrator/__init__.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/message/mod.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/relay/findmy.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/transport_memory.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/fieldtest/PR139_LOG_EVIDENCE_2026-08-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/fieldtest/PR139_WINDOWS_LANE_CORRELATION_2026-08-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/ORCHESTRATOR_QUICKREF.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/plans/CLI_WEBRTC_BRIDGE_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/FINAL_RESOLUTION_SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/mince_logs.py` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `tasks/T5.8/progress.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE1-COMPLETE-SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/FINAL_HANDOFF_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_HANDOFF_SCMESSENGER_IDENTITY_TRANSPORT_WIFI_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/archive/CONTACT_PROVISIONING_FIX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/IDENTITY_BACKUP_UI_INTEGRATION_2026-08-12.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S3_T3_BLE_QUOTA_AUTOADJUST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S3_T4_BLE_DEGRADATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CLIPPY_DEBT_cli_desktop_bridge_dwarnings.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/HEAVY_LIFT_LIBP2P_UPGRADE_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/P1-13_Hardcode_Sweep_Retire_9001_9002_9010.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/SWARM_ARCHITECTURE_GUIDANCE_COMPLETION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p1_mycorrhizal_routing_activation.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_get_peer_reputation.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_on_entering_background.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_on_motion_changed.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_proptest_encrypt_decrypt_roundtrip.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_recordAnrEvent.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_request_permission.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_transport_type_to_routing_transport.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_272_R2_TRIAGED_2026-09-03.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/B1_DNS_HARDENING_REVIEW.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/P1_ASYNC_DELIVERY_RECEIPTS_DO_NOT_CONVERGE_LIVE_RCA_2026-08-25.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/P1_SWARM_CHANNEL_BACKPRESSURE_DEADLOCK_2026-09-16.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/P1_WINDOWS_NODE_SILENT_WEDGE_2026-09-15.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF_AUDIT/.context_cache/BATCH_ANDROID_WS14_3_NOTIFICATION_PARITY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/Color.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/DashboardViewModel.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/IdentityScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk25.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk9.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshServiceViewModel.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/PowerSettingsScreen.kt_chunk2.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/SmartTransportRouter.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/beacon.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/blocked_bridge.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/escalation.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/outbox.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/peer_exchange.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/sync.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ARCHITECTURE_SCOPE_V040.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/orchestration/ORCHESTRATOR_DIRECTIVE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/connection.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/handler/multi.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.agents/skills/ceo/SKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_BLE_ARCHITECTURE_2026-09-08.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/archive/TASK_KMP_QA_INTEROP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_default_settings.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_start_receive_loop.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk4.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/backup.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/viewmodel/AppViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/PROTOCOL.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.bob/skills/orchestrate/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/repository-production-readiness/phase1-summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/DEAD_CODE_TRIAGE_RESULTS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/FARM_PORT_STRATEGY_ANALYSIS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-05_ORCHESTRATOR_ROLE_PROTOCOL_INSTALLED.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-06_01-50_PT_OVERNIGHT_BRIEF.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-06_HERMES_P0_025_RETEST_GO.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ANDROID_ANR_RCA_2026-04-23.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/NETWORKERROR_PART_A_FULL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/PQC_07_COMPILE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_android_full_fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_chain_ratchet_produces_distinct_keys.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_custody_transitions_are_recorded.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_drift_deactivate.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_explicit_request_overrides_known_contact_inference.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_hole_punch_status.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_new_sync.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_overall_score.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_register_state_change_callback.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/dreaming/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_CTO_PROMPT_2026-09-02.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/BleGattClient.kt_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk13.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk8.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/auto_block.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/envelope.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/mesh_routing.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/mobile_bridge.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/nat.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/CLAUDE_CODE_ARCHITECTURE_RESEARCH.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/PEER_SERVED_SELF_UPDATE_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/handler/map_in.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/handler/pending.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `AgentSwarmCline/scmessenger_swarm/test_tasks.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/RESUME_STATE_2026-07-04.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_FREEBUFF_TRANSITION_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/DISPATCH_REVIEW_TRANSPORT_LIVENESS_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/P0_BUILD_002_Integration_Test_Repair.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S3_T2_BLE_IDENTITY_HANDSHAKE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_IOS_002_Parity_and_Cross_OS_Unification_COMPLETED` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_CORE_BLE_GATT_Traits_Dead_And_Malformed_UUID.md` — attention: central: in any repo-wide waist brief — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/task_wire_add_kad_address.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_blocked_only_peer_ids.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_compute_relay_adjustment.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_expire_old_observations.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_on_network_changed.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_registration_transitions_for_identity.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_set_daemon_socket_url.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_set_reputation_manager.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_stop_swarm.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_update_settings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_validate_settings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_PLANNING_040_050.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/todo/P1_CLI_OUTBOX_CANONICAL_DRAIN_AND_SLED_UNIFICATION_2026-09-16.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF_AUDIT/.context_cache/task_p1_android_hardening.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/DashboardScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk15.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk22.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk7.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/contacts.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/diagnostics.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/store.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/websocket.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/ChatViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/drift/mod.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/DEEP_ARCHITECTURAL_REASONING_DHT_OPTIMIZATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `shared/src/desktopMain/kotlin/com/scmessenger/shared/Main.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/TASK_KMP_RUST_UNIFFI_LINUX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[STALE]_[VALIDATED]_P0_WASM_002_THIN_CLIENT_COMPLETION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_TRANSPORT_001_CLI_Android_LAN_Unification.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_all_connections.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_daemon_socket_url.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/.context_cache/MICROBATCH_ANDROID_KOTLIN_WIRING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/session_manager.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/SESSION_HANDOFF_2026-07-25.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/TASK_KMP_COMPOSE_ARCHITECT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/P0_BUILD_003_Core_Test_Stabilization.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_duplicate_window_suppresses_immediate_replay_then_expires.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_settings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_micro_get_signature.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_normal_low_volume_usage_is_unaffected.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_prefetch_manager_mut.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_ratchet_reset_session.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_set_iron_core_mode.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/done/README.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_TRACKING_PING_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T11_CANONICAL_DOC_RECONCILE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/.context_cache/BATCH_RUST_GROUPB_DSPY_MODULES.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/AppModule.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/BleGattClient.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MainViewModel.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk12.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk14.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk21.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/Permissions.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/encrypt.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/gen_swift.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/relay.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/service.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/surgeon_graph.py_chunk2.jsonl` — attention: background: omit from a tight brief — brief_treatment=signature, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/transport.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/transport_api.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/ORCHESTRATE_V4_COMMAND.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/rules/CONTINUOUS_EXECUTION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/rules/FREEBUFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATION_COMPLETION_REPORT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/C4_IDENTITY_ADMISSION_DECISION_BRIEF_2026-09-18.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/SWARM_ARCHITECTURE_GUIDANCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/task_wire_drift_network_state.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_relay_discovery_mut.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CEO_RELAUNCH_2026-09-03.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/BleScanner.kt_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk11.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshVpnService.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/StorageManager.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/TransportManager.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/global.rs_chunk1.jsonl` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/nat.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/neighborhood.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/neighborhood.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/ConversationsViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/logs.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/types.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/MORPH_LITE_DESIGN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/session-reports/FINAL_PRODUCTION_TRANSPORT_CLEAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATOR_AUDIT_EXECUTIVE_SUMMARY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATOR_LOG.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-08_02-15_PT_SWEEP_DONE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/P0_BLE_L2CAP_ACCEPT_SPIN_2026-08-08.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/_NEXT_ORCHESTRATE_KICKOFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_025_MDNS_LISTENER_COLLISION_CRASH.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_IOS_002_Parity_and_Cross_OS_Unification.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/P1_ANDROID_013_Bootstrap_Reliability.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_active_paths.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_annotate_identity.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_create_multihop.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_create_optimizer.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_drain_received_messages.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_iron_core_mode.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_initialize_identity_from_daemon.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_load_seniority_timestamp.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_micro_add_step.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_set_cover_traffic.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/A2_DURABLE_DELIVERY_DESIGN_PANEL_R1_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/REPO_MAP_README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/AndroidPlatformBridge.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ChatViewModel.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshApplication.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/Type.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/bootstrap.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/bootstrap.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/client.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/inbox.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/viewmodel/ChatViewModel.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/drift/envelope.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/error.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ARCHITECTURE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/TRANSPORT_ARCHITECTURE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/V0.2.1_SINGLE_ACTIVE_DEVICE_TIGHT_PAIR_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/orchestration/BOB_MISSION_BRIEF_V1_0_0.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/CLAUDE_CODE_README.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/P0_REQUEST_RESPONSE_PANIC_KILLS_DESKTOP_ON_MESH_GROWTH_2026-08-09.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[STALE]_[VALIDATED]_task_recovery_session_2026-05-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_federated_nickname.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_all_relay_stats.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_contact_manager.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_identity_from_daemon.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/PR139_ORCHESTRATION_STATE_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/MICROBATCH_CORE_RUST_WIRING_MISC.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/BleGattServer.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ChatScreen.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk6.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/Theme.kt_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/ble_daemon.rs_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/codec.rs_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/manager.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/manager.rs_chunk4.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/observation.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/policy.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/UNIFIED_GLOBAL_APP_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/ViewModels/ChatViewModel.swift` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/task_p0_android_play_readiness.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/dspy/signatures.rs` — attention: notable: include when goal touches it — brief_treatment=signature, handling=code_owned **[?]**
+- `HANDOFF/V040_V050_UNIFIED_PLAN_2026-08-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_task_agy_android_stability_complete_handoff_2026-06-07.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_enhanced_peer_reputation.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/[VALIDATED]_P0_ANDROID_AGY_HANDOFF_2026-06-07_Identity_Stability_Bundle.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk5.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/client.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/compress.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/global.rs_chunk3.jsonl` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/iron_core.rs_chunk5.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/rpc.rs_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/server.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/service.rs_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/swarm.py_chunk2.jsonl` — attention: background: omit from a tight brief — brief_treatment=signature, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/types.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/MainActivity.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/REPO_CONTEXT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/rules/NODE_MODEL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/REPLY_2026-06-07_20-25_PT_AGY_HANDOFF_TO_CLAUDE_CODE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/ONION_GATING_PART_B_FULL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_create_cot.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_peel_onion_layer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_random_port.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_ratchet_session_count.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/P0_JSONRPC_PARITY_EXPANSION_001.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/[VALIDATED]_P1_CLI_024_mDNS_TxtRecordTooLong_For_Circuit_Addresses.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/server.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/repository-production-readiness/requirements.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/SESSION_HANDOFF_2026-07-13_farm_v1_backlog.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_RESUME_2026-09-05.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/COMMIT_CHECKPOINT_PROMPT_single-repo-2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_peer_spam_score.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_ratchet_has_session.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_routing_tick.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_set_delegate.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/backend.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/frame.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/iron_core.rs_chunk6.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/multiport.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/protocol.rs_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/api.udl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/repository-production-readiness/task-21-summary.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/CTO_STATE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_micro_build_rust_feature_pipeline_dsflash.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/.context_cache/BATCH_CORE_RUST_WIRING_C4_SUB02.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF_AUDIT/.context_cache/BATCH_RUST_GROUPG_MISC_CORE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/P0_ANDROID_025_MDNS_LISTENER_COLLISION_CRASH.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshApp.kt_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/onion.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/prompts/architect.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/repository-production-readiness/design.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_CORE_001_Drift_Protocol_Completion.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_peer_rate_limit_multiplier.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/HEAVY_LIFT_LIBP2P_UPGRADE_001.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/engine.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/main.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/crypto/session_manager.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/relay/mod.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `mobile/src/lib.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/handler.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/API_RESET_EXECUTION_CHARTER_2026-08-28.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_MASTER_PLAN_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/.context_cache/BATCH_P1_CORE_MYCO_ROUTING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/output/main.rs_chunk3.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `wasm/src/lib.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_relay_jitter_delay.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_CTO_HANDOFF_2026-09-01.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/lib.rs_chunk1.jsonl` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE3-KICKOFF.md` — attention: unmatched — brief_treatment=cited_window, handling=standard **[fallback]**
+- `.kiro/specs/scmessenger-rust-transformation/design.md` — attention: unmatched — brief_treatment=cited_window, handling=frontier **[fallback]**
+- `HANDOFF/BOB_KICKOFF_PROMPT.md` — attention: unmatched **[fallback]**
+- `HANDOFF/NEXT_ORCHESTRATOR_PROMPT.md` — attention: unmatched **[fallback]**
+- `HANDOFF/archive/TASK_KMP_DEVOPS_PACKAGING.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/UNIFY_GEMINI_DOCS.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_028_Config_Listen_Port_Stale_vs_Actual_Port_9101.md` — attention: unmatched — handling=code_owned **[fallback]**
+- `tasks/T2.4/progress.md` — attention: unmatched **[fallback]**
+
+## Stage: waist
+
+- `scripts/delegate.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/done/CRITICAL_RATCHET_SUBSYSTEM_NOT_WIRED_INTO_IRONCORE.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=frontier
+- `HANDOFF/gpt/WINDOWS_IDENTITY_UNIFICATION_MANDATE_2026-08-03.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/P0_ANDROID_FINITE_RETRY_ABANDONMENT_2026-08-10.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/todo/P1_ROUTING_ENGINE_NEVER_LEARNS_PEERS_2026-08-10.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/IN_PROGRESS/ANDROID_RELAY_INBOUND_EVIDENCE_2026-08-10_CELLULAR.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=failure_evidence, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CEO_APPROVAL_PUSH_276_TO_FULL_3NODE_GREEN_2026-09-04.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/ITERATION_2_NAT_TRAVERSAL_TEST_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/T02_AWARE_PORT_TLV.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/WIFI_AWARE_HARDCODED_PMK.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/plans/P1-17_windows_wifi_direct_design.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/P6_STATUS_PENDING_P5.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/FARM_TESTRUNNER_REST_API_GAP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T13_RULE8_FOLLOWUPS_262_263.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/stuck_process_monitor.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/CRITICAL_OUTBOX_NEVER_FLUSHES_DESPITE_ACTIVE_CONNECTION.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/FOR_ALPHA_FIX_B2_MANIFEST_DEFECTS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/service/AnrWatchdog.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ALPHA_TEST_SESSION_FINDINGS_2026-07-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T180217Z_CELL_SELF_3NODE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T201606Z_WIFIOFF_2NODE.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T093500Z_DROPPHASE_RCA.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/PQC_07_PQ_REFRESH_WITHOUT_DH_CROSSING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `docs/P2P_CONNECTION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T1.7/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T1.8/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260908T224800Z_BLE01_SCANNER_FIX_LOCAL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_ARCH272_ROUTING_FEED_FINDING_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_CORRECTION_AND_BLE_FINDING_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/CELL_RELAY_CUSTODY_FIX_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-06_01-00_PT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T203500Z_CELL_STAND_DOWN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_002_ANR_Crash_Resolution.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/local_harness.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_OUTBOX_FIX_REVIEW_QWEN_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_T13_FDHT_A_and_F7_B.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/B1_DNS_HARDENING_STATUS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_S3_RELEASE_MECHANICS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_AWS_REBUILD_PLAN_E97C3F82_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_REQUEST_IOS_LOG_EXCHANGE_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/REPLY_2026-06-06_01-45_PT_P0_025_RETEST_RESULT.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T202000Z_CELL_7MIN_FAIL.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_FLEET_REDEPLOY_b0f7ac4e_PROGRESS_2026-09-06.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_MULTI_TRANSPORT_STORE_FORWARD_RULE8_REVIEW_2026-09-14.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/READY-FOR-PHASE3.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CONTROLLER_PACKAGE_2026-09-08.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ESC_ANDROID_DNS_RESOLVER_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_FINAL_APPROVE_DONE_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T13_F7_HINT_COLLISION_PROPOSAL_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_276_OUTBOX_FIX_QWEN_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_CORRELATION_ANSWER_2026-08-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/P1-10_adaptive_port_selection_design.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/RCA_DELIVERY_ACK_IMPLEMENTATION_PLAN_2026-08-25.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/archive/CEO_CTO_COMMIT_CHECKPOINT_PROMPT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/CLARIFICATION_REQUEST_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_T1_greenlight.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_OPERATOR_DECISIONS_TAGPATH_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_WAIT_FOR_PR136_BEFORE_FINAL_IOS_MACOS_BUILD_2026-08-04.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_ROOT_CAUSE_SWARM_DEAD_2026-08-02.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/smart_retry.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/fieldtest/PR139_ANDROID_WINDOWS_CORRELATION_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-05_21-22_PT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T060118Z_GHOST_GATE_LOGPULL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_GEMINI_FLASH_012_Remove_Unused_Arc_Import_WASM.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_T2_disk_cleared_ack.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_ARCHITECTURE_AND_3NODE_HANDOFF_2026-09-02_blocked.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/review/PQC_07_ATTEMPT3_REVIEW_VERDICT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_D2_BLIND_B_ADVERSARIAL_VERDICT_2026-09-13.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/SUBAGENT_RCA_BATCH_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=standard **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T200027Z_CELL_27S.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_FINAL_HANDOFF_20260908T120957Z.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_BUILD_004_Windows_Test_Stabilization.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CANDIDATE_272_DELTA_ADDENDUM_REQUEST_44fee3c4_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=standard **[?]**
+- `HANDOFF/gpt/WINDOWS_BLE_FORWARD_GAP_2026-08-02.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/CORE_BLOCK_GATE_ADVERSARIAL_REVIEW_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T13_FDHT_RECHECK_QWEN_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/fieldtest/ROLLOUT_2026-08-18_FIELD_EVIDENCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/WS14_AUTOMATION_HANDOFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ESCALATION_PROTOCOL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/ORCHESTRATOR_TAKEOVER_2026-08-08.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/RULE8_PR267_VERDICT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_CEO_CLEANUP_MERGE_DIRECTIVE_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_ORCHESTRATOR_RESPONSE_2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_BRANCH_UNIFICATION_PROPOSAL_2026-08-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/review/V040_NIMBLE_PEER_REVIEW_QWEN_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T4_BLIND_B_ADVERSARIAL_VERDICT_2026-09-13.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/DEBUG_REMAINING_ISSUES_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ESCALATIONS/ESCALATION_claude-code_2026-06-10T18-59-30Z_review-required.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T221938Z_EMU_3NODE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_AWS_REDEPLOY_BLOCKED_E97C3F82_2026-09-04.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_CANDIDATE_272_VERDICT_REPIN_85cb4c67_2026-09-07.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/V040_FINDING_DISPOSITIONS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/watch_handoff_lanes.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/archive/PANIC_libp2p_request_response_duplicate_disconnect.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_GEMINI_FLASH_021_CLI_Identity_Info_Expect_Panic.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CEO_BUYOFF_3NODE_CANDIDATE_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_RCA_RERUN_ROOT_CAUSES_2026-09-06.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T14_EPHEMERAL_PORT_ADVERTISED_AS_EXTERNAL.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_RESPONSE_STAGE_1A.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_F6_BLIND_B_ADVERSARIAL_VERDICT_2026-09-13.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/todo/P1_ANDROID_CHAT_ORDER_CROSS_CLOCK_2026-09-17.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `core/src/abuse/spam_detection.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/security/PR139_REVIEW_15dbcde0_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260908T171520Z_NODE_READY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T080000Z_D1_LIVE_CUTOVER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_CORE_004_Mobile_Receipt_Wiring.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/RULE8_PR262_PR263_VERDICT_OPUS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CEO_DIRECTIVE_REVIEWS_ITERATE_TO_APPROVE_MULTI_TRANSPORT_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_ORCHESTRATOR_RESPONSE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_RESPONSE_STAGE_1B.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/RULE8_PR289_VERDICT_2026-09-17.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_PR281_GHOST_IDENTITY_001_RULE8_HARNESS_APPROVE_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/todo/P0_ANDROID_SELF_RATCHET_RESET_2026-08-10.md` — attention: central: in any repo-wide waist brief — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `docs/BRANCH_DISPOSITION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/PRODUCTION_READY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/error_handler.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/CEO_RULINGS_2026-08-16.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ESCALATIONS/ACK_ESC-FC74D953.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260917T211913Z_NODE_READY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/T1_DUAL_FLAVOR_BLOCK_DISPATCH_2026-08-06.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_031_BLE_Daemon_Run_Path_Not_Verifiable_Without_Hardware.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T9_PR_QUEUE_BURNDOWN.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_CANDIDATE_272_VERDICT_REPIN_b0f7ac4e_2026-09-06.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/V040_PR278_ANDROID_ANR_REVIEW_APPROVED_bfe6bc0b_2026-09-07.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_peer_confirmed.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/PR93_COMMENT_RESOLUTION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_GEMINI_FLASH_022_WASM_Notification_Permission_Unwrap_Panic.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_GEMINI_FLASH_023_Core_History_Retention_Corrupt_Record_Panic.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_029_Running_Binary_Cannot_Be_Killed_Or_Replaced_For_Build.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_FDHT_inventory_correction.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_T12_acceptance2_correction.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_PR274_MERGE_DECISION_CEO_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T2_disk_space_question_2026-08-31.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_TERMINAL_REQUEST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_REQUEST_PLAN_CONFIRMATION_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/HERMES_ELONGATED_DREAMING_DESIGN_2026-08-06.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/RULE8_PR296_VERDICT_2026-09-17.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T13_F7_CONFIRM_APPROVE_HARNESS_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/branch_disposition.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T231500Z_NICKNAME_OWNERSHIP.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_020_Nightly_CI_Workflow.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T14_EPHEMERAL_done_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T1_preflight_ready_2026-08-31.md` — attention: central: in any repo-wide waist brief — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_ANDROID_LOG_FINDINGS_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/escalation.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/REPLY_2026-06-06_01-15_PT_P0_025_RETEST_GO.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T033500Z_PARITY_PREP_E3E4.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T111000Z_UNIFICATION_CODE_FIXES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_WORKING_FIRST_PATH_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/A-02_F1_confirmation_run_cargo_tes.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_SECURITY_007_Identity_Backup_Encryption_V2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_010_Quota_Governor_Runbook.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_T2_disk_space.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_CEO_BUYOFF_3NODE_CANDIDATE_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_FINAL_HEAD_e97c3f82_AWS_LEG_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/gpt/CTO_TO_CAO.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/harness/JEV_DOGFOOD_RUN_2026-09-22.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/UNIFICATION_V2_RESULTS_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/PQC_05_06_07_ADVERSARIAL_REVIEW.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T13_FDHT_FINAL_APPROVE_QWEN_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/REPLY_2026-06-05_21-25_PT_OPTION_B.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/archive/P1_AWS_RELAY_NOT_REMOTELY_MANAGEABLE_2026-08-09.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/P1_NESTED_CIRCUIT_ADDRESSES_STILL_FORMED_2026-08-10.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_CLI_023_ContactManager_Shared_Backend_Key_Collision.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_DOC_002_Promotion_Roadmap_v0.3.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_032_Control_API_Missing_GET_Contacts_Endpoint.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_WASM_003_End_To_End_Test_CLI_Local_Authority.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T2_disk_cleared_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_IOS_OWNERSHIP_AND_PARITY_2026-08-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/gpt/WINDOWS_WIPE_DISCLOSURE_PARITY_NOW_2026-08-03.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/RULE8_PR297_VERDICT_2026-09-17.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_CANDIDATE_272_DEFERRAL_APPROVE_e97c3f82_HARNESS_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/V040_CANDIDATE_272_FINAL_APPROVE_QWEN_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/V040_PR272_RESOLUTION_DELTA_RULE8_APPROVE_e97c3f82_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T1T2_BLIND_B_ADVERSARIAL_VERDICT_2026-09-13.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/P0_SEND_CRYPTO_FAILS_VS_DELIVERED_2026-08-30.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `docs/SCMessenger_V1_Readiness_and_Takeover_Plan_2026-09-13.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CRITICAL_ANDROID_FALSE_DELIVERY_FAILURE_NO_RECEIPT_ACK.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_CLI_027_Drift_Protocol_Still_Dormant_At_0_2_1.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_025_Identify_Protocol_Spam_From_Relay_Peer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_026_External_Address_Omits_LAN_Interface.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_IOS_003_Background_Mode_BLE_Multipeer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_ANDROID_024_Identity_Generation_Reentrant_Guard.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_ANDROID_022_BLE_Stale_Cache_Cleanup.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_PR139_UNIFIED_BRANCH_AND_CHANNELS_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/circuit_breaker.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_ANDROID_Unit_Tests_Force_Disabled_Since_2026-06-06.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_SECURITY_009_Sled_Compaction_And_Monitoring.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_030_Discovery_Peers_Transport_Hardcoded_As_TCP_LAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_001_Permission_Loop_State_Machine.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_019_Corrected_Routing_Claim_Notes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P2_TEST_001_Cross_Platform_Delivery_Harness.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_ANDROID_Identity_Generation_From_Settings_Missing_Entropy_And_Hangs_30s.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_CLI_024_mDNS_TxtRecordTooLong_For_Circuit_Addresses.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_T2_merged_port_T1.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_clarification_response.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_AWS_REBUILD_CEO_RULING_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_PLANNING_040_050_VERDICT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `POST_TAG_QUEUE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/observation.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-05_HERMES_P0_024_P0_025_DECISION_RECEIVED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CORE_001_Drift_Protocol_Production_Wire.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CORE_003_Privacy_Modules_Production_Wire.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_002_Relay_Peer_Contacts_Filter.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_IOS_002_Notification_Permission_Flow.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_PLATFORM_001_Outbox_Flush_PeerDiscovered.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_GEMINI_FLASH_003_BLE_Stale_Peer_Cache_Cleanup.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_COORDINATOR_HANDOFF_POINTER_2026-09-06.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_CANDIDATE_272_FINAL_APPROVE_DELTA_e97c3f82_HARNESS_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T14_EPHEMERAL_CONFIRM_APPROVE_HARNESS_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ROUTING_ENGINE_NEVER_LEARNS_PEERS_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_MICRO_RUST_RELAY_ONION_ENABLE_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_ANDROID_MESSAGE_SEARCH_UI_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CORE_004_LZ4_Compression_Production_Wire.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_005_CLI_GET_Delete_Contacts_Endpoint.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_007_Docs_Path_Normalization.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_WASM_004_Comprehensive_WASM_Feature_Extension_Suite.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-09-01_PR267_REJECTED_my_ruling_was_wrong.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CORE_002_Mycorrhizal_Routing_Production_Wire.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_011_ContactItem_Nickname_Overflow.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_015_WiFi_Aware_Discovery_Counter.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_016_Write_Ollama_Config.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CEO_HANDOFF_2026-09-01.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-07_22-05_PT_ORCHESTRATOR_HALT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_RELEASE_001_v0.2.1_Complete_Notes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_014_Remove_Deprecated_Read_Variant.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P2_ANDROID_IDENTITY_QR_PRERENDER_AND_SCROLL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-07_19-55_PT_ORCHESTRATOR_SANITY_HALT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_004_Android_Backup_Exclusion_Rules.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/E01B_FABLE_DESIGN_HANDOFF.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_009_Repo_Root_Helper_Script.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/bootstrap.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_TAKEOVER_2026-08-01_WINDOWS_WINDDOWN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/IN_PROGRESS_claude_slot2_status.md` — attention: unmatched **[fallback]**
+- `HANDOFF/review/TRANSPORT_LIVENESS_REREVIEW_PASS_QWENPAID_2026-08-05.md` — attention: unmatched **[fallback]**
+- `HANDOFF/review/V040_NIMBLE_RECYCLE_REVIEW_QWEN_2026-09-03.md` — attention: unmatched **[fallback]**
+
+## Stage: dispatch
+
+- `scripts/orchestrate_strict.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/dispatch_dial.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_CORE_WIRING_B1B2.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `cloud/orchestrator/handlers/sprint.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `scripts/fix_contactmanager.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/FileLoggingTree.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/fix_ios_contacts.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/clean_all_devices.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/generate_changelog.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/setcap-cli.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/burndown_issues.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-05_NEARBY_DISCOVERY_PRODUCTION_PUSH.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `scripts/inbox_bridge.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/ApkShareManager.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/ble/l2cap.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Services/MeshBackgroundService.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/adb_cleanup.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/ollama_cli_bridge.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/prune_sim_logs.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_6.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_task_wire_setRotationInterval.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/DiagnosticsShareController.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/orchestrator/handlers/preemption.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/ADD_TIER_SELECTION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/fix_contacts.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/IMPLEMENTATION_NOTES_P1_DIAL_POLICY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_P1.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/P3_ANDROID_RETRY_SUPPRESSION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/orchestration_worktree.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/process_monitor.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/PQC_07_WIRE_RATCHET_STEP.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_applyAdvertiseSettings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/reap_worktrees.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/batch_micro_tasks.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_5.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_P2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_WASM_B6.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_applyScanSettings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_updateInputText.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `cloud/orchestrator/db.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/relay/server.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/mod.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/aws/farm-sim-manage.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/device/d4_two_device_message.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/fix_iron_core_export.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_WAVE1_DEPLOY_RUNBOOK_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_acquireWakeLock.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_android_ui_B4.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard
+- `HANDOFF/done/task_wire_buildForegroundServiceNotification.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/device/d6_transport_racing.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/fix_ios_contacts.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T1.2/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/IMPLEMENTATION_NOTES_P3.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SUB02.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_LabeledCopyableText.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onServiceResolved.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/NotificationHelper.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/drift/relay.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/sweeper.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/phase1-wasm-lock-progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260908T232000Z_T14_EXTERNAL_ADDR_FIX_LOCAL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/FIX_DOCKER_BOOTSTRAP_CONFIG.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_task_wire_notifyForeground.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/MICROBATCH_CORE_RUST_WIRING_MISC.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_setBleComponents.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_setContactNickname.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_setPeer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_sendBlePacket.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_updateBatteryFloor.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_updateContactDeviceId.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/WINDOWS_REQUEST_IOS_UPDATE_CHRISTY_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/surgical_cleanup.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/notification/NotificationActionReceiver.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/mesh/profiles/dtn_carry.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/IDENTITY_BLOCKING_IMPLEMENTATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/deploy_gcp_node.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `wasm/src/daemon_bridge.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/PQC_09_ONION_COMPILE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_1.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SPLIT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/D-02_ANDROID_ROBOLECTRIC_WIRING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_updateDiscoveryMode.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/dupes_2026-07-17/E-04_PQC_07_WIRE_RATCHET_STEP_wire.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docker/manage.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/V0.2.1_NOTIFICATIONS_DM_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/archive_task.py` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `scripts/fix_swift_generation.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/archive/V1_INSTALL_ARTIFACT_FOR_ALPHA_TESTERS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_RUST_GROUPA_RESUME_PREFETCH.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_onBleDataReceived.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/REJECTED/OLD_MICRO_BATCH_2026_05_14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/ec2/launch-farm-sim.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/run_surgeon.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/CONTINUE-PHASE1.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/PQC_09_SECURITY_REVIEW_FIXES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/archive/WAVE_B_FREEZE_STATUS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_D4.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_CORE_WASM_WIRING_3.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_CORE_WASM_WIRING_5.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_RUST_GROUPG_MISC_CORE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_enableTransport.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_providePreferencesRepository.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_recordTransportEvent.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/_QUEUE.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/service/MeshForegroundService.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/scripts/cleanup_workers.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/relay_custody.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/iOS/PHASE4_IMPLEMENTATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/implementation_plan.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Background/NotificationBackgroundProcessor.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Services/MeshEventBus.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/aws_deploy.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/device/p1_14_hostile_network.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/DISPATCH_LAKE_OPENROUTER_DIRECT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `scripts/build_appimage.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/V040_FREE_LANE_DISPATCH_READY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S4_T3_DATA_PERSISTENCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/IN_PROGRESS_v030_release.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_ANDROID_STABILITY_001_ANR_Battery_Fixes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_incrementAttemptCount.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onReceiptReceived.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_267_272_FINAL_APPROVE_QWEN_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/E00_WIRING_IMPL.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/review/FOR_ALPHA_WIRE_B2_MANIFEST_REANCHOR.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/install-clean.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/scripts/spawn_worker.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/peer_broadcast.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/implementation_cheatsheet_3.4.2026.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/ops/GCP_DEPLOY_GUIDE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/device/p1_18_relay_cells.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/micro_agent.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/freebuff/queue/V040_QUEUE_STATUS_RECONCILE_TAGPATH.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/ios_extractor.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `wasm/src/worker.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_CORE_WASM_WIRING_4.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T3.3/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `.claude/plans/bootstrap-wiring-qr-ip-bluetooth-plan/tasks.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/IN_PROGRESS/DISPATCH_WAVE_CRYPTO_CODER.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SUB01.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_onPeerIdentified.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/mesh/wireguard/setup_cross_vm.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/ec2/launch-android-emulator-node.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/disk_hygiene.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/pr_comment_watch.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/run5.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/stop_node.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE1-TASK1.2-COMPLETE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/UNIFIED_V040_3NODE_DEPLOY_RUNBOOK_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/DISPATCH_IMPL_ANDROID_MDNS_PARITY_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_loadPendingOutboxAsync.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V050_WP1_IDENTITY_UNIFICATION_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/wasm_support/storage.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/aws/provision-relay.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/install_hooks.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/commands/drive.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/DISPATCH_IMPL_TRANSPORT_LIVENESS_P1_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_S6_T3_DEEP_LINK_INVITE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/D-05_UNWRAP_PANIC_HARDENING_REDISPATCH.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1-05_Build_Provenance_Stamps.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_onAnr.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CEO_INPUT_272_REVIEW_DISPATCH_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_273_NIMBLE_PEER_QWEN_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `android/install-apk.bat` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `cloud/scripts/create_golden_snapshot.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/HIGH_IMPACT_SECTION_ACTIONS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/ANDROID_SEND_QUEUEING_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/IOS_PROVISIONING_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/install.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `wasm/src/storage.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/skills/core_cli_driver.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S5_T3_ALPHA_BRANDING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/NETWORKERROR_OBSERVABILITY_GAP_COMPILE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_showMeshStatusNotification.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_268_269_QWEN_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_T_COB001_WASM_OUTBOX_DUAL_DRAIN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/WifiDirectTransport.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BleAdvertiser.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BleL2capManager.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/deploy-farm-sim-stack.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/adb_extractor.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/apply_branch_protection.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/build_lock.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=scout **[?]**
+- `scripts/cloud_dispatch.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/p2_06_cleanup.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T225500Z_ANR_MAIN_FFI_FIX.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SUB03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_RUST_GROUPC_NOTIFICATION_RELAY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_S2_T2_TOPIC_MANAGER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CORE_INTEGRATION_BACKUP_ENVELOPE_TYPE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/U1_outbox_open_default.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_BATCH_RUST_GROUPB_DSPY_MODULES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/task_wire_apply_policy_config.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_provideMeshRepository.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_storage_pressure_quota_bands_follow_locked_policy.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_POST_VALIDATION_MERGE_PLAN_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_272_CANDIDATE_QWEN_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF_AUDIT/restore_map.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/StorageManager.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/privacy/cover.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/build-device.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/aws/provision-farm-sim.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/sync_version.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/update_local_harness.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/A-01_A3_Android_retry_suppression.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_ANDROID_GROUP_KOTLIN_WIRING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SUB04.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_S6_T1_IDENTITY_BACKUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_ANDROID_024_DISPATCH.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_272_REVIEW_TRIAGED_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/retired/BATCH_AND_NO_ROUTE_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/service/MeshVpnService.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/api.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/ContactManagerFix.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/deploy_to_device.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/fix_swift_strings.py` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `scripts/run_node_supervised.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `wasm/src/notification_manager.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_S2_T1_SWARM_BRIDGE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_on_write.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/ORCHESTRATOR_DISPATCH_PLAN_2026-08-01.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/BATCH_AND_DELIVERY_001.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_D10_REVIEWER_DISPATCH_PACKET_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/launch_agent.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/C-06_P1_18_relay_task_3_node_custo.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_ANDROID_WIRING_B3B5.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SUB05.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SUB06.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/ONION_GATING_PART_C.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/service/MeshSyncWorker.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/WifiAwareTransport.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/orchestrator/worker_manager.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=standard **[?]**
+- `iOS/SCMessenger/SCMessenger/Transport/BLEL2CAPManager.swift` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `launch_claude.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/deploy_cloudflare_node.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/fix_swift_strings_targeted.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `.opencode/agent/implementer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_CORE_001_Drift_Protocol_Activation.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_generate_cover_traffic_if_due.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_notifyBackground.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_send_prepared_envelope.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/model_dispatch.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/done/BATCH_S2_T5_VPN_SERVICE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/gpt/QWEN_WAKE_EXECUTE_RELEASE_READINESS_2026-07-29.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/api_axum.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/worker/run_aider_sprint.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/store/history.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/wasm_support/mesh.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/install-device.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/fix_targets.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/run_tasks.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/ORCHESTRATION_LEDGER_P1_P4_P6.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-07_22-37_PT_HALT_CLEANUP.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-08_02-02_PT_SWEEP_IN_PROGRESS.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/PQC_10_MLDSA_MODULE_MISSING.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=standard **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_ORCHESTRATOR_REQUEST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BleGattClient.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BleGattServer.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/plans/ID_UNIFICATION_IMPLEMENTATION_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Data/MeshRepository.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/ec2/launch-alpha-relay.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/prompts/implementer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_cleanup_record_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_268_270_CONFIRM_APPROVE_QWEN_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `core/src/transport/nat.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/WORK_DISPATCH_GUIDE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Transport/BLEPeripheralManager.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/run5-live-feedback.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_COORDINATION_PROTOCOL_2026-08-02.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/outbox.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/plans/PR139_FIVE_NODE_FIELD_GATE_REFERENCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/PQC_07_ATTEMPT2_MIX_PQ_SECRET_DESIGN.patch` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/core_cli_driver.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `wasm/src/connection_state.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_IMPLEMENTATION_001_Unused_Code_Activation.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `core/src/identity/store.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/websocket.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Transport/BLECentralManager.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Transport/MultipeerTransport.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/Run-Cartographer.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/archive/DISPATCH_DESIGN_TRUST_SCOPED_LAN_DISCLOSURE_2026-08-05.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `core/src/store/contacts.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/review/OUTBOX_FLUSH_ATTEMPT_296LINES.patch` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/PQC_07_ATTEMPTED_PQ_SS_WIRING_REVERTED.patch` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/PQC_07_ATTEMPT3_DRAFT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/CTO_DISPATCH_PLAN_2026-08-16.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/CTO_DISPATCH_PLAN_2026-08-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/GLOBAL_ROLLOUT_PLAN.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/drift/store.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_S5_T2_CRASH_REPORTING.md` — attention: unmatched — brief_treatment=grounded_claim **[fallback]**
+- `HANDOFF/freebuff/inbox/V040_3NODE_ROLLOUT_PLAN_2026-09-03.md` — attention: unmatched **[fallback]**
+- `HANDOFF/freebuff/inbox/V040_REVIEW_DISPATCH_272_DEFERRAL_REREVIEW_44fee3c4_2026-09-03.md` — attention: unmatched — brief_treatment=grounded_claim **[fallback]**
+- `docs/ID_UNIFICATION_IMPLEMENTATION.md` — attention: unmatched **[fallback]**
+- `scripts/batch_handoff.py` — attention: unmatched — brief_treatment=cited_window, handling=code_owned **[fallback]**
+- `scripts/jev_repo_insights.py` — attention: unmatched **[fallback]**
+- `vendor/libp2p-swarm-0.48.0/src/executor.rs` — attention: unmatched **[fallback]**
+
+## Stage: adjudicate
+
+- `iOS/SCMessengerTests/MeshBackgroundServiceTests.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/.cargo-ok` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/rules_check.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_COMPILE_GATE_VERIFICATION.md` — attention: central: in any repo-wide waist brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/phase_full_wiring_verification_2026-04-28.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/mocks/identity.rs` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/MockTestHelper.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/test.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/androidTest/java/com/scmessenger/android/util/AppRestartHelper.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/ReceiptWindowTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/tests/test_cli_identity_persistence.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/mocks/mod.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `iOS/tests/local_transport_fallback_tests.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/REJECTED/OLD_BLOCKED_BY_QUOTA.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/test/java/com/scmessenger/android/data/NicknameAuthorityTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/DeliveryStateMapperTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/RoleNavigationPolicyTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/test_persistence_restart.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessengerTests/ReceiptUnificationTests.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `shared/src/desktopTest/kotlin/com/scmessenger/shared/LinuxPlatformTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/data/SelfAsPeerGhostTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/test/java/com/scmessenger/android/test/MeshApplicationScheduleTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/MeshForegroundServiceTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/mocks/routing.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessengerTests/BackupPassphraseValidatorTests.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `iOS/SCMessengerTests/NotificationVerificationTests.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/test/java/com/scmessenger/android/test/ChatViewModelTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/ContactsViewModelTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/utils/SecurityUtilsTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/mocks/transport.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessengerTests/OutboxRetryPolicyTests.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/todo/P1_RELEASE_SIGNING_GATE_FAIL_CLOSED_2026-09-16.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/BackupPassphraseValidatorTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/transport/MdnsServiceDiscoveryTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/test/java/com/scmessenger/android/utils/NotificationGateTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/test/java/com/scmessenger/android/utils/PeerIdValidatorCanonicalTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/utils/PeerIdValidatorCurveVectorTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_receipt_convergence.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_relay_custody.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/property_tests.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `log-visualizer/test/dom-safety.test.mjs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/p2_06_tests.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/test/java/com/scmessenger/android/data/CellTransportBurnDownTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/service/StopRaceLatchTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/ui/viewmodels/MeshServiceViewModelTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/utils/PeerIdValidatorTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_retry_lifecycle.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/property/mod.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `AgentSwarmCline/scmessenger_swarm/observability_tests.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/FINAL_WIRING_AUDIT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/ReceiptUnificationTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_local_mesh_node3.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_relay_diagnostics.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/CHECKED_FILES.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger.xcodeproj/xcshareddata/xcschemes/SCMessengerTests.xcscheme` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `shared/src/commonTest/kotlin/com/scmessenger/shared/PlatformTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/service/AndroidPlatformBridgeTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/MeshRepositoryTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/transport/SubnetProbeDialCandidateTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/test/java/com/scmessenger/android/ui/viewmodels/MainViewModelTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_backup_continuity.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/integration_wifi_aware.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `wasm/test/verification_test.js` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/test/java/com/scmessenger/android/ui/identity/IdentityViewModelTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_offline_partition_matrix.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/_ios_migration_pre_refs.txt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/CLEANUP_STALE_BATCH_P1_CORE_MYCO_ROUTING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/freebuff/done/V040_T5_DOCS_SYNC_GATE_IS_RED.md` — attention: central: in any repo-wide waist brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/OrderingAndNotificationRoutingTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/ui/viewmodels/ContactsViewModelTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/SESSION_AUDIT_MAR-16-2026.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `wasm/test/notification_test.js` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/IN_PROGRESS_handoff_unblock_test_build_verify_2026-06-08.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/IdentityFlowRegressionTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/test/UniffiIntegrationTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/utils/DeepLinkValidatorTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_pq_session.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/integration_recency_map_bounds.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/COMMIT_TRACKER.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/test_notifications.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_incremental_gate.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_000_MASTER_AUDIT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/data/IdentityUnificationCanonicalIdTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/data/ReceiptUnificationTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/network/DiagnosticsReporterRelayRecommendationTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/test/java/com/scmessenger/android/test/DropAtCapRetentionTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/tests/heartbeat_watchdog_integration.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cloud/mesh/test_dtn_store_and_carry.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/tests/xdg_paths_test.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/test_monitoring_stack.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/androidTest/java/com/scmessenger/android/data/MeshRepositoryHistoryTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_contact_block.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/tests/integration_e2e.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/test_and06_public_key_vector_parity.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/tests/test_multiport.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/verify_swift_violations.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=code_owned **[?]**
+- `HANDOFF/archive/P1_DISCLOSURE_CGNAT_AND_FAILOPEN_2026-08-09.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/arch/CompositionBlockingCallGuardTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/test/java/com/scmessenger/android/utils/ContactImportParserTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/integration_backup.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/tests/integration_nat_reflection.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_storage_relay_node4.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/test_address_observation.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/RECEIPT_MARKER_ID_FLAVOR_MISMATCH_2026-08-09.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=failure_evidence, handling=standard **[?]**
+- `android/app/src/test/java/com/scmessenger/android/transport/ble/BleL2capManagerTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/test/java/com/scmessenger/android/transport/ble/BleScannerTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/tests/integration_mesh_acceptance.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/tests/integration_message_requests.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_e00_ratchet_wiring.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_mycorrhizal_routing.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_pq_verification_suite.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/MASTER_BUG_TRACKER.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/scripts/audit_models.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/agents/orchestration-critical-validator.toml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/test/java/com/scmessenger/android/transport/MdnsDnsaddrInteropTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/crypto/proptest_harness.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_core_ffi_node1.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/seam_freeze_onion.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/test-results/README.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/androidTest/java/com/scmessenger/android/ui/identity/IdentityCreationFlowTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/test_storage_fail_loud.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/audit_session_logs.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/orchestration_contract.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/agents/release-gatekeeper.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/TRANSPORT_BLE_LAN_HICCUP_VERIFICATION_2026-08-05.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/tests/integration_ratchet_persistence.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/verify-local-transport.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/test_session_audit.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T4.5/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/scripts/enforce_local_priority.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/2026-06-10_5_GATE_BUILD_VALIDATION_integration_branch.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_BUILD_004_REPO_BLOAT_AUDIT_OPTIMIZATION.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/check_logs.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/test_all_bootstrap_nodes.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/archive/LEDGER_CHOKE_POINT_REFACTOR.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/NEXT_ITER_04_Live_Device_Retest_Pairing.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/property/encryption_roundtrip.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/test_network_scenarios.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `tasks/T1.6/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/IN_PROGRESS/A-05_IOS_RECEIPT_UNIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/2026-07-02_WINDOWS_AUTO_DISCOVERY_VERIFICATION_AND_NEARBY_DISMISS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/test/java/com/scmessenger/android/data/BootstrapCandidateMergeTest.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_dial_policy.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_e00_drift_v2_diag.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `docker/example-custom-test.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/audits/BLE_DEADOBJECT_BUG.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/audits/HERMES_FARM_AUDIT.MD` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T4.1/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `scripts/session_launch_audit.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/V040_3NODE_VERIFY_REPORT_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/F2_MESHSTORE_PERSISTENCE.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_WASM_001_IndexedDB_Persistence.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/P2_VERIFICATION_GATE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/WORLDWIDE_AUDIT_RESULTS.jsonl` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `Harness/handoff/VERIFY_PANEL_SHORTFALL_CONVERGENCE_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cli/tests/integration_peer_identified_gate.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_ledger_convergence.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_ledger_seeding_hardening.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/tests/test_v2_hybrid_envelope_forgery_is_rejected.rs` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `docs/historical/PARTNER_TEST_PLAYBOOK_V0.1.2_ALPHA.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/AUDIT_RESOLUTIONS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/platform-audits/ANDROID_ID_UNIFICATION_BUG_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/ai_health_check.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/PEER_AUDIT_AND_33DA1982_CUTOVER_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_3NODE_DEPLOY_EVIDENCE_238a8c53_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/WINDOWS_NODE_PARITY_AND_GATE_READINESS_2026-08-12.md` — attention: central: in any repo-wide waist brief — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/done/IN_PROGRESS_apk_verify_20260608T160223Z.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_RELEASE_001_Build_Verification_and_Dashboard.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_11_RELAY_INVITE_HYBRID_AUTH.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_encrypt_xchacha20.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_T_AND06_UNIFI_CUTOVER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/retired/QA_E2E_ANDROID_DISCOVERY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/P3_VERIFICATION_GATE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/P3_DOC_LEDGER_MIGRATION_F6_NOTES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/service/ServiceHealthMonitor.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_ws13_migration.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/property/identity_roundtrip.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/test_rule8_pr305_charge_points.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docker/Dockerfile.android-test` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/audits/UNFINISHED_CODE_AUDIT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/ALPHA_RELEASE_AUDIT_V0.1.2.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/Gemini_Readiness_Audit.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/LOG_AUDIT_REPORT_2026-03-19.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/IOS_ISSUES_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/play_store_submission_checklist.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Utils/BackupPassphraseValidator.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/test_gcp_node.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/skills/model_check.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `AgentSwarmCline/scmessenger_swarm/surgeon_graph.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/RUNBOOK_PIXEL_PASSIVE_VERIFICATION_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_PASSIVE_3NODE_DEPLOY_READINESS_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/backlog/P1_ANDROID_021_Real_Device_Release_Smoke_Test.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/P0_BUILD_005_Android_Test_Config_Audit.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_ANDROID_022_Accessibility_and_Polish_Audit.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_07_FORCE_RATCHET_SAME_DEFECT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/PQC_REVIEW_PARTB_RETRY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/freebuff/inbox/V040_T14_done_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_V2A_PRECHECK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/UNIFIED_MASTER_MERGED_PLAN_2026-08-10.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/U7_SCHEMA_DRIFT_AUDIT_REPORT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/review/V040_T14_PREEXISTING_REVIEW_QWEN_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/tests/integration_outbox_flush_reconnect.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/test_mesh_routing.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/AUDIT_QUICK_REFERENCE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/audits/SECURITY_AUDIT_2026-04-19.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/platform-audits/ANDROID_MESSAGE_PERSISTENCE_INVESTIGATION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/verify-role-mode.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_apk_native_libs.py` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `scripts/verify_ws12_matrix.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/scripts/repo_map_health_check.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STORE_FORWARD_FIELD_TEST_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T230000Z_CELL_HANG_SWEEP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/LIVE_VERIFICATION_0fd69fb2_2026-09-18.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/audit/T4_ROUTING_FEED_ANALYSIS_2026-09-13.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_update_last_known_device_id_persists_and_is_readable.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T12_done_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_STAGE_1B.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_S4_DELIVERY_PROOF_RUNBOOK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/BackupPassphraseValidator.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/main/java/com/scmessenger/android/utils/PeerIdValidator.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/dedup.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/audits/BRANCH_AUDIT_REPORT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/CASE_SENSITIVITY_AUDIT_2026-03-09.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/ANDROID_UI_SPACING_FIX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `scripts/ai_health_check.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/recovery_preflight.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/run_dualpass_audit.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/hooks/check_no_emoji.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `.codex/hooks/check_no_emoji.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T053500Z_TRANSPORT_VERIFY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T185000Z_CELL_PASS_RECEIPT.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/done/IN_PROGRESS_v030_rebuild.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ORCH_E2E_GITIGNORE_LINE_REFS_2026-08-04.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_13_VERIFICATION_SUITE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_REVIEW_CHECKPOINT_05_06_07.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_HARNESS_LANE_INCORPORATION_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_REVALIDATION_GATES_DONE_2026-09-07.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_T13_F7_REVIEW_QWEN_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/BLE_FALSE_DELIVERY_BUG.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/iOS/scripts/verify-build-setup.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/platform-audits/ANDROID_FIXES_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/troubleshooting/CI_FAILURES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/tests/install-device-resolution-test.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/check_ollama_models.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/check_queue_status.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/verify_ble_only_pairing.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/agents/android-qa.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/STATE/agent4_complete.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_E8_ADVERTISEMENT_CONFIRMATION_SPEC_2026-09-09.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/audit/security_review_pr129.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/NEXT_ITER_01_Compile_Gates_And_Test_Triage.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/TEST_AGENT_RESPONSE.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p0_android_play_readiness.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_T8_done_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/gpt/GPT_SEEDING_REVIEW_STAGE_1A.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/E02_FORCE_RATCHET_REMOVAL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/TRANSPORT_FAILOVER_AUDIT_QWENPAID_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/tests/test_and06_live_key_corpus.rs` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=scout **[?]**
+- `docs/QWEN_QUOTA_LEDGER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/SECURITY_AUDIT_NOTES.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/DOCUMENTATION_SYNC_VERIFICATION_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/security/PR139_REMEDIATION_2026-08-08.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/docs_sync_check.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T5.7/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/D4_NODE_REBUILD_RUNBOOK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/IN_PROGRESS/FARM_SIM_PHASE_2_3_COMPREHENSIVE_TESTING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T001500Z_T14_GOLIVE.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/audit/CELLULAR_PATH_TRIANGULATION_2026-09-15.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/backlog/P1_IOS_002_NOTIFICATION_VERIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/LEDGER_SEEDING_ADVERSARIAL_REVIEW_2026-07-25.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_CANDIDATE_272_REVIEW_QWEN_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/audits/LOG_AUDIT_2026-03-15.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/TRANSPORT_FAILURE_ANALYSIS_2026-03-15.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/security/PR180_VALIDATION_2026-08-18.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `docs/security/W1_FIX_VALIDATION_2026-08-16.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/device/selftest.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/disk_budget.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/orchestrator_guard.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=code_owned **[?]**
+- `scripts/test_bod_governance.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/verify_ios_bindings.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_release_keystore.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T2.2/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/scripts/task_validator.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/BRANCH_SPACE_CLEARING_SOP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_JEV_HARNESS_INTEGRATION_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/EXECUTE_PHASE_2_3_ON_INSTANCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/D2_KEYSTORE_VERIFICATION_2026-09-13.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/audit/SESSION_AUDIT_2026-08-04_CLAUDE_LAST.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/ondatareceived_deadlock.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_07_CADENCE_TEST_COVERAGE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/PQC_07_PQ_SECRET_NEVER_MIXED_INTO_ROOT_KEY.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/PQC_08_V2_NO_SESSION_BUG.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/TASK_DELEGATE_VERIFY_LOOP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/phase_1c_integration_tests.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_storage_pressure_purge_records_audit_transition_before_delete.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_update_last_known_device_id_can_clear.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/review/E01a_attempt_constraints.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/scmessenger_rust_status.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/DeepLinkValidator.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/audits/SCMessenger_audit_issues7-8-2026-2100HST.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/singularity_check.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/hooks/preflight_guard.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=code_owned **[?]**
+- `HANDOFF/DISCOVERY_TESTING_COMPLETE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/Last_session_opus5_continuefromhere.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/IDENTIFIER_GATE_FOLLOWUPS_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/DIRECTIONAL_PARITY_DIAGNOSTIC.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/FIVE_NODE_RUN_1_ANALYSIS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/STRICT_CELL_TRANSPORT_AUDIT_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/doctrine_violation_inventory.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/U7_SCHEMA_DRIFT_AUDIT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_MICRO_DEPRECATION_002_MdnsServiceDiscovery_API28_GateFix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_android_build_verify.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_NIMBLE_PEER_FIX_DONE_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/review/OC_LANE_AUDIT_2026-09-22.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_D10_RESERVATION_BASE_REVIEW_PACKET_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_T13_FDHT_REVIEW_QWEN_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/ledger_entry.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/fieldtest/ANDROID_LOG_OBSERVATIONS_2026-08-08_agy.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/ADB_SESSION_AUDIT_2026-03-18.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/platform-audits/ANDROID_CONTACT_PERSISTENCE_FIX.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/session-reports/IMPLEMENTATION_COMPLETE_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/audit_unsafe.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/docs_sync_check.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/prepush_check.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/test.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_simulation.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/freshness_gate.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/skills/adversarial_review.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/IN_PROGRESS/D1_DESKTOP_BRIDGE_UNIFFI_VERIFICATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-05_ANDROID_P0_024_P1_022_BUILD_VERIFIED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-06_01-30_PT.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=scout **[?]**
+- `HANDOFF/archive/LEDGER_ADDRESS_IDENTITY_MISATTRIBUTION_2026-08-09.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/archive/REGENERATE_LAKE_REGISTRY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/VERIFY_LEDGER_EXCHANGE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/PIXEL_STORE_UNAVAILABLE_RCA_2026-09-18.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/ble_gatt_restart_fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/B-01_SUITE_NEGOTIATION_VERIFY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_ARCH_VERIFY_DONE_E97C3F82_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_GATE_EVIDENCE_AND_BRIDGE_RCA_2026-08-11.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/review/P1_VERIFICATION_GATE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/ANDROID_INBOUND_CRYPTOERROR_2026-08-09.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `docker/TESTING_GUIDE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/fieldtest/ANDROID_LOG_OBSERVATIONS_2026-08-08_native.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/plans/WS12_VALIDATION_CHECKLIST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/lane_probe.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `scripts/preflight_disk.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/supervisor.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/ANDROID_DISCOVERY_ISSUES.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.claude/skills/finalize-checklist/SKILL.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ACTIVE_LEDGER.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260910T051500Z_OPERATOR_TEST_RCA_FIX.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/QWEN_AUDIT_LAST_CLAUDE_SESSION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/IDENTITY_HASH_VS_PUBKEY_CONFLICT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/LIVE_VERIFICATION_305_2026-09-18.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/parity_evidence_audit.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CORE_DAEMON_TEST_2026-04-22.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=scout **[?]**
+- `HANDOFF/done/CORE_DAEMON_TEST_20260423_1905.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=scout **[?]**
+- `HANDOFF/done/task_wire_blake3_hash.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_clearAnrEvents.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_create_basic.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T2_done_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/crypto/kani_proofs.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/integration_drift_mule.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/Dockerfile.rust-test` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/audits/AUDIT_CONTACT_PERSISTENCE_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/session_orchestration_audit.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `scripts/validate_tag.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_cross_pair_local.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/prompts/gatekeeper.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/TASK_COMPLETION_VERIFICATION_SYSTEM.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260908T174811Z_NODE_READY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/WIFI_TRANSPORT_REGRESSION_RCA_2026-09-18.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/ble_wedge_rootcause.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/NEXT_ITER_02_Adversarial_Review_Sprint_Diff.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/P1-19_Phase_1_Exit_Review.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P1_DOCS_WiFi_Aware_T12c_Ledger_Correction.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout
+- `HANDOFF/done/task_wire_build_optimization_pipeline.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_contact_roundtrips_through_serde_with_default_device_id.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_custody_audit_persists_across_restart.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/PR289_WORKAHEAD_AUDIT_VERDICT_2026-09-14.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_3NODE_VALIDATION_RUNBOOK_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_CTO_TRACKING_PROTOCOL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/P1-15_transport_matrix_audit.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/results/FARM_SIM_PHASE_2_3_TEST_REPORT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/V040_CANDIDATE_272_REVIEW_QWEN_R2_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_OUTBOX_FIX_REVIEW_QWEN_2026-09-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/verify-build-setup.ps1` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `core/tests/test_trn04_custody_lifecycle.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/TEST_PLAN_KMP_DESKTOP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/BLOCKING_AND_PLATFORM_AUDIT_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/SCMessenger_Audit_Logging_Security_Report.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/NETWORK_TESTING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/URGENT_TESTING_TODO_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Views/Contacts/VerifySafetyNumberSheet.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/test_inbox_bridge_routing.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_iter3.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/run_comprehensive_network_tests.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T2.5/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/RCA_OLD_PIXEL_577fd171_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/ANDROID_PIXEL_6A_AUDIT_2026-04-17.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_06_FOLLOWUP_mDNS_selfloopback_unit_tests.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/P1_ANDROID_CRASH_TRIAGE.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/REVIEW_ANDROID_IDENTITY_FIXES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_loadMoreMessages.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_signed_registration_request_verifies_against_matching_public_key.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_AWS_REBUILD_DONE_E97C3F82_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_267_FDHT_QWEN_2026-09-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/verify-build-setup.bat` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/TESTING_GUIDE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/live-smoke.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/pre-commit` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/test_orchestration_v2.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/verify_task_completion.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/API_CONSUMPTION_OPTIMIZATION_AUDIT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/SESSION_AUDIT_2026-07-18.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_iter5.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/RCA_STOP_RACE_AND_CELL_STORED_2026-09-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/ROUND5_HARNESS_AUDIT_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/loopback_dial_design.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[STALE]_[VALIDATED]_phase_2_platform_clients.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_phase_5_prerelease_verification.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_P0_SWARM_TRIAGE_AND_LEDGER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_verify_uniffi_bindings.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_clearInput.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_register_endpoint.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_testLedgerRelayConnectivity.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_272_CI_RED_FIXED_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_3NODE_VALIDATION_RESULTS_b0f7ac4e_2026-09-06.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_MERGE_READINESS_RUNBOOK_2026-09-04.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V050_WP3_INBOUND_COMPLETENESS_2026-09-21.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/BEACH_JOIN_AUDIT_AND_PLAN_2026-09-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/LEDGER_VISIBILITY_AUDIT_QWENPAID_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/PHASE0B_MSGREQ_GATE_REVIEW_QWENPAID_2026-08-04.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/todo/WAVE_H_HUMAN_GATES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/Dockerfile.wasm-test` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/WS12_GATE_CLOSURE_AND_STORE_ROLLOUT_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/audits/PUBLIC_KEY_VALIDATION_AUDIT_2026-03-18.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/device-testing.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/fieldtest/ANDROID_WIRING_AUDIT_2026-08-18.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/IOS_CRASH_AUDIT_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/reclaim_safe.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/verify_task_systematic.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/agents/crypto-security-auditor.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/prompts/adversarial-reviewer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codebuff_deploy/EVIDENCE-3NODE-177bd840-2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `.codex/agents/orchestration-second-opinion.toml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.githooks/pre-push` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `.kiro/specs/repository-production-readiness/ci-audit-report.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_iter2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/PR134_REMAINING_TASKS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/ble_wedge_rootcause_v2.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/IN_PROGRESS_P0_BUILD_003_Formal_Verification_Harness.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/backlog/P0_AUDIT_001_Retroactive_Task_Verification.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/AUDIT_ANDROID_WINDOWS_INTEROP_PARITY_2026-05-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_SECURITY_CARGO_AUDIT_RESIDUAL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_011_Identity_Regression_Tests.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PQC_14_DOCS_AND_RISK_REGISTER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_clearSearch.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_prune_below.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_T10_FFI_SURFACE_GATE_PASSES_VACUOUSLY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/V040_READINESS_3NODE_CONFIRMATION_2026-09-22.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/D1_D9_HARNESS_ADVERSARIAL_FINDINGS_2026-09-22.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/todo/PQC_FULL_INTEGRATION_REVIEW_2026-08-28.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/blocked.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/addr_filter.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/audits/AUDIT_REPORT_PHASE5.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/plans/V0.2.0_STATUS_AND_V0.2.1_PLANNING.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/rules/BUILD_AND_CI.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `scripts/commit-msg` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/tier_a_conformance.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_delivery_state_monotonicity.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_versions.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/scripts/repo_map_health_check.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/scripts/verify_and_fix_repo_map.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-06_OVerseer_PHASE2_FIX_COMMITTED_RETEST_BLOCKED.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/2026-06-08_SWEEP_RESULTS.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_REMAINING_FINDINGS_BACKLOG_2026-09-17.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/DISPATCH_AUDIT_TRANSPORT_FAILOVER_HICCUP_2026-08-05.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/PR136_IDENTITY_FIX_CI_STATUS_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/UNIFICATION_AUDIT_FINDINGS.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_iter1.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/windows_node_driver_log.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/2026-06-10_PIXEL_6A_INSTALL_v0.3.4.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_ANDROID_CONTACT_PERSISTENCE_RESIDUAL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/FOR_BETA_AUDIT_B2_MANIFEST_REANCHOR.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/LAN_TRANSPORT_TEST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_DUAL_BIND_TCP_AND_WS_ON_SAME_PORT_2026-08-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P1_ANDROID_LAN_DISCOVERY_REPAIR.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=scout **[?]**
+- `HANDOFF/done/VERIFICATION_REPORT_P0_AUDIT_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_BATCH_S1_T1_FIX_ANDROID_BUILD.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_phase_3_security_hardening.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_export_audit_log.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_audit_log.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_refresh_delegate_routes.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_resolveDeliveryState.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_T5_done_2026-08-31.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/review/V040_BASELINE_FREEZE.md` — attention: central: in any repo-wide waist brief — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/V040_D10B_POISON_LISTENER_GUARD_REVIEW_2026-09-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/test_v1_bincode_downgrade_forgery.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/test_v1_legacy_envelope_forgery_is_rejected.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/test-phase-2-3-lite.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/test-scripts/run-integration-tests.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/PARITY_AUDIT_V0.1.2_ALPHA.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/orchestration/API_EFFICIENCY_LEDGER.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/check_required_contexts.py` — attention: central: in any repo-wide waist brief — brief_treatment=signature, handling=code_owned **[?]**
+- `scripts/device/g3_churn_gate.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/test_verify_apk_native_libs.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T5.3/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/skills/onboard/SKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/PHASE1-TASK1.3-COMPLETE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ORCHESTRATOR_STATUS.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/PROOF_TWO_ENDPOINT_DELIVERY_2026-07-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/STATE/2026-06-05_QUOTA_LEDGER_REPAIR.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/CORE_LIB_TEST_FINAL_2_FAILURES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/REVIEW_ANDROID_IDENTITY_FIXES_COMPLETED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_clearAllRequestNotifications.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_signed_deregistration_request_verifies_against_matching_public_key.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_PR_DISPOSITION_2026-09-02.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_WORKTREE_RECOVERY_DISPOSITION_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/WINDOWS_PR139_RESUME_STATE_2026-08-11B.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/review/P4_VERIFICATION_GATE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/RULE8_PR305_VERDICT_2026-09-18.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/audit_progress.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/verify-build-setup.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/INTEROP_MATRIX_V0.2.0_ALPHA.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/LOGGING_LEVELS_AUDIT_2026-08-08.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/V0.2.0_API_35_REGRESSION_TEST_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/audits/AUDIT_RESULTS_2026-03-13.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/WS12_VALIDATION_RESULTS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/ANDROID_DELIVERY_ISSUES_2026-03-10.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/iOS_HANG_FREEZE_FIX_2026-03-16.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/security_audit_backup.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T5.4/progress.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/hooks/model_gate.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/skills/build-verify/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/skills/build_verify.json` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/archive/DISPATCH_AUDIT_LEDGER_VISIBILITY_GAP_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/DISPATCH_REREVIEW_TRANSPORT_LIVENESS_2026-08-05.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/ORCHESTRATE_STRICT_HARDENING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/P0_IOS_003_iOS_Parity_Gap_Remediation.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_test_compile_verify.md` — attention: central: in any repo-wide waist brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_clearAllHistory.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_isAtMaxDelay.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_update_last_known_device_id_trims_valid_uuid.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_FINAL_TRACKING_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_267_RECHECK_QWEN_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/plans/RETICULUM_AUDIT_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `core/tests/integration_all_phases.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/CURRENT_STATE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/DEPENDENCY_AUDIT_2026-07-22.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/FEATURE_PARITY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/V0.2.1_RESIDUAL_RISK_REGISTER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/KIMI_K3_V040_CODE_PERFECT_PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/audits/TRANSPORT_PATHS_AUDIT_2026-03-16.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/plans/IMMEDIATE_ACTION_CHECKLIST.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/platform-audits/ANDROID_AUDIT_2026-03-14.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/harness_gate.py` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `skills/release-gate-validator/SKILL.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout
+- `wasm/wasm_plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.agents/skills/onboard/SKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/archive/commands/orchestrate-swarm-legacy.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/hooks/test_preflight_guard.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/skills/build_verify.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.githooks/pre-commit` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260917T195444Z_PREFLIGHT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S1_T2_UNIFFI_BINDINGS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/P0_DEEPLINK_PARSES_BUT_NEVER_DIALS_2026-08-18.md` — attention: background: omit from a tight brief — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_013_iOS_Verify_Test_Hardening.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_0_4_0_ROWS_REVERIFIED_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_DOCS_SPLIT_2026-09-20.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_iter1_DONE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_iter4_DONE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/queue/V040_CTO_ARCHITECTURE_AND_3NODE_HANDOFF_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/gpt/WINDOWS_STATUS_SYNC_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/LEDGER_VISIBILITY_AUDIT_QWENPAID_2026-08-09.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/contacts/VerifySafetyNumberScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/health.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/V0.2.0_RESIDUAL_RISK_REGISTER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/ALPHA_BURNDOWN_V0.2.1.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/ID_UNIFICATION_AUDIT_2026-03-10.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/rules/RUST_CONVENTIONS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/rules/SECURITY_PROTOCOL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/security/PR183_VALIDATION_2026-08-18.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/check_handoff.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/device/p1_09_lan_e2e.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/verify_receipt_convergence.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `skills/philosophy-enforcer/references/enforcement-rubric.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/agents/docs-sync-auditor.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/IN_PROGRESS/CORE_BLOCK_GATE_IDENTIFIER_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ORCHESTRATOR_TOKEN_AUDIT_AND_REDESIGN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/ESCALATION_LEDGER.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/V040_COMPLETION_PLAN_2026-08-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/FARM_SIM_PHASE_2_3_FINDINGS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/AWS_RELAY_REBUILD_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_iter4.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_iter6.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/IRON_CORE_COMPLETE_AUDIT_2026-08-08.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/BATCH_S1_T3_CORE_INTEGRATION_AUDIT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/F1_LEDGER_CONVERGENCE_FIX.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_AUDIT_001_Retroactive_Task_Verification.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_SECURITY_008_Audit_Log_Identity_Ops.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_audit_count.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_clearMessageNotifications.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_mark_path_failed.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_on_battery_changed.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_send_message_status.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/RULING_2026-08-31_T12_verification_invalid.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_RESTART_COORDINATION_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V050_WP4_DELIVERY_TRUTH_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_REVIEW_SEEDING_FIXES.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/V040_PR282_RULE8_ADVERSARIAL_SECURITY_APPROVAL_2026-09-12.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/main/java/com/scmessenger/android/transport/TransportHealthMonitor.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/observability.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/integration_ironcore_roundtrip.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/verify-test.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/check_wiring.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/verify_integration.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/verify_platform_security.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `skills/philosophy-enforcer/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_IOS_001_Build_Verification_And_Smoke_Test_Plan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_audit_events_since.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_update_keepalive.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/AUDIT_CANONICAL_OUTLIERS_V040_V050_V100_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/5LAYER_PRIORITIZATION_MATRIX.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/cartographer_optimization.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/CTO_LANE_A_CLOSEOUT_2026-08-15.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_RULE8_REVIEW_PACKET_T14_ALLOWLIST_EXTERNAL_2026-09-09.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned
+- `HANDOFF/V040_TAG_PATH_UNIFIED_2026-09-20.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/MULTIDIMENSIONAL_AUDIT_2026-09-17.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/RCA_V040_BLOCKING_FOUR_2026-09-17.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/V040_CTO_AUDIT_DISPOSITIONS_2026-09-20.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/BATCH_ANDROID_WS14_3_NOTIFICATION_PARITY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_009_Pixel_6a_Runtime_Validation.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_BUILD_004_Cargo_Clippy_Lint_Cleanup.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/PROVE_SECOND_REAL_ENDPOINT_DELIVERY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/[VALIDATED]/[STALE]_[VALIDATED]_task_p1a_illegalstate_crash_audit.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_ANDROID_PLAY_READINESS_AUDIT_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_ANDROID_023_History_Persistence_Regression_Test.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_task_p0_formal_verification_harness.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_contact_new_has_no_last_known_device_id.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_should_advance.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_iter0_DONE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_iter5_DONE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/GPT_DISPATCH_VALIDATION_2026-08-01.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/GAP_AUDIT_REMEDIATION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/V040_COMPLETION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/tests/kani/ratchet_symmetry.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/platform-audits/ANDROID_BUILD_RESOLUTION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/test_check_wiring.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/validate_v020_final.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_branch_merges.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codebuff_deploy/aws/check.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/GPT_PRIMARY_HANDOFF_2026-07-29.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/TELEGRAM_OUT_2026-06-07_22-17_PT_HERMES_AUDIT_RECOVERED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/ORCHESTRATION_AUDIT_QWEN_TAKEOVER_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/TAG_READINESS_EVIDENCE_2026-09-15.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/redaction_scan.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/BATCH_S6_T4_FINAL_INTEGRATION_TEST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ONION_GATING_PART_A_FULL.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/[META]_QUOTA_LEDGER_REPAIR.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_AUDIT_HERMES_HANDOVER_2026-06-07_Post_Session_State_Audit.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_008_Active_Ledger_Stale_Banner.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_FOR_BETA_SWEEP_B2_CORE_TRANSPORT_ROUTING.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_task_fire_drill_audit.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_list_endpoints.md` — attention: notable: include when goal touches it — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_iter2_DONE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_iter3_DONE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_MERGE_EXECUTION_LOG_2026-09-03.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/IMPLEMENTATION_STATUS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docker/run-tests.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `iOS_ANDROID_PARITY_AUDIT_v040.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.agents/skills/build-verify/SKILL.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/model_validation_template.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.claude/agents/rust-implementer.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/ORCHESTRATOR_TAKEOVER_2026-08-28.md` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/PR139_FIVE_NODE_GATE_STATUS_2026-08-13.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/STATE/PLAN_VERIFICATION_2026-06-11.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T172000Z_UNIFICATION_GATES_LIVE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_NEXTRUN_PACKAGE_2026-09-09.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/done/FINAL_WIRING_AUDIT_V2.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_006_History_Persistence_Regression_Test.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_ANDROID_019_Auto_Backup_Stale_Data_Fix.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_evaluate_all_tracked.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_read_with_timeout.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_register_path.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_send_ble_packet.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_candidate_commit_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_267_RECHECK_QWEN_2026-09-02.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_272_RECHECK_QWEN_2026-09-02.md` — attention: central: in any repo-wide waist brief — brief_treatment=cited_window, handling=code_owned **[?]**
+- `HANDOFF/gpt/CTO_TO_OPERATOR_2026-08-24_APPLE_INSTALL_PACKET.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/retired/FOR_BETA_SWEEP_B2_POST_REJECT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docker/run-all-tests.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/global_viability_audit.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_iter0.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/SHADOW_AUDIT_V040_V050_ADVERSARIAL_REVIEW_2026-09-16.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/audit/T1_T2_CENSUS_DISPOSITION_2026-09-13.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/audit/crit_iron_core.jsonl` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/audit/crit_mobile_bridge.jsonl` — attention: notable: include when goal touches it — brief_treatment=grounded_claim, handling=code_owned **[?]**
+- `HANDOFF/done/P0_ANTI_ABUSE_001_Critical_Controls_Implementation.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/Z-03_Rebuild_HANDOFF_ACTIVE_LEDGER.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_SECURITY_010_Api_Level_Consent_Gate.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/AUDIT_CANONICAL_OUTLIER_iter6_DONE_2026-09-19.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/freebuff/inbox/V040_MERGE_APPROVAL_RECORDS_2026-09-03.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF_AUDIT/output/ledger.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/transport/capability.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/VERIFICATION_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/platform-audits/ANDROID_CRITICAL_BUGS_2026-03-14.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/security/PR139_ADVERSARIAL_REVIEW_2026-08-08.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260909T190000Z_PR279_FULLGREEN.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `HANDOFF/audit/IDENTIFIER_PARITY_AUDIT_2026-09-15.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/FABLE_5_COMPREHENSIVE_AUDIT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_018_Compile_Gate_History_Ledger.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_VERIFY_Windows_WSL_CLI_Discovery_Messaging_E2E.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_MICRO_ANDROID_NOTIFICATION_STRINGS_001.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_ANDROID_022_Relay_Peer_Contacts_Filter.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_BUILD_001_Workspace_Test_Gate_Restoration.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P0_BUILD_002_Workspace_Unification_And_Android_Build_Setup.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_000_MASTER_AUDIT_REPORT.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_getMessage.md` — attention: background: omit from a tight brief — brief_treatment=failure_evidence, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_get_swarm_bridge.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/review/ANDROID_LEDGER_VISIBILITY_ROOT_CAUSE_2026-08-09.md` — attention: central: in any repo-wide waist brief, waist_relevant=yes — brief_treatment=grounded_claim, handling=scout **[?]**
+- `docs/historical/plans/INTEGRATION_VERIFICATION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/gate.sh` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/verify_all.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/audit/HARDCODED_IP_SWEEP_2026-08-04.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/ORCHESTRATOR_001_Full_Ecosystem_Integration.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=standard **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_GEMINI_FLASH_017_Verify_Task_Completion_Script.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF_AUDIT/REPO_MAP_COMPLETION_REPORT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/ALMOST_DONE_ORCHESTRATION_PROMPT.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/KIMI_K3_V040_ORCHESTRATION_PROMPT.md` — attention: background: omit from a tight brief — brief_treatment=cited_window, handling=scout **[?]**
+- `docs/historical/audits/CRITICAL_LOG_AUDIT_SUMMARY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.opencode/agent/orchestrator.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]_P1_ANDROID_DIAGNOSTICS_EXPORT_001.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_SETUP_001_Workstation_Cleanup_And_Model_Install.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_CLI_033_Comprehensive_Windows_E2E_Smoke_Test_Harness.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/REPO_GITHUB_REALIGNMENT_FIRST_PASS_2026-03-07.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/bod_governance.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/audit/JEV_REPO_INSIGHTS_2026-09-21.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_micro_build_security_audit_pipeline.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cli/src/ledger.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/historical/TRIPLE_CHECK_REPORT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P1_ANDROID_AUDIT_LOG_VIEWER_001.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/task_wire_build_security_audit_pipeline.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/release-readiness-2026-07-02.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/BOD_STATE.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_validate_audit_chain.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.agents/skills/finalize-checklist/SKILL.md` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `.codex/agents/docs-sync-auditor.toml` — attention: unmatched — handling=code_owned **[fallback]**
+- `.github/workflows/scm-test-diagnose-fix.md` — attention: unmatched — brief_treatment=exclude_raw **[fallback]**
+- `.kiro/specs/scmessenger-rust-transformation/phase0-panic-audit-report.md` — attention: unmatched — brief_treatment=cited_window, handling=standard **[fallback]**
+- `HANDOFF/CLI_DISCOVERY_VERIFICATION_REPORT.md` — attention: unmatched — brief_treatment=failure_evidence, handling=code_owned **[fallback]**
+- `HANDOFF/GITHUB_CI_CD_AUDIT_FINDINGS.md` — attention: unmatched — handling=code_owned **[fallback]**
+- `HANDOFF/PHASE_2_3_LITE_DEPLOYMENT.md` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `HANDOFF/SESSION_HANDOFF_2026-07-06_scmorc.md` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `HANDOFF/TASK_VERIFICATION_TEMPLATE.md` — attention: unmatched **[fallback]**
+- `HANDOFF/archive/QWEN_RUN2_CLOUD_NODE_VERIFICATION.md` — attention: unmatched **[fallback]**
+- `HANDOFF/audit/CANONICAL_OUTLIER_AUDIT_2026-09-19_INDEX.md` — attention: unmatched — brief_treatment=grounded_claim, handling=code_owned **[fallback]**
+- `HANDOFF/audit/JEV_ISSUE_SORT_2026-09-21.md` — attention: unmatched — brief_treatment=grounded_claim **[fallback]**
+- `HANDOFF/audit/security_review_pr132.md` — attention: unmatched — brief_treatment=cited_window, handling=frontier **[fallback]**
+- `HANDOFF/done/BATCH_CORE_RUST_WIRING_C4_SUB07.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/CORE_BLOCK_GATE_HARDENING.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/P0_ANDROID_005_MESSAGE_ID_TRACKING_FIX.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/P0_CORE_swarm_rs_Test_Module_Broken_Imports_Blocking_Compile_Gate.md` — attention: unmatched — brief_treatment=cited_window **[fallback]**
+- `HANDOFF/done/P0_SECURITY_006_Consent_Gate_Enforcement.md` — attention: unmatched — handling=frontier **[fallback]**
+- `HANDOFF/done/task_wire_can_forward_for_wasm.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/task_wire_loadConversation.md` — attention: unmatched **[fallback]**
+- `HANDOFF/done/task_wire_proptest_ratchet_roundtrip.md` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `HANDOFF/done/task_wire_update_last_known_device_id_ignores_invalid_values.md` — attention: unmatched **[fallback]**
+- `HANDOFF/freebuff/inbox/V040_T13_A_REWORK_done_2026-09-01.md` — attention: unmatched — handling=code_owned **[fallback]**
+- `HANDOFF/freebuff/inbox/V040_T13_A_done_2026-09-01.md` — attention: unmatched — brief_treatment=exclude_raw, handling=code_owned **[fallback]**
+- `HANDOFF/freebuff/inbox/V040_T4_done_2026-08-31.md` — attention: unmatched — brief_treatment=cited_window **[fallback]**
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_272_ARCH_QWEN_2026-09-03.md` — attention: unmatched — brief_treatment=grounded_claim, handling=frontier **[fallback]**
+- `HANDOFF/gpt/GPT_MAC_IOS_LOG_PULL_REQUEST_2026-08-08.md` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `HANDOFF/gpt/GPT_SOL_ULTRA_JOSH_040_READINESS_FINDINGS_2026-07-29.md` — attention: unmatched **[fallback]**
+- `HANDOFF/gpt/WINDOWS_RUN2_READINESS_2026-08-03.md` — attention: unmatched — brief_treatment=cited_window **[fallback]**
+- `HANDOFF/plans/FARM_FINAL_PLAN.md` — attention: unmatched **[fallback]**
+- `HANDOFF/plans/FOUR_NODE_GATE_EXECUTION_PLAN_2026-08-23.md` — attention: unmatched **[fallback]**
+- `HANDOFF/plans/TRUST_SCOPED_LAN_DISCLOSURE_DESIGN_2026-08-05.md` — attention: unmatched — brief_treatment=exclude_raw, handling=code_owned **[fallback]**
+- `HANDOFF/plans/UNIFICATION_V4_WORKFLOW_SINGULARITY_PLAN.md` — attention: unmatched **[fallback]**
+- `HANDOFF/review/ADVERSARIAL_RFC1918_DISCLOSURE_2026-08-06.md` — attention: unmatched — handling=frontier **[fallback]**
+- `HANDOFF/review/RULE8_ZOMBIE_FIX_VERDICT_2026-09-18.md` — attention: unmatched **[fallback]**
+- `HANDOFF/todo/P1_CORE_IDENTITY_SPOOF_AND_WASM_TOPIC_PARITY_2026-09-16.md` — attention: unmatched **[fallback]**
+- `HANDOFF/todo/RULE8_REVIEW_PR262_LEDGER_UNIFICATION.md` — attention: unmatched — brief_treatment=exclude_raw, handling=code_owned **[fallback]**
+- `HANDOFF_AUDIT/REPO_MAP.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/CopyableText.kt_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/MeshRepository.kt_chunk23.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/MessageBubble.kt_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/PeerListScreen.kt_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/PreferencesRepository.kt_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/StorageWarningBanner.kt_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/ble_mesh.rs_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/envelope.rs_chunk3.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/mesh.rs_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/relay_custody.rs_chunk5.jsonl` — attention: unmatched **[fallback]**
+- `HANDOFF_AUDIT/output/reputation.rs_chunk1.jsonl` — attention: unmatched **[fallback]**
+- `android/app/src/main/java/com/scmessenger/android/data/GhostIdentityGate.kt` — attention: unmatched **[fallback]**
+- `android/app/src/test/README.md` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `android/app/src/test/java/com/scmessenger/android/data/GhostIdentityGateTest.kt` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `android/app/src/test/java/com/scmessenger/android/test/DiagnosticsBundleFormatterTest.kt` — attention: unmatched — brief_treatment=failure_evidence, handling=standard **[fallback]**
+- `android/app/src/test/java/com/scmessenger/android/test/SettingsViewModelTest.kt` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `android/app/src/test/java/com/scmessenger/android/ui/viewmodels/ConversationsViewModelTest.kt` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `android/app/src/test/java/com/scmessenger/android/utils/ContactDisplayNameTest.kt` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `android/app/src/test/java/com/scmessenger/android/utils/DiagnosticsShareControllerTest.kt` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `android/app/src/test/java/com/scmessenger/android/utils/NotificationHelperGateTest.kt` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `cli/src/bin/stress-test.rs` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `core/tests/integration_relay_onion.rs.disabled` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `core/tests/integration_wan_swarm_node2.rs` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `core/tests/property/message_serialization.rs` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `core/tests/test_configured_external_address.rs` — attention: unmatched — brief_treatment=failure_evidence, handling=code_owned **[fallback]**
+- `docker/test-phase-2-3-iterations.sh` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `docs/QUANTUM_READINESS_AUDIT.md` — attention: unmatched **[fallback]**
+- `docs/historical/ID_CONSISTENCY_AUDIT_2026-03-18.md` — attention: unmatched — brief_treatment=grounded_claim **[fallback]**
+- `docs/historical/platform-audits/ANDROID_ID_MISMATCH_RCA.md` — attention: unmatched **[fallback]**
+- `docs/historical/session-reports/SESSION_COMPLETE_2026-03-09.md` — attention: unmatched — brief_treatment=grounded_claim **[fallback]**
+- `docs/historical/workflow-improvements.md` — attention: unmatched **[fallback]**
+- `docs/runbooks/CI_PRIMARY_BUILD.md` — attention: unmatched **[fallback]**
+- `docs/security/PR139_REVERIFY_2026-08-16.md` — attention: unmatched — handling=frontier **[fallback]**
+- `docs/security/V040_PR234_ADVERSARIAL_REVIEW_2026-08-28.md` — attention: unmatched — handling=frontier **[fallback]**
+- `scripts/analyze_5layer_priorities.py` — attention: unmatched — brief_treatment=failure_evidence **[fallback]**
+- `scripts/repo_audit.sh` — attention: unmatched **[fallback]**
+- `scripts/run_verified_checker.ps1` — attention: unmatched **[fallback]**
+- `scripts/verify_all_builds.sh` — attention: unmatched **[fallback]**
+- `scripts/verify_relay_flap_regression.sh` — attention: unmatched **[fallback]**
+- `skills/platform-parity-check/SKILL.md` — attention: unmatched **[fallback]**
+
+## Stage: cross_cutting
+
+- `iOS/SCMessenger/SCMessenger.xcodeproj/project.xcworkspace/contents.xcworkspacedata` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/res/drawable/ic_launcher_background.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/quota_cache_timestamp` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.github/ISSUE_TEMPLATE/audit_follow_up.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/U3_RETRY_POLICY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/.cargo_vcs_info.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.claude/orchestrator_active` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/META-INF/LICENSE` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/ISSUE_TEMPLATE/documentation.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.mimocode/mimocode.json.bak-openrouter-override-20260910` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Assets.xcassets/Contents.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/res/drawable/ic_notification.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger.xcodeproj/xcshareddata/xcschemes/SCMessenger.xcscheme` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Assets.xcassets/AccentColor.colorset/Contents.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Assets.xcassets/AppIcon.appiconset/Contents.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.claude/rules/security.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/ISSUE_TEMPLATE/feature_request.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/freebuff/inbox/V040_CTO_CI_TOOLCHAIN_PIN_REQUEST_2026-09-04.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/components/StorageWarningBanner.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/terraform/main.tf` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/web/privacy/.netlify/state.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/web/privacy/index.html` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Utils/NotificationLogger.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/res/values/colors.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/gradle/gradle-daemon-jvm.properties` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.qwen/.gitignore` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/components/ErrorBanner.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloudbuild.yaml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.kiro/specs/scmessenger-rust-transformation/.config.kiro` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/main/res/values/strings.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Utils/Theme.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `iOS/tests/fixtures/devicectl-device-resolution.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/update_android_allowlist.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/state/circuit_breaker_test_service.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.github/ISSUE_TEMPLATE/bug_report.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/ISSUE_TEMPLATE/config.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/java/com/scmessenger/android/ui/components/CopyableText.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.gitignore` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Bridging-Header.h` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessengerCore.xcframework/Info.plist` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/ISSUE_TEMPLATE/security_vulnerability.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/stale.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/java/com/scmessenger/android/utils/NetworkFailureMetrics.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/PrivacyInfo.xcprivacy` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `log-visualizer/test/fixtures/hostile-dom-inputs.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/dialogs/NetworkStatusDialog.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/res/xml/backup_rules.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `orchestration/manifest.yaml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/DiagnosticsScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/mesh/profiles/wifi_direct.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `vendor/libp2p-swarm-0.48.0/Cargo.toml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/todo/D5_D6_BOOTSTRAP_NODES_PERSISTENCE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `android/app/src/main/res/values/themes.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.github/actions/sign-debug-apk/action.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `tasks/T4.2/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `ui/styles.css` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cloud/mesh/profiles/wifi_aware.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.github/workflows/ci.yml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout
+- `android/.claude/agent_pool.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `android/app/src/main/res/values/themes_splash.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/platform/PlatformNotifier.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/ops/DISK_HYGIENE.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/components/EntropyCanvas.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/SecurityUtils.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `iOS/SCMessenger/SCMessenger/Views/Settings/IdentityBackupSheets.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/A09_SECURITY_DESIGN_AND_IMPL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=frontier **[?]**
+- `build.gradle` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/BlockedPeersScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/settings/PowerSettingsScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/res/xml/file_paths.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Info.plist` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Views/Settings/SettingsView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/agy_stream_watch.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `tasks/T4.4/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/settings.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/PeerKeyUtils.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/desktopMain/kotlin/com/scmessenger/shared/platform/PlatformStorage.desktop.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/tray.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Views/Dashboard/MeshDashboardView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.kiro/specs/repository-production-readiness/.config.kiro` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `HANDOFF/archive/ANDROID_REINSTALL_UPDATE_INBOX_BRIDGE_ALLOWLIST.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `cloud/mesh/profiles/ble_edge.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/test-results/.gitignore` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Views/Topics/JoinMeshView.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/soak_supervisor.py` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/proguard-rules.pro` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/dialogs/ApkShareDialog.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/Permissions.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/drift/rate_limit.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/tests/fixtures/xcdevice-device-resolution.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `log-visualizer/package-lock.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `ui/app.js` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `Cargo.toml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_ANDROID_001_JAVA_HOME_Configuration.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/java/com/scmessenger/android/service/PerformanceMonitor.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/BackoffStrategy.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/mesh_routing.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/docker-compose.network-test.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/BUILD_REPRODUCIBILITY.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/ViewModels/SettingsViewModel.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/progress_dashboard.ps1` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `tasks/T5.5/progress.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/commands/CTO.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codebuff_deploy/aws/scm_session.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `.dockerignore` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `CODE_OF_CONDUCT.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/AGENTS_ANDROID.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/network/DiagnosticsReporter.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/join/JoinMeshScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/screens/SettingsScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/utils/CircuitBreaker.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/androidMain/kotlin/com/scmessenger/shared/platform/PlatformStorage.android.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/power.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/socket_activation.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/scripts/quota_lib.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.tarpaulin.toml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/done/P0_IDENTITY_002_Unified_Infallible_ID_Strategy.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/chat/DeliveryStateSurface.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/SettingsViewModel.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/platform/PlatformStorage.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/privacy/timing.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/archive/CLAUDE_CODE_SONNET_LOCKOUT_2026-08-04.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/reputation.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/wasm_support/mod.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `iOS/SCMessenger/SCMessenger/Services/NotificationManager.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.cargo/config.toml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `.claude/commands/CEO.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/release.yml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/theme/Theme.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/wasm_support/rpc.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/BOOTSTRAP_GOVERNANCE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `docs/historical/MIMO_CODE_OPTIMIZATION.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/XCODE_SETUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `scripts/ffi_surface.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `scripts/morph_lite.py` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/setup_android_signing.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/setup_ios_signing.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `AGENTS.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `cloud/mesh/docker-compose.mesh-test.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.codebuff_deploy/pixel-apk-b0f7ac4e/output-metadata.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.codebuff_deploy/pixel-apk-e97c3f82/output-metadata.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/copilot-instructions.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.mimocode/MIMO_API_SWITCH.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/.cargo/config.toml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/components/QrCode.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/settings/MeshSettingsScreen.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/res/xml/data_extraction_rules.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `android/keystore.properties.template` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `infra/aws/set-aws-credentials.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `netlify.toml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout
+- `scripts/install_hooks.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `wasm/src/browser_compatibility.js` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.codebuff_deploy/pixel-apk-44fee3c4/output-metadata.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/gpt/WINDOWS_LOG_SYNC_WINDOW_2026-08-02.md` — attention: notable: include when goal touches it — brief_treatment=cited_window, handling=scout **[?]**
+- `core/src/crypto/backup.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/notification.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/adaptive_ttl.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/gpt/AWS_RELAY_CURRENT_ADDRESS.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.clippy.toml` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout
+- `.github/actions/detect-docs-only/action.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `SECURITY.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `cli/src/ble_ids.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/discovery.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/SCRIPT_HYGIENE_GUIDELINES.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/rules/ANDROID.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `gradle/wrapper/gradle-wrapper.properties` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `reference/envelope.ts` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `vendor/libp2p-swarm-0.48.0/src/dial_opts.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codebuff_deploy/pixel-apk/output-metadata.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `cli/src/config.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `cloud/worker/preemption_listener.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/abuse/reputation.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `docs/PQC_HYBRID_PROTOCOL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/SCMessenger/SCMessenger/Transport/MeshBLEConstants.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `ollama_cfg/CLI_Expert.Modelfile` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.github/workflows/desktop.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/done/ONION_FFI_RPC_SURFACE_UNGATED.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/PQC_07_ATTEMPT2_ENCRYPT_WIRING.patch` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BleQuotaManager.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `android/gradle/wrapper/gradle-wrapper.properties` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/.cargo/config.toml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `core/src/abuse/auto_block.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/abuse/mod.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `desktop_bridge/src/ble.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/src/xdg_paths.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/ops/LOG_ROTATION_INFO.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `infra/aws/README.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `infra/ec2/node-userdata-template.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `log-visualizer/public/mesh.html` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/lanes.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.agents/skills/bod/SKILL.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/orchestration_config.json` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codebuff_deploy/pixel-apk-177bd840/output-metadata.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.github/workflows/auto-tag-release.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/docker-publish.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/ios-build-test.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/plans/RFC1918_ON_RFC1918_DISCLOSURE_DESIGN_2026-08-06.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/results/david-peers.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/per_peer_cap.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/transport/reflection.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/agent_pool.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/quota_state.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.github/workflows/security.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `AgentSwarmCline/scmessenger_swarm/observability.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/results/bob-peers.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/IdentityProgressStage.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `cloud/terraform/outputs.tf` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/store/tracing_init.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/workflows/desktop.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `infra/aws/iam-policy-scmessenger-relay.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `reference/PHILOSOPHY_CANON.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scmessenger_swarm/task.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=standard **[?]**
+- `scripts/deduce_files.py` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `scripts/fusion_lite.py` — attention: notable: include when goal touches it — brief_treatment=signature, handling=code_owned **[?]**
+- `wasm/Cargo.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/model_capability_mapping.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.claude/skills/adversarial_review.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/agents/orchestration-scanner.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `.github/workflows/auto-label.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.github/workflows/docker-test-suite.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/ONION_GATING_TASK.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/output/config.rs_chunk1.jsonl` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/java/com/scmessenger/android/transport/ble/BleBackoffStrategy.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/res/xml/network_security_config.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/gradle.properties` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `cli/src/transport_bridge.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/drift/policy.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/routing/timeout_budget.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/store/blocked.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `core/src/transport/diagnostics.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/farm-sim-compose.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `patch/if-watch/Cargo.toml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `scripts/device/lib.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `scripts/scmessenger_issue_sort_pack.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.agents/rules/follow-all-rules.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/skills/model_check.json` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `.codebuff_deploy/artifacts/apk-new/output-metadata.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.codex/agents/rust-implementer.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/README-SCM-TEST-WORKFLOW.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/cross-platform-test.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/mobile.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/archive/P1_PROMISCUOUS_DIAL_WASTES_BUDGET_ON_SELF_AND_CELLULAR_2026-08-09.md` — attention: notable: include when goal touches it, waist_relevant=yes — brief_treatment=grounded_claim, handling=scout **[?]**
+- `cli/Cargo.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/scripts/progress_dashboard.sh` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/privacy/mod.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/transport/dial_policy.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/docker-compose.test.yml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `docs/historical/COMMIT_SCHEDULE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `iOS/.swiftlint.yml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout
+- `wasm/src/transport.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codex/agents/release-gatekeeper.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.gitattributes` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.gitleaks.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `AgentSwarmCline/scmessenger_swarm/fix_uniffi_bindings.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/done/[META]_ORCHESTRATOR_ROLE_PROTOCOL_v1.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/repo_map_index.json` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/shared/src/desktopMain/kotlin/com/scmessenger/shared/platform/PlatformNetworking.desktop.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/uniffi.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `infra/aws/quarantine-policy.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `infra/ec2/alpha-relay-userdata.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `mobile/Cargo.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `skills/philosophy-enforcer/agents/openai.yaml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/agents/orchestration-dispatcher.toml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout
+- `HANDOFF/freebuff/queue/V040_T12_CI_CONCURRENCY_AND_PATH_FILTERS.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/data/PreferencesRepository.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/crypto/pq/mldsa.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `log-visualizer/public/data/wiring_graph.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codebuff_deploy/artifacts-44fee3c4/apk-raw/output-metadata.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `.codex/agents/android-qa.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/agents/orchestration-evidence-worker.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/actions/detect-platform-change/action.yml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `HANDOFF/WIRING_PATCH_MANIFEST.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/results/carol-peers.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/results/eve-peers.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `cloud/orchestrator/systemd/scm-orchestrator.service` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/relay/invite.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/Dockerfile` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `infra/aws/budget-action-trust-policy.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `infra/cloudformation/farm-sim-stack.yaml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/agents/orchestration-planner.toml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_get_privacy_config.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/results/relay2-peers.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `android/app/src/main/java/com/scmessenger/android/transport/NetworkDetector.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/build.gradle.kts` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/androidMain/kotlin/com/scmessenger/shared/platform/PlatformNetworking.android.kt` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/platform/PlatformNetworking.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker-compose.yml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout
+- `docs/AI_STANDARDS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/historical/plans/API_LIMIT_MANAGEMENT_PLAN.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `reference/storage.ts` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `shared/build.gradle.kts` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.agents/skills/cto/SKILL.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/wasm_support/transport.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `infra/aws/budget-action-execution-policy.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/local_orchestrator_config.sh` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned
+- `.codex/agents/orchestration-implementer.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/hooks.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.github/dependabot.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `.github/workflows/cross.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/ORCHESTRATION_TOKEN_STRATEGY.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/harness/packs/scm-ops-issues-v1.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF_AUDIT/5NODE_DRYRUN_ALLOCATION.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned
+- `cloud/terraform/variables.tf` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/swarm.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `deny.toml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout
+- `log-visualizer/public/data/unwired_functions.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.mimocode/mimocode.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/P0_WASM_003_Core_Cfg_Gating.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/contacts_bridge.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/settings.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `desktop_bridge/Cargo.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `iOS/SCMessenger/SCMessenger/Transport/mDNSServiceDiscovery.swift` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `patch/libp2p-tcp/Cargo.toml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.codex/agents/crypto-security-auditor.toml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/COPILOT_AGENT_INSTRUCTIONS.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/[META]_ORCHESTRATOR_WORKER_POOL_WARMUP.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/results/alice-peers.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/service/AndroidPlatformBridge.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docker/docker-compose-extended.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docker/docker-compose-lite.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `docs/branch_disposition.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `docs/historical/final-rules.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `patch/if-watch-full/Cargo.toml` — attention: background: omit from a tight brief — brief_treatment=signature, handling=scout **[?]**
+- `reference/primitives.ts` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `ui/index.html` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.github/workflows/scm-test-diagnose-fix.lock.yml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/backlog/AGENT_GUIDANCE_Philosophy_Enforcement.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/done/task_wire_set_privacy_config.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `HANDOFF/review/PQC_07_ATTEMPT2_FUSION_LITE_VERDICT.json` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned
+- `docs/ORCHESTRATION.md` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `docs/ops/WORKSPACE.md` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/orchestrator_state.json` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.opencode/opencode.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/app/src/main/AndroidManifest.xml` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/settings.gradle` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/dspy/mod.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/mobile_bridge.rs` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `rust-toolchain.toml` — attention: notable: include when goal touches it — brief_treatment=signature, handling=scout **[?]**
+- `android/app/src/main/java/com/scmessenger/android/di/AppModule.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `HANDOFF/plans/V050_PHILOSOPHY_AND_BORROW_PLAN.md` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/di/SharedModule.kt` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/blocked_bridge.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `log-visualizer/package.json` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `settings.gradle` — attention: background: omit from a tight brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.claude/skills/core_cli_driver.json` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/Cargo.toml` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `core/src/transport/behaviour.rs` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `log-visualizer/public/index.html` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=scout **[?]**
+- `.github/workflows/hygiene.yml` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=scout
+- `wasm/src/mesh.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `android/build.gradle` — attention: central: in any repo-wide waist brief — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `core/src/identity/mod.rs` — attention: notable: include when goal touches it — brief_treatment=exclude_raw, handling=code_owned **[?]**
+- `.codex/agents/orchestration-validator.toml` — attention: unmatched — handling=code_owned **[fallback]**
+- `.github/workflows/lint.yml` — attention: unmatched — handling=code_owned **[fallback]**
+- `AgentSwarmCline/scmessenger_swarm/AgentSwarmCline/scmessenger_swarm/simple_fix_task.json` — attention: unmatched — handling=code_owned **[fallback]**
+- `HANDOFF/done/task_wire_WarningBanner.md` — attention: unmatched **[fallback]**
+- `HANDOFF/results/relay1-peers.json` — attention: unmatched — handling=code_owned **[fallback]**
+- `HANDOFF_AUDIT/output/SettingsScreen.kt_chunk3.jsonl` — attention: unmatched **[fallback]**
+- `android/.gitignore` — attention: unmatched — handling=code_owned **[fallback]**
+- `desktop_bridge/uniffi.toml` — attention: unmatched — handling=code_owned **[fallback]**
+- `docker/docker-compose.yml` — attention: unmatched — handling=code_owned **[fallback]**
+- `docs/ephemeral_messaging.md` — attention: unmatched — handling=code_owned **[fallback]**
+- `docs/workflows/release-desktop.yml` — attention: unmatched — handling=code_owned **[fallback]**
+- `patch/libp2p-quic/Cargo.toml` — attention: unmatched — handling=code_owned **[fallback]**
+- `rustfmt.toml` — attention: unmatched — handling=code_owned **[fallback]**
+
+## Judged without a declared stage (honest unmatched)
+
+- `.claude/hooks/session_orientation.sh` — fallback
+- `.claude/scripts/gemini-orchestrator-launcher.sh` — fallback
+- `.clinerules` — fallback
+- `.kiro/specs/scmessenger-rust-transformation/PHASE2-COMPLETION-SUMMARY.md` — fallback
+- `.kiro/specs/scmessenger-rust-transformation/requirements.md` — fallback
+- `android/app/build.gradle` — fallback
+- `android/app/src/main/java/com/scmessenger/android/service/MeshEventBus.kt` — fallback
+- `android/app/src/main/java/com/scmessenger/android/ui/components/Identicon.kt` — fallback
+- `android/app/src/main/java/com/scmessenger/android/ui/identity/IdentityProgressDisplay.kt` — fallback
+- `android/app/src/main/java/com/scmessenger/android/ui/theme/Color.kt` — fallback
+- `android/app/src/main/java/com/scmessenger/android/ui/viewmodels/DashboardViewModel.kt` — fallback
+- `android/app/src/main/java/com/scmessenger/android/utils/ContactImportParser.kt` — fallback
+- `android/app/src/main/java/com/scmessenger/android/utils/TimestampUtils.kt` — fallback
+- `android/full_android_remaining.md` — fallback
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/model/Contact.kt` — fallback
+- `android/shared/src/commonMain/kotlin/com/scmessenger/shared/viewmodel/ContactsViewModel.kt` — fallback
+- `android/view.xml` — fallback
+- `cli/src/bin/heartbeat-probe.rs` — fallback
+- `cloud/orchestrator/handlers/status.py` — fallback
+- `core/src/api.udl` — fallback
+- `core/src/drift/compress.rs` — fallback
+- `core/src/privacy/circuit.rs` — fallback
+- `core/src/store/backend.rs` — fallback
+- `docs/ANDROID_QUICKSTART_WINDOWS.md` — fallback
+- `docs/FEATURE_WORKFLOW.md` — fallback
+- `docs/GEMINI_ORCHESTRATOR.md` — fallback
+- `docs/historical/README.md` — fallback
+- `docs/historical/RELEASE_NOTES_V0.1.2_ALPHA.md` — fallback
+- `docs/historical/scmessenger-agent.md` — fallback
+- `docs/historical/session-reports/checkpoint.md` — fallback
+- `docs/historical/UNCHECKED_FILES.md` — fallback
+- `docs/historical/WS14_HOURLY_AUTOMATION_PROMPT.md` — fallback
+- `docs/releases/RELEASE_NOTES_V0.1.2_GH.md` — fallback
+- `docs/runbooks/CI_APK_TO_PHONE.md` — fallback
+- `gradle/wrapper/gradle-wrapper.jar` — fallback
+- `HANDOFF/archive/D-02_Android_Robolectric_wiring_ad.md` — fallback
+- `HANDOFF/archive/D-05_unwrap_panic_hardening_v1.md` — fallback
+- `HANDOFF/archive/P0_UPNP_PANIC_KILLS_DESKTOP_NODE_2026-08-08.md` — fallback
+- `HANDOFF/CLAUDE_CODE_PROTOCOL.md` — fallback
+- `HANDOFF/done/[VALIDATED]/[VALIDATED]_P0_ANDROID_AGY_HANDOFF_2026-06-07_Identity_Stability_Bundle.md` — fallback
+- `HANDOFF/done/[VALIDATED]_task_p1b_notification_channel_dedup.md` — fallback
+- `HANDOFF/done/IN_PROGRESS_v030_build_session.md` — fallback
+- `HANDOFF/done/NEXT_ITER_03_Docs_Sync_And_Residual_Debt.md` — fallback
+- `HANDOFF/done/P0_ANDROID_012_Pixel6a_Validation.md` — fallback
+- `HANDOFF/done/P0_ANDROID_015_Nickname_Regression_RCA.md` — fallback
+- `HANDOFF/done/P0_SECURITY_003_Forward_Secrecy_Implementation.md` — fallback
+- `HANDOFF/done/phase_1b_core_module_wiring.md` — fallback
+- `HANDOFF/done/PQC_RATCHET_SKIPPED_KEYS_NOT_PERSISTED.md` — fallback
+- `HANDOFF/done/task_wire_add_rtc_connection.md` — fallback
+- `HANDOFF/done/task_wire_can_reach_destination.md` — fallback
+- `HANDOFF/done/task_wire_count_with_peer.md` — fallback
+- `HANDOFF/done/task_wire_drift_activate.md` — fallback
+- `HANDOFF/done/task_wire_get_browser_options.md` — fallback
+- `HANDOFF/done/task_wire_get_history_manager.md` — fallback
+- `HANDOFF/done/task_wire_get_signable_data.md` — fallback
+- `HANDOFF/done/task_wire_getHealthyRelays.md` — fallback
+- `HANDOFF/done/task_wire_getInboxCount.md` — fallback
+- `HANDOFF/done/task_wire_getLastFailureReason.md` — fallback
+- `HANDOFF/done/task_wire_getOpenCircuits.md` — fallback
+- `HANDOFF/done/task_wire_onBind.md` — fallback
+- `HANDOFF/done/task_wire_relay_request_carries_ws13_metadata_when_set.md` — fallback
+- `HANDOFF/done/task_wire_start_hole_punch.md` — fallback
+- `HANDOFF/done/task_wire_startAll.md` — fallback
+- `HANDOFF/done/task_wire_TopologyScreen.md` — fallback
+- `HANDOFF/done/task_wire_TruncatedCopyableText.md` — fallback
+- `HANDOFF/done/U1_OUTBOX_OPEN_DEFAULT_HELPER.md` — fallback
+- `HANDOFF/done/U4_RECEIPT_ENCODING_UNIFIED.md` — fallback
+- `HANDOFF/freebuff/inbox/V040_QWEN_REVIEWS_DISPATCHED_2026-09-01.md` — fallback
+- `HANDOFF/freebuff/queue/V040_REVIEW_DISPATCH_270_EPHEMERAL_QWEN_2026-09-01.md` — fallback
+- `HANDOFF/freebuff/queue/V040_T6_TIER_A_CONFORMANCE_HARNESS.md` — fallback
+- `HANDOFF/P1_DIAL_POLICY_DESIGN_RATIONALE.md` — fallback
+- `HANDOFF/QWENFreeQuotaUsageOverview.md` — fallback
+- `HANDOFF/review/V040_T14_EPHEMERAL_REVIEW_QWEN_2026-09-01.md` — fallback
+- `HANDOFF/STATE/2026-06-05_COLD_SWARM_BOOTSTRAP.md` — fallback
+- `HANDOFF/todo/D9_LIBP2P_EITHER_HANDLER_PANIC.md` — fallback
+- `HANDOFF/todo/P1_CLI_SEND_CANONICAL_IDENTIFIER_PARITY_2026-09-16.md` — fallback
+- `HANDOFF/todo/REJECTED/REJECTION_task_epic_wiring_draft.md` — fallback
+- `HANDOFF/V040_CTO_3NODE_BLE_CHECKPOINT_20260911T060700Z_LOADPEERS_DELIVERY.md` — fallback
+- `HANDOFF/WIRING_PATCH_MANIFEST.md` — fallback
+- `iOS/SCMessenger/SCMessenger/Services/IosPlatformBridge.swift` — fallback
+- `iOS/SCMessenger/SCMessenger.xcodeproj/project.pbxproj` — fallback
+- `log-visualizer/public/wiring.html` — fallback
+- `scripts/capture_both_logs.sh` — fallback
+- `scripts/delete_merged_branches.sh` — fallback
+- `scripts/preflight_disk.ps1` — fallback
+- `scripts/Run-Cartographer-Swarm.ps1` — fallback
+- `scripts/SwarmHeartbeat.ps1` — fallback
+- `skills/scm-repo-agent/SKILL.md` — fallback
+- `vendor/libp2p-swarm-0.48.0/src/upgrade.rs` — fallback
+
+## Central symbols (centrality-ranked, judged)
+
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — unmatched / ? **[fallback]**
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / code_owned
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / code_owned
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — unmatched / ? **[fallback]**
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/db.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/worker_manager.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/worker_manager.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/worker_manager.py` — central: in any repo-wide waist brief / scout
+- `cloud/orchestrator/worker_manager.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/worker_manager.py` — notable: include when goal touches it / scout
+- `cloud/orchestrator/worker_manager.py` — notable: include when goal touches it / scout
+
+## Mechanical totals (code-owned)
+
+- files=3438 loc=941964 bytes=42664623 est_tokens=10649076 symbols=840
