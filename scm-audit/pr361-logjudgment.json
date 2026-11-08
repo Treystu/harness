@@ -1,0 +1,915 @@
+{
+  "buckets": {
+    "compile_or_link": 10,
+    "infrastructure_or_flake": 26,
+    "lint_or_format": 2,
+    "test_assertion": 9
+  },
+  "coverage": {
+    "bucketed": 47,
+    "fallbacks": 48,
+    "live_judged": 3,
+    "total_items": 51,
+    "unmatched": 4
+  },
+  "declared_buckets": [
+    "compile_or_link",
+    "dependency_or_resolution",
+    "gate_or_policy",
+    "infrastructure_or_flake",
+    "lint_or_format",
+    "test_assertion",
+    "timeout_or_resource"
+  ],
+  "items": [
+    {
+      "bucket": null,
+      "evidence": "line 1 [warn] ci::unknown_step",
+      "id": "item-000001",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 1,
+      "module": "ci::unknown_step",
+      "path_id": null,
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": null
+    },
+    {
+      "bucket": "lint_or_format",
+      "evidence": "line 2 [warn] ci::unknown_step",
+      "id": "item-000002",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 2,
+      "module": "ci::unknown_step",
+      "path_id": "ci/lint",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Apply the project's formatter or fix the lint finding at source."
+    },
+    {
+      "bucket": null,
+      "evidence": "line 3 [warn] ci::unknown_step",
+      "id": "item-000003",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 3,
+      "module": "ci::unknown_step",
+      "path_id": null,
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": null
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 4 [warn] ci::unknown_step",
+      "id": "item-000004",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 4,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 5 [warn] ci::unknown_step",
+      "id": "item-000005",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 5,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 6 [warn] ci::unknown_step",
+      "id": "item-000006",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 6,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 7 [warn] ci::unknown_step",
+      "id": "item-000007",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 7,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 8 [warn] ci::unknown_step",
+      "id": "item-000008",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 8,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 9 [warn] ci::unknown_step",
+      "id": "item-000009",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 9,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 10 [warn] ci::unknown_step",
+      "id": "item-000010",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 10,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 11 [warn] ci::unknown_step",
+      "id": "item-000011",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 11,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 12 [warn] ci::unknown_step",
+      "id": "item-000012",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 12,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 13 [warn] ci::unknown_step",
+      "id": "item-000013",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 13,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 14 [warn] ci::unknown_step",
+      "id": "item-000014",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 14,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 15 [warn] ci::unknown_step",
+      "id": "item-000015",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 15,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 16 [warn] ci::unknown_step",
+      "id": "item-000016",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 16,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 17 [warn] ci::unknown_step",
+      "id": "item-000017",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 17,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 18 [warn] ci::unknown_step",
+      "id": "item-000018",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 18,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 19 [warn] ci::unknown_step",
+      "id": "item-000019",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 19,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 20 [warn] ci::unknown_step",
+      "id": "item-000020",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 20,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 21 [warn] ci::unknown_step",
+      "id": "item-000021",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 21,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 22 [warn] ci::unknown_step",
+      "id": "item-000022",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 22,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 23 [warn] ci::unknown_step",
+      "id": "item-000023",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 23,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 24 [warn] ci::unknown_step",
+      "id": "item-000024",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 24,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 25 [warn] ci::unknown_step",
+      "id": "item-000025",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 25,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 26 [warn] ci::unknown_step",
+      "id": "item-000026",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 26,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 27 [warn] ci::unknown_step",
+      "id": "item-000027",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 27,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 28 [warn] ci::unknown_step",
+      "id": "item-000028",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 28,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 29 [warn] ci::unknown_step",
+      "id": "item-000029",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 29,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 30 [warn] ci::unknown_step",
+      "id": "item-000030",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 30,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 31 [warn] ci::unknown_step",
+      "id": "item-000031",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 31,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 32 [warn] ci::unknown_step",
+      "id": "item-000032",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 32,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 33 [warn] ci::unknown_step",
+      "id": "item-000033",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 33,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 34 [warn] ci::unknown_step",
+      "id": "item-000034",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 34,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 35 [warn] ci::unknown_step",
+      "id": "item-000035",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 35,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 36 [warn] ci::unknown_step",
+      "id": "item-000036",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 36,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "infrastructure_or_flake",
+      "evidence": "line 37 [warn] ci::unknown_step",
+      "id": "item-000037",
+      "is_fallback": false,
+      "level": "warn",
+      "line_index": 37,
+      "module": "ci::unknown_step",
+      "path_id": "ci/infra",
+      "score": {
+        "confidence": 0.88,
+        "id": "merge_impact",
+        "level": "minor: cosmetic or non-gating noise",
+        "value": 0.95
+      },
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 38 [error] ci::unknown_step",
+      "id": "item-000038",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 38,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 39 [error] ci::unknown_step",
+      "id": "item-000039",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 39,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 40 [error] ci::unknown_step",
+      "id": "item-000040",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 40,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 41 [error] ci::unknown_step",
+      "id": "item-000041",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 41,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 42 [error] ci::unknown_step",
+      "id": "item-000042",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 42,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 43 [error] ci::unknown_step",
+      "id": "item-000043",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 43,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 44 [error] ci::unknown_step",
+      "id": "item-000044",
+      "is_fallback": false,
+      "level": "error",
+      "line_index": 44,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.7,
+        "id": "merge_impact",
+        "level": "blocker: the job cannot go green without a code change",
+        "value": 0.83
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": null,
+      "evidence": "line 45 [warn] ci::unknown_step",
+      "id": "item-000045",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 45,
+      "module": "ci::unknown_step",
+      "path_id": null,
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": null
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 46 [error] ci::unknown_step",
+      "id": "item-000046",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 46,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "test_assertion",
+      "evidence": "line 47 [error] ci::unknown_step",
+      "id": "item-000047",
+      "is_fallback": true,
+      "level": "error",
+      "line_index": 47,
+      "module": "ci::unknown_step",
+      "path_id": "ci/test-assertion",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong."
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 48 [error] ci::unknown_step",
+      "id": "item-000048",
+      "is_fallback": false,
+      "level": "error",
+      "line_index": 48,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.76,
+        "id": "merge_impact",
+        "level": "blocker: the job cannot go green without a code change",
+        "value": 0.85
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    },
+    {
+      "bucket": "lint_or_format",
+      "evidence": "line 49 [warn] ci::unknown_step",
+      "id": "item-000049",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 49,
+      "module": "ci::unknown_step",
+      "path_id": "ci/lint",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Apply the project's formatter or fix the lint finding at source."
+    },
+    {
+      "bucket": null,
+      "evidence": "line 50 [warn] ci::unknown_step",
+      "id": "item-000050",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 50,
+      "module": "ci::unknown_step",
+      "path_id": null,
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": null
+    },
+    {
+      "bucket": "compile_or_link",
+      "evidence": "line 51 [warn] ci::unknown_step",
+      "id": "item-000051",
+      "is_fallback": true,
+      "level": "warn",
+      "line_index": 51,
+      "module": "ci::unknown_step",
+      "path_id": "ci/compile",
+      "score": {
+        "confidence": 0.0,
+        "id": "merge_impact",
+        "level": null,
+        "value": null
+      },
+      "suggested_next_action": "Fix the compile error at its source; do not suppress."
+    }
+  ],
+  "mechanical": {
+    "by_level": {
+      "error": 10,
+      "warn": 41
+    },
+    "selected_items": 51,
+    "top_modules": [
+      {
+        "count": 51,
+        "module": "ci::unknown_step"
+      }
+    ],
+    "total_lines": 51
+  },
+  "pack_id": "scmessenger-ci-failure-triage-v1",
+  "scores": {
+    "by_level": {
+      "blocker: the job cannot go green without a code change": 2,
+      "minor: cosmetic or non-gating noise": 1
+    },
+    "mean_value": 0.876667
+  }
+}

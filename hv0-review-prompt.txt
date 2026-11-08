@@ -1,0 +1,12 @@
+Independent read-only review packet — HV-0 native assessment
+
+Context: Harness revision 2cf24b569d9d73afaf78d489561ca0b79fc5490a passed hosted CI and an isolated Python 3.11 suite (2079 tests, 46 skipped). A single bounded `jev-vision-assessment` call was made with a $0.01 per-call ceiling. Preflight measured 60,380 UTF-8 bytes, 15,096 estimated input tokens, and a $0.0000634032 reserve.
+
+Observed receipt metadata (no payload or credential material): status=unassessed; model=jev-1.13.0; model_observed=true; fallback_state=not_used; usage_source=actual; input_tokens=14397; output_tokens=154; cost_usd=0.0000604674; cost_source=actual_input; reason=`assessment response is invalid: assessment Score differs from its probability distribution: modularity`.
+
+Review task, read-only and one bounded verdict:
+1. Decide whether this evidence proves a native request occurred, a fallback did not occur, and the cost/usage receipt is internally coherent.
+2. Decide whether the unassessed status is correctly fail-closed under the strict Score contract, or whether the validator has a confirmed compatibility defect. Distinguish proven facts from hypotheses; do not invent the missing raw response.
+3. State whether a minimal owner-side follow-up is justified, and name the exact contract/test area to change if so. Do not propose a second live call, do not edit files, and do not mark HV-0 complete.
+
+Return compact JSON-like sections: verdict, evidence, severity, follow_up. Stop after this one review.

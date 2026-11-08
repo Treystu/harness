@@ -1,0 +1,48 @@
+{
+  "panel_results": [
+    {
+      "model": "inclusionai/ling-3.0-flash",
+      "content": "```json\n{\n  \"verdict\": {\n    \"native_request_occurred\": true,\n    \"fallback_not_used\": true,\n    \"receipt_coherent\": true,\n    \"status_correctly_fail_closed\": false,\n    \"validator_defect_confirmed\": true\n  },\n  \"evidence\": {\n    \"native_request\": \"status=unassessed and model=jev-1.13.0 with model_observed=true confirm a direct call to the HV-0 native endpoint; no fallback_state=used is present.\",\n    \"fallback\": \"fallback_state=not_used; cost_source=actual_input and cost_usd=0.0000604674 align with the $0.01 ceiling and preflight reserve ($0.0000634032), showing no fallback invocation.\",\n    \"receipt_coherence\": \"input_tokens=14397 (\u226415096 estimate), output_tokens=154, cost_usd=$0.0000604674; all values are internally consistent and within bounds.\",\n    \"fail_closed_status\": \"The unassessed status is correct given the raw response was invalid, but the reason string `assessment Score differs from its probability distribution: modularity` indicates a validator-side assertion failure, not a simple content rejection.\",\n    \"validator_defect\": \"The Score contract validator appears to have a confirmed compatibility defect: it rejects a valid modularity score distribution under the strict contract, causing a false-negative unassessed status.\"\n  },\n  \"severity\": \"high\",\n  \"follow_up\": {\n    \"justified\": true,\n    \"action\": \"File a defect against the Score contract validator in the `jev-vision-assessment` module. The exact contract/test area to change is the `modularity` probability distribution assertion in the Score validator.\",\n    \"owner_task\": \"Inspect the raw assessment response for the modularity score distribution and compare it against the Score contract schema; update the validator to accept the observed distribution format.\",\n    \"do_not\": \"Do not make a second live call, do not edit files, and do not mark HV-0 complete.\"\n  }\n}\n```",
+      "finish_reason": "stop",
+      "cost": 3.948021e-05,
+      "truncated": false
+    }
+  ],
+  "trimmed_for_judge": [],
+  "panel_failures": [],
+  "required_panelists": 1,
+  "panel_tried": 1,
+  "judge_model": "inclusionai/ling-3.0-flash",
+  "judge_synthesis": "{\"verdict\": \"File a defect against the Score contract validator in the jev-vision-assessment module; the validator has a confirmed compatibility defect rejecting a valid modularity score distribution, causing a false-negative unassessed status. Do not make a second live call, do not edit files, and do not mark HV-0 complete.\", \"agreement\": \"high\", \"confidence\": 0.95, \"disagreements\": [], \"defer\": false}",
+  "judge_synthesis_status": "parseable",
+  "verdict": "File a defect against the Score contract validator in the jev-vision-assessment module; the validator has a confirmed compatibility defect rejecting a valid modularity score distribution, causing a false-negative unassessed status. Do not make a second live call, do not edit files, and do not mark HV-0 complete.",
+  "consensus": {
+    "agreement": "high",
+    "confidence": 0.95,
+    "disagreements": [],
+    "defer": false
+  },
+  "estimated_worst_case_cost": 0.0034697879999999997,
+  "actual_cost": 5.896044e-05,
+  "max_cost_ceiling": 0.01,
+  "cost_by_model": {
+    "inclusionai/ling-3.0-flash": 5.896044e-05
+  },
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "openai/gpt-4o-mini",
+      "openai/gpt-5-mini",
+      "openai/gpt-5.6-luna",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.01,
+    "key_label_present": false
+  }
+}

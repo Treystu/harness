@@ -1,0 +1,70 @@
+{
+  "id": "scmessenger-ci-failure-triage-v1",
+  "buckets": {
+    "test_assertion": {
+      "label": "unit or integration test assertion failure, including mock verification mismatches",
+      "kind": "trouble_area",
+      "path_id": "ci/test-assertion",
+      "keywords": ["FAILED", "AssertionError", "Verification failed", "expected", "mockk", "matcher"],
+      "suggested_next_action": "Read the failing test and the production call site; decide whether the test or the code is wrong.",
+      "attention": 1.0
+    },
+    "compile_or_link": {
+      "label": "compilation, type, or link error",
+      "kind": "trouble_area",
+      "path_id": "ci/compile",
+      "keywords": ["error:", "cannot find symbol", "unresolved reference", "compilation failed", "e: "],
+      "suggested_next_action": "Fix the compile error at its source; do not suppress.",
+      "attention": 1.0
+    },
+    "lint_or_format": {
+      "label": "lint, formatting, clippy, or style gate violation",
+      "kind": "trouble_area",
+      "path_id": "ci/lint",
+      "keywords": ["clippy", "rustfmt", "ktlint", "lint", "format", "warning:"],
+      "suggested_next_action": "Apply the project's formatter or fix the lint finding at source.",
+      "attention": 0.5
+    },
+    "dependency_or_resolution": {
+      "label": "dependency resolution, vendoring, or lockfile failure",
+      "kind": "trouble_area",
+      "path_id": "ci/dependency",
+      "keywords": ["could not resolve", "vendored", "lockfile", "Cargo.lock", "patch.crates-io", "checksum"],
+      "suggested_next_action": "Reconcile the vendored dependency and the lockfile; do not add ad-hoc path patches.",
+      "attention": 0.8
+    },
+    "timeout_or_resource": {
+      "label": "timeout, out-of-memory, or resource exhaustion",
+      "kind": "trouble_area",
+      "path_id": "ci/resource",
+      "keywords": ["timeout", "timed out", "OOM", "out of memory", "killed", "no space left"],
+      "suggested_next_action": "Confirm whether the job is genuinely too slow or merely flaky before changing budgets.",
+      "attention": 0.6
+    },
+    "gate_or_policy": {
+      "label": "required rule, policy, or review gate not satisfied",
+      "kind": "trouble_area",
+      "path_id": "ci/gate",
+      "keywords": ["rule-8", "sign-off", "approval", "required", "gate", "review pending"],
+      "suggested_next_action": "Obtain the missing human sign-off; never self-sign.",
+      "attention": 0.9
+    },
+    "infrastructure_or_flake": {
+      "label": "CI infrastructure, runner, or test flakiness",
+      "kind": "trouble_area",
+      "path_id": "ci/infra",
+      "keywords": ["runner", "network", "connection reset", "container", "disk", "flake", "cancel"],
+      "suggested_next_action": "Re-run to confirm flakiness before changing product code.",
+      "attention": 0.4
+    }
+  },
+  "score": {
+    "id": "merge_impact",
+    "instructions": "How badly does this failure block a green merge for the pull request?",
+    "levels": [
+      "blocker: the job cannot go green without a code change",
+      "major: a real defect that must be fixed before merge",
+      "minor: cosmetic or non-gating noise"
+    ]
+  }
+}
