@@ -540,18 +540,19 @@ class InputBackendTests(unittest.TestCase):
             def focus(self, hwnd, title):
                 return True
 
-        self.assertEqual(osal.input_backends(), {})
-        osal.register_native_input_backend(platform="windows",
-                                           window_api=WindowApi())
-        self.addCleanup(osal.disable_input_backend, "windows")
-        reported = osal.input_backends()["windows"]
-        self.assertEqual(reported.name, osal.WINDOWS_INPUT_BACKEND_NAME)
-        self.assertEqual(reported.supported_kinds, ("focus",))
-        ok, detail = osal.send_input("focus", target="Harness smoke target")
-        self.assertTrue(ok, detail)
-        ok, detail = osal.send_input("click", target="Harness smoke target")
-        self.assertFalse(ok)
-        self.assertIn("does not support 'click'", detail)
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            self.assertEqual(osal.input_backends(), {})
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=WindowApi())
+            self.addCleanup(osal.disable_input_backend, "windows")
+            reported = osal.input_backends()["windows"]
+            self.assertEqual(reported.name, osal.WINDOWS_INPUT_BACKEND_NAME)
+            self.assertEqual(reported.supported_kinds, ("focus",))
+            ok, detail = osal.send_input("focus", target="Harness smoke target")
+            self.assertTrue(ok, detail)
+            ok, detail = osal.send_input("click", target="Harness smoke target")
+            self.assertFalse(ok)
+            self.assertIn("does not support 'click'", detail)
 
     def test_the_native_backend_refuses_an_undeclared_platform(self):
         with self.assertRaises(OsalError) as caught:
@@ -570,21 +571,22 @@ class InputBackendTests(unittest.TestCase):
                 focused.append(title)
                 return True
 
-        osal.register_native_input_backend(platform="windows",
-                                           window_api=WindowApi())
-        self.addCleanup(osal.disable_input_backend, "windows")
-        executor = _executor()
-        with self.assertRaises(ConsentError):
-            executor.execute("focus", {"target": "Harness smoke target"})
-        with self.assertRaises(ConsentError):
-            executor.execute("focus", {"target": "Harness smoke target"},
-                             consent=Consent(True, "focus",
-                                             {"target": "Another window"}))
-        result = executor.execute(
-            "focus", {"target": "Harness smoke target"},
-            consent=Consent(True, "focus", {"target": "Harness smoke target"}))
-        self.assertTrue(result.ok, result)
-        self.assertEqual(focused, ["Harness smoke target"])
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=WindowApi())
+            self.addCleanup(osal.disable_input_backend, "windows")
+            executor = _executor()
+            with self.assertRaises(ConsentError):
+                executor.execute("focus", {"target": "Harness smoke target"})
+            with self.assertRaises(ConsentError):
+                executor.execute("focus", {"target": "Harness smoke target"},
+                                 consent=Consent(True, "focus",
+                                                 {"target": "Another window"}))
+            result = executor.execute(
+                "focus", {"target": "Harness smoke target"},
+                consent=Consent(True, "focus", {"target": "Harness smoke target"}))
+            self.assertTrue(result.ok, result)
+            self.assertEqual(focused, ["Harness smoke target"])
 
     def test_a_backend_can_be_withdrawn_at_runtime(self):
         """Observe the machine, never drive it -- as a policy, not an
