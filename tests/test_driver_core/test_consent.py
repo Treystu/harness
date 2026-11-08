@@ -83,6 +83,7 @@ class FakeUser32:
         self.length_error_calls = {}
         self.raise_visible = set()
         self.enum_fail_after = None
+        self.after_enum_once = None
         self.focused = []
 
     def EnumWindows(self, proc, _param):
@@ -92,6 +93,10 @@ class FakeUser32:
             if hwnd == self.enum_fail_after:
                 FakeCtypes.set_last_error(6)
                 return False
+        if self.after_enum_once is not None:
+            callback = self.after_enum_once
+            self.after_enum_once = None
+            callback(self)
         return True
 
     def IsWindowVisible(self, hwnd):
@@ -567,8 +572,57 @@ class InputBackendTests(unittest.TestCase):
         self.assertEqual(api.find_exact_visible("Harness smoke target"),
                          [1, 5])
         self.assertEqual(api.find_exact_visible("Harness Smoke Target"), [2])
-        self.assertTrue(api.focus(1, "Harness smoke target"))
+        with self.assertRaises(OsalError):
+            api.focus(1, "Harness smoke target")
         self.assertFalse(api.focus(2, "Harness Smoke Target"))
+        self.assertEqual(user32.focused, [2])
+
+    def test_same_length_title_change_after_lookup_refuses_focus(self):
+        target = "Harness smoke target"
+        changed = "Harness smoke change"
+        self.assertEqual(len(target), len(changed))
+        user32 = FakeUser32()
+        user32.titles = {1: target}
+        user32.visible = {1}
+        user32.unreadable.clear()
+
+        def change_title(api):
+            api.titles[1] = changed
+
+        user32.after_enum_once = change_title
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input("focus", target=target)
+        self.assertFalse(ok)
+        self.assertIn("no longer visible with title", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_duplicate_appearing_after_lookup_refuses_focus(self):
+        target = "Harness smoke target"
+        user32 = FakeUser32()
+        user32.titles = {1: target}
+        user32.visible = {1}
+        user32.unreadable.clear()
+
+        def add_duplicate(api):
+            api.titles[5] = target
+            api.visible.add(5)
+
+        user32.after_enum_once = add_duplicate
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input("focus", target=target)
+        self.assertFalse(ok)
+        self.assertIn("no longer the only visible window", detail)
+        self.assertEqual(user32.focused, [])
 
     def test_a_title_length_read_failure_aborts_before_focus(self):
         user32 = FakeUser32()

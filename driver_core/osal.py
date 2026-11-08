@@ -1413,8 +1413,24 @@ class _WindowsWindowApi:
         ``SetForegroundWindow`` is refused by the shell when the calling
         process is not already the foreground process; that refusal is real
         and is reported as one, because pretending the window moved would be
-        the exact class of lie this package exists to prevent.
+        the exact class of lie this package exists to prevent. Revalidate the
+        title and uniqueness immediately before focusing; window state can
+        still change after those reads, so this is not an atomic guarantee.
         """
+        handle = int(hwnd)
+        if (not self._user32.IsWindowVisible(hwnd)
+                or self._title_of(hwnd) != title):
+            raise OsalError(
+                f"window {handle} is no longer visible with title {title!r}")
+        matches = self.find_exact_visible(title)
+        if len(matches) != 1 or matches[0] != handle:
+            raise OsalError(
+                f"window {handle} is no longer the only visible window "
+                f"titled {title!r}")
+        if (not self._user32.IsWindowVisible(hwnd)
+                or self._title_of(hwnd) != title):
+            raise OsalError(
+                f"window {handle} changed before it could be focused")
         return bool(self._user32.SetForegroundWindow(hwnd))
 
 
