@@ -1342,24 +1342,55 @@ class _WindowsWindowApi:
                 f"native Windows input needs ctypes and user32: {exc}") from None
 
     def _title_of(self, hwnd):
+        self._ctypes.set_last_error(0)
         length = self._user32.GetWindowTextLengthW(hwnd)
-        if length <= 0:
+        error = self._ctypes.get_last_error()
+        if length < 0 or (length == 0 and error):
+            raise OsalError(
+                f"GetWindowTextLengthW failed for window {int(hwnd)} "
+                f"(Win32 error {error})")
+        if length == 0:
             return ""
         buffer = self._ctypes.create_unicode_buffer(length + 1)
-        if self._user32.GetWindowTextW(hwnd, buffer, length + 1) <= 0:
+        self._ctypes.set_last_error(0)
+        copied = self._user32.GetWindowTextW(hwnd, buffer, length + 1)
+        error = self._ctypes.get_last_error()
+        if copied < 0 or (copied == 0 and error):
+            raise OsalError(
+                f"GetWindowTextW failed for window {int(hwnd)} "
+                f"(Win32 error {error})")
+        if copied == 0:
             return ""
         return buffer.value
 
     def find_exact_visible(self, title):
         """Handles of visible top-level windows whose title is exactly title."""
         found = []
+        callback_error = []
 
         def visit(hwnd, _param):
-            if self._user32.IsWindowVisible(hwnd) and self._title_of(hwnd) == title:
-                found.append(int(hwnd))
+            try:
+                if (self._user32.IsWindowVisible(hwnd)
+                        and self._title_of(hwnd) == title):
+                    found.append(int(hwnd))
+            except Exception as exc:
+                callback_error.append(exc)
+                return False
             return True
 
-        self._user32.EnumWindows(self._enum_proc(visit), 0)
+        self._ctypes.set_last_error(0)
+        try:
+            completed = self._user32.EnumWindows(self._enum_proc(visit), 0)
+        except Exception as exc:
+            raise OsalError(f"EnumWindows failed: {exc}") from None
+        if callback_error:
+            raise OsalError(
+                f"window enumeration callback failed: {callback_error[0]}")
+        if not completed:
+            error = self._ctypes.get_last_error()
+            raise OsalError(
+                f"EnumWindows failed (Win32 error {error}); refusing partial "
+                f"window matches")
         return found
 
     def focus(self, hwnd, title):
