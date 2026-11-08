@@ -1,0 +1,27 @@
+# track record in real audits and bench probes: JSON-emission reliability,
+# willingness to defer, and truncation behavior. north-mini-code is DEMOTED
+# from the judge seat (and the panel head): as a reasoning model it burned
+# its budget on hidden thinking and returned reasoning-only output in most
+# live runs. The router rotates down the list and falls back to
+# openrouter/free. Run `harness spend --models` (or discover_models) to
+# refresh against the live list.
+FREE_PANEL_POOL = [
+    "google/gemma-4-31b-it:free",
+    "minimax/minimax-m3:free",
+    "inclusionai/ling-3.0-flash-fin:free",
+    "z-ai/glm-5.2:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "cohere/north-mini-code:free",
+    "openrouter/free",
+]
+# Judge must emit strict JSON. gemma is the most JSON-reliable free emitter in
+# live runs (structured claims, consent, and specialist lanes all included);
+# a reasoning-heavy judge burns its budget on hidden thinking instead.
+FREE_JUDGE = "google/gemma-4-31b-it:free"
+FREE_APPLY_POOL = [
+    "google/gemma-4-31b-it:free",
+    "minimax/minimax-m3:free",
+    "z-ai/glm-5.2:free",
+    "inclusionai/ling-3.0-flash-fin:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "cohere/north-mini-code:free",
