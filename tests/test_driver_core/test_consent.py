@@ -78,6 +78,9 @@ class FakeUser32:
         self.unreadable = {7}
         self.unreadable_length = set()
         self.zero_copy_without_error = set()
+        self.length_sequences = {}
+        self.length_calls = {}
+        self.length_error_calls = {}
         self.raise_visible = set()
         self.enum_fail_after = None
         self.focused = []
@@ -97,9 +100,17 @@ class FakeUser32:
         return hwnd in self.visible
 
     def GetWindowTextLengthW(self, hwnd):
+        calls = self.length_calls.get(hwnd, 0) + 1
+        self.length_calls[hwnd] = calls
+        if calls in self.length_error_calls.get(hwnd, set()):
+            FakeCtypes.set_last_error(5)
+            return 0
         if hwnd in self.unreadable_length:
             FakeCtypes.set_last_error(5)
             return 0
+        sequence = self.length_sequences.get(hwnd, [])
+        if sequence:
+            return sequence.pop(0)
         return len(self.titles[hwnd])
 
     def GetWindowTextW(self, hwnd, buffer, size):
@@ -605,6 +616,41 @@ class InputBackendTests(unittest.TestCase):
                 "focus", target="Harness smoke target")
         self.assertFalse(ok)
         self.assertIn("after a positive GetWindowTextLengthW result", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_title_growth_that_truncates_to_exact_match_refuses(self):
+        target = "Harness smoke target"
+        user32 = FakeUser32()
+        user32.titles[7] = target + " now longer"
+        user32.visible = {7}
+        user32.unreadable.clear()
+        user32.length_sequences[7] = [len(target)]
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input("focus", target=target)
+        self.assertFalse(ok)
+        self.assertIn("title length changed while reading", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_post_read_length_error_refuses_without_focus(self):
+        user32 = FakeUser32()
+        user32.visible = {1}
+        user32.unreadable.clear()
+        user32.length_error_calls[1] = {2}
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("GetWindowTextLengthW failed", detail)
         self.assertEqual(user32.focused, [])
 
     def test_failed_enumeration_discards_partial_matches(self):

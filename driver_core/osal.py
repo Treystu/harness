@@ -1341,7 +1341,7 @@ class _WindowsWindowApi:
             raise OsalError(
                 f"native Windows input needs ctypes and user32: {exc}") from None
 
-    def _title_of(self, hwnd):
+    def _window_text_length(self, hwnd):
         self._ctypes.set_last_error(0)
         length = self._user32.GetWindowTextLengthW(hwnd)
         error = self._ctypes.get_last_error()
@@ -1349,7 +1349,14 @@ class _WindowsWindowApi:
             raise OsalError(
                 f"GetWindowTextLengthW failed for window {int(hwnd)} "
                 f"(Win32 error {error})")
+        return length
+
+    def _title_of(self, hwnd):
+        length = self._window_text_length(hwnd)
         if length == 0:
+            if self._window_text_length(hwnd) != 0:
+                raise OsalError(
+                    f"window {int(hwnd)} title changed while reading it")
             return ""
         buffer = self._ctypes.create_unicode_buffer(length + 1)
         self._ctypes.set_last_error(0)
@@ -1363,6 +1370,11 @@ class _WindowsWindowApi:
             raise OsalError(
                 f"GetWindowTextW returned no text for window {int(hwnd)} "
                 "after a positive GetWindowTextLengthW result")
+        post_length = self._window_text_length(hwnd)
+        if post_length != copied or post_length != length:
+            raise OsalError(
+                f"window {int(hwnd)} title length changed while reading it "
+                f"({length} before, {copied} copied, {post_length} after)")
         return buffer.value
 
     def find_exact_visible(self, title):
