@@ -74,6 +74,29 @@ class JevPrimaryModePanelTests(unittest.TestCase):
         self.assertEqual(result["judgment_route"], "llm_fallback")
         self.assertEqual(result["judgment_route_reason"], "jev_no_claims")
 
+    def test_mode_on_without_a_claim_support_record_names_jev_not_run(self):
+        """A policy that returns no record is a named fallback, not silence.
+
+        The Jev path ran, the claims were non-empty, and nothing reported an
+        error or a skip -- so the only honest reading is that the Jev
+        judgment did not happen. Naming that ``jev_not_run`` is the
+        difference between a measured fallback and an LLM verdict that looks
+        like the mode's judgment because no key was set.
+        """
+
+        class EmptyPolicy(StubPolicy):
+            def evaluate_claim_support(self, texts, evidence, **kwargs):
+                self.calls.append((texts, evidence, kwargs))
+                return object(), None
+
+        policy = EmptyPolicy()
+        result = _run(jev_policy=policy, jev_primary_mode=True,
+                      claim_texts=[{"id": "c1",
+                                    "text": "the gateway retries"}])
+        self.assertEqual(len(policy.calls), 1)
+        self.assertEqual(result["judgment_route"], "llm_fallback")
+        self.assertEqual(result["judgment_route_reason"], "jev_not_run")
+
     def test_mode_on_jev_error_names_the_fallback(self):
         policy = StubPolicy(error=RuntimeError("jev down"))
         result = _run(jev_policy=policy, jev_primary_mode=True)

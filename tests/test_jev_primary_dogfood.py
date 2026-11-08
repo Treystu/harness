@@ -116,6 +116,42 @@ class JevPrimaryDogfoodTests(unittest.TestCase):
                 snap["ceiling"] - snap["spent"] - snap["terminal_reserve"],
                 places=9)
 
+    def test_policy_construction_failure_is_a_named_fallback(self):
+        """run_verify degrades by name when the Jev policy cannot be built.
+
+        A policy that raises leaves the panel with no Jev route. The run has
+        to finish anyway, and the envelope has to say so: naming
+        ``jev_policy_absent`` is what stops an LLM-only verdict from being
+        read as the mode's judgment. This pins the construction-failure
+        branch rather than only the happy path beside it.
+        """
+        from harness import service
+        from harness.ledger import AutonomyLedger
+        from harness.spend import SpendGovernor
+
+        with tempfile.TemporaryDirectory() as tmp:
+            fake = FakeTransport(
+                models=[m(P1), m(P2), m(JUDGE)],
+                posts=[comp("take one"), comp("take two"),
+                       comp("verdict: agree")])
+            gov = SpendGovernor(
+                fake, "sk-test",
+                byok_prefixes_path=os.path.join(tmp, "byok.json"))
+            ledger = AutonomyLedger(os.path.join(tmp, "ledger.jsonl"))
+            settings = _settings(tmp)
+            self.assertTrue(settings.jev_primary_mode)
+
+            with mock.patch("harness.jev_policy.policy_for",
+                            side_effect=RuntimeError("no jev transport")):
+                result = service.run_verify(
+                    settings, prompt="Q?", panel=[P1, P2], judge=JUDGE,
+                    transport=fake, api_key="sk-test", governor=gov,
+                    ledger=ledger)
+
+            self.assertEqual(result["judgment_route"], "llm_fallback")
+            self.assertEqual(result["judgment_route_reason"],
+                             "jev_policy_absent")
+
 
 if __name__ == "__main__":
     unittest.main()
