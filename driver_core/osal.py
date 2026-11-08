@@ -1272,6 +1272,34 @@ def input_backend_supports(backend, kind):
     return kind in supported
 
 
+def _bind_user32():
+    """Load ``user32`` and declare the entry points the window API uses.
+
+    Bound lazily and never at module import time: a module that bound
+    ``user32`` on import would make this whole package unimportable on a
+    machine without it, which is a far larger failure than the one this
+    capability is allowed to cause.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND,
+                                   wintypes.LPARAM)
+    user32.EnumWindows.argtypes = (enum_proc, wintypes.LPARAM)
+    user32.EnumWindows.restype = wintypes.BOOL
+    user32.IsWindowVisible.argtypes = (wintypes.HWND,)
+    user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
+    user32.GetWindowTextLengthW.restype = ctypes.c_int
+    user32.GetWindowTextW.argtypes = (wintypes.HWND, wintypes.LPWSTR,
+                                      ctypes.c_int)
+    user32.GetWindowTextW.restype = ctypes.c_int
+    user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
+    user32.SetForegroundWindow.restype = wintypes.BOOL
+    return ctypes, user32, enum_proc
+
+
 class _WindowsWindowApi:
     """The window operations the native backend needs, via ``user32``.
 
@@ -1280,42 +1308,28 @@ class _WindowsWindowApi:
     keystroke, reads a window's contents or closes anything, so a backend
     built on this API cannot do more than the one kind it declares.
 
-    The binding is created per instance rather than at import time. A module
-    that binds ``user32`` on import would make the whole package unimportable
-    on a machine without it, which is a far larger failure than the one this
-    capability is allowed to cause; here the failure is a named refusal at
-    the moment somebody asks for native input.
+    ``bind`` is a test seam returning the same ``(ctypes, user32, enum_proc)``
+    triple the real binding does. The matching logic below -- visible-only,
+    exact-title -- is worth exercising on a machine that has no ``user32``,
+    which is every CI runner but one; the real binding is proven on Windows
+    and refuses by name everywhere else.
     """
 
     name = "windows-user32"
 
-    def __init__(self):
+    def __init__(self, *, bind=None):
         if platform_name() != "windows":
             raise OsalError(
                 f"the native window API binds Windows user32, which does not "
                 f"exist on {platform_name()!r}")
         try:
-            import ctypes
-            from ctypes import wintypes
-        except Exception as exc:  # pragma: no cover - platform dependent
+            self._ctypes, self._user32, self._enum_proc = (
+                _bind_user32() if bind is None else bind())
+        except OsalError:
+            raise
+        except Exception as exc:
             raise OsalError(
                 f"native Windows input needs ctypes and user32: {exc}") from None
-        self._ctypes = ctypes
-        user32 = ctypes.WinDLL("user32", use_last_error=True)
-        self._user32 = user32
-        self._enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND,
-                                             wintypes.LPARAM)
-        user32.EnumWindows.argtypes = (self._enum_proc, wintypes.LPARAM)
-        user32.EnumWindows.restype = wintypes.BOOL
-        user32.IsWindowVisible.argtypes = (wintypes.HWND,)
-        user32.IsWindowVisible.restype = wintypes.BOOL
-        user32.GetWindowTextLengthW.argtypes = (wintypes.HWND,)
-        user32.GetWindowTextLengthW.restype = ctypes.c_int
-        user32.GetWindowTextW.argtypes = (wintypes.HWND, wintypes.LPWSTR,
-                                          ctypes.c_int)
-        user32.GetWindowTextW.restype = ctypes.c_int
-        user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
-        user32.SetForegroundWindow.restype = wintypes.BOOL
 
     def _title_of(self, hwnd):
         length = self._user32.GetWindowTextLengthW(hwnd)

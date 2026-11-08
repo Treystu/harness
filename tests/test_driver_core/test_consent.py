@@ -345,6 +345,8 @@ class InputBackendTests(unittest.TestCase):
     def test_native_backend_is_unavailable_on_unsupported_platforms(self):
         self.assertIsNone(osal.native_input_backend(platform="linux"))
 
+    @unittest.skipUnless(osal.platform_name() == "windows",
+                         "the in-repo default binds the real user32")
     def test_native_backend_ships_an_in_repo_window_api(self):
         """The documented ``DRIVER_NATIVE_INPUT`` path must be buildable.
 
@@ -366,6 +368,73 @@ class InputBackendTests(unittest.TestCase):
             with self.assertRaises(OsalError) as caught:
                 osal._WindowsWindowApi()
         self.assertIn("user32", str(caught.exception))
+
+    @unittest.skipIf(osal.platform_name() == "windows",
+                     "the real user32 binding exists on this machine")
+    def test_the_real_binding_refuses_by_name_where_user32_is_absent(self):
+        """The binding failure is an OsalError naming user32, not a crash."""
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            with self.assertRaises(OsalError) as caught:
+                osal._WindowsWindowApi()
+        self.assertIn("user32", str(caught.exception))
+
+    def test_the_window_matching_logic_needs_no_user32(self):
+        """Visible-only and exact-title are proved by injection, on any OS.
+
+        The three lies this closes: a hidden window is not a target, a
+        title that differs by case or whitespace is a different window, and
+        two matches are an ambiguity rather than a pick.
+        """
+
+        class Buffer:
+            def __init__(self):
+                self.value = ""
+
+        class FakeCtypes:
+            @staticmethod
+            def create_unicode_buffer(size):
+                return Buffer()
+
+        class FakeUser32:
+            def __init__(self):
+                self.titles = {1: "Harness smoke target",
+                               2: "Harness Smoke Target",
+                               3: "Harness smoke target ",
+                               4: "Harness smoke target",
+                               5: "Harness smoke target",
+                               6: ""}
+                self.visible = {1, 2, 3, 5, 6}
+
+            def EnumWindows(self, proc, _param):
+                for hwnd in sorted(self.titles):
+                    proc(hwnd, 0)
+                return True
+
+            def IsWindowVisible(self, hwnd):
+                return hwnd in self.visible
+
+            def GetWindowTextLengthW(self, hwnd):
+                return len(self.titles[hwnd])
+
+            def GetWindowTextW(self, hwnd, buffer, size):
+                buffer.value = self.titles[hwnd][:size - 1]
+                return len(buffer.value)
+
+            def SetForegroundWindow(self, hwnd):
+                return hwnd == 1
+
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, FakeUser32(), lambda visit: visit))
+
+        # Hidden (4) excluded; case (2) and whitespace (3) are different
+        # windows; the empty title (6) reads as no title at all.
+        self.assertEqual(api._title_of(6), "")
+        self.assertEqual(api.find_exact_visible("Harness smoke target"),
+                         [1, 5])
+        self.assertEqual(api.find_exact_visible("Harness Smoke Target"), [2])
+        self.assertTrue(api.focus(1, "Harness smoke target"))
+        self.assertFalse(api.focus(2, "Harness Smoke Target"))
 
     def test_registering_the_native_backend_is_what_fills_health(self):
         """Nothing registers implicitly; one explicit call does."""
