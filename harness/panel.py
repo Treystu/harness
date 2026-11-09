@@ -27,6 +27,7 @@ from .convergence import (MAX_429_RETRIES,
                           tally_convergence)
 from .errors import (HarnessError, ProviderUsageUnknown, ToolCancelled)
 from .output import eprint
+from .provider_errors import ProviderSpendLimitError
 from .tokens import estimate_prompt_tokens
 
 
@@ -195,7 +196,7 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                 claim_texts if claim_texts is not None else [],
                 claim_evidence if claim_evidence is not None else prompt,
                 enabled=True, site="claims", task_id=task_id)
-        except (ToolCancelled, ProviderUsageUnknown):
+        except (ToolCancelled, ProviderUsageUnknown, ProviderSpendLimitError):
             raise
         except Exception as exc:  # advisory only — never break panel dispatch
             claim_support = {"skipped": True, "error": str(exc), "claim_flags": []}
