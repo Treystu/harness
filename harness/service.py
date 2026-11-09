@@ -455,13 +455,26 @@ def run_dogfood(settings=None, *,
         "max_cost": max_cost, "cancel_check": cancel_check,
     }
     try:
-        parameters = inspect.signature(verify_caller).parameters.values()
-        accepts_claim_texts = any(
-            parameter.name == "claim_texts"
-            and parameter.kind != inspect.Parameter.POSITIONAL_ONLY
-            for parameter in parameters) or any(
-                parameter.kind == inspect.Parameter.VAR_KEYWORD
-                for parameter in parameters)
+        parameters = tuple(inspect.signature(verify_caller).parameters.values())
+        claim_parameter = next(
+            (parameter for parameter in parameters
+             if parameter.name == "claim_texts"), None)
+        keyword_claim_parameter = (
+            claim_parameter is not None
+            and claim_parameter.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY))
+        keyword_catch_all = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters)
+        conflicting_claim_parameter = (
+            claim_parameter is not None
+            and claim_parameter.kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.VAR_POSITIONAL))
+        accepts_claim_texts = (keyword_claim_parameter or
+                               (keyword_catch_all
+                                and not conflicting_claim_parameter))
     except (TypeError, ValueError):
         accepts_claim_texts = False
     if accepts_claim_texts:
