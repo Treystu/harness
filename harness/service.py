@@ -13,6 +13,7 @@ apply lane stays composed via :func:`harness.session.apply_session` at each
 call site -- apply request validation is the engine's own boundary contract
 (``ApplyEngine._prepare``), not a service-layer concern.
 """
+import inspect
 import uuid
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -448,12 +449,29 @@ def run_dogfood(settings=None, *,
     reassurance = ",".join(getattr(c, "claim_id", "") for c in claims_to_use
                            if getattr(c, "kind", "") == "reassurance" and getattr(c, "claim_id", ""))
     verify_caller = run_verify_fn if run_verify_fn is not None else run_verify
-    verdict = verify_caller(
-        settings, prompt=prompt, task_id=task_id,
-        converge=True, reassurance_claims=reassurance,
-        max_cost=max_cost, cancel_check=cancel_check,
-        claim_texts=[{"id": c.claim_id, "text": c.text}
-                     for c in claims_to_use])
+    verify_kwargs = {
+        "prompt": prompt, "task_id": task_id,
+        "converge": True, "reassurance_claims": reassurance,
+        "max_cost": max_cost, "cancel_check": cancel_check,
+    }
+    try:
+        parameters = inspect.signature(verify_caller).parameters.values()
+        accepts_claim_texts = any(
+            parameter.name == "claim_texts"
+            and parameter.kind != inspect.Parameter.POSITIONAL_ONLY
+            for parameter in parameters) or any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in parameters)
+    except (TypeError, ValueError):
+        accepts_claim_texts = False
+    if accepts_claim_texts:
+        verify_kwargs["claim_texts"] = [
+            {"id": c.claim_id, "text": c.text} for c in claims_to_use]
+    elif getattr(settings, "jev_primary_mode", False):
+        raise HarnessError(
+            "dogfood verify callback does not accept claim_texts required "
+            "by jev_primary_mode")
+    verdict = verify_caller(settings, **verify_kwargs)
 
     tally = verdict.get("convergence", {}).get("tally") or {}
     per_claim = tally.get("claims", {})
