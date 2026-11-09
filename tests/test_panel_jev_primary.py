@@ -9,6 +9,7 @@ no route keys, claim support only under its own flag.
 """
 import unittest
 
+from harness.errors import ProviderUsageUnknown, ToolCancelled
 from harness.panel import panel_judge
 from tests._fake import FakeTransport, m, comp, _gov, P1, P2, JUDGE
 
@@ -158,6 +159,24 @@ class JevPrimaryModePanelTests(unittest.TestCase):
         self.assertTrue(
             result["judgment_route_reason"].startswith("jev_error:"))
         self.assertIn("jev down", result["judgment_route_reason"])
+
+    def test_mode_on_propagates_cancellation_and_unknown_usage(self):
+        for error in (ToolCancelled("cancelled"),
+                      ProviderUsageUnknown("usage unavailable")):
+            with self.subTest(error=type(error).__name__):
+                policy = StubPolicy(error=error)
+                fake = FakeTransport(
+                    models=[m(P1), m(P2), m(JUDGE)],
+                    posts=[comp("take one"), comp("take two"),
+                           comp("verdict: agree")])
+                gov = _gov(fake)
+                with self.assertRaises(type(error)) as raised:
+                    panel_judge(
+                        transport=fake, api_key="k", governor=gov,
+                        prompt="Q?", panel=[P1, P2], judge=JUDGE,
+                        jev_policy=policy, jev_primary_mode=True)
+                self.assertIs(raised.exception, error)
+                self.assertEqual(fake.chat_posts(), [])
 
 
 if __name__ == "__main__":
