@@ -218,7 +218,15 @@ jobs:
           working_directory: tests/ui
       - run:
           name: Install Chromium and system dependencies
-          command: npx playwright install --with-deps chromium
+          # Refresh the package index first. On 2026-11-09 main 90862bd5
+          # job 716 died here with every browser dependency "no
+          # installation candidate" (exit 100) and no test run at all
+          # (#295 filing 6733006016). Playwright's --with-deps installs
+          # through apt, and a stale index on this image makes the whole
+          # set unresolvable -- the same code passed on the branch battery.
+          command: |
+            sudo apt-get update
+            npx playwright install --with-deps chromium
           working_directory: tests/ui
       - run:
           name: Run served UI journeys (one worker)
