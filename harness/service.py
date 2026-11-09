@@ -451,7 +451,9 @@ def run_dogfood(settings=None, *,
     verdict = verify_caller(
         settings, prompt=prompt, task_id=task_id,
         converge=True, reassurance_claims=reassurance,
-        max_cost=max_cost, cancel_check=cancel_check)
+        max_cost=max_cost, cancel_check=cancel_check,
+        claim_texts=[{"id": c.claim_id, "text": c.text}
+                     for c in claims_to_use])
 
     tally = verdict.get("convergence", {}).get("tally") or {}
     per_claim = tally.get("claims", {})

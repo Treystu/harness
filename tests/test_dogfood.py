@@ -335,6 +335,9 @@ class DogfoodVerifySeamContractTests(unittest.TestCase):
                     cancel_check=cancel)
 
             self.assertIs(seen["cancel_check"], cancel)
+            self.assertEqual(seen["claim_texts"], [
+                {"id": "c1", "text": "x is 1"},
+            ])
             self.assertEqual([p["phase"] for p in report["phases"]],
                              ["ground", "verify", "apply"])
             self.assertEqual(report["status"], "ok")
