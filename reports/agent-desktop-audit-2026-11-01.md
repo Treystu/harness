@@ -127,5 +127,6 @@ target file exists on this tip and is checked by the B6 test.
   `driver_core/actions.py:167` (`focus`), `driver_core/actions.py:169` (`click`),
   `driver_core/actions.py:171` (`type_text`), `harness/perception_client.py:183`
   (driver `health` client), `pyproject.toml:40` (`harness-desktop` entry point),
-  `docs/driver.md:355` (headless key provisioning), `docs/driver.md:368` (keyless vs
-  keyed table).
+  `docs/driver.md:369` (headless key provisioning), `docs/driver.md:382` (keyless vs
+  keyed table; both re-pointed after the native-input section grew in
+  #477, so the citation still lands on the claim it names).
