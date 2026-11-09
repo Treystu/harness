@@ -67,12 +67,34 @@ class JevPrimaryModePanelTests(unittest.TestCase):
         class SkippingPolicy(StubPolicy):
             def evaluate_claim_support(self, texts, evidence, **kwargs):
                 self.calls.append((texts, evidence, kwargs))
-                return object(), {"claim_flags": [], "skipped": True}
+                return object(), {
+                    "claim_flags": [], "skipped": True,
+                    "is_fallback": True, "fallback_reason": "missing_key",
+                }
 
         policy = SkippingPolicy()
         result = _run(jev_policy=policy, jev_primary_mode=True)
         self.assertEqual(result["judgment_route"], "llm_fallback")
         self.assertEqual(result["judgment_route_reason"], "jev_no_claims")
+
+    def test_mode_on_non_skipped_jev_fallback_names_its_reason(self):
+        class FallbackPolicy(StubPolicy):
+            def evaluate_claim_support(self, texts, evidence, **kwargs):
+                self.calls.append((texts, evidence, kwargs))
+                return object(), {
+                    "claim_flags": [], "is_fallback": True,
+                    "fallback_reason": "transport_failure",
+                }
+
+        policy = FallbackPolicy()
+        result = _run(
+            jev_policy=policy, jev_primary_mode=True,
+            claim_texts=[{"id": "c1", "text": "the gateway retries"}],
+        )
+        self.assertEqual(result["judgment_route"], "llm_fallback")
+        self.assertEqual(result["judgment_route_reason"],
+                         "jev_fallback: transport_failure")
+        self.assertTrue(result["claim_support"]["is_fallback"])
 
     def test_mode_on_without_a_claim_support_record_names_jev_not_run(self):
         """A policy that returns no record is a named fallback, not silence.

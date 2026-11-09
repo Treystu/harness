@@ -857,7 +857,9 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
         # #453 S3a: name the judgment route on every verdict under the
         # mode. "jev_primary" only when the Jev path actually ran; any
         # other outcome is the LLM fallback, with its reason.
-        if claim_support is not None and not claim_support.get("skipped"):
+        if (claim_support is not None
+                and not claim_support.get("skipped")
+                and not claim_support.get("is_fallback")):
             result["judgment_route"] = "jev_primary"
         else:
             result["judgment_route"] = "llm_fallback"
@@ -871,6 +873,11 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                 # claim-support skipped shape) — name it, do not dress
                 # it as an error or as a Jev judgment.
                 result["judgment_route_reason"] = "jev_no_claims"
+            elif claim_support and claim_support.get("is_fallback"):
+                result["judgment_route_reason"] = (
+                    "jev_fallback: "
+                    + str(claim_support.get("fallback_reason")
+                          or "unattributed_fallback"))
             else:
                 result["judgment_route_reason"] = "jev_not_run"
     if convergence_spec is not None:
