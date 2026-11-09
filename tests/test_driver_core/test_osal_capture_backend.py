@@ -122,6 +122,16 @@ class CaptureBackendRegistrationTests(unittest.TestCase):
             detail, "capture backend 'windows-bridge' failed: "
                     "describe bridge down")
 
+    def test_describe_named_refusal_propagates_unchanged(self):
+        def refuse():
+            raise osal.OsalError("the hand reports the session is locked")
+
+        osal.register_capture_backend("windows", _backend(describe=refuse))
+        with self._platform():
+            with self.assertRaises(osal.OsalError) as caught:
+                osal.describe_screen()
+        self.assertIn("locked", str(caught.exception))
+
     def test_describe_returning_non_dict_refuses(self):
         osal.register_capture_backend(
             "windows", _backend(describe=lambda: ("a title", "")))
