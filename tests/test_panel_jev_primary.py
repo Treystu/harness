@@ -22,7 +22,10 @@ class StubPolicy:
         self.calls.append((texts, evidence, kwargs))
         if self.error is not None:
             raise self.error
-        return object(), {"claim_flags": [], "supported": True}
+        return object(), {
+            "claim_flags": [], "supported": True,
+            "skipped": False, "is_fallback": False,
+        }
 
 
 def _run(**kwargs):
@@ -82,7 +85,7 @@ class JevPrimaryModePanelTests(unittest.TestCase):
             def evaluate_claim_support(self, texts, evidence, **kwargs):
                 self.calls.append((texts, evidence, kwargs))
                 return object(), {
-                    "claim_flags": [], "is_fallback": True,
+                    "claim_flags": [], "skipped": False, "is_fallback": True,
                     "fallback_reason": "transport_failure",
                 }
 
@@ -95,6 +98,35 @@ class JevPrimaryModePanelTests(unittest.TestCase):
         self.assertEqual(result["judgment_route_reason"],
                          "jev_fallback: transport_failure")
         self.assertTrue(result["claim_support"]["is_fallback"])
+        self.assertEqual(result["claim_support"]["fallback_reason"],
+                         "transport_failure")
+
+    def test_mode_on_missing_or_invalid_status_names_missing_status(self):
+        for field, status in (("is_fallback", None),
+                              ("is_fallback", "false"),
+                              ("skipped", None), ("skipped", "false")):
+            with self.subTest(field=field, status=status):
+                class UnstampedPolicy(StubPolicy):
+                    def evaluate_claim_support(self, texts, evidence, **kwargs):
+                        self.calls.append((texts, evidence, kwargs))
+                        support = {
+                            "claim_flags": [], "skipped": False,
+                            "is_fallback": False,
+                        }
+                        if status is None:
+                            support.pop(field)
+                        else:
+                            support[field] = status
+                        return object(), support
+
+                result = _run(
+                    jev_policy=UnstampedPolicy(), jev_primary_mode=True,
+                    claim_texts=[{"id": "c1", "text": "the gateway retries"}],
+                )
+                self.assertEqual(result["judgment_route"], "llm_fallback")
+                self.assertEqual(result["judgment_route_reason"],
+                                 "jev_status_missing")
+                self.assertIsNone(result["claim_support"].get("fallback_reason"))
 
     def test_mode_on_without_a_claim_support_record_names_jev_not_run(self):
         """A policy that returns no record is a named fallback, not silence.
