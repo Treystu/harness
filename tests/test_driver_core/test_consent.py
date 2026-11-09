@@ -14,6 +14,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from driver_core import osal
 from driver_core.actions import DEFAULT_VOCABULARY
@@ -32,6 +33,103 @@ def _executor(*, allow_write=True, dry_run=False):
     return Executor(vocabulary=DEFAULT_VOCABULARY,
                     registry=build_driver_registry(allow_write=allow_write),
                     dry_run=dry_run, audit=MemoryAuditLog())
+
+
+class _Buffer:
+    def __init__(self):
+        self.value = ""
+
+
+class FakeCtypes:
+    """The one ``ctypes`` call the window API makes, without a real library."""
+
+    last_error = 0
+
+    @classmethod
+    def set_last_error(cls, error):
+        cls.last_error = error
+
+    @classmethod
+    def get_last_error(cls):
+        return cls.last_error
+
+    @staticmethod
+    def create_unicode_buffer(size):
+        return _Buffer()
+
+
+class FakeUser32:
+    """A user32 stand-in built out of the cases the matcher must refuse.
+
+    Hidden (4), a title differing by case (2) or whitespace (3), an empty
+    title (6), two windows with one title (1 and 5, an ambiguity), and a
+    window that exists but refuses to hand its title over (7).
+    """
+
+    def __init__(self):
+        self.titles = {1: "Harness smoke target",
+                       2: "Harness Smoke Target",
+                       3: "Harness smoke target ",
+                       4: "Harness smoke target",
+                       5: "Harness smoke target",
+                       6: "",
+                       7: "Harness smoke target"}
+        self.visible = {1, 2, 3, 5, 6, 7}
+        self.unreadable = {7}
+        self.unreadable_length = set()
+        self.zero_copy_without_error = set()
+        self.length_sequences = {}
+        self.length_calls = {}
+        self.length_error_calls = {}
+        self.raise_visible = set()
+        self.enum_fail_after = None
+        self.after_enum_once = None
+        self.focused = []
+
+    def EnumWindows(self, proc, _param):
+        for hwnd in sorted(self.titles):
+            if not proc(hwnd, 0):
+                return False
+            if hwnd == self.enum_fail_after:
+                FakeCtypes.set_last_error(6)
+                return False
+        if self.after_enum_once is not None:
+            callback = self.after_enum_once
+            self.after_enum_once = None
+            callback(self)
+        return True
+
+    def IsWindowVisible(self, hwnd):
+        if hwnd in self.raise_visible:
+            raise RuntimeError("injected visibility failure")
+        return hwnd in self.visible
+
+    def GetWindowTextLengthW(self, hwnd):
+        calls = self.length_calls.get(hwnd, 0) + 1
+        self.length_calls[hwnd] = calls
+        if calls in self.length_error_calls.get(hwnd, set()):
+            FakeCtypes.set_last_error(5)
+            return 0
+        if hwnd in self.unreadable_length:
+            FakeCtypes.set_last_error(5)
+            return 0
+        sequence = self.length_sequences.get(hwnd, [])
+        if sequence:
+            return sequence.pop(0)
+        return len(self.titles[hwnd])
+
+    def GetWindowTextW(self, hwnd, buffer, size):
+        if hwnd in self.zero_copy_without_error:
+            return 0
+        if hwnd in self.unreadable:
+            FakeCtypes.set_last_error(5)
+            return 0
+        buffer.value = self.titles[hwnd][:size - 1]
+        return len(buffer.value)
+
+    def SetForegroundWindow(self, hwnd):
+        self.focused.append(hwnd)
+        return hwnd == 1
 
 
 class WildcardTests(unittest.TestCase):
@@ -344,11 +442,359 @@ class InputBackendTests(unittest.TestCase):
     def test_native_backend_is_unavailable_on_unsupported_platforms(self):
         self.assertIsNone(osal.native_input_backend(platform="linux"))
 
-    def test_native_backend_without_a_window_api_fails_closed(self):
-        """The opt-in path must name what is missing, not raise NameError."""
-        with self.assertRaises(RuntimeError) as caught:
-            osal.native_input_backend(platform="windows")
-        self.assertIn("injected window API", str(caught.exception))
+    def test_native_backend_ships_an_in_repo_window_api(self):
+        """The documented ``DRIVER_NATIVE_INPUT`` path must be buildable.
+
+        The backend used to require a window API that nothing in this repo
+        supplied, so enabling the documented switch on Windows raised
+        instead of producing a backend -- and ``input_backends()`` therefore
+        stayed empty on every machine. That is the state the coordinator
+        probe measured, so the default is now the in-repo user32 binding.
+
+        The platform library is injected so the claim is measured on every
+        host: what this pins is that no caller-supplied window API is needed
+        any more and that the default is the in-repo one, named.
+        """
+        binding = (FakeCtypes, FakeUser32(), lambda visit: visit)
+        with mock.patch.object(osal, "platform_name", return_value="windows"), \
+                mock.patch.object(osal, "_bind_user32", return_value=binding):
+            backend = osal.native_input_backend(platform="windows")
+        self.assertIsNotNone(backend)
+        assert backend is not None
+        self.assertEqual(backend.name, osal.WINDOWS_INPUT_BACKEND_NAME)
+        self.assertEqual(backend.platform, "windows")
+        self.assertEqual(backend.supported_kinds, ("focus",))
+
+    def test_a_binding_that_says_no_keeps_its_own_words(self):
+        """An OsalError from the binding is reported as itself.
+
+        Wrapping it would replace the sentence that names what is actually
+        missing with a generic message about ctypes.
+        """
+
+        def explode():
+            raise OsalError("user32 refused the console session")
+
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            with self.assertRaises(OsalError) as caught:
+                osal._WindowsWindowApi(bind=explode)
+        self.assertIn("refused the console session", str(caught.exception))
+
+    def test_the_binding_declares_every_entry_point_it_uses(self):
+        """The declaration block is provable where user32 does not exist.
+
+        An undeclared argument type or restype is the defect that survives
+        to the one machine that could notice it, so the block is exercised
+        against injected modules instead of being trusted until a Windows
+        run happens to touch it.
+        """
+
+        class FakeWintypes:
+            BOOL = "BOOL"
+            HWND = "HWND"
+            LPARAM = "LPARAM"
+            LPWSTR = "LPWSTR"
+
+        class Entry:
+            def __init__(self):
+                self.argtypes = None
+                self.restype = None
+
+        class DeclaredUser32:
+            def __init__(self):
+                for name in ("EnumWindows", "IsWindowVisible",
+                             "GetWindowTextLengthW", "GetWindowTextW",
+                             "SetForegroundWindow"):
+                    setattr(self, name, Entry())
+
+        seen = {}
+
+        class FakeCtypes:
+            c_int = "c_int"
+
+            @staticmethod
+            def WinDLL(name, **kwargs):
+                seen["dll"] = (name, kwargs)
+                return DeclaredUser32()
+
+            @staticmethod
+            def WINFUNCTYPE(*types):
+                return ("WINFUNCTYPE",) + types
+
+        module, user32, enum_proc = osal._bind_user32(
+            ctypes_module=FakeCtypes, wintypes_module=FakeWintypes)
+        self.assertIs(module, FakeCtypes)
+        self.assertEqual(seen["dll"][0], "user32")
+        self.assertTrue(seen["dll"][1].get("use_last_error"))
+        self.assertEqual(enum_proc, ("WINFUNCTYPE", "BOOL", "HWND", "LPARAM"))
+        self.assertEqual(user32.EnumWindows.argtypes, (enum_proc, "LPARAM"))
+        self.assertEqual(user32.EnumWindows.restype, "BOOL")
+        self.assertEqual(user32.IsWindowVisible.argtypes, ("HWND",))
+        self.assertEqual(user32.GetWindowTextLengthW.restype, "c_int")
+        self.assertEqual(user32.GetWindowTextW.argtypes,
+                         ("HWND", "LPWSTR", "c_int"))
+        self.assertEqual(user32.SetForegroundWindow.restype, "BOOL")
+
+    def test_the_default_window_api_fails_closed_away_from_windows(self):
+        """Binding user32 is refused by name, not by an import error."""
+        with mock.patch.object(osal, "platform_name", return_value="linux"):
+            with self.assertRaises(OsalError) as caught:
+                osal._WindowsWindowApi()
+        self.assertIn("user32", str(caught.exception))
+
+    @unittest.skipIf(osal.platform_name() == "windows",
+                     "the real user32 binding exists on this machine")
+    def test_the_real_binding_refuses_by_name_where_user32_is_absent(self):
+        """The binding failure is an OsalError naming user32, not a crash."""
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            with self.assertRaises(OsalError) as caught:
+                osal._WindowsWindowApi()
+        self.assertIn("user32", str(caught.exception))
+
+    def test_the_window_matching_logic_needs_no_user32(self):
+        """Visible-only and exact-title are proved by injection, on any OS.
+
+        The three lies this closes: a hidden window is not a target, a
+        title that differs by case or whitespace is a different window, and
+        two matches are an ambiguity rather than a pick.
+        """
+
+        user32 = FakeUser32()
+        user32.unreadable.clear()
+        user32.visible.discard(7)
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+
+        # Hidden (4) excluded; case (2) and whitespace (3) are different
+        # windows; the empty title (6) reads as no title at all.
+        self.assertEqual(api._title_of(6), "")
+        self.assertEqual(api.find_exact_visible("Harness smoke target"),
+                         [1, 5])
+        self.assertEqual(api.find_exact_visible("Harness Smoke Target"), [2])
+        with self.assertRaises(OsalError):
+            api.focus(1, "Harness smoke target")
+        self.assertFalse(api.focus(2, "Harness Smoke Target"))
+        self.assertEqual(user32.focused, [2])
+
+    def test_same_length_title_change_after_lookup_refuses_focus(self):
+        target = "Harness smoke target"
+        changed = "Harness smoke change"
+        self.assertEqual(len(target), len(changed))
+        user32 = FakeUser32()
+        user32.titles = {1: target}
+        user32.visible = {1}
+        user32.unreadable.clear()
+
+        def change_title(api):
+            api.titles[1] = changed
+
+        user32.after_enum_once = change_title
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input("focus", target=target)
+        self.assertFalse(ok)
+        self.assertIn("no longer visible with title", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_duplicate_appearing_after_lookup_refuses_focus(self):
+        target = "Harness smoke target"
+        user32 = FakeUser32()
+        user32.titles = {1: target}
+        user32.visible = {1}
+        user32.unreadable.clear()
+
+        def add_duplicate(api):
+            api.titles[5] = target
+            api.visible.add(5)
+
+        user32.after_enum_once = add_duplicate
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input("focus", target=target)
+        self.assertFalse(ok)
+        self.assertIn("no longer the only visible window", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_a_title_length_read_failure_aborts_before_focus(self):
+        user32 = FakeUser32()
+        user32.visible = {1, 7}
+        user32.unreadable_length.add(7)
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("GetWindowTextLengthW failed", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_one_match_and_an_unreadable_title_aborts_before_focus(self):
+        user32 = FakeUser32()
+        user32.visible = {1, 7}
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("GetWindowTextW failed", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_zero_copy_without_last_error_after_positive_length_refuses(self):
+        user32 = FakeUser32()
+        user32.visible = {1, 7}
+        user32.unreadable.clear()
+        user32.zero_copy_without_error.add(7)
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("after a positive GetWindowTextLengthW result", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_title_growth_that_truncates_to_exact_match_refuses(self):
+        target = "Harness smoke target"
+        user32 = FakeUser32()
+        user32.titles[7] = target + " now longer"
+        user32.visible = {7}
+        user32.unreadable.clear()
+        user32.length_sequences[7] = [len(target)]
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input("focus", target=target)
+        self.assertFalse(ok)
+        self.assertIn("title length changed while reading", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_post_read_length_error_refuses_without_focus(self):
+        user32 = FakeUser32()
+        user32.visible = {1}
+        user32.unreadable.clear()
+        user32.length_error_calls[1] = {2}
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("GetWindowTextLengthW failed", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_failed_enumeration_discards_partial_matches(self):
+        user32 = FakeUser32()
+        user32.enum_fail_after = 1
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("refusing partial window matches", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_enumeration_callback_exception_discards_partial_matches(self):
+        user32 = FakeUser32()
+        user32.raise_visible.add(2)
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            api = osal._WindowsWindowApi(
+                bind=lambda: (FakeCtypes, user32, lambda visit: visit))
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=api)
+            self.addCleanup(osal.disable_input_backend, "windows")
+            ok, detail = osal.send_input(
+                "focus", target="Harness smoke target")
+        self.assertFalse(ok)
+        self.assertIn("callback failed", detail)
+        self.assertIn("injected visibility failure", detail)
+        self.assertEqual(user32.focused, [])
+
+    def test_registering_the_native_backend_is_what_fills_health(self):
+        """Nothing registers implicitly; one explicit call does."""
+
+        class WindowApi:
+            def find_exact_visible(self, title):
+                return [7] if title == "Harness smoke target" else []
+
+            def focus(self, hwnd, title):
+                return True
+
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            self.assertEqual(osal.input_backends(), {})
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=WindowApi())
+            self.addCleanup(osal.disable_input_backend, "windows")
+            reported = osal.input_backends()["windows"]
+            self.assertEqual(reported.name, osal.WINDOWS_INPUT_BACKEND_NAME)
+            self.assertEqual(reported.supported_kinds, ("focus",))
+            ok, detail = osal.send_input("focus", target="Harness smoke target")
+            self.assertTrue(ok, detail)
+            ok, detail = osal.send_input("click", target="Harness smoke target")
+            self.assertFalse(ok)
+            self.assertIn("does not support 'click'", detail)
+
+    def test_the_native_backend_refuses_an_undeclared_platform(self):
+        with self.assertRaises(OsalError) as caught:
+            osal.register_native_input_backend(platform="linux")
+        self.assertIn("Windows-only", str(caught.exception))
+
+    def test_native_focus_still_needs_consent_for_the_exact_title(self):
+        """Registration is capability existence; consent is permission."""
+        focused = []
+
+        class WindowApi:
+            def find_exact_visible(self, title):
+                return [11] if title == "Harness smoke target" else []
+
+            def focus(self, hwnd, title):
+                focused.append(title)
+                return True
+
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            osal.register_native_input_backend(platform="windows",
+                                               window_api=WindowApi())
+            self.addCleanup(osal.disable_input_backend, "windows")
+            executor = _executor()
+            with self.assertRaises(ConsentError):
+                executor.execute("focus", {"target": "Harness smoke target"})
+            with self.assertRaises(ConsentError):
+                executor.execute("focus", {"target": "Harness smoke target"},
+                                 consent=Consent(True, "focus",
+                                                 {"target": "Another window"}))
+            result = executor.execute(
+                "focus", {"target": "Harness smoke target"},
+                consent=Consent(True, "focus", {"target": "Harness smoke target"}))
+            self.assertTrue(result.ok, result)
+            self.assertEqual(focused, ["Harness smoke target"])
 
     def test_a_backend_can_be_withdrawn_at_runtime(self):
         """Observe the machine, never drive it -- as a policy, not an
