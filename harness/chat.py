@@ -391,6 +391,23 @@ def _ensure_accounted(governor, model, resp, usage):
     usage["cost_estimated"] = True
 
 
+def _may_lend_threaded_key(governor, api_key):
+    """Whether the lane-threaded api_key may serve as the Meta key (#449).
+
+    Outside Meta mode api_key is the OpenRouter key (session.governor_for)
+    and must never be posted to META_CHAT_URL. Only a governor that
+    governor_for built for the Meta lane vouches for it: key_info label
+    "meta" (never set by OpenRouter verification) on the governor whose
+    own key is the threaded one.
+    """
+    if not api_key or governor is None:
+        return False
+    if getattr(governor, "api_key", None) != api_key:
+        return False
+    label = (getattr(governor, "key_info", None) or {}).get("label")
+    return label == "meta"
+
+
 def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto",
          reasoning_token_budget=0.4, governor=None, enable_floor=True,
          max_price=None, provider_sort="price", meta_key=None):
@@ -411,14 +428,18 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
     bill a paid call as $0.
     """
     if is_meta_model_id(model):
-        # #447: the panel, apply and verify lanes call chat() directly, and
-        # under the Muse preset every id they hold is a Muse id. This path
-        # used to floor the id and post it to OpenRouter, so a Muse-only run
-        # was not Muse-transport-only on any of the three lanes. The preset
-        # threads the Meta key as api_key (session.governor_for), so that is
-        # the key to send; an explicit meta_key wins, and a run that has
-        # neither refuses instead of falling back to another provider.
-        key = meta_key or api_key or resolve_meta_key()
+        # #447/#449 P2: a bare Muse id claims the Meta lane, but the
+        # threaded api_key is NOT trusted here. Outside Meta mode it is
+        # the OpenRouter key (session.governor_for), and posting it to
+        # META_CHAT_URL would be a cross-provider credential leak. An
+        # explicit meta_key wins, then the configured Meta key; the
+        # threaded key is used only when the governor vouches for Meta
+        # mode (key_info label "meta", set by governor_for -- never an
+        # OpenRouter-verified key). Otherwise fail closed with the
+        # Meta-key message instead of falling back to another provider.
+        key = meta_key or resolve_meta_key()
+        if not key and _may_lend_threaded_key(governor, api_key):
+            key = api_key
         if not key:
             raise HarnessError(
                 "Meta key missing: set ~/.config/scmorc/meta.env, "
@@ -429,18 +450,6 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
     if is_fireworks_model_path(model):
         return _chat_fireworks(transport, api_key, model, messages, max_tokens,
                                governor=governor)
-    if is_meta_model_id(model):
-        # Direct Meta lane (#447): a bare Muse id claims the Meta lane
-        # on every lane that calls chat() directly -- panel, judge,
-        # specialist, apply -- exactly as governed_completion and
-        # chat_for_route already dispatch. The api_key threaded here is
-        # the calling lane's own key (under the Muse preset,
-        # governor_for resolved the Meta key for these lanes), and
-        # _chat_meta's resolve_offer fails closed on a Muse id with no
-        # committed offer, so a Muse id never falls through to
-        # OpenRouter.
-        return _chat_meta(transport, api_key, model, messages, max_tokens,
-                          governor=governor)
     canonical_model = strip_variant_suffix(model)
     if governor:
         governor.check_byok(canonical_model)
@@ -700,11 +709,20 @@ def governed_completion(transport, api_key, governor, model, prompt, max_tokens,
     governor.check_byok(model)
     governor.preflight(prompt, [(label, model, max_tokens, 0)])
     if is_meta_model_id(model):
-        # Direct Meta lane: the api_key threaded here is the key the
-        # caller's governor resolution returned -- in use_meta mode that is
-        # the Meta key (session.governor_for), never the OpenRouter key.
+        # Direct Meta lane: resolve the Meta key for this route (#449
+        # P2). The threaded api_key is trusted only when the governor
+        # vouches for Meta mode -- outside it, it is the OpenRouter key
+        # (session.governor_for) and must never reach META_CHAT_URL.
+        meta_key = resolve_meta_key()
+        if not meta_key and _may_lend_threaded_key(governor, api_key):
+            meta_key = api_key
+        if not meta_key:
+            raise HarnessError(
+                "Meta key missing: set ~/.config/scmorc/meta.env, "
+                "$HARNESS_CONFIG_DIR/meta.env (default: "
+                "~/.config/harness/meta.env), META_API_KEY, or MUSE_API_KEY")
         status, resp = _chat_meta(
-            transport, api_key, model,
+            transport, meta_key, model,
             [{"role": "user", "content": prompt}], max_tokens,
             governor=governor)
     else:
@@ -848,11 +866,62 @@ def _chat_meta(transport, api_key, model, messages, max_tokens,
             offer, estimate_prompt_tokens(prompt_text), max_tokens)
         governor.assert_meta_budget(worst, model)
     status, resp = transport.post(META_CHAT_URL, api_key, payload)
-    if governor is not None and status == 200 and isinstance(resp, dict):
+    if status == 200 and isinstance(resp, dict):
         usage = resp.get("usage")
-        if isinstance(usage, dict) and "cost" not in usage:
-            _ensure_meta_accounted(offer, usage)
+        if isinstance(usage, dict):
+            # #449 P2: a present-but-unusable cost (null, non-numeric,
+            # negative, non-finite) is not a priced call -- normalize it
+            # exactly like the OpenRouter _account path instead of passing
+            # it through.
+            cost = usage.get("cost")
+            valid_cost = (isinstance(cost, (int, float))
+                          and not isinstance(cost, bool)
+                          and math.isfinite(cost) and cost >= 0.0)
+            if not valid_cost:
+                usage.pop("cost", None)
+                try:
+                    _ensure_meta_accounted(offer, usage)
+                except HarnessError as exc:
+                    if governor is None:
+                        raise
+                    unknown = ProviderUsageUnknown(
+                        f"Meta omitted usage accounting (no cost, no token "
+                        f"counts) for '{offer.model}'; refusing to bill blind",
+                        known_cost=0.0)
+                    _book_unknown_meta(governor, unknown, payload, model,
+                                       offer, max_tokens)
+                    raise unknown from exc
     return status, resp
+
+
+def _book_unknown_meta(governor, unknown, payload, model, offer, max_tokens):
+    """Book a Meta usage-unknown refusal against the governor (#449 P2).
+
+    The provider may already have billed the request, so the worst case
+    for this payload is retained as unresolved liability (every later
+    preflight refuses further spend) and the refusal is emitted -- the
+    Meta-lane mirror of chat()'s account_unknown_usage.
+    """
+    prompt_text = "\n".join(
+        str(m.get("content", "")) for m in (payload.get("messages") or [])
+        if isinstance(m, dict))
+    try:
+        reserved_cost = meta_cost_estimate(
+            offer, estimate_prompt_tokens(prompt_text), max_tokens)
+    except Exception:
+        try:
+            reserved_cost = max(
+                float(governor.max_cost), float(governor.remaining()))
+        except Exception:
+            reserved_cost = max(0.01, float(getattr(governor, "max_cost", 0.0) or 0.0))
+    retain = getattr(governor, "retain_unknown", None)
+    if callable(retain) and reserved_cost > 0.0:
+        retain(reserved_cost, model)
+    unknown.reserved_cost = max(0.0, float(reserved_cost or 0.0))
+    unknown.cost_accounted = True
+    emit("provider_usage_unknown", model=model,
+         known_cost=unknown.known_cost, reserved_cost=unknown.reserved_cost,
+         phase="meta")
 
 
 def chat_for_route(route, transport, openrouter_key, fireworks_key, messages,
@@ -896,20 +965,26 @@ def chat_routed(transport, api_key, model, messages, max_tokens,
     OpenRouter (issue #447), because the provider comes from
     ``routing_table.route_for_model`` rather than from a ``chat()`` branch.
 
-    Under the Muse preset the lane's threaded key IS the Meta key, so it is
-    used when no explicit ``meta_key`` is given; with no key at all the
-    dispatch refuses with the Meta-key message instead of falling back.
+    The key surface follows the backend the route names: an explicit
+    argument wins, then the setting that feeds that backend, then the
+    configured Meta key. The lane-threaded key is used only when Meta
+    mode is positively established -- under the Muse preset it IS the
+    Meta key (session.governor_for); outside Meta mode it is the
+    OpenRouter key and must never be posted to META_CHAT_URL (#449 P2).
+    With no key at all the dispatch refuses with the Meta-key message
+    instead of falling back.
     """
     from .routing_table import route_for_model
     route = route_for_model(model, settings=settings)
-    # The key surface follows the backend the route names: an explicit
-    # argument wins, then the setting that feeds that backend, then the key
-    # this lane already threads (under the Muse preset the threaded key IS
-    # the Meta key, which is how every migrated lane passes it). A backend
-    # left unset still refuses in chat_for_route rather than borrowing
-    # another provider's credential.
     if route.provider == META_PROVIDER:
-        meta_key = meta_key or getattr(settings, "meta_key", None) or api_key
+        meta_key = (meta_key
+                    or getattr(settings, "meta_key", None)
+                    or resolve_meta_key())
+        if not meta_key:
+            use_meta = bool(getattr(settings, "use_meta", False))
+            if (use_meta or _may_lend_threaded_key(governor, api_key)) \
+                    and api_key:
+                meta_key = api_key
     elif route.provider == FIREWORKS_PROVIDER:
         fireworks_key = (fireworks_key
                          or getattr(settings, "fireworks_key", None))

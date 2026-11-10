@@ -512,7 +512,9 @@ class RepoScopeEdgeTests(TempTree):
 
 class ChatMetaRouteTests(unittest.TestCase):
 
-    def test_a_meta_model_dispatches_with_the_threaded_key(self):
+    def test_a_meta_model_without_meta_mode_refuses_threaded_key(self):
+        # #449 P2: outside Meta mode the threaded key is the OpenRouter
+        # key and must never be handed to _chat_meta. Fail closed.
         seen = {}
 
         def fake_meta(transport, key, model, messages, max_tokens,
@@ -520,11 +522,29 @@ class ChatMetaRouteTests(unittest.TestCase):
             seen.update(key=key, model=model)
             return "meta-response"
 
-        with mock.patch.object(chat_mod, "_chat_meta", fake_meta):
+        with mock.patch.object(chat_mod, "_chat_meta", fake_meta), \
+                mock.patch.object(chat_mod, "resolve_meta_key",
+                                  return_value=""):
+            with self.assertRaises(HarnessError) as caught:
+                chat_mod.chat(None, "api-key-1", "muse-spark-1.1", [], 16)
+        self.assertIn("Meta key missing", str(caught.exception))
+        self.assertEqual(seen, {})
+
+    def test_a_configured_meta_key_serves_the_route(self):
+        seen = {}
+
+        def fake_meta(transport, key, model, messages, max_tokens,
+                      governor=None):
+            seen.update(key=key, model=model)
+            return "meta-response"
+
+        with mock.patch.object(chat_mod, "_chat_meta", fake_meta), \
+                mock.patch.object(chat_mod, "resolve_meta_key",
+                                  return_value="meta-resolved"):
             result = chat_mod.chat(None, "api-key-1", "muse-spark-1.1",
                                    [], 16)
         self.assertEqual(result, "meta-response")
-        self.assertEqual(seen, {"key": "api-key-1",
+        self.assertEqual(seen, {"key": "meta-resolved",
                                 "model": "muse-spark-1.1"})
 
     def test_a_meta_model_without_any_key_refuses(self):

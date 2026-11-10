@@ -19,7 +19,7 @@ from harness import config, service
 from harness.chat import chat, chat_for_route, governed_completion
 from harness.config import (META_CHAT_URL, META_PROVIDER, OPENROUTER_CHAT_URL,
                             load_settings, resolve_meta_key)
-from harness.errors import HarnessError
+from harness.errors import HarnessError, ProviderUsageUnknown
 from harness.fireworks import resolve_route
 from harness.ledger import AutonomyLedger
 from harness.meta import cost_estimate, resolve_offer
@@ -308,6 +308,8 @@ class GovernedCompletionTests(unittest.TestCase):
             _resp({"prompt_tokens": 100, "completion_tokens": 50}))
         gov = SpendGovernor(transport, "meta-key", None, 1.0,
                             meta_budget_usd=1.0)
+        # Meta-mode governor, as session.governor_for builds it (#449 P2).
+        gov.key_info = {"label": "meta", "limit": 1.0, "remaining": 1.0}
         out = governed_completion(transport, "meta-key", gov, SPARK,
                                   "What is 2+2?", 256, label="ask")
         self.assertEqual(out["content"], "ok")
@@ -319,6 +321,138 @@ class GovernedCompletionTests(unittest.TestCase):
         self.assertAlmostEqual(gov.meta_spent(), out["cost"])
 
 
+class DirectChatKeyRoutingTests(_IsolatedHome):
+    """#449 P2: a non-Meta key must never be posted to META_CHAT_URL.
+
+    Outside Meta mode the threaded api_key is the OpenRouter key
+    (session.governor_for). The dispatch must resolve the Meta key for
+    the route -- explicit argument, settings, or config -- use the
+    threaded key only when the run is positively in Meta mode, and
+    otherwise fail closed before any POST.
+    """
+
+    def _or_governor(self, transport):
+        # Production OpenRouter governor: verify_key() labels it with
+        # the OpenRouter key label, never "meta".
+        gov = SpendGovernor(transport, "or-key", None, 1.0,
+                            meta_budget_usd=1.0)
+        gov.key_info = {"label": "or-label", "limit": 1.0,
+                        "remaining": 1.0}
+        return gov
+
+    def _meta_governor(self, transport, key="meta-key"):
+        gov = SpendGovernor(transport, key, None, 1.0,
+                            meta_budget_usd=1.0)
+        gov.key_info = {"label": "meta", "limit": 1.0, "remaining": 1.0}
+        return gov
+
+    def test_openrouter_key_is_never_posted_to_meta(self):
+        transport = RecordingTransport(
+            _resp({"prompt_tokens": 100, "completion_tokens": 50}))
+        with self.assertRaisesRegex(HarnessError, "Meta key missing"):
+            chat(transport, "or-key", SPARK, MESSAGES, 256,
+                 "auto", 0.4, self._or_governor(transport))
+        self.assertEqual(transport.calls, [])
+
+    def test_configured_meta_key_wins_over_threaded_openrouter_key(self):
+        os.environ["META_API_KEY"] = "meta-env-key"
+        transport = RecordingTransport(
+            _resp({"prompt_tokens": 100, "completion_tokens": 50}))
+        with redirect_stderr(io.StringIO()):
+            status, _ = chat(transport, "or-key", SPARK, MESSAGES, 256,
+                             "auto", 0.4, self._or_governor(transport))
+        self.assertEqual(status, 200)
+        url, key, _ = transport.calls[0]
+        self.assertEqual(url, META_CHAT_URL)
+        self.assertEqual(key, "meta-env-key")
+
+    def test_threaded_key_used_only_in_meta_mode(self):
+        transport = RecordingTransport(
+            _resp({"prompt_tokens": 100, "completion_tokens": 50}))
+        gov = self._meta_governor(transport)
+        status, _ = chat(transport, "meta-key", SPARK, MESSAGES, 256,
+                         "auto", 0.4, gov)
+        self.assertEqual(status, 200)
+        self.assertEqual(transport.calls[0][1], "meta-key")
+
+    def test_explicit_meta_key_wins_everywhere(self):
+        transport = RecordingTransport(
+            _resp({"prompt_tokens": 100, "completion_tokens": 50}))
+        with redirect_stderr(io.StringIO()):
+            status, _ = chat(transport, "or-key", SPARK, MESSAGES, 256,
+                             "auto", 0.4, self._or_governor(transport),
+                             meta_key="explicit-meta-key")
+        self.assertEqual(status, 200)
+        self.assertEqual(transport.calls[0][1], "explicit-meta-key")
+
+
+class MetaUsageAccountingTests(_IsolatedHome):
+    """#449 P2: a present-but-unusable usage.cost is not a priced call.
+
+    Null, non-numeric, negative, or non-finite costs are estimated from
+    the committed Muse rates exactly like a missing cost; with neither
+    cost nor token counts the call refuses -- via ProviderUsageUnknown
+    with the unknown liability booked when a governor is present.
+    """
+
+    def _gov(self, transport):
+        gov = SpendGovernor(transport, "meta-key", None, 1.0,
+                            meta_budget_usd=1.0)
+        gov.key_info = {"label": "meta", "limit": 1.0, "remaining": 1.0}
+        return gov
+
+    def _route(self):
+        return resolve_route(SPARK, openrouter_enabled=True,
+                             fireworks_enabled=False, meta_enabled=True)
+
+    def _dispatched(self, usage, governor=True):
+        transport = RecordingTransport(_resp(usage))
+        gov = self._gov(transport) if governor else None
+        _, resp = chat_for_route(self._route(), transport, "or-key",
+                                 "fw-key", MESSAGES, 64, governor=gov,
+                                 meta_key="meta-key")
+        return transport, gov, resp
+
+    def test_null_cost_is_estimated_not_passed_through(self):
+        _, _, resp = self._dispatched({"prompt_tokens": 100,
+                                       "completion_tokens": 50,
+                                       "cost": None})
+        self.assertAlmostEqual(resp["usage"]["cost"],
+                               100 * 1.25e-6 + 50 * 4.25e-6)
+        self.assertTrue(resp["usage"]["cost_estimated"])
+
+    def test_string_cost_is_estimated_not_passed_through(self):
+        _, _, resp = self._dispatched({"prompt_tokens": 100,
+                                       "completion_tokens": 50,
+                                       "cost": "0.0001"})
+        self.assertAlmostEqual(resp["usage"]["cost"],
+                               100 * 1.25e-6 + 50 * 4.25e-6)
+
+    def test_negative_cost_is_estimated_not_passed_through(self):
+        _, _, resp = self._dispatched({"prompt_tokens": 100,
+                                       "completion_tokens": 50,
+                                       "cost": -1.0})
+        self.assertAlmostEqual(resp["usage"]["cost"],
+                               100 * 1.25e-6 + 50 * 4.25e-6)
+
+    def test_no_counts_with_governor_is_usage_unknown(self):
+        transport = RecordingTransport(_resp({}))
+        gov = self._gov(transport)
+        with self.assertRaises(ProviderUsageUnknown) as caught:
+            chat_for_route(self._route(), transport, "or-key", "fw-key",
+                           MESSAGES, 64, governor=gov, meta_key="meta-key")
+        unknown = caught.exception
+        self.assertIn("refusing to bill blind", str(unknown))
+        self.assertTrue(unknown.cost_accounted)
+        self.assertGreater(unknown.reserved_cost, 0.0)
+
+    def test_no_counts_without_governor_still_fails_closed(self):
+        transport = RecordingTransport(_resp({}))
+        with self.assertRaisesRegex(HarnessError, "refusing to bill blind"):
+            chat_for_route(self._route(), transport, "or-key", "fw-key",
+                           MESSAGES, 64, meta_key="meta-key")
+
+
 class DirectChatTests(_IsolatedHome):
     """#447: the lanes that call chat() directly (panel, judge,
     specialist, apply) hold Muse ids under the preset but posted to
@@ -327,8 +461,12 @@ class DirectChatTests(_IsolatedHome):
     needs its own routing code."""
 
     def _governor(self, transport, budget=1.0):
-        return SpendGovernor(transport, "meta-key", None, 1.0,
-                             meta_budget_usd=budget)
+        # Meta-mode governor, as session.governor_for builds it: the
+        # threaded key IS the Meta key and key_info labels it (#449 P2).
+        gov = SpendGovernor(transport, "meta-key", None, 1.0,
+                            meta_budget_usd=budget)
+        gov.key_info = {"label": "meta", "limit": 1.0, "remaining": 1.0}
+        return gov
 
     def test_panel_shaped_call_posts_to_meta_never_openrouter(self):
         transport = RecordingTransport(
@@ -547,11 +685,20 @@ class DirectChatLaneTests(_IsolatedHome):
         self.assertTrue(all(payload["model"] == SPARK
                             for _, _, payload in transport.calls))
 
+    def _meta_mode_governor(self, transport, key="meta-key"):
+        # Mirror session.governor_for in use_meta mode: the threaded key
+        # IS the Meta key and key_info labels it as such (#449 P2). A
+        # bare SpendGovernor carries no mode signal, so the lanes would
+        # fail closed without this -- exactly as a non-Meta run must.
+        gov = SpendGovernor(transport, key, None, 1.0,
+                            meta_budget_usd=1.0)
+        gov.key_info = {"label": "meta", "limit": 1.0, "remaining": 1.0}
+        return gov
+
     def test_panel_lane_routes_muse_ids_to_meta(self):
         from harness.panel import panel_judge
         transport = _RepeatingTransport("panel take")
-        gov = SpendGovernor(transport, "meta-key", None, 1.0,
-                            meta_budget_usd=1.0)
+        gov = self._meta_mode_governor(transport)
         panel_judge(transport=transport, api_key="meta-key", governor=gov,
                     prompt="Q?", panel=[SPARK], judge=SPARK,
                     max_panelists=1, free_tier=False)
@@ -568,8 +715,7 @@ class DirectChatLaneTests(_IsolatedHome):
                 "def add(a, b):\n    return a + b + 0\n")
             ledger = AutonomyLedger(os.path.join(tmp, "ledger.jsonl"))
             ledger.ensure_offered_task_id("t1", source="test_setup")
-            gov = SpendGovernor(transport, "meta-key", None, 1.0,
-                                meta_budget_usd=1.0)
+            gov = self._meta_mode_governor(transport)
             engine = ApplyEngine(transport, "meta-key", gov, ledger,
                                  Router([SPARK], SPARK, SPARK),
                                  default_require_consent=False)
@@ -585,8 +731,7 @@ class DirectChatLaneTests(_IsolatedHome):
         with redirect_stderr(io.StringIO()):
             settings = load_settings()
         ledger = AutonomyLedger(str(self.home / "ledger.jsonl"))
-        gov = SpendGovernor(transport, "meta-key", None, 1.0,
-                            meta_budget_usd=1.0)
+        gov = self._meta_mode_governor(transport)
         service.run_verify(settings, prompt="hi", governor=gov, ledger=ledger,
                            transport=transport, api_key="meta-key",
                            panel=[SPARK], judge=SPARK, attach_meta=False,
