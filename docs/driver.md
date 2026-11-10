@@ -97,6 +97,20 @@ The in-repo native backend currently supports only Windows `focus`. Enable it
 on the driver service with both `DRIVER_ALLOW_WRITE=1` and
 `DRIVER_NATIVE_INPUT=1`. The `focus` target is an exact, visible top-level
 window title, and the request refuses if that title is missing or ambiguous.
+
+The per-driver setting is not the only way in, and it deliberately does not
+touch process state: a host that wants the machine's capability to be
+*reported* -- `/health` reads `osal.input_backends()` -- calls
+`osal.register_native_input_backend()` once. That single call is the
+registration, it is the only thing that makes `input_backends()` non-empty,
+and it reports the backend under `osal.WINDOWS_INPUT_BACKEND_NAME`
+(`windows-user32-focus`) with `supported_kinds == ("focus",)`. Registering a
+capability is not permission to use it: `focus` is `MUTATING`, so every
+request still carries consent for exactly `(focus, {"target": <title>})`, and
+`osal.disable_input_backend()` withdraws the capability without a restart.
+The default window operations are bound per instance from `user32`; a machine
+that is not Windows refuses by name rather than failing at import.
+
 The backend does not click, type, press keys, scroll or submit: the declared
 parameters for those actions do not identify a sufficiently bounded target.
 Those actions continue to refuse until an embedding application supplies a

@@ -40,10 +40,10 @@ version: 2.1
 # (single-OS images; the installed-package legs rebuild the wheel
 # in-job -- CircleCI has no cross-job artifact store equivalent in
 # this config -- and smoke the same wheel layout). Checkout hygiene
-# is ported as its own job. The other Actions-era jobs (Change scope,
-# changed-file typecheck, Driving hygiene, UI Playwright smoke by
-# that name, handoff scope) are NOT required contexts and stay
-# unported in this pass.
+# is ported as its own job. Driving hygiene was ported later (#440) as
+# the blocking `driving-hygiene` job. The other Actions-era jobs
+# (Change scope, changed-file typecheck, UI Playwright smoke by that
+# name, handoff scope) are NOT required contexts and stay unported.
 #
 # Secrets/variables, set on the CircleCI project, never in this file:
 #   OPENROUTER_API_KEY  optional. The audit's live model-freshness
@@ -91,7 +91,10 @@ commands:
       - install_tooling
       - run:
           name: Lint (ruff)
-          command: python -m ruff check harness tests examples/oc_handoff
+          # driver_core joins the scope per #301: the Actions lint step
+          # already covered it, the port dropped it, and a gate that
+          # cannot see a package cannot catch its next dead import.
+          command: python -m ruff check harness tests examples/oc_handoff driver_core
       - run:
           name: Compile
           command: python -m compileall -q harness tests examples/oc_handoff
@@ -197,6 +200,17 @@ jobs:
             echo "working tree clean; eol inventory:"
             git ls-files --eol | awk '{print $1}' | sort | uniq -c
 
+  driving-hygiene:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          name: Demonstrate deterministic check fixtures
+          command: python -m unittest tests.test_driving_hygiene -v
+      - run:
+          name: Scan PR text, diff, credentials, and issue plans
+          command: python scripts/driving_hygiene_ci.py
+
   ui-playwright-smoke:
     executor: python-node
     steps:
@@ -207,7 +221,15 @@ jobs:
           working_directory: tests/ui
       - run:
           name: Install Chromium and system dependencies
-          command: npx playwright install --with-deps chromium
+          # Refresh the package index first. On 2026-11-09 main 90862bd5
+          # job 716 died here with every browser dependency "no
+          # installation candidate" (exit 100) and no test run at all
+          # (#295 filing 6733006016). Playwright's --with-deps installs
+          # through apt, and a stale index on this image makes the whole
+          # set unresolvable -- the same code passed on the branch battery.
+          command: |
+            sudo apt-get update
+            npx playwright install --with-deps chromium
           working_directory: tests/ui
       - run:
           name: Run served UI journeys (one worker)
@@ -414,6 +436,9 @@ workflows:
       - checkout-hygiene:
           context: github-statuses
           name: "Checkout hygiene"
+      - driving-hygiene:
+          context: github-statuses
+          name: "driving-hygiene"
       - ui-playwright-smoke:
           context: github-statuses
       - audit:

@@ -13,6 +13,7 @@ apply lane stays composed via :func:`harness.session.apply_session` at each
 call site -- apply request validation is the engine's own boundary contract
 (``ApplyEngine._prepare``), not a service-layer concern.
 """
+import inspect
 import uuid
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -144,6 +145,12 @@ def prepare_verify(*, prompt=None, prompt_file=None, claims_file=None,
         "converge": bool(claims_file),
         "reassurance_claims": ",".join(
             c.claim_id for c in (claims or []) if c.kind == "reassurance"),
+        # #453 S5: the parsed claim texts travel with the prepared input so
+        # the verify lane can hand them to the Jev claim-support path;
+        # before this they were discarded here and every service-level run
+        # named jev_no_claims under jev_primary_mode.
+        "claim_texts": [{"id": c.claim_id, "text": c.text}
+                        for c in (claims or [])],
     }
 
 
@@ -217,7 +224,8 @@ class ResolvedVerifyInputs:
 def run_verify(settings=None, *, prompt, task_id=None, cancel_check=None,
                max_cost=None, judge=None, reasoning_effort=None, panel=None,
                converge=False, convergence_model=None, specialist_pool=None,
-               reassurance_claims="", max_tokens=None, api_key=None,
+               reassurance_claims="", claim_texts=None, max_tokens=None,
+               api_key=None,
                governor=None, ledger=None, transport=None,
                reasoning_token_budget=None, max_panelists=None,
                free_tier=None, router=None, generate_task_id=True,
@@ -303,10 +311,26 @@ def run_verify(settings=None, *, prompt, task_id=None, cancel_check=None,
         "use_free": resolved.use_free,
     }
     pre_run_warning(governor=gov, ledger=ledger, use_free=resolved.use_free)
+    # #453 S3a-2: under jev_primary_mode, wire the run's Jev policy into
+    # the panel so the Jev route can actually serve. A construction
+    # failure leaves jev_pol None and the envelope names the fallback
+    # (jev_policy_absent) — the mode never proceeds silently LLM-only.
+    jev_primary = bool(settings is not None
+                       and getattr(settings, "jev_primary_mode", False))
+    jev_pol = None
+    if jev_primary:
+        try:
+            from .jev_policy import policy_for
+            jev_pol = policy_for(settings,
+                                 transport=transport or HttpTransport(),
+                                 governor=gov, ledger=ledger)
+        except Exception:
+            jev_pol = None
     try:
         with _task_scope:
             result = panel_judge(
             transport=transport or HttpTransport(), api_key=api_key, governor=gov,
+                jev_policy=jev_pol,
                 prompt=prompt, panel=resolved.panel, judge=resolved.judge,
                 max_tokens=max_tokens, reasoning_effort=resolved.reasoning_effort,
                 reasoning_token_budget=resolved.reasoning_token_budget,
@@ -318,7 +342,9 @@ def run_verify(settings=None, *, prompt, task_id=None, cancel_check=None,
                 claim_polarity={cid.strip(): "reassurance" for cid in
                                 (reassurance_claims or "").split(",")
                                 if cid.strip()},
-                free_tier=resolved.use_free, cancel_check=cancel_check)
+                claim_texts=claim_texts,
+                free_tier=resolved.use_free, cancel_check=cancel_check,
+                jev_primary_mode=jev_primary)
     except ToolCancelled:
         return cancelled_envelope(gov, settings, include_meta=attach_meta,
                                   meta_overrides=meta_overrides)
@@ -423,10 +449,42 @@ def run_dogfood(settings=None, *,
     reassurance = ",".join(getattr(c, "claim_id", "") for c in claims_to_use
                            if getattr(c, "kind", "") == "reassurance" and getattr(c, "claim_id", ""))
     verify_caller = run_verify_fn if run_verify_fn is not None else run_verify
-    verdict = verify_caller(
-        settings, prompt=prompt, task_id=task_id,
-        converge=True, reassurance_claims=reassurance,
-        max_cost=max_cost, cancel_check=cancel_check)
+    verify_kwargs = {
+        "prompt": prompt, "task_id": task_id,
+        "converge": True, "reassurance_claims": reassurance,
+        "max_cost": max_cost, "cancel_check": cancel_check,
+    }
+    try:
+        parameters = tuple(inspect.signature(verify_caller).parameters.values())
+        claim_parameter = next(
+            (parameter for parameter in parameters
+             if parameter.name == "claim_texts"), None)
+        keyword_claim_parameter = (
+            claim_parameter is not None
+            and claim_parameter.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY))
+        keyword_catch_all = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters)
+        conflicting_claim_parameter = (
+            claim_parameter is not None
+            and claim_parameter.kind in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.VAR_POSITIONAL))
+        accepts_claim_texts = (keyword_claim_parameter or
+                               (keyword_catch_all
+                                and not conflicting_claim_parameter))
+    except (TypeError, ValueError):
+        accepts_claim_texts = False
+    if accepts_claim_texts:
+        verify_kwargs["claim_texts"] = [
+            {"id": c.claim_id, "text": c.text} for c in claims_to_use]
+    elif getattr(settings, "jev_primary_mode", False):
+        raise HarnessError(
+            "dogfood verify callback does not accept claim_texts required "
+            "by jev_primary_mode")
+    verdict = verify_caller(settings, **verify_kwargs)
 
     tally = verdict.get("convergence", {}).get("tally") or {}
     per_claim = tally.get("claims", {})
