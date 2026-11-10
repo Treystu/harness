@@ -199,6 +199,50 @@ class HandleGateTests(unittest.TestCase):
         self.assertIn("no key", payload["error"])
 
 
+class BuildDriverTests(unittest.TestCase):
+
+    def test_build_driver_maps_launch_switch(self):
+        seen = {}
+
+        class FakeSettings:
+            launch_app_enabled = False
+
+            def with_overrides(self, **kw):
+                seen.update(kw)
+                return self
+
+        fake_driver = object()
+        with mock.patch("driver_core.config.load_settings",
+                         return_value=FakeSettings()) as loader, \
+                mock.patch("driver_core.driver.driver_from_settings",
+                           return_value=fake_driver) as factory:
+            with mock.patch.dict(os.environ, {"HARNESS_NL_CONTROL": "1"}):
+                self.assertIs(driver_nl.build_driver(), fake_driver)
+        loader.assert_called_once_with()
+        self.assertTrue(seen["launch_app_enabled"])
+        factory.assert_called_once_with(unittest.mock.ANY)
+
+    def test_build_driver_accepts_settings(self):
+        class FakeSettings:
+            launch_app_enabled = True
+
+            def with_overrides(self, **kw):
+                return self
+
+        fake_driver = object()
+        with mock.patch("driver_core.driver.driver_from_settings",
+                         return_value=fake_driver):
+            with mock.patch.dict(os.environ, {}, clear=True):
+                self.assertIs(driver_nl.build_driver(settings=FakeSettings()),
+                              fake_driver)
+
+    def test_emit_forwards_to_event_bus(self):
+        with mock.patch("harness.events.emit") as bus:
+            driver_nl.emit("driver_step_start", task_id="t", step=1)
+        bus.assert_called_once_with("driver_step_start", task_id="t",
+                                    step=1)
+
+
 class PreviewTests(unittest.TestCase):
 
     def test_preview_returns_plan_with_class(self):
@@ -242,6 +286,16 @@ class ExecuteTests(unittest.TestCase):
         self.assertEqual(driver.calls[0][1], {"app_name": "notepad"})
         self.assertTrue(driver.calls[0][2].granted)
 
+    def test_cancel_ok_returns_cancelled(self):
+        store = PlanStore()
+        pid = store.save("open notepad", _LAUNCH)
+        with mock.patch.dict(os.environ, {"HARNESS_NL_CONTROL": "1"}):
+            status, payload = handle({"cancel_plan": pid}, authorized=True,
+                                      store=store)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, {"ok": True, "status": "cancelled",
+                                   "plan_id": pid})
+
     def test_execute_stops_at_first_failure(self):
         plan = _LAUNCH + [{"action": "type_text",
                            "params": {"text": "hi"}}]
@@ -252,6 +306,21 @@ class ExecuteTests(unittest.TestCase):
         self.assertEqual(payload["status"], "stopped")
         self.assertEqual(len(payload["steps"]), 2)
         self.assertFalse(payload["steps"][1]["ok"])
+
+    def test_driver_error_becomes_step_failure(self):
+        from driver_core.errors import ExecutorError
+
+        class AngryDriver(FakeDriver):
+            def execute(self, name, params, consent=None):
+                raise ExecutorError("backend exploded")
+
+        store, events = PlanStore(), []
+        status, payload = self._confirm(store, _LAUNCH, AngryDriver(),
+                                        events)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["status"], "stopped")
+        self.assertFalse(payload["steps"][0]["ok"])
+        self.assertIn("backend exploded", payload["steps"][0]["detail"])
 
     def test_cancelled_plan_runs_no_steps(self):
         store = PlanStore()
@@ -402,6 +471,21 @@ class HttpGateTests(unittest.TestCase):
                 {"input": "open notepad"},
                 {"Authorization": "Bearer wrong"})
         self.assertEqual(status, 401)
+
+    def test_malformed_json_is_400(self):
+        with mock.patch.dict(os.environ, {"HARNESS_NL_CONTROL": "1"}):
+            conn = http.client.HTTPConnection("127.0.0.1", self.port,
+                                              timeout=10)
+            try:
+                conn.request("POST", "/api/driver/nl", body=b"{oops",
+                             headers={"Host": "127.0.0.1",
+                                      "Content-Type": "application/json",
+                                      "X-Harness-Auth": self.token})
+                resp = conn.getresponse()
+                self.assertEqual(resp.status, 400)
+                resp.read()
+            finally:
+                conn.close()
 
     def test_foreign_host_is_403(self):
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
