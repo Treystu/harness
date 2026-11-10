@@ -91,7 +91,10 @@ commands:
       - install_tooling
       - run:
           name: Lint (ruff)
-          command: python -m ruff check harness tests examples/oc_handoff
+          # driver_core joins the scope per #301: the Actions lint step
+          # already covered it, the port dropped it, and a gate that
+          # cannot see a package cannot catch its next dead import.
+          command: python -m ruff check harness tests examples/oc_handoff driver_core
       - run:
           name: Compile
           command: python -m compileall -q harness tests examples/oc_handoff
@@ -218,7 +221,15 @@ jobs:
           working_directory: tests/ui
       - run:
           name: Install Chromium and system dependencies
-          command: npx playwright install --with-deps chromium
+          # Refresh the package index first. On 2026-11-09 main 90862bd5
+          # job 716 died here with every browser dependency "no
+          # installation candidate" (exit 100) and no test run at all
+          # (#295 filing 6733006016). Playwright's --with-deps installs
+          # through apt, and a stale index on this image makes the whole
+          # set unresolvable -- the same code passed on the branch battery.
+          command: |
+            sudo apt-get update
+            npx playwright install --with-deps chromium
           working_directory: tests/ui
       - run:
           name: Run served UI journeys (one worker)
