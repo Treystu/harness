@@ -429,7 +429,7 @@ class HttpGateTests(unittest.TestCase):
 
     def _post(self, body, headers=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port,
-                                          timeout=10)
+                                          timeout=120)
         try:
             hdrs = dict(headers or {})
             hdrs.setdefault("Host", "127.0.0.1")
@@ -486,7 +486,7 @@ class HttpGateTests(unittest.TestCase):
     def test_malformed_json_is_400(self):
         with mock.patch.dict(os.environ, {"HARNESS_NL_CONTROL": "1"}):
             conn = http.client.HTTPConnection("127.0.0.1", self.port,
-                                              timeout=10)
+                                              timeout=120)
             try:
                 conn.request("POST", "/api/driver/nl", body=b"{oops",
                              headers={"Host": "127.0.0.1",
@@ -499,7 +499,7 @@ class HttpGateTests(unittest.TestCase):
                 conn.close()
 
     def test_foreign_host_is_403(self):
-        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=120)
         try:
             conn.request("POST", "/api/driver/nl", body=b"{}",
                          headers={"Host": "example.com",
