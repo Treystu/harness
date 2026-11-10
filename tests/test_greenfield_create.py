@@ -187,6 +187,31 @@ class DispatchCreateTests(unittest.TestCase):
                           "instruction": "overwrite",
                           "create": True})
 
+    def test_apply_dispatch_create_refuses_a_directory_target(self):
+        from harness.server import validate_dispatch
+        os.mkdir(os.path.join(self.dir.name, "pkgdir.py"))
+        with self.assertRaisesRegex(HarnessError, "must not be a directory"):
+            validate_dispatch(
+                "apply", {"root_dir": self.dir.name,
+                          "file": "pkgdir.py",
+                          "instruction": "create it",
+                          "create": True})
+
+    def test_apply_dispatch_create_refuses_a_symlink_target(self):
+        from harness.server import validate_dispatch
+        if os.name == "nt":
+            self.skipTest("symlink creation needs privilege on Windows")
+        real = os.path.join(self.dir.name, "real_mod.py")
+        with open(real, "w", encoding="utf-8") as f:
+            f.write("x = 1\n")
+        os.symlink(real, os.path.join(self.dir.name, "link_mod.py"))
+        with self.assertRaisesRegex(HarnessError, "must not be a symlink"):
+            validate_dispatch(
+                "apply", {"root_dir": self.dir.name,
+                          "file": "link_mod.py",
+                          "instruction": "create it",
+                          "create": True})
+
     def test_apply_dispatch_create_refuses_traversal(self):
         from harness.server import validate_dispatch
         with self.assertRaises(HarnessError):
@@ -216,6 +241,13 @@ class TriageCreateTests(unittest.TestCase):
             "also create pkg/calc.py alongside real.py", self.dir.name)
         self.assertIn("real.py", found)
         self.assertNotIn("pkg/calc.py", found)
+
+    def test_a_directory_named_like_a_file_is_not_creatable(self):
+        """A match that already exists on disk (here: a directory named
+        like a module) is never returned as a create-intent target."""
+        os.mkdir(os.path.join(self.dir.name, "pkg.py"))
+        found = discover_target_files("create pkg.py now", self.dir.name)
+        self.assertNotIn("pkg.py", found)
 
     def test_traversal_mention_dropped_on_empty_workspace(self):
         found = discover_target_files(
