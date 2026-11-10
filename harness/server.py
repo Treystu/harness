@@ -400,10 +400,10 @@ def run_verify_task(task_id, args, cancel_check):
     CLI and UI -- lint runs pre-network, an ungrounded claim set finishes
     the run as ``rejected``, and a cooperative cancel returns the honest
     spend envelope."""
-    from .service import build_verify_prompt, run_verify
+    from .service import prepare_verify, run_verify
     settings = load_settings()
     try:
-        prompt, claims_lint = build_verify_prompt(
+        prepared = prepare_verify(
             prompt=args.get("prompt"),
             prompt_file=args.get("prompt_file"),
             claims_file=args.get("claims_file"),
@@ -412,6 +412,8 @@ def run_verify_task(task_id, args, cancel_check):
             claim_context=args.get("claim_context"))
     except ValueError as e:
         raise HarnessError(str(e)) from None
+    prompt = prepared["prompt"]
+    claims_lint = prepared["claims_lint"]
     if claims_lint is not None and not claims_lint["ok"]:
         return {"status": "rejected", "lint": claims_lint, "verdict": None,
                 "actual_cost": 0.0}
@@ -419,7 +421,8 @@ def run_verify_task(task_id, args, cancel_check):
                       cancel_check=cancel_check,
                       max_cost=args.get("max_cost"),
                       judge=args.get("judge"),
-                      reasoning_effort=args.get("reasoning_effort"))
+                      reasoning_effort=args.get("reasoning_effort"),
+                      claim_texts=prepared["claim_texts"])
 
 
 def run_continue_task(task_id, args, cancel_check):
@@ -857,6 +860,29 @@ def shutdown_driver_daemon():
     daemon["thread"].join(timeout=5)
 
 
+#: What a host boolean flag reads as "off". Anything else that is present
+#: and non-empty is on -- the convention ``HARNESS_*`` flags already use.
+_HOST_FLAG_OFF = ("", "0", "false", "no", "off")
+
+
+def nl_control_enabled(environ=None):
+    """Whether the host's ``HARNESS_NL_CONTROL`` flag is on. Default off.
+
+    The roadmap names this flag; driver-core reads only its own ``DRIVER_*``
+    namespace, so the mapping from the host flag onto the driver's launch
+    switch lives here, in one place. It is a function rather than three
+    inline lines inside the daemon bootstrap so the gate can be exercised
+    by tests: a mapping nobody tests can invert and every other suite still
+    passes.
+
+    Write authority never enables launching on its own -- this only decides
+    what the operator asked for, and the driver keeps its own second gate.
+    """
+    environ = os.environ if environ is None else environ
+    value = environ.get("HARNESS_NL_CONTROL", "")
+    return value.strip().lower() not in _HOST_FLAG_OFF
+
+
 def ensure_driver_daemon(port=None):
     """Start (once) the in-process loopback driver and return its adapter.
 
@@ -873,6 +899,12 @@ def ensure_driver_daemon(port=None):
     with _DRIVER_DAEMON_LOCK:
         if not _DRIVER_DAEMON:
             settings = _dc_config.load_settings()
+            # The roadmap's HARNESS_NL_CONTROL is a host flag; driver-core
+            # reads only DRIVER_*, so the host maps it onto the driver's own
+            # switch here. Write authority alone never enables launching.
+            settings = settings.with_overrides(
+                launch_app_enabled=(settings.launch_app_enabled
+                                    or nl_control_enabled()))
             service = _dc_server.Service(_dc_server.driver_from_settings(settings))
             httpd, _ = _dc_server.serve(
                 host=settings.host,

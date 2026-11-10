@@ -523,6 +523,7 @@ _ENV_NAMES = {
     "expect_key_label": "HARNESS_EXPECT_KEY_LABEL",
     "default_require_consent": "HARNESS_DEFAULT_REQUIRE_CONSENT",
     "allow_escalation": "HARNESS_ALLOW_ESCALATION",
+    "jev_primary_mode": "HARNESS_JEV_PRIMARY_MODE",
     "mcp_allow_write": "HARNESS_MCP_ALLOW_WRITE",
     "mcp_allow_verify": "HARNESS_MCP_ALLOW_VERIFY",
     "mcp_allowed_roots": "HARNESS_MCP_ALLOWED_ROOTS",
@@ -579,8 +580,21 @@ def _warn_insecure_keyfile(path):
     """
     if osal.keyfile_is_insecure(path):
         mode = osal.keyfile_mode(path)
+        # osal answers None where it does not model modes (Windows ACLs);
+        # the warning still stands, only the number is unavailable.
+        shown = oct(mode) if mode is not None else "unknown"
         eprint(f"[warn] key file {path} is group/world readable (mode "
-               f"{oct(mode)}); restrict it with chmod 600.")
+               f"{shown}); restrict it with chmod 600.")
+
+
+def _opt_float(raw):
+    """Optional float from configuration: absent stays absent.
+
+    ``float(get(...))`` reads the key twice, so the None guard does not reach
+    the conversion as far as a type checker is concerned; one read, one
+    decision (#445).
+    """
+    return None if raw is None else float(raw)
 
 
 def resolve_api_key_with_source():
@@ -722,7 +736,7 @@ class Settings:
                   hourglass_stages=None,
                   openrouter_floor_default=True, max_price_prompt=None,
                   max_price_completion=None, jev_api_key=None,
-                  jev_disabled=False,
+                  jev_disabled=False, jev_primary_mode=False,
                   jev_endpoint="https://api.typesafe.ai/v1/systemone",
                   jev_model="jev-latest", min_confidence=0.70,
                   token_budget_input=DEFAULT_TOKEN_BUDGET_INPUT,
@@ -806,6 +820,7 @@ class Settings:
         self.max_price_completion = max_price_completion
         self.jev_api_key = jev_api_key
         self.jev_disabled = bool(jev_disabled)
+        self.jev_primary_mode = bool(jev_primary_mode)
         self.jev_endpoint = jev_endpoint
         self.jev_model = jev_model or "jev-latest"
         self.min_confidence = min_confidence
@@ -840,6 +855,7 @@ class Settings:
             "hourglass_require_attestation", "hourglass_decompose",
             "openrouter_floor_default",
             "max_price_prompt", "max_price_completion", "jev_api_key", "jev_disabled",
+            "jev_primary_mode",
             "jev_endpoint", "jev_model", "min_confidence",
             "token_budget_input", "token_budget_output",
             "hourglass_stages", "openrouter_enabled", "fireworks_enabled",
@@ -1126,7 +1142,7 @@ def load_settings(overrides=None):
     settings = Settings(
         use_free=use_free,
         use_fireworks=use_fireworks,
-        fireworks_key=fireworks_key,
+        fireworks_key=fireworks_key or "",
         use_meta=use_meta,
         meta_key=meta_key or "",
         trial_model=trial_model,
@@ -1144,8 +1160,8 @@ def load_settings(overrides=None):
         task_max_cost=task_max_cost,
         max_tokens=max_tokens,
         apply_max_tokens=apply_max_tokens,
-        token_budget_input=token_budget_input,
-        token_budget_output=token_budget_output,
+        token_budget_input=int(token_budget_input),
+        token_budget_output=int(token_budget_output),
         reasoning_effort=str(get("reasoning_effort", "auto")),
         reasoning_token_budget=reasoning_token_budget,
         max_panelists=max_panelists,
@@ -1161,7 +1177,7 @@ def load_settings(overrides=None):
         hourglass_stages=(_split_list(str(get(
             "hourglass_stages", ",".join(DEFAULT_HOURGLASS_STAGES))))
             or None),
-        mcp_tool_timeout=mcp_tool_timeout,
+        mcp_tool_timeout=int(mcp_tool_timeout),
         mcp_auth_token=get("mcp_auth_token", None) or None,
         frontier_model=get("frontier_model", None),
         hourglass_confirm=_as_bool(get("hourglass_confirm", True)),
@@ -1172,11 +1188,10 @@ def load_settings(overrides=None):
         hourglass_decompose=(None if get("hourglass_decompose", None) is None
                              else _as_bool(get("hourglass_decompose", None))),
         openrouter_floor_default=_as_bool(get("openrouter_floor_default", True)),
-        max_price_prompt=(float(get("max_price_prompt", None))
-                          if get("max_price_prompt", None) is not None else None),
-        max_price_completion=(float(get("max_price_completion", None))
-                              if get("max_price_completion", None) is not None else None),
+        max_price_prompt=_opt_float(get("max_price_prompt", None)),
+        max_price_completion=_opt_float(get("max_price_completion", None)),
         jev_disabled=jev_disabled,
+        jev_primary_mode=_as_bool(get("jev_primary_mode", False)),
         jev_api_key=jev_api_key,
         jev_endpoint=str(get("jev_endpoint", "https://api.typesafe.ai/v1/systemone")),
         jev_model=str(get("jev_model", "jev-latest")),
