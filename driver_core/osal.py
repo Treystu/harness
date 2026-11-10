@@ -272,6 +272,217 @@ MIN_IMAGE_PIXELS = 78400
 #: trusting: the header is checked rather than assumed.
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
+#: The two observation kinds a capture backend can serve. They are separate
+#: names for the same reason ``click`` and ``focus`` are: a backend that can
+#: photograph a screen cannot necessarily say what is on it, and a caller has
+#: to be able to tell which half refused.
+CAPTURE_KINDS = ("capture", "describe")
+
+#: Registered capture backends, keyed by platform name. Unlike the input
+#: registry below this one starts empty *and falls back* to the declared
+#: native readers: capture has always worked on a stock machine, so making it
+#: opt-in would be a regression dressed as registration. Where a backend is
+#: registered it wins; where it is not, the native path answers unchanged.
+_CAPTURE_BACKENDS = {}
+_CAPTURE_CAPABILITY_LOCK = threading.RLock()
+
+
+def _registered_capture_backend(platform):
+    with _CAPTURE_CAPABILITY_LOCK:
+        return _CAPTURE_BACKENDS.get(platform)
+
+
+def _resolve_capture(backend):
+    """Call one backend's capture half without letting it crash the driver.
+
+    A third-party backend is a plugin, and a plugin bug must arrive as the
+    named refusal the caller already handles -- never as an exception thrown
+    from inside a screen observation. An :class:`OsalError` is re-raised
+    unchanged: that type is the backend's own named refusal, and renaming it
+    here would lose the reason the operator needs.
+    """
+    try:
+        path, detail = backend.capture()
+    except OsalError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - plugin boundary, by design
+        return None, f"capture backend {backend.name!r} failed: {exc}"
+    if path is not None and not isinstance(path, str):
+        return None, (f"capture backend {backend.name!r} returned "
+                      f"{type(path).__name__} instead of a path")
+    return path, detail if isinstance(detail, str) else str(detail)
+
+
+def _resolve_describe(backend):
+    """Call one backend's describe half with the same plugin discipline."""
+    try:
+        fields, detail = backend.describe()
+    except OsalError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - plugin boundary, by design
+        return None, f"capture backend {backend.name!r} failed: {exc}"
+    if fields is None:
+        # The backend's own refusal, kept verbatim: "only capture is
+        # registered" is a different answer from "returned NoneType".
+        return None, detail if isinstance(detail, str) else str(detail)
+    if not isinstance(fields, dict):
+        return None, (f"capture backend {backend.name!r} returned "
+                      f"{type(fields).__name__} instead of a field dict")
+    return fields, detail if isinstance(detail, str) else str(detail)
+
+
+class _FrozenCaptureBackend:
+    """Immutable registry record for a backend and its declared kinds."""
+
+    __slots__ = ("_capture", "_describe", "_name", "_platform")
+
+    def __init__(self, capture, describe, name, platform):
+        object.__setattr__(self, "_capture", capture)
+        object.__setattr__(self, "_describe", describe)
+        object.__setattr__(self, "_name", name)
+        object.__setattr__(self, "_platform", platform)
+
+    def __setattr__(self, name, value):
+        raise AttributeError(
+            "registered capture backend capabilities are immutable")
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def platform(self):
+        return self._platform
+
+    @property
+    def supported_kinds(self):
+        return CAPTURE_KINDS if self._describe is not None else ("capture",)
+
+    def capture(self):
+        return self._capture()
+
+    def describe(self):
+        if self._describe is None:
+            return None, (f"capture backend {self._name!r} does not describe "
+                          f"the screen; only capture is registered")
+        return self._describe()
+
+
+def capture_backend(*, capture, describe=None, name="", platform=None):
+    """Build the frozen record :func:`register_capture_backend` accepts.
+
+    ``capture()`` returns ``(path, detail)`` and ``describe()`` returns
+    ``(fields, detail)`` -- exactly the shapes the native readers return, so
+    a registered backend and the in-repo path are interchangeable to every
+    caller above this module. ``describe`` is optional because pixels and
+    words are separate capabilities, not a package deal.
+
+    The record is immutable on purpose, mirroring
+    :func:`freeze_input_backend`: what a machine may *observe* is declared
+    once, at registration, and a caller cannot widen it afterwards.
+    """
+    if not callable(capture):
+        raise OsalError("a capture backend must be callable, got "
+                        f"{type(capture).__name__}")
+    if describe is not None and not callable(describe):
+        raise OsalError("a describe callback must be callable, got "
+                        f"{type(describe).__name__}")
+    platform = platform or platform_name()
+    label = name or f"{platform}-native-capture"
+    if not isinstance(label, str) or not label.strip():
+        raise OsalError("a capture backend needs a non-empty name")
+    return _FrozenCaptureBackend(capture, describe, label.strip(), platform)
+
+
+def register_capture_backend(platform, backend):
+    """Register the backend that observes the screen on ``platform``.
+
+    Registration is capability, never permission: consent, target rules and
+    the tier order all live above this module and are not consulted here.
+    The backend's platform has to match the key it is registered under, so a
+    copy-paste cannot quietly claim one machine's reader for another's.
+    """
+    if platform not in SUPPORTED:
+        raise OsalError(
+            f"cannot register a capture backend for {platform!r}; declared "
+            f"platforms are {list(SUPPORTED)}")
+    if not isinstance(backend, _FrozenCaptureBackend):
+        raise OsalError(
+            "a capture backend must be built by capture_backend(); got "
+            f"{type(backend).__name__}")
+    if backend.platform != platform:
+        raise OsalError(
+            f"capture backend {backend.name!r} declares platform "
+            f"{backend.platform!r}, not {platform!r}")
+    with _CAPTURE_CAPABILITY_LOCK:
+        _CAPTURE_BACKENDS[platform] = backend
+    return backend
+
+
+def disable_capture_backend(platform=None):
+    """Remove a backend, falling back to the declared native reader.
+
+    Capture is not destructive, so withdrawing it is not a kill switch -- it
+    is how a host hands observation back to the in-repo path without a
+    restart when it needs to. Returns the withdrawn record, or ``None``.
+    """
+    platform = platform or platform_name()
+    with _CAPTURE_CAPABILITY_LOCK:
+        return _CAPTURE_BACKENDS.pop(platform, None)
+
+
+def capture_backends():
+    """Which platforms currently have a registered backend. For ``/health``."""
+    with _CAPTURE_CAPABILITY_LOCK:
+        return dict(_CAPTURE_BACKENDS)
+
+
+def native_capture_backend(platform=None):
+    """Return the in-repo capture reader for ``platform``, or ``None``.
+
+    The record calls exactly the private readers the default path already
+    calls, so registering it changes who is *named*, never what is measured:
+    the field shape, the refusal text and the DRIVER_SCREEN_OUT precondition
+    all stay the ones the native path has.
+
+    The wrapper resolves the module reader when it is called rather than
+    binding the function object here, so there is one live reader per
+    platform -- a record can never become a stale shadow of the path it is
+    supposed to be naming.
+    """
+    platform = platform or platform_name()
+    name = f"{platform}-native-capture"
+    if platform == "windows":
+        return capture_backend(capture=lambda: _capture_windows(),
+                               describe=lambda: _describe_windows(),
+                               name=name, platform=platform)
+    if platform == "darwin":
+        return capture_backend(capture=lambda: _capture_macos(), name=name,
+                               platform=platform)
+    if platform == "linux":
+        return capture_backend(capture=lambda: _capture_linux(),
+                               describe=lambda: _describe_linux(),
+                               name=name, platform=platform)
+    return None
+
+
+def register_native_capture_backend(platform=None):
+    """Register the in-repo backend for this machine, and report it.
+
+    The mirror of :func:`register_native_input_backend`, with one difference
+    stated plainly: this is not the act capture waits for, because capture
+    already works without it. It exists so a host can name the native reader
+    in the same registry a bridge backend would occupy, and so
+    :func:`capture_backends` can answer honestly about which one is live.
+    """
+    platform = platform or platform_name()
+    backend = native_capture_backend(platform)
+    if backend is None:
+        raise OsalError(
+            f"no native capture backend is implemented for {platform!r}")
+    register_capture_backend(platform, backend)
+    return backend
+
 
 def capture_screen(*, max_side=MAX_IMAGE_SIDE):
     """Capture the screen, fitted to the image caps. Returns ``(path,
@@ -288,7 +499,10 @@ def capture_screen(*, max_side=MAX_IMAGE_SIDE):
     it is small. Pass ``max_side=None`` to capture raw.
     """
     name = platform_name()
-    if name == "windows":
+    backend = _registered_capture_backend(name)
+    if backend is not None:
+        path, detail = _resolve_capture(backend)
+    elif name == "windows":
         path, detail = _capture_windows()
     elif name == "darwin":
         path, detail = _capture_macos()
@@ -325,6 +539,9 @@ def describe_screen():
     with a reason, exactly as in :func:`capture_screen`.
     """
     name = platform_name()
+    backend = _registered_capture_backend(name)
+    if backend is not None:
+        return _resolve_describe(backend)
     if name == "windows":
         return _describe_windows()
     if name == "linux":
