@@ -515,14 +515,34 @@ class PlanExecutor:
         """This node's routing kwargs from the plan's own route detail."""
         return self.route_kwargs_fn(self.node_routes.get(node.node_id))
 
+    def _is_create_target(self, node, target) -> bool:
+        """Is ``target`` one of this node's declared create_files?
+
+        Both spellings are compared inside the plan's own tree, so a
+        relative plan target and the checked-out absolute path agree.
+        """
+        creates = tuple(getattr(node, "create_files", None) or ())
+        if not creates or target is None:
+            return False
+
+        def _spellings(path):
+            raw = os.path.normcase(os.path.normpath(str(path)))
+            rebased = os.path.normcase(os.path.normpath(
+                _rebase_path(path, self.repo, self.repo))) if self.repo else raw
+            return {raw, rebased}
+
+        declared = set()
+        for rel in creates:
+            declared |= _spellings(rel)
+        return bool(_spellings(target) & declared)
+
     def _apply_edit(self, target, node, route_kwargs, task_runner):
         kwargs = dict(self.base_apply_kwargs)
-        # #456 greenfield creation: only a target the plan explicitly marked
-        # create_files is created; every other missing target keeps the
-        # engine's must-exist refusal, so a typo'd path can never conjure
-        # an unintended file.
-        creates = set(getattr(node, "create_files", None) or ())
-        if target in creates:
+        if self._is_create_target(node, target):
+            # #456 greenfield creation: only a target the plan explicitly
+            # marked create_files is created; every other missing target
+            # keeps the engine's must-exist refusal, so a typo'd path can
+            # never conjure an unintended file.
             kwargs["create"] = True
         # Route kwargs win: a tier ceiling bounds the request unless the
         # lane pinned one (node_apply_kwargs suppresses it when pinned).
@@ -548,6 +568,12 @@ class PlanExecutor:
         the repo, which passes and proves nothing about the node's write.
         """
         target = node.target_files[0] if node.target_files else None
+        if target and not gate_cwd and self.repo:
+            # #456: a plan's relative target belongs to the tree the plan was
+            # made in (the lane's root), not to the server process's CWD -- a
+            # GUI/MCP workspace is never the CWD. For the CLI, whose root IS
+            # its CWD, this mapping is the identity.
+            target = _rebase_path(target, self.repo, self.repo)
         if target and gate_cwd:
             # Planned nodes may carry either repo-relative or absolute paths;
             # map both forms into the actual isolated checkout instead of
