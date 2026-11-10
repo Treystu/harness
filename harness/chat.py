@@ -916,6 +916,10 @@ def _book_unknown_meta(governor, unknown, payload, model, offer, max_tokens):
             reserved_cost = max(0.01, float(getattr(governor, "max_cost", 0.0) or 0.0))
     retain = getattr(governor, "retain_unknown", None)
     if callable(retain) and reserved_cost > 0.0:
+        # The Meta wire-model label attributes this liability to the
+        # Meta cap as well (SpendGovernor.retain_unknown, #449 P2), so a
+        # later Meta dispatch cannot pass the local Meta budget on top
+        # of this unknown-cost refusal.
         retain(reserved_cost, model)
     unknown.reserved_cost = max(0.0, float(reserved_cost or 0.0))
     unknown.cost_accounted = True

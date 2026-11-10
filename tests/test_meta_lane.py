@@ -231,6 +231,25 @@ class GovernorTests(unittest.TestCase):
         with self.assertRaisesRegex(HarnessError, "HARNESS_META_BUDGET_USD"):
             gov.assert_meta_budget(0.002, SPARK)
 
+    def test_meta_budget_counts_unknown_meta_liability(self):
+        """#449 P2 (cubic re-review): retained unknown Meta liability
+        counts against the Meta cap, so a later direct Meta call cannot
+        pass the cap after an unknown-cost refusal."""
+        gov = self._governor(budget=0.001)
+        gov.assert_meta_budget(0.0005, SPARK)  # fits before the booking
+        gov.retain_unknown(0.0006, SPARK)  # Meta-attributed unknown
+        self.assertAlmostEqual(gov.meta_unknown_liability(), 0.0006)
+        with self.assertRaisesRegex(HarnessError, "HARNESS_META_BUDGET_USD"):
+            gov.assert_meta_budget(0.0005, SPARK)  # no longer fits
+        with self.assertRaisesRegex(HarnessError, "Meta spend"):
+            gov.record_actual(0.0005, SPARK)
+
+    def test_non_meta_unknown_does_not_consume_meta_cap(self):
+        gov = self._governor(budget=0.001)
+        gov.retain_unknown(0.0006, "openai/gpt-4")  # not Meta-attributed
+        self.assertAlmostEqual(gov.meta_unknown_liability(), 0.0)
+        gov.assert_meta_budget(0.0005, SPARK)  # still fits
+
     def test_zero_meta_budget_refuses_every_call(self):
         with self.assertRaisesRegex(HarnessError, "would exceed the local budget"):
             self._governor(budget=0.0).assert_meta_budget(0.0001, SPARK)
@@ -452,6 +471,19 @@ class MetaUsageAccountingTests(_IsolatedHome):
             chat_for_route(self._route(), transport, "or-key", "fw-key",
                            MESSAGES, 64, meta_key="meta-key")
 
+    def test_unknown_booking_consumes_meta_headroom(self):
+        """#449 P2 (cubic re-review): after an unknown-cost Meta refusal,
+        the retained liability sits inside the Meta cap -- a preflight for
+        the full remaining budget no longer fits."""
+        transport = RecordingTransport(_resp({}))
+        gov = self._gov(transport)
+        with self.assertRaises(ProviderUsageUnknown):
+            chat_for_route(self._route(), transport, "or-key", "fw-key",
+                           MESSAGES, 64, governor=gov, meta_key="meta-key")
+        self.assertGreater(gov.meta_unknown_liability(), 0.0)
+        with self.assertRaisesRegex(HarnessError, "HARNESS_META_BUDGET_USD"):
+            gov.assert_meta_budget(gov.meta_budget_usd, SPARK)
+
 
 class DirectChatTests(_IsolatedHome):
     """#447: the lanes that call chat() directly (panel, judge,
@@ -633,10 +665,6 @@ class VerifyTaskIdTests(_IsolatedHome):
                          ["civicscope-ai-meta-client"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class _RepeatingTransport:
     """Answers every POST with a fresh 200 body; records URL and key.
 
@@ -738,3 +766,7 @@ class DirectChatLaneTests(_IsolatedHome):
                            generate_task_id=True, max_panelists=1,
                            free_tier=False)
         self._assert_meta_only(transport, "verify")
+
+
+if __name__ == "__main__":
+    unittest.main()
