@@ -335,9 +335,138 @@ class DogfoodVerifySeamContractTests(unittest.TestCase):
                     cancel_check=cancel)
 
             self.assertIs(seen["cancel_check"], cancel)
+            self.assertEqual(seen["claim_texts"], [
+                {"id": "c1", "text": "x is 1"},
+            ])
             self.assertEqual([p["phase"] for p in report["phases"]],
                              ["ground", "verify", "apply"])
             self.assertEqual(report["status"], "ok")
+
+    def test_legacy_fixed_signature_verify_callback_works_when_jev_off(self):
+        from harness.claims import Claim
+        from harness.config import load_settings
+        from harness.service import run_dogfood
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "target.py")
+            with open(target, "w", encoding="utf-8") as f:
+                f.write("x = 1\n")
+            claim = Claim(claim_id="c1", kind="defect", text="x is 1",
+                          source_refs=[1])
+            verdict = {
+                "convergence": {"tally": {"claims": {"c1": {
+                    "converged": True, "verdict": "real"}}}},
+                "panel_failures": [],
+            }
+            seen = {}
+
+            def legacy_verify(settings, *, prompt, task_id, converge,
+                              reassurance_claims, max_cost, cancel_check):
+                seen["prompt"] = prompt
+                return verdict
+
+            engine = mock.Mock()
+            engine.apply_batch.return_value = {"status": "ok", "cost": 0.0}
+            with mock.patch("harness.service.apply_session", return_value=engine):
+                report = run_dogfood(
+                    load_settings(overrides={"use_free": True,
+                                             "jev_primary_mode": False}),
+                    file=target, instruction="fix", claims=[claim],
+                    source_text="x = 1\n", run_verify_fn=legacy_verify)
+
+            self.assertIn("x is 1", seen["prompt"])
+            self.assertEqual(report["status"], "ok")
+
+    def test_legacy_fixed_signature_fails_closed_when_jev_on(self):
+        from harness.claims import Claim
+        from harness.config import load_settings
+        from harness.errors import HarnessError
+        from harness.service import run_dogfood
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "target.py")
+            with open(target, "w", encoding="utf-8") as f:
+                f.write("x = 1\n")
+            claim = Claim(claim_id="c1", kind="defect", text="x is 1",
+                          source_refs=[1])
+            invoked = []
+
+            def legacy_verify(settings, *, prompt, task_id, converge,
+                              reassurance_claims, max_cost, cancel_check):
+                invoked.append(True)
+                return {}
+
+            engine = mock.Mock()
+            with mock.patch("harness.service.apply_session", return_value=engine):
+                with self.assertRaisesRegex(HarnessError, "claim_texts"):
+                    run_dogfood(
+                        load_settings(overrides={"use_free": True,
+                                                 "jev_primary_mode": True}),
+                        file=target, instruction="fix", claims=[claim],
+                        source_text="x = 1\n", run_verify_fn=legacy_verify)
+
+            self.assertEqual(invoked, [])
+            engine.apply_batch.assert_not_called()
+
+    def test_callback_positional_claim_texts_parameters_are_not_keyword_support(self):
+        from harness.claims import Claim
+        from harness.config import load_settings
+        from harness.errors import HarnessError
+        from harness.service import run_dogfood
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "target.py")
+            with open(target, "w", encoding="utf-8") as f:
+                f.write("x = 1\n")
+            claim = Claim(claim_id="c1", kind="defect", text="x is 1",
+                          source_refs=[1])
+            verdict = {
+                "convergence": {"tally": {"claims": {"c1": {
+                    "converged": True, "verdict": "real"}}}},
+                "panel_failures": [],
+            }
+            cases = []
+
+            def variadic_claim_texts(settings, *claim_texts, **kwargs):
+                cases.append(("var_positional", claim_texts, kwargs))
+                return verdict
+
+            def positional_only_claim_texts(settings, claim_texts=None, /,
+                                            **kwargs):
+                cases.append(("positional_only", claim_texts, kwargs))
+                return verdict
+
+            for callback in (variadic_claim_texts,
+                             positional_only_claim_texts):
+                with self.subTest(callback=callback.__name__):
+                    engine = mock.Mock()
+                    engine.apply_batch.return_value = {
+                        "status": "ok", "cost": 0.0}
+                    with mock.patch("harness.service.apply_session",
+                                    return_value=engine):
+                        report = run_dogfood(
+                            load_settings(overrides={
+                                "use_free": True, "jev_primary_mode": False}),
+                            file=target, instruction="fix", claims=[claim],
+                            source_text="x = 1\n", run_verify_fn=callback)
+                    self.assertEqual(report["status"], "ok")
+                    self.assertEqual(cases[-1][2]["converge"], True)
+                    self.assertNotIn("claim_texts", cases[-1][2])
+
+                    before = len(cases)
+                    engine = mock.Mock()
+                    with mock.patch("harness.service.apply_session",
+                                    return_value=engine):
+                        with self.assertRaisesRegex(HarnessError,
+                                                    "claim_texts"):
+                            run_dogfood(
+                                load_settings(overrides={
+                                    "use_free": True,
+                                    "jev_primary_mode": True}),
+                                file=target, instruction="fix", claims=[claim],
+                                source_text="x = 1\n", run_verify_fn=callback)
+                    self.assertEqual(len(cases), before)
+                    engine.apply_batch.assert_not_called()
 
     def test_run_dogfood_passes_max_cost_to_apply_session(self):
         """The run ceiling covers the apply phase too. Before the fix the

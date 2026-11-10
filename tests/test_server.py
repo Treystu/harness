@@ -1093,6 +1093,7 @@ class ClaimsLaneTests(ServerHarness):
 
         def fake_panel_judge(**kwargs):
             seen["prompt"] = kwargs["prompt"]
+            seen["claim_texts"] = kwargs["claim_texts"]
             return {"status": "ok", "verdict": {"decision": "yes"},
                     "judge_synthesis": "claims verified"}
         cf, sf = self._files()
@@ -1107,6 +1108,9 @@ class ClaimsLaneTests(ServerHarness):
         self.assertEqual(full["result"]["verdict"]["decision"], "yes")
         self.assertIn("Source under review", seen["prompt"])
         self.assertIn("c_ok", seen["prompt"])
+        self.assertEqual(seen["claim_texts"], [{
+            "id": "c_ok", "text": "capped at 256 with eviction",
+        }])
 
     def test_cancelled_run_reports_actual_spend(self):
         """Spend honesty: panel calls that bill before the cooperative cancel
