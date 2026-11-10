@@ -484,6 +484,47 @@ class MetaUsageAccountingTests(_IsolatedHome):
         with self.assertRaisesRegex(HarnessError, "HARNESS_META_BUDGET_USD"):
             gov.assert_meta_budget(gov.meta_budget_usd, SPARK)
 
+    def test_unknown_booking_falls_back_to_governor_ceiling(self):
+        """#449 P2: when the worst-case estimate itself fails, the
+        retained liability falls back to the governor ceiling."""
+        from harness.meta import cost_estimate as real_estimate
+        calls = []
+
+        def flaky_estimate(offer, prompt_tokens, max_tokens):
+            # The preflight estimate succeeds; only the post-dispatch
+            # booking estimate loses its rates.
+            calls.append(1)
+            if len(calls) > 1:
+                raise ValueError("no rates")
+            return real_estimate(offer, prompt_tokens, max_tokens)
+
+        transport = RecordingTransport(_resp({}))
+        gov = self._gov(transport)
+        with mock.patch("harness.chat.meta_cost_estimate",
+                        side_effect=flaky_estimate):
+            with self.assertRaises(ProviderUsageUnknown) as caught:
+                chat_for_route(self._route(), transport, "or-key", "fw-key",
+                               MESSAGES, 64, governor=gov, meta_key="meta-key")
+        self.assertAlmostEqual(caught.exception.reserved_cost,
+                               max(float(gov.max_cost), float(gov.remaining())))
+
+    def test_unknown_booking_falls_back_to_floor_without_ceiling(self):
+        """#449 P2: a governor without a readable ceiling still retains a
+        nonzero floor liability instead of booking nothing."""
+        from types import SimpleNamespace
+        retained = []
+        stub = SimpleNamespace(
+            retain_unknown=lambda amount, label: retained.append(amount))
+        unknown = ProviderUsageUnknown("refusing to bill blind",
+                                       known_cost=0.0)
+        with mock.patch("harness.chat.meta_cost_estimate",
+                        side_effect=ValueError("no rates")):
+            from harness.chat import _book_unknown_meta
+            _book_unknown_meta(stub, unknown, {"messages": MESSAGES},
+                               SPARK, None, 64)
+        self.assertEqual(len(retained), 1)
+        self.assertGreaterEqual(retained[0], 0.01)
+
 
 class DirectChatTests(_IsolatedHome):
     """#447: the lanes that call chat() directly (panel, judge,
