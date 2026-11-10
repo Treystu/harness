@@ -250,6 +250,7 @@ cheap; losing either is not.
 | `harness/batch.py` | multi-file batch orchestration: one governed session per file, shared task budget, fail-fast -- owns the LOOP, the engine owns the per-file apply |
 | `harness/dag.py` | task decomposition & dependency DAG: TaskDAG, DAGNode, topological batching |
 | `harness/orchestrator.py` | the autonomous driver's judgment calls: completion judge (`assess_completion`), repo-wide file triage, and bounded plan/execute/judge rounds -- chat_fn injected, strict-JSON, degrades without inventing verdicts |
+| `harness/driver_nl.py` | driver one-prompt intake (#273): `POST /api/driver/nl` preview/confirm-execute with plan store, dual host/driver-token auth, flag gate, and driver_step_* live status; execution stops at the first failed step, cancellation between steps |
 | `harness/history.py` | persisted chat turns and session listing/deletion; the single owner of history filesystem state |
 | `harness/conversation_context.py` | cross-turn memory: durable site/fact extraction, budgeted history assembly, the Jev recall gate, and the sole-site resolver used by follow-ups ("audit the same site") |
 | `harness/jev_identity.py` | authoritative, bounded Jev/System One self-knowledge injected when a chat prompt names Jev, TypeSafe, or System One; missing repo files degrade to the short fallback |

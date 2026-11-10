@@ -353,6 +353,7 @@ let routeRequestSeq = 0;
 
 // Initialize
 window.addEventListener("DOMContentLoaded", () => {
+  setupDriverNl();
   setupInputHandlers();
   setupHeaderControls();
   setupSidebar();
@@ -1921,4 +1922,152 @@ async function loadRankings() {
     const out = $("#rankings-out");
     if (out) out.innerHTML = `<div class="dim">${esc(e.message)}</div>`;
   }
+}
+
+// ---- Driver NL intake (#273) -----------------------------------------------
+// One-prompt plan, explicit confirm, execute with live step status. The plan
+// preview renders synchronously on response (no awaits between fetch resolve
+// and DOM update) so the card paints within the 500ms budget; execution
+// status arrives through the existing /api/events poll of driver_step_*
+// events for this plan id. Run Plan fires on click only -- no keyboard
+// shortcut is wired to it.
+function setupDriverNl() {
+  const section = $("#driver-nl");
+  if (!section) return;
+  const input = $("#driver-nl-input");
+  const planBtn = $("#btn-driver-nl-plan");
+  const card = $("#driver-nl-card");
+  const stepsEl = $("#driver-nl-steps");
+  const runBtn = $("#btn-driver-nl-run");
+  const cancelBtn = $("#btn-driver-nl-cancel");
+  const statusEl = $("#driver-nl-status");
+  let planId = null;
+  let pollTimer = null;
+  let lastSeq = 0;
+
+  const setStatus = (msg) => { statusEl.textContent = msg; };
+
+  function renderPlan(payload) {
+    planId = payload.plan_id;
+    stepsEl.innerHTML = "";
+    for (const step of payload.plan || []) {
+      const li = document.createElement("li");
+      const name = document.createElement("strong");
+      name.textContent = step.action;
+      li.appendChild(name);
+      const params = document.createElement("span");
+      params.className = "driver-nl-params";
+      params.textContent = " " + JSON.stringify(step.params || {});
+      li.appendChild(params);
+      const cls = document.createElement("span");
+      cls.className = "driver-nl-class" +
+        (step.class === "irreversible" ? " irreversible" : "");
+      cls.textContent = step.class || "mutating";
+      li.appendChild(cls);
+      const state = document.createElement("span");
+      state.className = "driver-nl-params";
+      state.dataset.stepState = step.action;
+      li.appendChild(state);
+      stepsEl.appendChild(li);
+    }
+    card.hidden = false;
+    runBtn.disabled = false;
+    setStatus("Plan ready — review each step, then Run Plan.");
+  }
+
+  function markStep(action, ok, detail) {
+    const slots = stepsEl.querySelectorAll("[data-step-state]");
+    for (const slot of slots) {
+      if (slot.dataset.stepState === action && !slot.dataset.done) {
+        slot.dataset.done = "1";
+        slot.textContent = ok ? " ✓" : " ▲ " + (detail || "refused");
+        return;
+      }
+    }
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  // Live status: while the run request is in flight, poll the existing
+  // event bus for this plan's driver_step_* events and mark steps as they
+  // land. The final response replays the same steps; markStep is idempotent
+  // (a marked slot is never overwritten), so the replay only fills gaps.
+  async function pollOnce() {
+    let data;
+    try {
+      data = await api(`/api/events?after=${lastSeq}`);
+    } catch (_e) { return; }
+    lastSeq = data.last_seq || lastSeq;
+    for (const ev of data.events || []) {
+      if (!ev || ev.task_id !== planId) continue;
+      if (ev.type === "driver_step_complete") {
+        markStep(ev.target, ev.ok, ev.reason || ev.detail);
+      }
+    }
+  }
+
+  function startPolling() {
+    stopPolling();
+    pollTimer = setInterval(() => { pollOnce(); }, 1000);
+  }
+
+  planBtn.addEventListener("click", async () => {
+    const text = (input.value || "").trim();
+    if (!text) { setStatus("Type an instruction first."); return; }
+    planBtn.disabled = true;
+    setStatus("Planning…");
+    card.hidden = true;
+    try {
+      const payload = await api("/api/driver/nl", {
+        method: "POST",
+        body: JSON.stringify({ input: text }),
+      });
+      if (payload.status !== "plan") throw new Error("unexpected plan reply");
+      lastSeq = 0;
+      renderPlan(payload);
+    } catch (e) {
+      setStatus(e.message || "Planning failed.");
+    } finally {
+      planBtn.disabled = false;
+    }
+  });
+
+  runBtn.addEventListener("click", async () => {
+    if (!planId) return;
+    runBtn.disabled = true;
+    setStatus("Running…");
+    startPolling();
+    try {
+      const payload = await api("/api/driver/nl", {
+        method: "POST",
+        body: JSON.stringify({ plan_id: planId, confirm: true }),
+      });
+      for (const step of payload.steps || []) {
+        markStep(step.action, step.ok, step.detail);
+      }
+      const label = { done: "Done.", cancelled: "Cancelled.",
+        stopped: "Stopped at the first failed step." }[payload.status];
+      setStatus(label || ("Finished: " + payload.status));
+    } catch (e) {
+      setStatus(e.message || "Execution failed.");
+    } finally {
+      runBtn.disabled = false;
+      stopPolling();
+    }
+  });
+
+  cancelBtn.addEventListener("click", async () => {
+    if (!planId) return;
+    try {
+      await api("/api/driver/nl", {
+        method: "POST",
+        body: JSON.stringify({ cancel_plan: planId }),
+      });
+      setStatus("Cancellation requested — running steps stop between steps.");
+    } catch (e) {
+      setStatus(e.message || "Cancel failed.");
+    }
+  });
 }
