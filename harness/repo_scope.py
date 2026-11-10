@@ -51,6 +51,31 @@ def discover_target_files(prompt: str, root_dir: Optional[Path] = None) -> List[
     if candidates:
         return candidates
 
+    # #456 greenfield creation: on an empty workspace the must-exist pass
+    # above always yields nothing, so the planner would never receive a
+    # new-file target. Retry the explicit filename mentions without
+    # requiring existence -- still resolved inside the workspace (traversal
+    # and symlink components refuse), still restricted to plausible file
+    # extensions. These are create-intent candidates: the DAG marks them
+    # create_files and only the executor's explicit create path may make
+    # them, so a stray mention can never conjure a file on its own.
+    if not enumerate_repo_files(root, limit=1):
+        for m in matches:
+            clean_path = m.strip("`'\" \t\r\n")
+            try:
+                full_path = resolve_workspace_path(root, clean_path,
+                                                   must_exist=False)
+            except (HarnessError, OSError, ValueError):
+                continue
+            if full_path.exists():
+                continue
+            rel_path = full_path.relative_to(
+                Path(root).resolve()).as_posix()
+            if rel_path not in candidates:
+                candidates.append(rel_path)
+        if candidates:
+            return candidates
+
     # A whole-workspace review is not narrowed by module-name coincidences:
     # "audit the workspace with jev" must not collapse to harness/jev.py and
     # harness/workspace.py (issue #448). Explicit paths above still win.

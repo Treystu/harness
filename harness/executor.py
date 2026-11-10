@@ -517,6 +517,13 @@ class PlanExecutor:
 
     def _apply_edit(self, target, node, route_kwargs, task_runner):
         kwargs = dict(self.base_apply_kwargs)
+        # #456 greenfield creation: only a target the plan explicitly marked
+        # create_files is created; every other missing target keeps the
+        # engine's must-exist refusal, so a typo'd path can never conjure
+        # an unintended file.
+        creates = set(getattr(node, "create_files", None) or ())
+        if target in creates:
+            kwargs["create"] = True
         # Route kwargs win: a tier ceiling bounds the request unless the
         # lane pinned one (node_apply_kwargs suppresses it when pinned).
         kwargs.update(route_kwargs)

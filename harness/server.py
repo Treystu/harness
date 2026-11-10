@@ -198,15 +198,26 @@ def _dispatch_workspace(args, *, required):
     return root
 
 
-def _dispatch_file(root, raw, label, *, required=True):
+def _dispatch_file(root, raw, label, *, required=True, allow_create=False):
+    # #456 greenfield creation: with allow_create the target may not exist
+    # yet (the engine's create path makes it), but it must still resolve
+    # inside the workspace with no symlink components, must not be an
+    # existing symlink or directory, and must not already be a file
+    # (creating over it is an edit, not a create).
     if raw is None or not str(raw).strip():
         if required:
             raise HarnessError(f"{label} is required")
         return None
     if root is None:
         raise HarnessError(f"Select a workspace folder before using {label}")
-    path = resolve_workspace_path(root, raw, must_exist=True)
-    if not path.is_file():
+    path = resolve_workspace_path(root, raw, must_exist=not allow_create)
+    if allow_create and path.is_symlink():
+        raise HarnessError(f"{label} must not be a symlink: {raw}")
+    if allow_create and path.is_dir():
+        raise HarnessError(f"{label} must not be a directory: {raw}")
+    if allow_create and path.is_file():
+        raise HarnessError(f"{label} already exists (create is for new files): {raw}")
+    if not allow_create and not path.is_file():
         raise HarnessError(f"{label} must be a file: {raw}")
     return str(path)
 
@@ -315,7 +326,9 @@ def validate_dispatch(kind, args):
     elif kind == "apply":
         root = _dispatch_workspace(args, required=True)
         f = _opt_str(args, "file", required=True)
-        args["file"] = _dispatch_file(root, f, "--file target")
+        args["create"] = _opt_bool(args, "create")
+        args["file"] = _dispatch_file(root, f, "--file target",
+                                      allow_create=args["create"])
         _opt_str(args, "instruction", required=True)
         _opt_str(args, "verify")
         _opt_int(args, "max_rounds", 1, 8, 3)
@@ -388,7 +401,8 @@ def run_apply_task(task_id, args, cancel_check):
             model=args.get("model"),
             task_max_cost=args.get("task_max_cost"),
             backend=args.get("backend") or "harness",
-            verify_only=bool(args.get("verify_only"))))
+            verify_only=bool(args.get("verify_only")),
+            create=bool(args.get("create"))))
     if isinstance(result, dict):
         result["meta"] = run_meta(settings, engine.governor)
     return result

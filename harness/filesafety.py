@@ -92,19 +92,38 @@ def _atomic_write(path, content, *, follow=False, newline="preserve"):
     return osal.atomic_write_text(path, content, follow=follow, newline=newline)
 
 
-def validate_target_file(file_path):
+def validate_target_file(file_path, *, allow_create=False):
     """One owner of 'what is a valid edit target': must exist and be a regular
     file. Interfaces preflight this before spending live calls (a typo'd path
     must not burn a panel verify); apply_edit enforces the same policy at the
-    engine boundary."""
-    if not os.path.exists(file_path):
-        raise HarnessError(f"file not found: {file_path}")
+    engine boundary.
+
+    ``allow_create`` (#456 greenfield creation): a missing path is a valid
+    CREATE target instead of 'file not found' -- but every other refusal
+    stands. A pre-existing symlink or directory at the target still refuses
+    (a link is never followed into a create), an existing regular file
+    refuses (creating over it is an edit, not a create), and the parent
+    directory must already exist as a real directory (the engine creates
+    files, never directory trees, so a typo'd directory still fails fast).
+    """
+    if not os.path.lexists(file_path):
+        if not allow_create:
+            raise HarnessError(f"file not found: {file_path}")
+        parent = os.path.dirname(os.path.abspath(file_path))
+        if not os.path.isdir(parent) or os.path.islink(parent):
+            raise HarnessError(
+                f"cannot create {file_path}: parent directory {parent} "
+                f"does not exist or is not a real directory")
+        return
     if os.path.islink(file_path):
         raise HarnessError(
             f"symlink targets are not editable: {file_path} (use the real file path)")
     if not os.path.isfile(file_path):
         raise HarnessError(
             f"not a regular file: {file_path} (directories are not editable)")
+    if allow_create:
+        raise HarnessError(
+            f"file already exists: {file_path} (create is for new files; edit it instead)")
 
 
 def backup_file(file_path, task_id, round_no):

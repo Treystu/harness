@@ -41,6 +41,11 @@ class BatchOptions:
     verify_only: object = False
     max_lines: object = MAX_FILE_LINES
     continuation: object = None
+    # #456 greenfield creation: every file in this batch is a new file to
+    # create (not edit). Mixed edit+create batches are not a thing: create
+    # is a batch-wide declaration, and the engine refuses any target that
+    # already exists.
+    create: object = False
     parallel: object = False
     max_workers: object = 4
     require_diff_authorization: object = None

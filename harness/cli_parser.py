@@ -275,6 +275,10 @@ def build_parser():
     pa = sub.add_parser("apply", help="Scoped code edit with a verification loop + consent continuation")
     pa.add_argument("--file", action="append", default=None,
                     help="target file; repeat the flag for a multi-file batch (one session, shared gate)")
+    pa.add_argument("--create", action="store_true", default=False,
+                    help="create the target file(s) instead of editing them: every --file "
+                         "must not exist yet (the engine refuses existing files, symlinks, "
+                         "and directories at the target, exactly like the edit path)")
     pa.add_argument("--instruction", default=None)
     _add_engine_flags(pa, max_tokens_default=4096)
     pa.add_argument("--keep-going", dest="keep_going", action="store_true", default=False,

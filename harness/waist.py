@@ -359,6 +359,11 @@ def build_decomposition_prompt(
         "     target file in this step (the executor sees no other context):",
         "     what to write, with the exact behavior, signatures, and cases.",
         "   - 'target_files': list of exact files modified by this subtask (at most 1-2 files per node).",
+        "   - 'create_files': the subset of target_files that do NOT exist yet",
+        "     and must be CREATED (greenfield files, e.g. a new package). Name",
+        "     a file here exactly when it is absent from AVAILABLE / CANDIDATE",
+        "     FILES above; the executor refuses to create any target NOT listed",
+        "     here, so a typo'd path can never conjure an unintended file.",
         "   - 'dependencies': list of node_ids that MUST pass before this subtask can begin.",
         "   - 'local_gate': automated verification command run in the target",
         "     file's directory (e.g. 'python -m unittest test_types') or null.",
@@ -374,6 +379,7 @@ def build_decomposition_prompt(
         '      "node_id": "task_1",',
         '      "instruction": "Create pkg/types.py defining the ShipmentsFilter dataclass with fields query (str), limit (int, default 20); include a __repr__.",',
         '      "target_files": ["pkg/types.py"],',
+        '      "create_files": ["pkg/types.py"],',
         '      "dependencies": [],',
         '      "local_gate": "python -m unittest tests.test_types",',
         '      "complexity_tier": 0',
@@ -580,13 +586,27 @@ def parse_decomposition_response(response_text: str) -> TaskDAG:
 
 
 
-def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]] = None) -> TaskDAG:
-    # Deterministic heuristic decomposition into a TaskDAG
+def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]] = None,
+                             *, root_dir: Optional[str] = None) -> TaskDAG:
+    # Deterministic heuristic decomposition into a TaskDAG.
+    # #456 greenfield creation: candidate files that do not exist under
+    # root_dir are marked create_files, so the executor creates (not edits)
+    # them. Without root_dir every candidate is assumed to exist.
     if not goal or not goal.strip():
         raise HarnessError("goal cannot be empty")
 
     files = [f.strip() for f in (candidate_files or []) if str(f).strip()]
     nodes: Dict[str, DAGNode] = {}
+
+    def _creates(targets):
+        if root_dir is None:
+            return ()
+        missing = []
+        for rel in targets:
+            full = rel if os.path.isabs(rel) else os.path.join(root_dir, rel)
+            if not os.path.exists(full):
+                missing.append(rel)
+        return tuple(missing)
 
     # Check for numbered or bulleted steps in goal
     steps = [s.strip() for s in re.split(r"(?:^|\n)\s*(?:\d+[\.\)]|[-*])\s+", goal.strip()) if s.strip()]
@@ -602,6 +622,7 @@ def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]]
                 node_id=node_id,
                 instruction=step,
                 target_files=target,
+                create_files=_creates(target),
                 dependencies=deps,
                 complexity_tier=1,
             )
@@ -619,6 +640,7 @@ def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]]
                 node_id=node_id,
                 instruction=f"{goal.strip()} for {f}",
                 target_files=(f,),
+                create_files=_creates((f,)),
                 dependencies=(),
                 complexity_tier=1,
             )
@@ -630,6 +652,7 @@ def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]]
                 node_id=node_id,
                 instruction=f"Update tests in {f} for {goal.strip()}",
                 target_files=(f,),
+                create_files=_creates((f,)),
                 dependencies=tuple(impl_ids),
                 complexity_tier=1,
             )
@@ -648,6 +671,7 @@ def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]]
             node_id="task_1",
             instruction=goal.strip(),
             target_files=target,
+            create_files=_creates(target),
             dependencies=(),
             complexity_tier=1,
         )
@@ -864,6 +888,7 @@ def build_consensus_prompt(plan_result: Dict[str, Any]) -> str:
     """Cheap plan-soundness prompt (HG-plan-consensus)."""
     nodes = [
         {k: n[k] for k in ("node_id", "instruction", "target_files",
+                           "create_files",
                            "dependencies", "local_gate", "complexity_tier")
          if k in n}
         for n in plan_result.get("nodes", [])
@@ -965,7 +990,8 @@ def plan_task(
     # jev_route: optional JEV-P3 typed route (vocabulary only) used as a
     # tier floor when keyed; unkeyed callers leave it None.
     dag = (decomposed_dag if decomposed_dag is not None
-           else heuristic_decompose_goal(goal, candidate_files))
+           else heuristic_decompose_goal(goal, candidate_files,
+                                         root_dir=root))
     node_details: List[Dict[str, Any]] = []
     total_ceiling = 0.0
 
@@ -996,6 +1022,7 @@ def plan_task(
             node_id=node.node_id,
             instruction=node.instruction,
             target_files=node.target_files,
+            create_files=node.create_files,
             dependencies=node.dependencies,
             local_gate=gate,
             complexity_tier=route.classification.tier,
@@ -1005,6 +1032,7 @@ def plan_task(
             "node_id": node.node_id,
             "instruction": node.instruction,
             "target_files": list(node.target_files),
+            "create_files": list(node.create_files),
             "dependencies": list(node.dependencies),
             "local_gate": gate,
             "complexity_tier": route.classification.tier,
@@ -1129,6 +1157,7 @@ def build_waist_prompt(
     """
     nodes = [
         {k: n[k] for k in ("node_id", "instruction", "target_files",
+                           "create_files",
                            "dependencies", "local_gate", "complexity_tier")
          if k in n}
         for n in plan_result.get("nodes", [])

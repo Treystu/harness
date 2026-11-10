@@ -222,6 +222,15 @@ class ApplyEngine(ApplyEngineMixin):
                     "the authoritative verification gate must run")
             verify_only = saved_verify_only
         max_lines = continuation.get("max_lines", kwargs.get("max_lines", MAX_FILE_LINES))
+        # #456 greenfield creation: this request creates its target instead
+        # of editing it. A saved continuation owns a gate verified against
+        # its own file baseline, so a create -- whose baseline is 'no file'
+        # -- can never resume one; start a fresh create instead.
+        create = bool(kwargs.get("create"))
+        if create and resumed:
+            raise HarnessError(
+                "a create request cannot resume a continuation; "
+                "start a fresh create for the new file")
         verify_cmd = kwargs.get("verify_cmd")
         if resumed and verify_only:
             # verify-only is intentionally gate-free; never execute a command
@@ -300,14 +309,21 @@ class ApplyEngine(ApplyEngineMixin):
                  else kwargs.get("renew_consent"))
         task_start_spent = self.governor.spent
 
-        validate_target_file(file_path)
-        # The 500-line rewrite ceiling exists because whole-file rewrites scale
-        # with file size. Diff mode (#11) only emits touched hunks, so it is
-        # exempt -- this is what makes large files editable on the free tier.
-        if backend != "diff" and _line_count(file_path) > max_lines:
-            raise HarnessError(
-                f"file is >{max_lines} lines; out of scope for whole-file rewrite. "
-                f"Use backend='diff' (unified diff) for large files.")
+        if create:
+            # Greenfield target: the file must NOT exist (creating over it
+            # is an edit), there is no original to read and no line ceiling
+            # to check -- the whole content is the model's deliverable.
+            validate_target_file(file_path, allow_create=True)
+            original = ""
+        else:
+            validate_target_file(file_path)
+            # The 500-line rewrite ceiling exists because whole-file rewrites scale
+            # with file size. Diff mode (#11) only emits touched hunks, so it is
+            # exempt -- this is what makes large files editable on the free tier.
+            if backend != "diff" and _line_count(file_path) > max_lines:
+                raise HarnessError(
+                    f"file is >{max_lines} lines; out of scope for whole-file rewrite. "
+                    f"Use backend='diff' (unified diff) for large files.")
         validated = validate_apply_request(
             max_rounds=kwargs.get("max_rounds", MAX_APPLY_ROUNDS),
             max_tokens=kwargs.get("max_tokens") or 4096,
@@ -378,8 +394,9 @@ class ApplyEngine(ApplyEngineMixin):
             # The stepped rung leads; the original ordering rotates behind.
             ordered = [model] + [m_ for m_ in (ordered or []) if m_ != model]
 
-        with open(file_path, encoding="utf-8") as f:
-            original = f.read()
+        if not create:
+            with open(file_path, encoding="utf-8") as f:
+                original = f.read()
 
         # The file's verification gate runs in the FILE's directory: a gate
         # the plan author wrote for this file's project (`import util`,
@@ -399,6 +416,7 @@ class ApplyEngine(ApplyEngineMixin):
             reasoning=reasoning, renew=renew,
             allow_escalation=kwargs.get("allow_escalation"), model=model,
             ordered=ordered, profiles=profiles, want_consent=want_consent,
+            create=create,
             original=original, task_start_spent=task_start_spent,
             continuation=continuation,
             continuation_gate=continuation_gate,

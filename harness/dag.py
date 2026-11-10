@@ -20,6 +20,12 @@ class DAGNode:
     node_id: str
     instruction: str
     target_files: Tuple[str, ...] = ()
+    # #456 greenfield creation: the subset of target_files that do not
+    # exist yet and must be CREATED (not edited) by this node. The
+    # executor passes create=True for these targets only; every other
+    # target keeps the edit path's must-exist refusal, so a typo'd path
+    # can never conjure an unintended file.
+    create_files: Tuple[str, ...] = ()
     dependencies: Tuple[str, ...] = ()
     local_gate: Optional[str] = None
     complexity_tier: int = 1
@@ -33,6 +39,7 @@ class DAGNode:
             "node_id": self.node_id,
             "instruction": self.instruction,
             "target_files": list(self.target_files),
+            "create_files": list(self.create_files),
             "dependencies": list(self.dependencies),
             "local_gate": self.local_gate,
             "complexity_tier": self.complexity_tier,
@@ -50,6 +57,11 @@ class DAGNode:
         if not instruction:
             raise HarnessError(f"DAG node {node_id!r} missing instruction")
         target_files = tuple(str(f).strip() for f in data.get("target_files", ()) if str(f).strip())
+        create_files = tuple(str(f).strip() for f in data.get("create_files", ()) if str(f).strip())
+        unknown = [f for f in create_files if f not in target_files]
+        if unknown:
+            raise HarnessError(
+                f"DAG node {node_id!r} marks create_files outside its target_files: {unknown}")
         dependencies = tuple(str(d).strip() for d in data.get("dependencies", ()) if str(d).strip())
         local_gate = data.get("local_gate")
         local_gate_str = str(local_gate).strip() if local_gate is not None and str(local_gate).strip() else None
@@ -68,6 +80,7 @@ class DAGNode:
             node_id=node_id,
             instruction=instruction,
             target_files=target_files,
+            create_files=create_files,
             dependencies=dependencies,
             local_gate=local_gate_str,
             complexity_tier=complexity_tier,
