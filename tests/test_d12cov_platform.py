@@ -77,7 +77,11 @@ class OsalFileLockEdgeTests(TempTree):
         if mkfifo is None:
             self.skipTest("POSIX fifo (os.mkfifo) unavailable on this "
                           "platform: windows")
-        mkfifo(fifo)
+        try:
+            mkfifo(fifo)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest("POSIX fifo creation unsupported on this host: "
+                          "{}".format(exc))
         with self.assertRaises(osal.OsalError) as caught:
             osal.acquire_file_lock(fifo)
         self.assertIn("must be a regular file", str(caught.exception))
