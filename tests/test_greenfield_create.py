@@ -23,9 +23,8 @@ from harness.executor import PlanExecutor
 from harness.filesafety import validate_target_file
 from harness.repo_scope import discover_target_files
 from harness.waist import heuristic_decompose_goal
-from tests._applyfixture import (APPLY, ApplyFixture, CODER_A, CODER_B,
-                                 ESC, JUDGE, scripted_run)
-from tests._fake import FakeTransport, comp, m
+from tests._applyfixture import (ApplyFixture)
+from tests._fake import comp
 
 
 class ValidateCreateTests(unittest.TestCase):
