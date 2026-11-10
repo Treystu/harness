@@ -415,6 +415,17 @@ class HttpGateTests(unittest.TestCase):
             return_value=_planner_for(_LAUNCH))
         planner.start()
         self.addCleanup(planner.stop)
+        self.addCleanup(self._teardown)
+
+    def _teardown(self):
+        # Mirror ServerHarness: the event sink is module-global and capped;
+        # a leaked sink per test starves later servers, and a live server
+        # thread surfaces as an unclosed-socket ResourceWarning at GC.
+        from harness import events as _events
+        _events.remove_sink(self.httpd.ui._on_event)
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.thread.join(timeout=60)
 
     def _post(self, body, headers=None):
         conn = http.client.HTTPConnection("127.0.0.1", self.port,
