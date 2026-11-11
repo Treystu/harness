@@ -763,6 +763,21 @@ class MissionPromptCapTests(unittest.TestCase):
         self.assertIn("Mission: Refactor the parser", text)
         self.assertIn("Done when: Tests pass", text)
 
+    def test_render_carries_both_scope_lists(self):
+        spec = mr.build_mission_spec(
+            mission_id="cap-2", request="Fix the parser",
+            success_definition="Tests pass", max_cost_usd=0.5,
+            in_scope=["harness/", "tests/"],
+            out_of_scope=["docs/", "ci/"])
+        text = mr.render_mission_prompt(spec)
+        self.assertIn("In scope: harness/; tests/", text)
+        self.assertIn("Out of scope: docs/; ci/", text)
+        # No pointer, no scope: the goal still leads and nothing is empty.
+        bare = mr.render_mission_prompt(self._spec())
+        self.assertTrue(bare.startswith("Mission: "))
+        self.assertNotIn("In scope:", bare)
+        self.assertNotIn("Out of scope:", bare)
+
     def test_fit_reports_the_numbers_a_caller_needs(self):
         report = mr.mission_prompt_fit("x" * 4000)
         self.assertTrue(report["fits"])
