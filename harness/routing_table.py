@@ -618,18 +618,29 @@ def route_for_model(model_id: str, *, settings: Any = None,
 
     Flag precedence: an explicit argument wins; else the settings surface when
     one is supplied; else the backend the id itself names. A Muse id is only
-    ever placed in a pool under the Muse preset, so its own identity is the
-    honest default -- the fail-closed gates stay where they belong, at the
-    uncommitted-offer lookup and the missing-key check in dispatch.
+    ever placed in a pool under the Muse preset, and a Fireworks id is only
+    ever placed there by naming its confirmed serverless path, so either id's
+    own identity is the honest default when no settings object was threaded --
+    the fail-closed gates stay where they belong, at the uncommitted-offer
+    lookup and the missing-key check in dispatch.
+
+    #304: the Fireworks half of that rule is load-bearing. ``panel_judge`` has
+    no settings surface, so its ``chat_routed`` calls resolve with
+    ``settings=None``; without the identity default every Fireworks panel seat
+    raised "fireworks is disabled" even in a deployment whose settings (and
+    env) enabled the provider.
     """
-    from .config import is_meta_model_id
+    from .config import is_fireworks_model_path, is_meta_model_id
     from .fireworks import resolve_route
     if openrouter_enabled is None:
         openrouter_enabled = bool(
             getattr(settings, "openrouter_enabled", True))
     if fireworks_enabled is None:
-        fireworks_enabled = bool(
-            getattr(settings, "fireworks_enabled", False))
+        if settings is not None:
+            fireworks_enabled = bool(
+                getattr(settings, "fireworks_enabled", False))
+        else:
+            fireworks_enabled = is_fireworks_model_path(model_id)
     if meta_enabled is None:
         if settings is not None:
             meta_enabled = bool(getattr(settings, "meta_enabled", False))

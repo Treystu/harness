@@ -23,6 +23,7 @@ from .config import (
     OPENROUTER_CHAT_URL,
     is_fireworks_model_path,
     is_meta_model_id,
+    resolve_fireworks_key,
     resolve_meta_key,
 )
 from .errors import HarnessError, ProviderUsageUnknown, ToolCancelled
@@ -391,21 +392,22 @@ def _ensure_accounted(governor, model, resp, usage):
     usage["cost_estimated"] = True
 
 
-def _may_lend_threaded_key(governor, api_key):
-    """Whether the lane-threaded api_key may serve as the Meta key (#449).
+def _may_lend_threaded_key(governor, api_key, backend_label="meta"):
+    """Whether the lane-threaded api_key may serve a direct backend (#449).
 
     Outside Meta mode api_key is the OpenRouter key (session.governor_for)
-    and must never be posted to META_CHAT_URL. Only a governor that
-    governor_for built for the Meta lane vouches for it: key_info label
-    "meta" (never set by OpenRouter verification) on the governor whose
-    own key is the threaded one.
+    and must never be posted to META_CHAT_URL; the same leak would land it on
+    the Fireworks endpoint (#304). Only a governor that governor_for built for
+    that backend vouches for it: key_info label "meta" or "fireworks" (never
+    set by OpenRouter verification) on the governor whose own key is the
+    threaded one.
     """
     if not api_key or governor is None:
         return False
     if getattr(governor, "api_key", None) != api_key:
         return False
     label = (getattr(governor, "key_info", None) or {}).get("label")
-    return label == "meta"
+    return label == backend_label
 
 
 def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto",
@@ -448,7 +450,24 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
         return _chat_meta(transport, key, model, messages, max_tokens,
                           governor=governor)
     if is_fireworks_model_path(model):
-        return _chat_fireworks(transport, api_key, model, messages, max_tokens,
+        # #304: a confirmed Fireworks path names its own backend, and the
+        # threaded api_key is normally the OpenRouter key -- posting it to
+        # FIREWORKS_CHAT_URL would be a cross-provider credential leak. The
+        # configured Fireworks key wins; the threaded key is used only when
+        # the governor vouches it is the Fireworks key (key_info label
+        # "fireworks", set by session.governor_for). No key at all refuses
+        # here rather than falling back to another provider.
+        key = resolve_fireworks_key()
+        if not key and _may_lend_threaded_key(governor, api_key,
+                                              backend_label="fireworks"):
+            key = api_key
+        if not key:
+            raise HarnessError(
+                "Fireworks key missing: set ~/.config/scmorc/fireworks.env, "
+                "$HARNESS_CONFIG_DIR/fireworks.env (default: "
+                "~/.config/harness/fireworks.env), FIREWORKS_API_KEY, or "
+                "HARNESS_FIREWORKS_KEY")
+        return _chat_fireworks(transport, key, model, messages, max_tokens,
                                governor=governor)
     canonical_model = strip_variant_suffix(model)
     if governor:
@@ -990,8 +1009,14 @@ def chat_routed(transport, api_key, model, messages, max_tokens,
                     and api_key:
                 meta_key = api_key
     elif route.provider == FIREWORKS_PROVIDER:
+        # #304: the key surface follows the backend the route names, exactly
+        # as the Meta branch does. Without the configured-key fallback a
+        # settings-less lane (the panel's judge and vote seats) reached
+        # chat_for_route with no Fireworks key and refused even when a key
+        # was installed.
         fireworks_key = (fireworks_key
-                         or getattr(settings, "fireworks_key", None))
+                         or getattr(settings, "fireworks_key", None)
+                         or resolve_fireworks_key())
     return chat_for_route(
         route, transport, api_key, fireworks_key, messages, max_tokens,
         governor=governor, meta_key=meta_key,

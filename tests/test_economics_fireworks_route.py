@@ -14,8 +14,12 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
+from types import SimpleNamespace
+
 from harness import config
-from harness.chat import chat_for_route
+from harness.chat import chat, chat_for_route, chat_routed
+from harness.panel import _run_judge_attempt
+from harness.routing_table import route_for_model
 from harness.config import (FIREWORKS_CHAT_URL, FIREWORKS_PROVIDER,
                             OPENROUTER_CHAT_URL, load_settings)
 from harness.errors import HarnessError
@@ -283,3 +287,98 @@ class NoNetworkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IdentityDefaultTests(unittest.TestCase):
+    """#304: a confirmed Fireworks path names its own backend with no settings."""
+
+    def test_fireworks_path_resolves_with_no_settings_object(self):
+        route = route_for_model(NEMO)
+        self.assertEqual(route.provider, FIREWORKS_PROVIDER)
+        self.assertEqual(route.wire_model, NEMO)
+
+    def test_explicit_settings_still_refuse_a_disabled_provider(self):
+        settings = SimpleNamespace(openrouter_enabled=True,
+                                   fireworks_enabled=False, meta_enabled=False)
+        with self.assertRaisesRegex(HarnessError, "fireworks is disabled"):
+            route_for_model(NEMO, settings=settings)
+
+    def test_ordinary_model_still_resolves_to_openrouter_with_no_settings(self):
+        self.assertEqual(route_for_model(OR_MODEL).provider, "openrouter")
+
+
+class SettingslessDispatchTests(_IsolatedHome):
+    """The panel shape: chat_routed with settings=None and a key installed."""
+
+    def test_routed_fireworks_call_resolves_the_configured_key(self):
+        self._write(".config/harness/fireworks.env",
+                    "FIREWORKS_API_KEY=fw-file-key\n")
+        transport = RecordingTransport(_resp({"cost": 0.0}))
+        status, _ = chat_routed(transport, "or-key", NEMO, MESSAGES, 8)
+        self.assertEqual(status, 200)
+        url, key, _payload = transport.calls[0]
+        self.assertEqual(url, FIREWORKS_CHAT_URL)
+        self.assertEqual(key, "fw-file-key")
+        self.assertNotEqual(key, "or-key")
+
+    def test_routed_call_with_no_key_refuses_before_dispatch(self):
+        transport = RecordingTransport(_resp({"cost": 0.0}))
+        with self.assertRaisesRegex(HarnessError, "Fireworks key missing"):
+            chat_routed(transport, "or-key", NEMO, MESSAGES, 8)
+        self.assertEqual(transport.calls, [])
+
+    def test_panel_judge_seat_dispatches_to_fireworks(self):
+        # The reported symptom: this seat raised "fireworks is disabled"
+        # even with the provider enabled in the deployment.
+        self._write(".config/harness/fireworks.env",
+                    "FIREWORKS_API_KEY=fw-file-key\n")
+        transport = RecordingTransport(_resp({"cost": 0.0}))
+        gov = SpendGovernor(transport, "or-key", max_cost=1.0,
+                            fireworks_budget_usd=0.05)
+        _run_judge_attempt(
+            transport=transport, api_key="or-key", governor=gov,
+            judge_prompt="return JSON", model=NEMO, judge_reserve_tokens=8,
+            reasoning_effort="auto", reasoning_token_budget=0.4,
+            task_id=None, ledger=None, task_type="panel",
+        )
+        self.assertEqual(transport.calls[0][0], FIREWORKS_CHAT_URL)
+        self.assertEqual(transport.calls[0][1], "fw-file-key")
+
+
+class DirectChatKeyFallbackTests(_IsolatedHome):
+    """chat()'s own Fireworks head resolves the key instead of lending it."""
+
+    def _governor(self, transport, key, label):
+        gov = SpendGovernor(transport, key, max_cost=1.0,
+                            fireworks_budget_usd=0.05)
+        gov.key_info = {"label": label, "limit": 1.0, "remaining": 1.0}
+        return gov
+
+    def test_direct_fireworks_chat_never_posts_the_openrouter_key(self):
+        self._write(".config/harness/fireworks.env",
+                    "FIREWORKS_API_KEY=fw-file-key\n")
+        transport = RecordingTransport(_resp({"cost": 0.0}))
+        chat(transport, "or-key", NEMO, MESSAGES, 8,
+             governor=self._governor(transport, "or-key", "openrouter"))
+        self.assertEqual(transport.calls[0][0], FIREWORKS_CHAT_URL)
+        self.assertEqual(transport.calls[0][1], "fw-file-key")
+
+    def test_direct_fireworks_chat_without_a_key_refuses(self):
+        transport = RecordingTransport(_resp({"cost": 0.0}))
+        with self.assertRaisesRegex(HarnessError, "Fireworks key missing"):
+            chat(transport, "or-key", NEMO, MESSAGES, 8,
+                 governor=self._governor(transport, "or-key", "openrouter"))
+        self.assertEqual(transport.calls, [])
+
+    def test_threaded_key_is_lent_only_when_the_governor_vouches(self):
+        transport = RecordingTransport(_resp({"cost": 0.0}))
+        chat(transport, "fw-threaded", NEMO, MESSAGES, 8,
+             governor=self._governor(transport, "fw-threaded", "fireworks"))
+        self.assertEqual(transport.calls[0][1], "fw-threaded")
+
+    def test_unvouched_threaded_key_is_refused(self):
+        transport = RecordingTransport(_resp({"cost": 0.0}))
+        with self.assertRaisesRegex(HarnessError, "Fireworks key missing"):
+            chat(transport, "or-key", NEMO, MESSAGES, 8,
+                 governor=self._governor(transport, "or-key", "openrouter"))
+        self.assertEqual(transport.calls, [])
