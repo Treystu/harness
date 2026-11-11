@@ -26,7 +26,7 @@
       "cached_input": 0.006,
       "output": 1.2,
       "slug": "deepseek-v4p1-flash",
-      "path": null
+      "path": "accounts/fireworks/models/deepseek-v4p1-flash"
     },
     {
       "name": "GLM 5.3",
@@ -34,7 +34,7 @@
       "cached_input": 0.26,
       "output": 4.4,
       "slug": "glm-5p3",
-      "path": null
+      "path": "accounts/fireworks/models/glm-5p3"
     },
     {
       "name": "GLM 5.3 Flash",
@@ -66,7 +66,7 @@
       "cached_input": 0.3,
       "output": 15.0,
       "slug": "kimi-k3",
-      "path": null
+      "path": "accounts/fireworks/models/kimi-k3"
     },
     {
       "name": "MiniMax M3",

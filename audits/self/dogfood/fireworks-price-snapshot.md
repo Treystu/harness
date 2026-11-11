@@ -6,6 +6,7 @@
 - https://app.fireworks.ai/models?capability=serverless (live serverless view, read 2026-10-08, 15 results). The source for live-confirmed Standard rates and model names. It shows no `accounts/...` paths and no Priority prices.
 - https://docs.fireworks.ai/serverless/pricing (Priority figures, US and Fast variants, size-based tiers). Not on the live page, so unverified for per-model rows.
 - https://fireworks.ai/models/fireworks/nemotron-lightning-3p5-30b-a3b (model path and price, confirmed on its model page).
+- Authenticated model catalog, read 2026-11-11 (`GET https://api.fireworks.ai/inference/v1/models`, 31 entries): confirms the `accounts/fireworks/models/` paths for DeepSeek V4.1 Flash, GLM 5.3 and Kimi K3. Read-only catalog GET, made for path confirmation under dispatch FW-ROUTING-1; no completion call was made for these rows. The RATES below remain the 2026-10-08 capture.
 - User paste of the same live list. It matches the live view row for row on names and rates. It is not checked beyond that comparison.
 
 **Units:** USD per 1M tokens, written as input / cached input / output. Reranker and embedding rates are per 1M input tokens.
@@ -22,12 +23,12 @@
 |---|---|---|---|---|
 | Nemotron Lightning 3.5 30B A3B | 0.05 / 0.01 / 0.20 | live-confirmed | confirmed: `nemotron-lightning-3p5-30b-a3b` | 0.0625 / 0.0125 / 0.25 |
 | Ember-1 | 3.00 / 0.30 / 15.00 | live-confirmed | unconfirmed: `ember-1` | 3.75 / 0.375 / 18.75 |
-| DeepSeek V4.1 Flash | 0.30 / 0.006 / 1.20 | live-confirmed | unconfirmed: `deepseek-v4p1-flash` | 0.375 / 0.0075 / 1.50 |
-| GLM 5.3 | 1.40 / 0.26 / 4.40 | live-confirmed | unconfirmed: `glm-5p3` | 1.75 / 0.325 / 5.50 |
+| DeepSeek V4.1 Flash | 0.30 / 0.006 / 1.20 | live-confirmed | confirmed: `deepseek-v4p1-flash` | 0.375 / 0.0075 / 1.50 |
+| GLM 5.3 | 1.40 / 0.26 / 4.40 | live-confirmed | confirmed: `glm-5p3` | 1.75 / 0.325 / 5.50 |
 | GLM 5.3 Flash | 0.15 / 0.03 / 0.50 | live-confirmed | unconfirmed: `glm-5p3-flash` | 0.1875 / 0.0375 / 0.625 |
 | GLM 5.2 | 1.40 / 0.14 / 4.40 | live-confirmed | unconfirmed: `glm-5p2` | not in docs table |
 | Qwen 3.8 Max | 2.00 / 0.25 / 6.00 | live-confirmed | unconfirmed: `qwen3p8-max` | 3.00 / 0.375 / 9.00 |
-| Kimi K3 | 3.00 / 0.30 / 15.00 | live-confirmed | unconfirmed: `kimi-k3` | 3.75 / 0.375 / 18.75 |
+| Kimi K3 | 3.00 / 0.30 / 15.00 | live-confirmed | confirmed: `kimi-k3` | 3.75 / 0.375 / 18.75 |
 | MiniMax M3 | 0.30 / 0.06 / 1.20 | live-confirmed | unconfirmed: `minimax-m3` | 0.45 / 0.09 / 1.80 |
 | OpenAI gpt-oss-120b | 0.15 / 0.015 / 0.60 | live-confirmed | unconfirmed: `gpt-oss-120b` | 0.18 / 0.018 / 0.72 |
 | NVIDIA Nemotron 3 Ultra NVFP4 | 0.60 / 0.12 / 2.40 | live-confirmed | unconfirmed: `nemotron-3-ultra-nvfp4` | 0.75 / 0.15 / 3.00 (see note 1) |
