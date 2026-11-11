@@ -53,6 +53,14 @@ class ProviderSpendLimitError(HarnessError):
         from .events import mark_provider_spend_limit
         mark_provider_spend_limit(self)
         status = f" (HTTP {http_status})" if http_status is not None else ""
+        # The provider usually DOES say why it refused -- "You requested up to
+        # 4096 tokens, but can only afford 563" names both the limit and the
+        # remedy (#493). Discarding that text made a decidable refusal read as
+        # "without identifying the cause", so it is carried, redacted, on every
+        # cause; secrets in it are stripped before it can reach a log.
+        self.provider_message = redact_secrets(self.detail)[:400]
+        quoted = (f" Provider said: {self.provider_message}"
+                  if self.provider_message else "")
         if self.cause == "route_or_model_restriction":
             message = (
                 f"Upstream provider refused this model or route{status}. "
@@ -61,19 +69,30 @@ class ProviderSpendLimitError(HarnessError):
             )
             self.next_step = "select a model or route the active key can reach"
         elif self.cause == "unknown":
-            message = (
-                f"Upstream provider returned payment required{status} without "
-                "identifying the cause. This is not a Harness run-cap finding; "
-                "check the provider balance, key limits, and whether this "
-                "model or route is available to the key before retrying."
-            )
-            self.next_step = None
+            if self.provider_message:
+                message = (
+                    f"Upstream provider returned payment required{status}; its "
+                    "own message names the cause." + quoted + " This is not a "
+                    "Harness run-cap finding.")
+                self.next_step = ("follow the provider's message: shrink the "
+                                  "request to what the key can afford, or raise "
+                                  "the key/account limit")
+            else:
+                message = (
+                    f"Upstream provider returned payment required{status} without "
+                    "identifying the cause. This is not a Harness run-cap finding; "
+                    "check the provider balance, key limits, and whether this "
+                    "model or route is available to the key before retrying."
+                )
+                self.next_step = None
         else:
             message = (
                 f"Upstream provider spend limit exhausted{status}. "
                 "The active Harness operation was stopped; add credits or raise "
                 "the API key/account spend limit before retrying."
             )
+            if quoted:
+                message = f"{message} {quoted}"
             self.next_step = "add credits or raise the provider spend limit"
         super().__init__(message)
 

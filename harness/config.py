@@ -220,7 +220,14 @@ def effective_lane_policy(role, max_tokens=None, reasoning_effort=None):
     """
     requested = int(max_tokens or 0)
     if role == "vote":
-        effort = reasoning_effort or "off"
+        # "auto" is the settings sentinel, not a caller's explicit choice, so
+        # it must not outrank the vote lane's own contract: a vote disables
+        # reasoning unless the caller names an effort. Letting "auto" through
+        # put a reasoning trace inside the vote budget, which is how a seat
+        # returned reasoning-only output and burned that budget (#493).
+        chosen = (reasoning_effort or "").strip().lower()
+        effort = (chosen if chosen in ("off", "none", "low", "medium", "high", "on")
+                  else "off")
         return max(requested, MIN_VOTE_TOKENS), effort
     if role in ("judge", "escalation"):
         effort = reasoning_effort or "auto"
