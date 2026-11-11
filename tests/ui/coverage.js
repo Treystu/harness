@@ -13,6 +13,7 @@ function relativeAsset(url) {
   try {
     const pathname = new URL(url).pathname;
     if (pathname.endsWith("/app.js")) return "harness/ui/app.js";
+    if (pathname.endsWith("/app.css")) return "harness/ui/app.css";
     if (pathname.endsWith("/panes.js")) return "harness/ui/panes.js";
     if (pathname.endsWith("/panes.css")) return "harness/ui/panes.css";
   } catch (_error) {}
@@ -118,7 +119,13 @@ async function collectCss(state) {
   const seen = new Set();
   for (const [styleSheetId, header] of state.stylesheets) {
     const rel = relativeAsset(header.sourceURL || "");
-    if (rel !== "harness/ui/panes.css") continue;
+    // Both served stylesheets are instrumented: app.css carries the core
+    // layout and the driver intake card, panes.css the workspace panes. A
+    // stylesheet left out of this list is not "uncovered" -- it is invisible,
+    // which is how the #273 card turned a green D12 red: every added app.css
+    // line was counted as checked-and-unexecuted because this file never
+    // emitted executable_lines for it at all.
+    if (rel !== "harness/ui/panes.css" && rel !== "harness/ui/app.css") continue;
     const file = path.join(repoRoot, rel.replaceAll("/", path.sep));
     const text = fs.readFileSync(file, "utf8");
     const executable = new Set();
@@ -155,7 +162,7 @@ async function finishCoverage() {
 
 function writeCoverage() {
   if (!enabled) return;
-  for (const rel of ["harness/ui/app.js", "harness/ui/panes.js", "harness/ui/panes.css", "harness/ui/index.html"]) {
+  for (const rel of ["harness/ui/app.js", "harness/ui/app.css", "harness/ui/panes.js", "harness/ui/panes.css", "harness/ui/index.html"]) {
     if (!coverage.modules[rel]) coverage.modules[rel] = [];
     if (!coverage.executable_lines[rel]) coverage.executable_lines[rel] = [];
   }
