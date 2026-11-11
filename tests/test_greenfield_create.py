@@ -205,7 +205,9 @@ class DispatchCreateTests(unittest.TestCase):
         with open(real, "w", encoding="utf-8") as f:
             f.write("x = 1\n")
         os.symlink(real, os.path.join(self.dir.name, "link_mod.py"))
-        with self.assertRaisesRegex(HarnessError, "must not be a symlink"):
+        # The refusal is the shared workspace rule, so assert its wording --
+        # not a second spelling invented here (#486 CI failure).
+        with self.assertRaisesRegex(HarnessError, "symlink targets are excluded"):
             validate_dispatch(
                 "apply", {"root_dir": self.dir.name,
                           "file": "link_mod.py",
