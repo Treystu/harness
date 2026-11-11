@@ -322,7 +322,11 @@ def _effort_to_send(reasoning_effort, model_id):
     """
     e = (reasoning_effort or "auto").lower()
     if e in ("off", "none"):
-        return "none"
+        # A disable only means something to a model that reasons. Sending it to
+        # a model that does not adds a parameter whose only possible outcome is
+        # a rejection, and the second attempt that rejection is reserved for is
+        # real budget insurance against a risk that does not exist here.
+        return "none" if looks_reasoning(model_id) else None
     if e == "auto":
         return "low" if looks_reasoning(model_id) else None
     if e == "on":
