@@ -1,6 +1,6 @@
 # Fireworks serverless price snapshot
 
-**Captured:** 2026-10-08, from public pages only. No API calls were made and the Fireworks key was not used.
+**Captured:** 2026-10-08, from public pages only. No API calls were made and the Fireworks key was not used for the capture. The path column was extended later, on 2026-11-11, from one authenticated catalog read; the rates and their date are unchanged, and no completion call was made.
 
 **Sources:**
 - https://app.fireworks.ai/models?capability=serverless (live serverless view, read 2026-10-08, 15 results). The source for live-confirmed Standard rates and model names. It shows no `accounts/...` paths and no Priority prices.
