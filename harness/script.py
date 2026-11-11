@@ -209,6 +209,16 @@ def _scrubbed_env(policy: ScriptPolicy) -> Dict[str, str]:
     return env
 
 
+def scrubbed_child_env(policy: Optional[ScriptPolicy] = None) -> Dict[str, str]:
+    """The scrubbed environment as a public seam.
+
+    The project-run lane executes commands with the same allowlist rather than
+    its own copy, so a new secret added to the operator's shell stays
+    unreachable from every execution surface at once.
+    """
+    return _scrubbed_env(policy or ScriptPolicy())
+
+
 def _refuse(reason: str, message: str) -> ScriptRefused:
     return ScriptRefused(reason, message)
 
