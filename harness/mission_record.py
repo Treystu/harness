@@ -278,6 +278,65 @@ def build_mission_spec(
     })
 
 
+# ------------------------------------------------- mission prompt cap (#275)
+# The Freebuff desktop mission mode caps the pasted mission text at 4,000
+# characters and truncates silently (MAX_MISSION_PROMPT_CHARS in the shipped
+# bundle). The dossier on #275 records that as L10: an over-long generated
+# prompt loses exactly the part that steers the run, and the transcript never
+# says so. These helpers are the one owner of that measurement, so a Harness
+# lane that hands text to such a lane can refuse instead of finding out later.
+MAX_MISSION_PROMPT_CHARS = 4000
+
+
+def render_mission_prompt(spec: Any, *, pointer: Optional[str] = None) -> str:
+    """The text a Freebuff-style lane is pasted for *spec*.
+
+    Ordered so that truncation costs detail, never goal: an optional
+    repo-resident constitution pointer first (the Part-0 pattern the dossier
+    names), then the request, then the definition of done, then scope.
+    """
+    norm = validate_mission_spec(spec)
+    parts: List[str] = []
+    if pointer:
+        parts.append(str(pointer).strip())
+    parts.append(f"Mission: {norm['request']}")
+    parts.append(f"Done when: {norm['success_definition']}")
+    in_scope = norm["scope"]["in_scope"]
+    out_scope = norm["scope"]["out_of_scope"]
+    if in_scope:
+        parts.append("In scope: " + "; ".join(in_scope))
+    if out_scope:
+        parts.append("Out of scope: " + "; ".join(out_scope))
+    return "\n".join(part for part in parts if part)
+
+
+def mission_prompt_fit(text: Any) -> Dict[str, Any]:
+    """Measure a mission prompt against the 4,000-character lane cap (L10).
+
+    ``fits`` is the only pass condition. A caller that would send a longer
+    prompt has to shorten it: the receiving lane truncates silently, so a
+    prompt that merely *mostly* fits looks complete and is not.
+    """
+    length = len(str(text or ""))
+    return {
+        "chars": length,
+        "limit": MAX_MISSION_PROMPT_CHARS,
+        "fits": length <= MAX_MISSION_PROMPT_CHARS,
+        "over_by": max(0, length - MAX_MISSION_PROMPT_CHARS),
+    }
+
+
+def assert_mission_prompt_fits(text: Any) -> str:
+    """Return *text* when it fits the cap, else refuse with the numbers."""
+    report = mission_prompt_fit(text)
+    if not report["fits"]:
+        raise HarnessError(
+            f"mission prompt is {report['chars']} chars, {report['over_by']} "
+            f"over the {MAX_MISSION_PROMPT_CHARS}-char lane cap; shorten it "
+            "rather than letting the receiving lane truncate it silently")
+    return str(text)
+
+
 # ---------------------------------------------------------------- yaml
 # Minimal YAML subset (stdlib only — package has zero runtime deps).
 # Supports nested maps (2-space indent), lists of scalars, quoted scalars
