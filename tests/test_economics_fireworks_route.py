@@ -439,9 +439,11 @@ class VoteReasoningControlTests(unittest.TestCase):
     def test_the_provider_message_is_quoted_and_redacted(self):
         from harness.provider_errors import ProviderSpendLimitError
 
+        # Assembled at runtime: a literal key-shaped string in a test is
+        # what the driving-hygiene credential scan flags.
+        fake_key = "sk-" + "or-v1-" + "a" * 24
         err = ProviderSpendLimitError(
-            "insufficient credits for " + "sk-" + "or-v1-" + "a" * 24 + "
-",
+            "insufficient credits for " + fake_key,
             http_status=402, cause="unknown")
         text = str(err)
         self.assertIn("[REDACTED]", text)
