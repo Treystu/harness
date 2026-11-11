@@ -24,8 +24,21 @@ import os
 import time
 from dataclasses import dataclass, replace
 
-from .config import CAPABILITIES_PATH, CAPABILITIES_TTL
+from .config import (CAPABILITIES_PATH, CAPABILITIES_TTL,
+                     is_fireworks_model_path, is_meta_model_id)
 from .output import eprint
+
+
+def is_direct_provider_path(model_id):
+    """True when the id names its own backend instead of an OpenRouter model.
+
+    A confirmed Fireworks path (``accounts/fireworks/models/...``) and a Muse
+    id route and price from their own provider surface, so the OpenRouter
+    ``/models`` catalog is not the authority on whether they exist. #492: this
+    predicate exists so the catalog-membership filter below cannot drop them
+    as "unknown".
+    """
+    return is_fireworks_model_path(model_id) or is_meta_model_id(model_id)
 
 # ---- score weights (task-aware) ----------------------------------------------
 # Capability is blended from three declared signals. Structured JSON is the
@@ -768,16 +781,32 @@ def ordered_pool(pool, *, governor, ledger, task, free_tier, profiles=None,
             # configured order/model rather than trusting a prior-less echo.
             return list(pool or []), None
         pool_ = list(pool or [])
+        direct = []
         if profiles_:
-            # An id absent from the live catalog can never be routed (its
-            # pricing lookup hard-fails the whole run) -- drop it at this
-            # routing boundary so one stale configured id cannot kill a
-            # session that has other models available.
+            # An id absent from the live catalog can never be routed by
+            # OpenRouter (its pricing lookup hard-fails the whole run) -- drop
+            # it at this routing boundary so one stale configured id cannot
+            # kill a session that has other models available. A direct-provider
+            # path is the exception: it routes and prices from its own backend,
+            # so catalog absence says nothing about it (#492 -- a pack-confirmed
+            # Fireworks panel seat was being dropped here as "not in the live
+            # model catalog" and never reached dispatch at all). Such ids are
+            # held at their caller-given position and re-inserted below, so the
+            # capability ordering of the OpenRouter members cannot silently
+            # reorder a provider the caller named.
             known = set(profiles_)
-            pool_ = [m_ for m_ in pool_ if m_ in known]
+            kept = []
+            for idx, m_ in enumerate(pool_):
+                if m_ in known:
+                    kept.append(m_)
+                elif is_direct_provider_path(m_):
+                    direct.append((idx, m_))
+            pool_ = kept
         report = ledger.participation_report() if ledger is not None else None
         ordered = order_pool(pool_, profiles_, report, ledger=ledger,
                              task=task, free_tier=free_tier, call_lane=call_lane)
+        for idx, m_ in direct:
+            ordered.insert(min(idx, len(ordered)), m_)
         if not ordered:
             # Ordering produced nothing (e.g. every model hard-gated to a
             # zero capability prior) -- signal 'no informed ordering' rather
