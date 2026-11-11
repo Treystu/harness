@@ -478,6 +478,7 @@ def _batch_options(opts, continuation=None):
             opts, "require_diff_authorization", None),
         max_rotations=opts.max_rotations, backend=opts.backend,
         verify_only=opts.verify_only, max_lines=opts.max_lines,
+        create=getattr(opts, "create", False),
         continuation=continuation)
 
 

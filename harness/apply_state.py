@@ -42,6 +42,12 @@ class ApplyRequest:
     token_budget: object = None
     assignment_context: object = None
     staleness_reason: object = None
+    # #456 greenfield creation: this request creates a new file instead of
+    # editing an existing one. The engine validates accordingly (missing
+    # target required, no original, no backup) while governance -- atomic
+    # write, diff authorization, the file's own verification gate -- is
+    # identical to the edit path.
+    create: bool = False
 
 
 @dataclass

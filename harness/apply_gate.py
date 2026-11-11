@@ -176,7 +176,10 @@ class GatePolicy:
                 file_path=req.file_path, instruction=req.instruction,
                 current_content=state.current_content, new_content=content,
                 round_no=state.round_no, max_tokens=req.max_tokens)
-        if state.backup is None:
+        if state.backup is None and not getattr(req, "create", False):
+            # #456: a create has no original to preserve -- the file did not
+            # exist before this write, so there is nothing a restore could
+            # put back (and backup_file would only warn 'file not found').
             state.backup = backup_file(req.file_path, req.task_id,
                                        marker or state.round_no)
         _atomic_write(req.file_path, content)
