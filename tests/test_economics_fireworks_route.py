@@ -199,8 +199,8 @@ class ChatTests(unittest.TestCase):
         # the reasoning control the lane resolved travels with it. This test
         # used to demand its absence, which is what starved a vote's content.
         self.assertEqual(set(payload), {"model", "messages", "max_tokens",
-                                        "reasoning"})
-        self.assertEqual(payload["reasoning"], {"effort": "none"})
+                                        "reasoning_effort"})
+        self.assertEqual(payload["reasoning_effort"], "none")
         self.assertEqual(payload["model"], NEMO)
         self.assertEqual(payload["max_tokens"], 8)
 
@@ -407,7 +407,7 @@ class VoteReasoningControlTests(unittest.TestCase):
         class TwoStep:
             def post(self, url, key, payload, *a, **kw):
                 bodies.append(dict(payload))
-                if "reasoning" in payload:
+                if "reasoning_effort" in payload:
                     return 400, {"error": {"message":
                                            "unsupported parameter: reasoning"}}
                 return 200, {"choices": [{"message": {"content": "ok"}}],
@@ -420,8 +420,8 @@ class VoteReasoningControlTests(unittest.TestCase):
                 TwoStep(), "or-key", "fw-key", MESSAGES, 64,
                 governor=None, reasoning_effort="off")
         self.assertEqual(status, 200)
-        self.assertIn("reasoning", bodies[0])
-        self.assertNotIn("reasoning", bodies[1])
+        self.assertIn("reasoning_effort", bodies[0])
+        self.assertNotIn("reasoning_effort", bodies[1])
         noted.assert_called_once()
 
     def test_affordable_budget_retry_reads_the_provider_message(self):

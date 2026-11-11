@@ -896,12 +896,17 @@ def _chat_fireworks(transport, api_key, model, messages, max_tokens,
     """
     offer = resolve_offer(model)
     payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
-    reasoning = None
+    # Fireworks' OpenAI-shaped surface honours a TOP-LEVEL ``reasoning_effort``
+    # and ignores the nested OpenRouter ``reasoning`` object. Measured on the
+    # real verify prompt at the vote budget (4096): nested-disabled still spent
+    # all 4096 tokens on reasoning_content and returned no content, while
+    # reasoning_effort "none" returned 1613 chars with zero reasoning (#304).
+    # The lane's control therefore travels in the shape this provider reads.
+    effort_to_send = None
     if not reasoning_param_rejected(model):
-        reasoning = _build_reasoning_param(model, reasoning_effort, max_tokens,
-                                           reasoning_token_budget)
-    if reasoning:
-        payload["reasoning"] = reasoning
+        effort_to_send = _effort_to_send(reasoning_effort, model)
+    if effort_to_send:
+        payload["reasoning_effort"] = effort_to_send
     if governor is not None:
         governor.check_byok(model)
         governor.assert_no_tools(payload, model)
@@ -913,7 +918,7 @@ def _chat_fireworks(transport, api_key, model, messages, max_tokens,
         # budgets that the reserved worst case already covers.
         governor.assert_fireworks_budget(worst, model)
     status, resp = transport.post(FIREWORKS_CHAT_URL, api_key, payload)
-    if reasoning and status != 200:
+    if effort_to_send and status != 200:
         err = str(resp.get("error", {}).get("message", resp)
                   if isinstance(resp, dict) else resp).lower()
         if any(hint in err for hint in _REASONING_PARAM_ERR_HINTS):
@@ -923,7 +928,7 @@ def _chat_fireworks(transport, api_key, model, messages, max_tokens,
             _events.emit("rotation", model=model,
                          reason="reasoning_param_rejected",
                          note="provider retry without the reasoning parameter")
-            payload.pop("reasoning", None)
+            payload.pop("reasoning_effort", None)
             status, resp = transport.post(FIREWORKS_CHAT_URL, api_key, payload)
     if governor is not None and status == 200 and isinstance(resp, dict):
         usage = resp.get("usage")
