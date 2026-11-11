@@ -154,6 +154,24 @@
     </div>
   </div>
 
+  <!-- Driver NL intake (#273): one-prompt plan, confirm, execute -->
+  <section id="driver-nl" class="driver-nl" aria-label="Driver one-prompt intake">
+    <div class="driver-nl-row">
+      <input type="text" id="driver-nl-input" class="pane-input"
+             placeholder="Tell the driver what to do, e.g. open notepad and type hello"
+             aria-label="Driver instruction" autocomplete="off" spellcheck="false" />
+      <button type="button" id="btn-driver-nl-plan" class="pane-fetch">Plan</button>
+    </div>
+    <div id="driver-nl-card" class="driver-nl-card" hidden>
+      <ol id="driver-nl-steps" class="driver-nl-steps"></ol>
+      <div class="driver-nl-actions">
+        <button type="button" id="btn-driver-nl-run" class="btn-consent approve">Run Plan</button>
+        <button type="button" id="btn-driver-nl-cancel" class="btn-consent deny">Cancel</button>
+      </div>
+      <p id="driver-nl-status" class="driver-nl-status" role="status" aria-live="polite"></p>
+    </div>
+  </section>
+
   <!-- Chat Area -->
   <main id="chat-container">
     <!-- Welcome Hero (shown when no messages exist) -->
