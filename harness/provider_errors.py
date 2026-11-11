@@ -74,9 +74,9 @@ class ProviderSpendLimitError(HarnessError):
                     f"Upstream provider returned payment required{status}; its "
                     "own message names the cause." + quoted + " This is not a "
                     "Harness run-cap finding.")
-                self.next_step = ("follow the provider's message: shrink the "
-                                  "request to what the key can afford, or raise "
-                                  "the key/account limit")
+                # Cause stays unattributable, so no next step is claimed; the
+                # provider's own sentence is in the message for the operator.
+                self.next_step = None
             else:
                 message = (
                     f"Upstream provider returned payment required{status} without "

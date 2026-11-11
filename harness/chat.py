@@ -322,11 +322,12 @@ def _effort_to_send(reasoning_effort, model_id):
     """
     e = (reasoning_effort or "auto").lower()
     if e in ("off", "none"):
-        # A disable only means something to a model that reasons. Sending it to
-        # a model that does not adds a parameter whose only possible outcome is
-        # a rejection, and the second attempt that rejection is reserved for is
-        # real budget insurance against a risk that does not exist here.
-        return "none" if looks_reasoning(model_id) else None
+        # Always explicit, even for a model whose name does not look like a
+        # reasoner: omitting the key means the PROVIDER DEFAULT, which is
+        # reasoning ON for endpoints that reason by default. A name heuristic
+        # cannot see that, so it must never be allowed to drop the disable
+        # (tests/test_reasoning_disable.py pins this; #493).
+        return "none"
     if e == "auto":
         return "low" if looks_reasoning(model_id) else None
     if e == "on":

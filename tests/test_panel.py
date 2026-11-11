@@ -67,7 +67,7 @@ class PanelJudgeTests(unittest.TestCase):
             # now carries the explicit reasoning-disable (#493), and a
             # provider may reject it, so one seat reserves two attempts.
             # Actual spend below is unchanged at $0.0006.
-            gov = _gov(fake, max_cost=0.001)
+            gov = _gov(fake, max_cost=0.002)
             ledger = __import__("harness.ledger", fromlist=["AutonomyLedger"]).AutonomyLedger(path)
             ledger.ensure_offered_task_id("429-cost", source="test_setup")
             result = panel_judge(transport=fake, api_key="k", governor=gov, prompt="Q?",
@@ -101,7 +101,7 @@ class PanelJudgeTests(unittest.TestCase):
             # now carries the explicit reasoning-disable (#493), and a
             # provider may reject it, so one seat reserves two attempts.
             # Actual spend below is unchanged at $0.0006.
-            gov = _gov(fake, max_cost=0.001)
+            gov = _gov(fake, max_cost=0.002)
             ledger = __import__("harness.ledger", fromlist=["AutonomyLedger"]).AutonomyLedger(path)
             ledger.ensure_offered_task_id("rotation-cost", source="test_setup")
             result = panel_judge(transport=fake, api_key="k", governor=gov, prompt="Q?",
