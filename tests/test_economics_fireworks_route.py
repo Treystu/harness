@@ -436,6 +436,40 @@ class VoteReasoningControlTests(unittest.TestCase):
         self.assertIsNone(affordable_retry_tokens(err, 563))
         self.assertIn("563", str(err))
 
+    def test_a_named_affordable_budget_is_retried_once(self):
+        """The provider named 563 tokens; the run retries at that budget
+        instead of failing, and sends nothing larger again."""
+        bodies = []
+
+        class Budgeted:
+            def post(self, url, key, payload, *a, **kw):
+                bodies.append(dict(payload))
+                if len(bodies) == 1:
+                    return 402, {"error": {"message":
+                                           "This request requires more credits. "
+                                           "You requested up to 4096 tokens, "
+                                           "but can only afford 563."}}
+                return 200, {"choices": [{"message": {"content": "ok"}}],
+                             "usage": {"cost": 0.0}}
+
+            def get(self, *a, **kw):
+                return 200, {}
+
+        status, _resp = chat(Budgeted(), "or-key", "vendor/paid-pro", MESSAGES, 4096)
+        self.assertEqual(status, 200)
+        self.assertEqual([b["max_tokens"] for b in bodies], [4096, 563])
+
+    def test_a_message_without_a_number_keeps_the_original_failure(self):
+        from harness.chat import affordable_retry_tokens
+        from harness.provider_errors import ProviderSpendLimitError
+
+        err = ProviderSpendLimitError("insufficient credits", http_status=402,
+                                      cause="unknown")
+        self.assertIsNone(affordable_retry_tokens(err, 4096))
+        zero = ProviderSpendLimitError("can only afford 0 tokens",
+                                       http_status=402, cause="unknown")
+        self.assertIsNone(affordable_retry_tokens(zero, 4096))
+
     def test_the_provider_message_is_quoted_and_redacted(self):
         from harness.provider_errors import ProviderSpendLimitError
 
