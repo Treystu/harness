@@ -586,7 +586,8 @@ class ChatMetaRouteTests(unittest.TestCase):
         seen = {}
 
         def fake_fireworks(transport, key, model, messages, max_tokens,
-                           governor=None):
+                           governor=None, reasoning_effort="auto",
+                           reasoning_token_budget=0.4):
             seen.update(key=key, model=model)
             return "fw-response"
 

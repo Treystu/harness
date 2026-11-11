@@ -187,15 +187,20 @@ class ChatTests(unittest.TestCase):
         return SpendGovernor(transport, "or-key", max_cost=1.0,
                              fireworks_budget_usd=budget)
 
-    def test_fireworks_call_goes_to_the_fireworks_url_with_a_plain_payload(self):
+    def test_fireworks_call_carries_the_lane_reasoning_control(self):
         transport = RecordingTransport(_resp({"cost": 0.0}))
         route = resolve_route(NEMO, openrouter_enabled=True, fireworks_enabled=True)
         chat_for_route(route, transport, "or-key", "fw-key", MESSAGES, 8,
-                       governor=self._governor(transport))
+                       governor=self._governor(transport), reasoning_effort="off")
         url, key, payload = transport.calls[0]
         self.assertEqual(url, FIREWORKS_CHAT_URL)
         self.assertEqual(key, "fw-key")
-        self.assertEqual(set(payload), {"model", "messages", "max_tokens"})
+        # #304: the payload is still plain (no provider object, no floor), but
+        # the reasoning control the lane resolved travels with it. This test
+        # used to demand its absence, which is what starved a vote's content.
+        self.assertEqual(set(payload), {"model", "messages", "max_tokens",
+                                        "reasoning_effort"})
+        self.assertEqual(payload["reasoning_effort"], "none")
         self.assertEqual(payload["model"], NEMO)
         self.assertEqual(payload["max_tokens"], 8)
 
@@ -382,3 +387,119 @@ class DirectChatKeyFallbackTests(_IsolatedHome):
             chat(transport, "or-key", NEMO, MESSAGES, 8,
                  governor=self._governor(transport, "or-key", "openrouter"))
         self.assertEqual(transport.calls, [])
+
+
+class VoteReasoningControlTests(unittest.TestCase):
+    """#304/#493: the vote lane's reasoning contract reaches every backend."""
+
+    def test_vote_lane_treats_the_settings_sentinel_as_reasoning_off(self):
+        tokens, effort = config.effective_lane_policy("vote", 64, None)
+        self.assertEqual(effort, "off")
+        self.assertEqual(tokens, config.MIN_VOTE_TOKENS)
+        _tokens, auto = config.effective_lane_policy("vote", 64, "auto")
+        self.assertEqual(auto, "off")
+        _tokens, explicit = config.effective_lane_policy("vote", 64, "medium")
+        self.assertEqual(explicit, "medium")
+
+    def test_fireworks_learns_a_rejected_reasoning_parameter(self):
+        bodies = []
+
+        class TwoStep:
+            def post(self, url, key, payload, *a, **kw):
+                bodies.append(dict(payload))
+                if "reasoning_effort" in payload:
+                    return 400, {"error": {"message":
+                                           "unsupported parameter: reasoning"}}
+                return 200, {"choices": [{"message": {"content": "ok"}}],
+                             "usage": {"cost": 0.0}}
+
+        with mock.patch("harness.chat.reasoning_param_rejected",
+                        return_value=False),                 mock.patch("harness.chat.note_reasoning_param_rejection") as noted:
+            status, _resp = chat_for_route(
+                resolve_route(NEMO, openrouter_enabled=True, fireworks_enabled=True),
+                TwoStep(), "or-key", "fw-key", MESSAGES, 64,
+                governor=None, reasoning_effort="off")
+        self.assertEqual(status, 200)
+        self.assertIn("reasoning_effort", bodies[0])
+        self.assertNotIn("reasoning_effort", bodies[1])
+        noted.assert_called_once()
+
+    def test_affordable_budget_retry_reads_the_provider_message(self):
+        from harness.chat import affordable_retry_tokens
+        from harness.provider_errors import ProviderSpendLimitError
+
+        err = ProviderSpendLimitError(
+            "This request requires more credits, or fewer max_tokens. You "
+            "requested up to 4096 tokens, but can only afford 563.",
+            http_status=402, cause="unknown")
+        self.assertEqual(affordable_retry_tokens(err, 4096), 563)
+        self.assertIsNone(affordable_retry_tokens(err, 563))
+        self.assertIn("563", str(err))
+
+    def test_a_named_affordable_budget_is_retried_once(self):
+        """The provider named 563 tokens; the run retries at that budget
+        instead of failing, and sends nothing larger again."""
+        bodies = []
+
+        class Budgeted:
+            def post(self, url, key, payload, *a, **kw):
+                bodies.append(dict(payload))
+                if len(bodies) == 1:
+                    return 402, {"error": {"message":
+                                           "This request requires more credits. "
+                                           "You requested up to 4096 tokens, "
+                                           "but can only afford 563."}}
+                return 200, {"choices": [{"message": {"content": "ok"}}],
+                             "usage": {"cost": 0.0}}
+
+            def get(self, *a, **kw):
+                return 200, {}
+
+        status, _resp = chat(Budgeted(), "or-key", "vendor/paid-pro", MESSAGES, 4096)
+        self.assertEqual(status, 200)
+        self.assertEqual([b["max_tokens"] for b in bodies], [4096, 563])
+
+    def test_a_second_refusal_at_the_named_budget_propagates(self):
+        """If the provider still refuses at the budget it named, the run
+        stops with that refusal instead of retrying again."""
+        from harness.provider_errors import ProviderSpendLimitError
+
+        bodies = []
+
+        class NeverBudgeted:
+            def post(self, url, key, payload, *a, **kw):
+                bodies.append(dict(payload))
+                return 402, {"error": {"message":
+                                       "You requested up to 4096 tokens, but "
+                                       "can only afford 563."}}
+
+            def get(self, *a, **kw):
+                return 200, {}
+
+        with self.assertRaises(ProviderSpendLimitError):
+            chat(NeverBudgeted(), "or-key", "vendor/paid-pro", MESSAGES, 4096)
+        self.assertEqual([b["max_tokens"] for b in bodies], [4096, 563])
+
+    def test_a_message_without_a_number_keeps_the_original_failure(self):
+        from harness.chat import affordable_retry_tokens
+        from harness.provider_errors import ProviderSpendLimitError
+
+        err = ProviderSpendLimitError("insufficient credits", http_status=402,
+                                      cause="unknown")
+        self.assertIsNone(affordable_retry_tokens(err, 4096))
+        zero = ProviderSpendLimitError("can only afford 0 tokens",
+                                       http_status=402, cause="unknown")
+        self.assertIsNone(affordable_retry_tokens(zero, 4096))
+
+    def test_the_provider_message_is_quoted_and_redacted(self):
+        from harness.provider_errors import ProviderSpendLimitError
+
+        # Assembled at runtime: a literal key-shaped string in a test is
+        # what the driving-hygiene credential scan flags.
+        fake_key = "sk-" + "or-v1-" + "a" * 24
+        err = ProviderSpendLimitError(
+            "insufficient credits for " + fake_key,
+            http_status=402, cause="unknown")
+        text = str(err)
+        self.assertIn("[REDACTED]", text)
+        self.assertNotIn("a" * 24, text)

@@ -172,9 +172,14 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(fake.chat_posts(), [], "no chat call may go out")
 
     def test_mid_batch_fail_closed(self):
+        # The vote lane always sends a reasoning disable, so each vote reserves
+        # two slots (a disable may draw the mandatory-reasoning retry). The
+        # preflight for that shape is ~0.0015, and the two votes bill 0.003:
+        # both really post, then the batch fails closed instead of calling the
+        # judge with no budget left.
         fake = FakeTransport(models=[m(P1), m(P2), m(JUDGE)],
-                             posts=[comp("a", cost=0.0009), comp("b", cost=0.0009)])
-        gov = _gov(fake, max_cost=0.001)
+                             posts=[comp("a", cost=0.0015), comp("b", cost=0.0015)])
+        gov = _gov(fake, max_cost=0.002)
         with self.assertRaises(HarnessError):
             panel_judge(transport=fake, api_key="k", governor=gov, prompt="Q?",
                         panel=[P1, P2], judge=JUDGE)

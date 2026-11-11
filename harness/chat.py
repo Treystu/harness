@@ -10,6 +10,7 @@ and must never be mined for votes, file bodies, or consent decisions.
 """
 import json
 import math
+import re
 import os
 import time
 import uuid
@@ -321,6 +322,11 @@ def _effort_to_send(reasoning_effort, model_id):
     """
     e = (reasoning_effort or "auto").lower()
     if e in ("off", "none"):
+        # Always explicit, even for a model whose name does not look like a
+        # reasoner: omitting the key means the PROVIDER DEFAULT, which is
+        # reasoning ON for endpoints that reason by default. A name heuristic
+        # cannot see that, so it must never be allowed to drop the disable
+        # (tests/test_reasoning_disable.py pins this; #493).
         return "none"
     if e == "auto":
         return "low" if looks_reasoning(model_id) else None
@@ -329,6 +335,36 @@ def _effort_to_send(reasoning_effort, model_id):
     if e in ("low", "medium", "high"):
         return e
     return None
+
+
+#: A provider that refuses a request for affordability may name the exact
+#: size it can afford ("You requested up to 4096 tokens, but can only afford
+#: 563"). That is the provider telling us the one remaining choice, so a single
+#: bounded retry at that budget completes the run instead of failing it (#493).
+#: The number may or may not be followed by "tokens" (OpenRouter writes
+#: "but can only afford 563."), so the unit is optional.
+_AFFORDABLE_TOKENS = re.compile(r"can only afford ([0-9][0-9,]*)",
+                                re.IGNORECASE)
+
+
+def affordable_retry_tokens(error, requested):
+    """The token budget the provider says this key can afford, or ``None``.
+
+    Reads the provider's own quoted message -- never a model or provider
+    table. Only a strictly smaller positive budget qualifies, so a message
+    naming a larger budget, or naming none, leaves the original failure to
+    propagate unchanged.
+    """
+    text = " ".join(str(x or "") for x in (
+        getattr(error, "provider_message", ""), getattr(error, "detail", "")))
+    match = _AFFORDABLE_TOKENS.search(text)
+    if not match:
+        return None
+    # The pattern only matches digits, so int() cannot raise here.
+    affordable = int(match.group(1).replace(",", ""))
+    if affordable <= 0 or affordable >= int(requested or 0):
+        return None
+    return affordable
 
 
 def _build_reasoning_param(model_id, reasoning_effort, max_tokens, budget):
@@ -468,14 +504,17 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
                 "~/.config/harness/fireworks.env), FIREWORKS_API_KEY, or "
                 "HARNESS_FIREWORKS_KEY")
         return _chat_fireworks(transport, key, model, messages, max_tokens,
-                               governor=governor)
+                               governor=governor,
+                               reasoning_effort=reasoning_effort,
+                               reasoning_token_budget=reasoning_token_budget)
     canonical_model = strip_variant_suffix(model)
     if governor:
         governor.check_byok(canonical_model)
 
-    def build(with_reasoning):
+    def build(with_reasoning, tokens=None):
         model_to_send = floor_model(model, enable_floor=enable_floor)
-        payload = {"model": model_to_send, "messages": messages, "max_tokens": max_tokens}
+        payload = {"model": model_to_send, "messages": messages,
+                   "max_tokens": tokens or max_tokens}
         provider_obj = {}
         if provider_sort:
             provider_obj["sort"] = provider_sort
@@ -683,7 +722,23 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
         status, resp = request(build(want_reasoning), "primary")
     except ProviderSpendLimitError as exc:
         account_spend_limit(exc)
-        raise
+        clamped = affordable_retry_tokens(exc, max_tokens)
+        if clamped is None:
+            raise
+        # The provider named the only request it will accept. Nothing was
+        # billed for the refused attempt, so this retry is bounded by the
+        # provider's own number rather than by a guess at the balance.
+        eprint(f"[retry] provider says this key can afford {clamped} tokens; "
+               f"retrying once at that budget instead of {max_tokens}.")
+        from . import events as _events
+        _events.emit("rotation", model=model, reason="affordable_budget",
+                     max_tokens=clamped)
+        try:
+            retry_status, retry_resp = request(build(want_reasoning, clamped),
+                                               "affordable_retry")
+        except ProviderSpendLimitError:
+            raise
+        return _account(retry_status, retry_resp, build(want_reasoning, clamped))
     except ToolCancelled as exc:
         account_cancelled(exc)
         raise
@@ -826,23 +881,58 @@ def _ensure_fireworks_accounted(offer, usage):
 
 
 def _chat_fireworks(transport, api_key, model, messages, max_tokens,
-                    governor=None):
+                    governor=None, reasoning_effort="auto",
+                    reasoning_token_budget=0.4):
     """One Fireworks chat completion.
 
-    The payload is plain: no OpenRouter provider object, no floor, and no
-    reasoning parameter, because how Fireworks treats reasoning is canon
-    confirmation item 4 and is unconfirmed. The worst case is checked against
-    the local budget before anything is sent.
+    No OpenRouter provider object and no floor, but the reasoning control the
+    calling lane resolved IS sent (#304). Leaving it out silently broke the
+    vote lane's own contract: a vote asks for reasoning off, a reasoning-first
+    Fireworks model then spends the whole vote budget on ``reasoning_content``
+    and returns no ``content``, and the panel rejects a body the lane had
+    explicitly asked to be non-reasoning. A provider that rejects the
+    parameter is learned and retried once without it -- the same shape the
+    OpenRouter path uses, so the learning stays provider-neutral.
+
+    The worst case is checked against the local budget before anything is
+    sent, and a possible reasoning rejection reserves the second call.
     """
     offer = resolve_offer(model)
     payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
+    # Fireworks' OpenAI-shaped surface honours a TOP-LEVEL ``reasoning_effort``
+    # and ignores the nested OpenRouter ``reasoning`` object. Measured on the
+    # real verify prompt at the vote budget (4096): nested-disabled still spent
+    # all 4096 tokens on reasoning_content and returned no content, while
+    # reasoning_effort "none" returned 1613 chars with zero reasoning (#304).
+    # The lane's control therefore travels in the shape this provider reads.
+    effort_to_send = None
+    if not reasoning_param_rejected(model):
+        effort_to_send = _effort_to_send(reasoning_effort, model)
+    if effort_to_send:
+        payload["reasoning_effort"] = effort_to_send
     if governor is not None:
         governor.check_byok(model)
         governor.assert_no_tools(payload, model)
         prompt_text = "\n".join(str(m.get("content", "")) for m in messages)
         worst = cost_estimate(offer, estimate_prompt_tokens(prompt_text), max_tokens)
+        # No doubling here: the panel's preflight already reserves one slot per
+        # reasoning-capable attempt (`_chat_reservation_slots`), so charging the
+        # retry again inside the single-call check double-counts it and refuses
+        # budgets that the reserved worst case already covers.
         governor.assert_fireworks_budget(worst, model)
     status, resp = transport.post(FIREWORKS_CHAT_URL, api_key, payload)
+    if effort_to_send and status != 200:
+        err = str(resp.get("error", {}).get("message", resp)
+                  if isinstance(resp, dict) else resp).lower()
+        if any(hint in err for hint in _REASONING_PARAM_ERR_HINTS):
+            eprint(f"[retry] {model} rejected reasoning param; retrying without it.")
+            note_reasoning_param_rejection(model)
+            from . import events as _events
+            _events.emit("rotation", model=model,
+                         reason="reasoning_param_rejected",
+                         note="provider retry without the reasoning parameter")
+            payload.pop("reasoning_effort", None)
+            status, resp = transport.post(FIREWORKS_CHAT_URL, api_key, payload)
     if governor is not None and status == 200 and isinstance(resp, dict):
         usage = resp.get("usage")
         if isinstance(usage, dict) and "cost" not in usage:
@@ -971,7 +1061,9 @@ def chat_for_route(route, transport, openrouter_key, fireworks_key, messages,
                 "$HARNESS_CONFIG_DIR/fireworks.env (default: "
                 "~/.config/harness/fireworks.env), or FIREWORKS_API_KEY")
         return _chat_fireworks(transport, fireworks_key, route.wire_model,
-                               messages, max_tokens, governor)
+                               messages, max_tokens, governor,
+                               reasoning_effort=reasoning_effort,
+                               reasoning_token_budget=reasoning_token_budget)
     return chat(transport, openrouter_key, route.wire_model, messages, max_tokens,
                 reasoning_effort, reasoning_token_budget, governor)
 
