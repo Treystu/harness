@@ -440,8 +440,9 @@ class VoteReasoningControlTests(unittest.TestCase):
         from harness.provider_errors import ProviderSpendLimitError
 
         err = ProviderSpendLimitError(
-            "insufficient credits for sk-or-v1-abcdefabcdef1234567890",
+            "insufficient credits for " + "sk-" + "or-v1-" + "a" * 24 + "
+",
             http_status=402, cause="unknown")
         text = str(err)
         self.assertIn("[REDACTED]", text)
-        self.assertNotIn("sk-or-v1-abcdef", text)
+        self.assertNotIn("a" * 24, text)
