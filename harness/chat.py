@@ -10,6 +10,7 @@ and must never be mined for votes, file bodies, or consent decisions.
 """
 import json
 import math
+import re
 import os
 import time
 import uuid
@@ -23,6 +24,7 @@ from .config import (
     OPENROUTER_CHAT_URL,
     is_fireworks_model_path,
     is_meta_model_id,
+    resolve_fireworks_key,
     resolve_meta_key,
 )
 from .errors import HarnessError, ProviderUsageUnknown, ToolCancelled
@@ -320,6 +322,11 @@ def _effort_to_send(reasoning_effort, model_id):
     """
     e = (reasoning_effort or "auto").lower()
     if e in ("off", "none"):
+        # Always explicit, even for a model whose name does not look like a
+        # reasoner: omitting the key means the PROVIDER DEFAULT, which is
+        # reasoning ON for endpoints that reason by default. A name heuristic
+        # cannot see that, so it must never be allowed to drop the disable
+        # (tests/test_reasoning_disable.py pins this; #493).
         return "none"
     if e == "auto":
         return "low" if looks_reasoning(model_id) else None
@@ -328,6 +335,36 @@ def _effort_to_send(reasoning_effort, model_id):
     if e in ("low", "medium", "high"):
         return e
     return None
+
+
+#: A provider that refuses a request for affordability may name the exact
+#: size it can afford ("You requested up to 4096 tokens, but can only afford
+#: 563"). That is the provider telling us the one remaining choice, so a single
+#: bounded retry at that budget completes the run instead of failing it (#493).
+#: The number may or may not be followed by "tokens" (OpenRouter writes
+#: "but can only afford 563."), so the unit is optional.
+_AFFORDABLE_TOKENS = re.compile(r"can only afford ([0-9][0-9,]*)",
+                                re.IGNORECASE)
+
+
+def affordable_retry_tokens(error, requested):
+    """The token budget the provider says this key can afford, or ``None``.
+
+    Reads the provider's own quoted message -- never a model or provider
+    table. Only a strictly smaller positive budget qualifies, so a message
+    naming a larger budget, or naming none, leaves the original failure to
+    propagate unchanged.
+    """
+    text = " ".join(str(x or "") for x in (
+        getattr(error, "provider_message", ""), getattr(error, "detail", "")))
+    match = _AFFORDABLE_TOKENS.search(text)
+    if not match:
+        return None
+    # The pattern only matches digits, so int() cannot raise here.
+    affordable = int(match.group(1).replace(",", ""))
+    if affordable <= 0 or affordable >= int(requested or 0):
+        return None
+    return affordable
 
 
 def _build_reasoning_param(model_id, reasoning_effort, max_tokens, budget):
@@ -391,10 +428,33 @@ def _ensure_accounted(governor, model, resp, usage):
     usage["cost_estimated"] = True
 
 
+def _may_lend_threaded_key(governor, api_key, backend_label="meta"):
+    """Whether the lane-threaded api_key may serve a direct backend (#449).
+
+    Outside Meta mode api_key is the OpenRouter key (session.governor_for)
+    and must never be posted to META_CHAT_URL; the same leak would land it on
+    the Fireworks endpoint (#304). Only a governor that governor_for built for
+    that backend vouches for it: key_info label "meta" or "fireworks" (never
+    set by OpenRouter verification) on the governor whose own key is the
+    threaded one.
+    """
+    if not api_key or governor is None:
+        return False
+    if getattr(governor, "api_key", None) != api_key:
+        return False
+    label = (getattr(governor, "key_info", None) or {}).get("label")
+    return label == backend_label
+
+
 def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto",
          reasoning_token_budget=0.4, governor=None, enable_floor=True,
          max_price=None, provider_sort="price", meta_key=None):
     """One chat completion with the spend governor's payload guards.
+
+    Provider dispatch happens at the head: Fireworks model paths and
+    bare Muse ids route to their direct lanes (the reasoning and
+    provider-object rules below are the OpenRouter path's alone, taken
+    by every other model).
 
     Reasoning is included whenever the effort mode resolves to a value --
     including the explicit disable ("off"/"none" => {"effort": "none"}) --
@@ -406,14 +466,18 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
     bill a paid call as $0.
     """
     if is_meta_model_id(model):
-        # #447: the panel, apply and verify lanes call chat() directly, and
-        # under the Muse preset every id they hold is a Muse id. This path
-        # used to floor the id and post it to OpenRouter, so a Muse-only run
-        # was not Muse-transport-only on any of the three lanes. The preset
-        # threads the Meta key as api_key (session.governor_for), so that is
-        # the key to send; an explicit meta_key wins, and a run that has
-        # neither refuses instead of falling back to another provider.
-        key = meta_key or api_key or resolve_meta_key()
+        # #447/#449 P2: a bare Muse id claims the Meta lane, but the
+        # threaded api_key is NOT trusted here. Outside Meta mode it is
+        # the OpenRouter key (session.governor_for), and posting it to
+        # META_CHAT_URL would be a cross-provider credential leak. An
+        # explicit meta_key wins, then the configured Meta key; the
+        # threaded key is used only when the governor vouches for Meta
+        # mode (key_info label "meta", set by governor_for -- never an
+        # OpenRouter-verified key). Otherwise fail closed with the
+        # Meta-key message instead of falling back to another provider.
+        key = meta_key or resolve_meta_key()
+        if not key and _may_lend_threaded_key(governor, api_key):
+            key = api_key
         if not key:
             raise HarnessError(
                 "Meta key missing: set ~/.config/scmorc/meta.env, "
@@ -422,15 +486,35 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
         return _chat_meta(transport, key, model, messages, max_tokens,
                           governor=governor)
     if is_fireworks_model_path(model):
-        return _chat_fireworks(transport, api_key, model, messages, max_tokens,
-                               governor=governor)
+        # #304: a confirmed Fireworks path names its own backend, and the
+        # threaded api_key is normally the OpenRouter key -- posting it to
+        # FIREWORKS_CHAT_URL would be a cross-provider credential leak. The
+        # configured Fireworks key wins; the threaded key is used only when
+        # the governor vouches it is the Fireworks key (key_info label
+        # "fireworks", set by session.governor_for). No key at all refuses
+        # here rather than falling back to another provider.
+        key = resolve_fireworks_key()
+        if not key and _may_lend_threaded_key(governor, api_key,
+                                              backend_label="fireworks"):
+            key = api_key
+        if not key:
+            raise HarnessError(
+                "Fireworks key missing: set ~/.config/scmorc/fireworks.env, "
+                "$HARNESS_CONFIG_DIR/fireworks.env (default: "
+                "~/.config/harness/fireworks.env), FIREWORKS_API_KEY, or "
+                "HARNESS_FIREWORKS_KEY")
+        return _chat_fireworks(transport, key, model, messages, max_tokens,
+                               governor=governor,
+                               reasoning_effort=reasoning_effort,
+                               reasoning_token_budget=reasoning_token_budget)
     canonical_model = strip_variant_suffix(model)
     if governor:
         governor.check_byok(canonical_model)
 
-    def build(with_reasoning):
+    def build(with_reasoning, tokens=None):
         model_to_send = floor_model(model, enable_floor=enable_floor)
-        payload = {"model": model_to_send, "messages": messages, "max_tokens": max_tokens}
+        payload = {"model": model_to_send, "messages": messages,
+                   "max_tokens": tokens or max_tokens}
         provider_obj = {}
         if provider_sort:
             provider_obj["sort"] = provider_sort
@@ -638,7 +722,23 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
         status, resp = request(build(want_reasoning), "primary")
     except ProviderSpendLimitError as exc:
         account_spend_limit(exc)
-        raise
+        clamped = affordable_retry_tokens(exc, max_tokens)
+        if clamped is None:
+            raise
+        # The provider named the only request it will accept. Nothing was
+        # billed for the refused attempt, so this retry is bounded by the
+        # provider's own number rather than by a guess at the balance.
+        eprint(f"[retry] provider says this key can afford {clamped} tokens; "
+               f"retrying once at that budget instead of {max_tokens}.")
+        from . import events as _events
+        _events.emit("rotation", model=model, reason="affordable_budget",
+                     max_tokens=clamped)
+        try:
+            retry_status, retry_resp = request(build(want_reasoning, clamped),
+                                               "affordable_retry")
+        except ProviderSpendLimitError:
+            raise
+        return _account(retry_status, retry_resp, build(want_reasoning, clamped))
     except ToolCancelled as exc:
         account_cancelled(exc)
         raise
@@ -683,11 +783,20 @@ def governed_completion(transport, api_key, governor, model, prompt, max_tokens,
     governor.check_byok(model)
     governor.preflight(prompt, [(label, model, max_tokens, 0)])
     if is_meta_model_id(model):
-        # Direct Meta lane: the api_key threaded here is the key the
-        # caller's governor resolution returned -- in use_meta mode that is
-        # the Meta key (session.governor_for), never the OpenRouter key.
+        # Direct Meta lane: resolve the Meta key for this route (#449
+        # P2). The threaded api_key is trusted only when the governor
+        # vouches for Meta mode -- outside it, it is the OpenRouter key
+        # (session.governor_for) and must never reach META_CHAT_URL.
+        meta_key = resolve_meta_key()
+        if not meta_key and _may_lend_threaded_key(governor, api_key):
+            meta_key = api_key
+        if not meta_key:
+            raise HarnessError(
+                "Meta key missing: set ~/.config/scmorc/meta.env, "
+                "$HARNESS_CONFIG_DIR/meta.env (default: "
+                "~/.config/harness/meta.env), META_API_KEY, or MUSE_API_KEY")
         status, resp = _chat_meta(
-            transport, api_key, model,
+            transport, meta_key, model,
             [{"role": "user", "content": prompt}], max_tokens,
             governor=governor)
     else:
@@ -772,23 +881,58 @@ def _ensure_fireworks_accounted(offer, usage):
 
 
 def _chat_fireworks(transport, api_key, model, messages, max_tokens,
-                    governor=None):
+                    governor=None, reasoning_effort="auto",
+                    reasoning_token_budget=0.4):
     """One Fireworks chat completion.
 
-    The payload is plain: no OpenRouter provider object, no floor, and no
-    reasoning parameter, because how Fireworks treats reasoning is canon
-    confirmation item 4 and is unconfirmed. The worst case is checked against
-    the local budget before anything is sent.
+    No OpenRouter provider object and no floor, but the reasoning control the
+    calling lane resolved IS sent (#304). Leaving it out silently broke the
+    vote lane's own contract: a vote asks for reasoning off, a reasoning-first
+    Fireworks model then spends the whole vote budget on ``reasoning_content``
+    and returns no ``content``, and the panel rejects a body the lane had
+    explicitly asked to be non-reasoning. A provider that rejects the
+    parameter is learned and retried once without it -- the same shape the
+    OpenRouter path uses, so the learning stays provider-neutral.
+
+    The worst case is checked against the local budget before anything is
+    sent, and a possible reasoning rejection reserves the second call.
     """
     offer = resolve_offer(model)
     payload = {"model": model, "messages": messages, "max_tokens": max_tokens}
+    # Fireworks' OpenAI-shaped surface honours a TOP-LEVEL ``reasoning_effort``
+    # and ignores the nested OpenRouter ``reasoning`` object. Measured on the
+    # real verify prompt at the vote budget (4096): nested-disabled still spent
+    # all 4096 tokens on reasoning_content and returned no content, while
+    # reasoning_effort "none" returned 1613 chars with zero reasoning (#304).
+    # The lane's control therefore travels in the shape this provider reads.
+    effort_to_send = None
+    if not reasoning_param_rejected(model):
+        effort_to_send = _effort_to_send(reasoning_effort, model)
+    if effort_to_send:
+        payload["reasoning_effort"] = effort_to_send
     if governor is not None:
         governor.check_byok(model)
         governor.assert_no_tools(payload, model)
         prompt_text = "\n".join(str(m.get("content", "")) for m in messages)
         worst = cost_estimate(offer, estimate_prompt_tokens(prompt_text), max_tokens)
+        # No doubling here: the panel's preflight already reserves one slot per
+        # reasoning-capable attempt (`_chat_reservation_slots`), so charging the
+        # retry again inside the single-call check double-counts it and refuses
+        # budgets that the reserved worst case already covers.
         governor.assert_fireworks_budget(worst, model)
     status, resp = transport.post(FIREWORKS_CHAT_URL, api_key, payload)
+    if effort_to_send and status != 200:
+        err = str(resp.get("error", {}).get("message", resp)
+                  if isinstance(resp, dict) else resp).lower()
+        if any(hint in err for hint in _REASONING_PARAM_ERR_HINTS):
+            eprint(f"[retry] {model} rejected reasoning param; retrying without it.")
+            note_reasoning_param_rejection(model)
+            from . import events as _events
+            _events.emit("rotation", model=model,
+                         reason="reasoning_param_rejected",
+                         note="provider retry without the reasoning parameter")
+            payload.pop("reasoning_effort", None)
+            status, resp = transport.post(FIREWORKS_CHAT_URL, api_key, payload)
     if governor is not None and status == 200 and isinstance(resp, dict):
         usage = resp.get("usage")
         if isinstance(usage, dict) and "cost" not in usage:
@@ -831,11 +975,66 @@ def _chat_meta(transport, api_key, model, messages, max_tokens,
             offer, estimate_prompt_tokens(prompt_text), max_tokens)
         governor.assert_meta_budget(worst, model)
     status, resp = transport.post(META_CHAT_URL, api_key, payload)
-    if governor is not None and status == 200 and isinstance(resp, dict):
+    if status == 200 and isinstance(resp, dict):
         usage = resp.get("usage")
-        if isinstance(usage, dict) and "cost" not in usage:
-            _ensure_meta_accounted(offer, usage)
+        if isinstance(usage, dict):
+            # #449 P2: a present-but-unusable cost (null, non-numeric,
+            # negative, non-finite) is not a priced call -- normalize it
+            # exactly like the OpenRouter _account path instead of passing
+            # it through.
+            cost = usage.get("cost")
+            valid_cost = (isinstance(cost, (int, float))
+                          and not isinstance(cost, bool)
+                          and math.isfinite(cost) and cost >= 0.0)
+            if not valid_cost:
+                usage.pop("cost", None)
+                try:
+                    _ensure_meta_accounted(offer, usage)
+                except HarnessError as exc:
+                    if governor is None:
+                        raise
+                    unknown = ProviderUsageUnknown(
+                        f"Meta omitted usage accounting (no cost, no token "
+                        f"counts) for '{offer.model}'; refusing to bill blind",
+                        known_cost=0.0)
+                    _book_unknown_meta(governor, unknown, payload, model,
+                                       offer, max_tokens)
+                    raise unknown from exc
     return status, resp
+
+
+def _book_unknown_meta(governor, unknown, payload, model, offer, max_tokens):
+    """Book a Meta usage-unknown refusal against the governor (#449 P2).
+
+    The provider may already have billed the request, so the worst case
+    for this payload is retained as unresolved liability (every later
+    preflight refuses further spend) and the refusal is emitted -- the
+    Meta-lane mirror of chat()'s account_unknown_usage.
+    """
+    prompt_text = "\n".join(
+        str(m.get("content", "")) for m in (payload.get("messages") or [])
+        if isinstance(m, dict))
+    try:
+        reserved_cost = meta_cost_estimate(
+            offer, estimate_prompt_tokens(prompt_text), max_tokens)
+    except Exception:
+        try:
+            reserved_cost = max(
+                float(governor.max_cost), float(governor.remaining()))
+        except Exception:
+            reserved_cost = max(0.01, float(getattr(governor, "max_cost", 0.0) or 0.0))
+    retain = getattr(governor, "retain_unknown", None)
+    if callable(retain) and reserved_cost > 0.0:
+        # The Meta wire-model label attributes this liability to the
+        # Meta cap as well (SpendGovernor.retain_unknown, #449 P2), so a
+        # later Meta dispatch cannot pass the local Meta budget on top
+        # of this unknown-cost refusal.
+        retain(reserved_cost, model)
+    unknown.reserved_cost = max(0.0, float(reserved_cost or 0.0))
+    unknown.cost_accounted = True
+    emit("provider_usage_unknown", model=model,
+         known_cost=unknown.known_cost, reserved_cost=unknown.reserved_cost,
+         phase="meta")
 
 
 def chat_for_route(route, transport, openrouter_key, fireworks_key, messages,
@@ -862,7 +1061,9 @@ def chat_for_route(route, transport, openrouter_key, fireworks_key, messages,
                 "$HARNESS_CONFIG_DIR/fireworks.env (default: "
                 "~/.config/harness/fireworks.env), or FIREWORKS_API_KEY")
         return _chat_fireworks(transport, fireworks_key, route.wire_model,
-                               messages, max_tokens, governor)
+                               messages, max_tokens, governor,
+                               reasoning_effort=reasoning_effort,
+                               reasoning_token_budget=reasoning_token_budget)
     return chat(transport, openrouter_key, route.wire_model, messages, max_tokens,
                 reasoning_effort, reasoning_token_budget, governor)
 
@@ -879,23 +1080,35 @@ def chat_routed(transport, api_key, model, messages, max_tokens,
     OpenRouter (issue #447), because the provider comes from
     ``routing_table.route_for_model`` rather than from a ``chat()`` branch.
 
-    Under the Muse preset the lane's threaded key IS the Meta key, so it is
-    used when no explicit ``meta_key`` is given; with no key at all the
-    dispatch refuses with the Meta-key message instead of falling back.
+    The key surface follows the backend the route names: an explicit
+    argument wins, then the setting that feeds that backend, then the
+    configured Meta key. The lane-threaded key is used only when Meta
+    mode is positively established -- under the Muse preset it IS the
+    Meta key (session.governor_for); outside Meta mode it is the
+    OpenRouter key and must never be posted to META_CHAT_URL (#449 P2).
+    With no key at all the dispatch refuses with the Meta-key message
+    instead of falling back.
     """
     from .routing_table import route_for_model
     route = route_for_model(model, settings=settings)
-    # The key surface follows the backend the route names: an explicit
-    # argument wins, then the setting that feeds that backend, then the key
-    # this lane already threads (under the Muse preset the threaded key IS
-    # the Meta key, which is how every migrated lane passes it). A backend
-    # left unset still refuses in chat_for_route rather than borrowing
-    # another provider's credential.
     if route.provider == META_PROVIDER:
-        meta_key = meta_key or getattr(settings, "meta_key", None) or api_key
+        meta_key = (meta_key
+                    or getattr(settings, "meta_key", None)
+                    or resolve_meta_key())
+        if not meta_key:
+            use_meta = bool(getattr(settings, "use_meta", False))
+            if (use_meta or _may_lend_threaded_key(governor, api_key)) \
+                    and api_key:
+                meta_key = api_key
     elif route.provider == FIREWORKS_PROVIDER:
+        # #304: the key surface follows the backend the route names, exactly
+        # as the Meta branch does. Without the configured-key fallback a
+        # settings-less lane (the panel's judge and vote seats) reached
+        # chat_for_route with no Fireworks key and refused even when a key
+        # was installed.
         fireworks_key = (fireworks_key
-                         or getattr(settings, "fireworks_key", None))
+                         or getattr(settings, "fireworks_key", None)
+                         or resolve_fireworks_key())
     return chat_for_route(
         route, transport, api_key, fireworks_key, messages, max_tokens,
         governor=governor, meta_key=meta_key,

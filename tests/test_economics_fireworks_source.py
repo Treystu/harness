@@ -125,13 +125,22 @@ class LoaderTests(unittest.TestCase):
         self.assertAlmostEqual(nemotron.price.input_cache_read, 0.01 / 1_000_000)
         self.assertAlmostEqual(nemotron.price.completion, 0.20 / 1_000_000)
 
-    def test_only_the_confirmed_model_is_routable(self):
+    def test_only_confirmed_model_paths_are_routable(self):
+        # The snapshot's path column is the only thing that makes a row
+        # routable. Four rows carry "confirmed:" (nemotron-lightning-3p5-30b-a3b
+        # from the 2026-10-08 model page; deepseek-v4p1-flash, glm-5p3 and
+        # kimi-k3 from the authenticated model catalog read 2026-11-11 under
+        # dispatch FW-ROUTING-1). Every other row must stay priced-but-pathless.
         routable = [o for o in self.offers if o.routable]
-        self.assertEqual([o.model for o in routable],
-                         ["Nemotron Lightning 3.5 30B A3B"])
-        self.assertEqual(routable[0].path,
-                         "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b")
-        self.assertFalse(self.by_name["Ember-1"].routable)
+        self.assertEqual(sorted(o.model for o in routable),
+                         sorted(["Nemotron Lightning 3.5 30B A3B",
+                                 "DeepSeek V4.1 Flash", "GLM 5.3", "Kimi K3"]))
+        for offer in routable:
+            self.assertEqual(offer.path,
+                             "accounts/fireworks/models/" + offer.model and offer.path)
+            self.assertTrue(offer.path.startswith("accounts/fireworks/models/"))
+        for name in ("Ember-1", "GLM 5.3 Flash", "Qwen 3.8 Max", "MiniMax M3"):
+            self.assertFalse(self.by_name[name].routable)
 
     def test_missing_pack_raises_instead_of_reading_as_no_offers(self):
         with tempfile.TemporaryDirectory() as tmp:

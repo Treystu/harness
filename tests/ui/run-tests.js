@@ -53,6 +53,7 @@ try {
 }
 const required = [
   "harness/ui/app.js",
+  "harness/ui/app.css",
   "harness/ui/panes.js",
   "harness/ui/panes.css",
   "harness/ui/index.html",

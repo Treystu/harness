@@ -30,7 +30,8 @@ class ByokLearnTests(unittest.TestCase):
         fake = FakeTransport(
             models=[m(PAID, "0.000001", "0.000002"), m(P2), m(JUDGE)],
             posts=[_byok_body(0.0002), comp("take two"), comp("verdict")])
-        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path)
+        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path,
+                              max_cost=0.06)
         result = panel_judge(transport=fake, api_key="k", governor=gov, prompt="Q?",
                              panel=[PAID, P2], judge=JUDGE)
         models = [r["model"] for r in result["panel_results"]]
@@ -42,7 +43,8 @@ class ByokLearnTests(unittest.TestCase):
         fake = FakeTransport(
             models=[m(FREE, "0", "0"), m(P2), m(JUDGE)],
             posts=[_byok_body(0.0), comp("take two"), comp("verdict")])
-        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path)
+        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path,
+                              max_cost=0.06)
         result = panel_judge(transport=fake, api_key="k", governor=gov, prompt="Q?",
                              panel=[FREE, P2], judge=JUDGE)
         models = [r["model"] for r in result["panel_results"]]
@@ -54,7 +56,8 @@ class ByokLearnTests(unittest.TestCase):
         fake = FakeTransport(
             models=[m(PAID, "0.000001", "0.000002"), m(P2), m(JUDGE)],
             posts=[_byok_body(0.0002), comp("take two"), comp("verdict")])
-        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path)
+        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path,
+                              max_cost=0.06)
         panel_judge(transport=fake, api_key="k", governor=gov, prompt="Q?", panel=[PAID, P2],
                     judge=JUDGE)
         self.assertTrue(os.path.exists(self.prefix_path))
@@ -75,7 +78,8 @@ class ByokLearnTests(unittest.TestCase):
         fake = FakeTransport(
             models=[m(free, "0", "0"), m(JUDGE)],
             posts=[comp("free vote"), comp("verdict")])
-        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path)
+        gov = SpendGovernor(fake, "sk-test", byok_prefixes_path=self.prefix_path,
+                              max_cost=0.06)
         cached_free = "vendor/zero-price-model"
         gov._pricing_cache[cached_free] = (0.0, 0.0)
         self.assertFalse(gov.learned_blocked(cached_free))

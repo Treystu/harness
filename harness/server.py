@@ -1757,6 +1757,10 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/auth/pair/redeem":
             return self._api_pair_redeem()
+        if parsed.path == "/api/driver/nl":
+            # Dual-audience route (host browser or DRIVER_TOKEN bearer), so
+            # it carries its own gate instead of the host-only _guard.
+            return self._api_driver_nl_routed()
         if not self._guard():
             return
         try:
@@ -2285,6 +2289,39 @@ class UiRequestHandler(BaseHTTPRequestHandler):
 
     def _api_driver_drive(self, body):
         return self._api_dispatch({"kind": "driver_task", "args": body})
+
+    def _driver_token_expected(self):
+        declared = os.environ.get("DRIVER_TOKEN", "")
+        if declared:
+            return declared
+        return _DRIVER_DAEMON.get("token")
+
+    def _api_driver_nl_routed(self):
+        from . import driver_nl as _nl
+        if not self._host_ok():
+            self._drain_body()
+            return self._error(403, "forbidden host (loopback only)",
+                               close=True)
+        if not _nl.request_authorized(
+                self.headers.get("Authorization"),
+                host_authorized=self._authorized(),
+                driver_token=self._driver_token_expected()):
+            self._drain_body()
+            return self._error(401, "unauthorized", close=True)
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(n) or b"{}") if n else {}
+        except ValueError:
+            return self._error(400, "request body is not valid JSON")
+        return self._api_driver_nl(body)
+
+    def _api_driver_nl(self, body):
+        from . import driver_nl as _nl
+        status, payload = _nl.handle(body, authorized=True)
+        if status != 200:
+            return self._error(status, payload.get("error") or
+                               "request failed")
+        return self._send_json(payload)
 
     def _api_site_route(self, body):
         """SITE local mode: route a query through the ONE policy owner.

@@ -71,6 +71,15 @@ def _governor(transport, budget=1.0):
     return SpendGovernor(transport, "key", None, budget, meta_budget_usd=budget)
 
 
+def _meta_governor(transport, key="meta-key", budget=1.0):
+    # Meta-mode governor, as session.governor_for builds it: the lane
+    # threads the governor's own key and key_info labels it (#449 P2).
+    gov = SpendGovernor(transport, key, None, budget,
+                        meta_budget_usd=budget)
+    gov.key_info = {"label": "meta", "limit": budget, "remaining": budget}
+    return gov
+
+
 class BackendRegistryTests(unittest.TestCase):
     def test_each_backend_is_identified_by_the_model_id_shape(self):
         self.assertEqual(backend_for_model(SPARK), META_PROVIDER)
@@ -117,8 +126,11 @@ class TableResolvesMetaToARouteTests(unittest.TestCase):
 
 class RoutedDispatchTests(unittest.TestCase):
     def test_muse_id_dispatches_to_meta_and_never_openrouter(self):
+        # #449 P2: the threaded OpenRouter key must never reach Meta;
+        # the explicit Meta key serves the route instead.
         transport = RecordingTransport(_resp())
-        status, _ = chat_routed(transport, "meta-key", SPARK, MESSAGES, 64)
+        status, _ = chat_routed(transport, "or-key", SPARK, MESSAGES, 64,
+                                 meta_key="meta-key")
         self.assertEqual(status, 200)
         url, key, payload = transport.calls[0]
         self.assertEqual(url, META_CHAT_URL)
@@ -126,6 +138,29 @@ class RoutedDispatchTests(unittest.TestCase):
         self.assertEqual(payload["model"], SPARK)
         self.assertTrue(all(call[0] != OPENROUTER_CHAT_URL
                             for call in transport.calls))
+
+    def test_threaded_key_trusted_only_in_meta_mode(self):
+        # The production lane shape: the lane threads the governor's own
+        # key and the governor vouches for Meta mode.
+        transport = RecordingTransport(_resp())
+        gov = _meta_governor(transport)
+        status, _ = chat_routed(transport, "meta-key", SPARK, MESSAGES, 64,
+                                 governor=gov)
+        self.assertEqual(status, 200)
+        self.assertEqual(transport.calls[0][0], META_CHAT_URL)
+        self.assertEqual(transport.calls[0][1], "meta-key")
+
+    def test_threaded_openrouter_key_refuses_without_meta_mode(self):
+        # Muse id outside Meta mode with only an OpenRouter key threaded:
+        # fail closed before any POST, no credential to the wrong backend.
+        transport = RecordingTransport(_resp())
+        gov = _governor(transport)
+        gov.key_info = {"label": "or-label", "limit": 1.0,
+                        "remaining": 1.0}
+        with self.assertRaisesRegex(HarnessError, "Meta key missing"):
+            chat_routed(transport, "or-key", SPARK, MESSAGES, 64,
+                         governor=gov)
+        self.assertEqual(transport.calls, [])
 
     def test_missing_meta_key_refuses_before_dispatch(self):
         transport = RecordingTransport(_resp())
@@ -142,7 +177,7 @@ class RoutedDispatchTests(unittest.TestCase):
 class MigratedCallSiteTests(unittest.TestCase):
     def test_judge_seat_dispatches_through_the_router_to_meta(self):
         transport = RecordingTransport(_resp())
-        governor = _governor(transport)
+        governor = _meta_governor(transport)
         _run_judge_attempt(
             transport=transport, api_key="meta-key", governor=governor,
             judge_prompt="return JSON", model=SPARK, judge_reserve_tokens=64,
@@ -273,7 +308,7 @@ class RuntimeDispatchPerLaneTests(unittest.TestCase):
     def test_rankings_probe_vote_posts_to_meta_for_a_muse_id(self):
         transport = RecordingTransport(self._json_resp(
             '{"claim_1": {"real": true, "confidence": 0.9}}'))
-        _probe_vote(transport, "meta-key", _governor(transport), SPARK, 64)
+        _probe_vote(transport, "meta-key", _meta_governor(transport), SPARK, 64)
         self.assertEqual(transport.calls[0][0], META_CHAT_URL)
         self.assertEqual(transport.calls[0][1], "meta-key")
         self.assertTrue(all(c[0] != OPENROUTER_CHAT_URL for c in transport.calls))
@@ -281,7 +316,8 @@ class RuntimeDispatchPerLaneTests(unittest.TestCase):
     def test_capability_probe_posts_to_meta_for_a_muse_id(self):
         transport = RecordingTransport(self._json_resp(
             '{"claim_1": {"real": true, "confidence": 0.9}}'))
-        probe_json_reliability(transport, "meta-key", _governor(transport),
+        probe_json_reliability(transport, "meta-key",
+                               _meta_governor(transport),
                                [SPARK], max_tokens=64)
         self.assertEqual(transport.calls[0][0], META_CHAT_URL)
         self.assertTrue(all(c[0] != OPENROUTER_CHAT_URL for c in transport.calls))
@@ -290,7 +326,7 @@ class RuntimeDispatchPerLaneTests(unittest.TestCase):
         transport = RecordingTransport(self._json_resp(
             '{"decision": "accept", "confidence": 0.95, "reason": "clear"}'))
         probe_consent(transport=transport, api_key="meta-key",
-                      governor=_governor(transport), task_id="t-1",
+                      governor=_meta_governor(transport), task_id="t-1",
                       task="summarize the diff", model=SPARK, max_tokens=64,
                       required=False)
         self.assertEqual(transport.calls[0][0], META_CHAT_URL)

@@ -163,6 +163,10 @@ class SpendGovernor:
         self.overruns = 0  # billed calls booked past the ceiling
         self._outstanding = 0.0
         self._unknown_liability = 0.0
+        # #449 P2: unknown liability attributed to Meta labels, so the
+        # Meta-local cap sees the same unresolved spend the general
+        # ceiling already sees via _outstanding/_unknown_liability.
+        self._meta_unknown_liability = 0.0
         self._reservations = []
         self._cost_by_model = {}
         self._cost_by_lane = {}
@@ -582,6 +586,8 @@ class SpendGovernor:
         with self._spend_lock:
             self._outstanding += amount
             self._unknown_liability += amount
+            if is_meta_model_id(label):
+                self._meta_unknown_liability += amount
             self._reservations.append((f"{label} (usage unknown)", amount))
         return amount
 
@@ -703,13 +709,25 @@ class SpendGovernor:
             return sum(v for k, v in self._cost_by_model.items()
                        if is_meta_model_id(k))
 
+    def meta_unknown_liability(self):
+        """Unresolved Meta-attributed unknown liability (#449 P2).
+
+        Retained by retain_unknown when a Meta dispatch loses its usage
+        reply; counted by both Meta-budget projections so a later Meta
+        call cannot pass the local cap on top of an unknown-cost refusal.
+        """
+        with self._spend_lock:
+            return self._meta_unknown_liability
+
     def assert_meta_budget(self, amount, label):
         """Refuse a Meta call whose worst case would pass the local cap.
 
         Called before dispatch with the worst-case estimate, so a call that
         cannot fit is never sent. A cap of zero refuses every Meta call.
+        Unresolved Meta unknown liability counts against the cap (#449 P2).
         """
-        projected = self.meta_spent() + float(amount)
+        projected = (self.meta_spent() + self.meta_unknown_liability()
+                     + float(amount))
         if projected > self.meta_budget_usd:
             raise HarnessError(
                 f"Meta spend ${projected:.6f} would exceed the local budget "
@@ -734,7 +752,8 @@ class SpendGovernor:
                         f"budget ${self.fireworks_budget_usd:.6f} after '{label}'. "
                         "Aborting.")
             if is_meta_model_id(label) and actual > 0.0:
-                projected = self.meta_spent() + actual
+                projected = (self.meta_spent()
+                             + self._meta_unknown_liability + actual)
                 if projected > self.meta_budget_usd:
                     raise HarnessError(
                         f"Meta spend ${projected:.6f} would exceed the local "

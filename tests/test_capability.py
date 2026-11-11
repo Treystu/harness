@@ -614,3 +614,52 @@ class StalePoolSelfHealingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DirectProviderSeatingTest(unittest.TestCase):
+    """#492: the catalog filter must not drop a model whose own backend is the
+    authority on it.
+
+    measured on main 9fbb452: a pack-confirmed Fireworks panel seat was removed
+    pre-dispatch as "not in the live model catalog", so it never reached the
+    routing code that had just been fixed to dispatch it.
+    """
+
+    MODELS = [
+        {"id": "m://panel-a:free", "pricing": {"prompt": "0", "completion": "0"},
+         "context_length": 131072,
+         "supported_parameters": ["max_tokens", "structured_outputs"]},
+        {"id": "m://panel-b:free", "pricing": {"prompt": "0", "completion": "0"},
+         "context_length": 32768, "supported_parameters": ["max_tokens"]},
+    ]
+    FIREWORKS = "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b"
+    MUSE = "muse-spark-1.3"
+
+    def _order(self, pool):
+        ordered, profiles = ordered_pool(
+            pool, governor=None, ledger=None, task="default", free_tier=False,
+            profiles=build_profiles_from_models(self.MODELS))
+        self.assertIsNotNone(profiles)
+        return ordered
+
+    def test_pack_confirmed_fireworks_seat_is_retained(self):
+        ordered = self._order(["m://panel-a:free", self.FIREWORKS])
+        self.assertIn(self.FIREWORKS, ordered)
+        self.assertEqual(ordered, ["m://panel-a:free", self.FIREWORKS])
+
+    def test_muse_id_is_retained(self):
+        ordered = self._order([self.MUSE, "m://panel-b:free"])
+        self.assertIn(self.MUSE, ordered)
+
+    def test_direct_provider_seat_keeps_its_caller_given_position(self):
+        # Placed first, it stays first: capability ordering applies to the
+        # OpenRouter members only, it never silently promotes a named provider.
+        ordered = self._order([self.FIREWORKS, "m://panel-a:free",
+                               "m://panel-b:free"])
+        self.assertEqual(ordered[0], self.FIREWORKS)
+
+    def test_unknown_openrouter_id_is_still_dropped(self):
+        # The stale-id self-healing contract is untouched by #492.
+        ordered = self._order(["m://panel-a:free", "vendor/stale-model"])
+        self.assertNotIn("vendor/stale-model", ordered)
+        self.assertIn("m://panel-a:free", ordered)

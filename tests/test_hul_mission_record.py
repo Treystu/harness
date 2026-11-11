@@ -745,5 +745,62 @@ class MissionErrorPathTests(unittest.TestCase):
         self.assertEqual(path.read_text(encoding="utf-8"), body)
 
 
+class MissionPromptCapTests(unittest.TestCase):
+    """#275 L10: a mission prompt is measured before any lane can truncate it."""
+
+    def _spec(self, request="Refactor the parser", success="Tests pass"):
+        return mr.build_mission_spec(
+            mission_id="cap-1", request=request, success_definition=success,
+            max_cost_usd=0.5)
+
+    def test_the_cap_matches_the_shipped_lane(self):
+        self.assertEqual(mr.MAX_MISSION_PROMPT_CHARS, 4000)
+
+    def test_render_is_goal_first_so_truncation_costs_detail(self):
+        text = mr.render_mission_prompt(
+            self._spec(), pointer="CONSTITUTION.md Part 0")
+        self.assertTrue(text.startswith("CONSTITUTION.md Part 0"))
+        self.assertIn("Mission: Refactor the parser", text)
+        self.assertIn("Done when: Tests pass", text)
+
+    def test_render_carries_both_scope_lists(self):
+        spec = mr.build_mission_spec(
+            mission_id="cap-2", request="Fix the parser",
+            success_definition="Tests pass", max_cost_usd=0.5,
+            in_scope=["harness/", "tests/"],
+            out_of_scope=["docs/", "ci/"])
+        text = mr.render_mission_prompt(spec)
+        self.assertIn("In scope: harness/; tests/", text)
+        self.assertIn("Out of scope: docs/; ci/", text)
+        # No pointer, no scope: the goal still leads and nothing is empty.
+        bare = mr.render_mission_prompt(self._spec())
+        self.assertTrue(bare.startswith("Mission: "))
+        self.assertNotIn("In scope:", bare)
+        self.assertNotIn("Out of scope:", bare)
+
+    def test_fit_reports_the_numbers_a_caller_needs(self):
+        report = mr.mission_prompt_fit("x" * 4000)
+        self.assertTrue(report["fits"])
+        self.assertEqual(report["over_by"], 0)
+        over = mr.mission_prompt_fit("x" * 4001)
+        self.assertFalse(over["fits"])
+        self.assertEqual(over["over_by"], 1)
+        self.assertEqual(over["limit"], 4000)
+
+    def test_an_over_long_prompt_is_refused_not_truncated(self):
+        ok = mr.assert_mission_prompt_fits("short")
+        self.assertEqual(ok, "short")
+        with self.assertRaises(HarnessError) as caught:
+            mr.assert_mission_prompt_fits("x" * 4200)
+        self.assertIn("4200", str(caught.exception))
+        self.assertIn("200", str(caught.exception))
+
+    def test_a_long_request_is_caught_at_render_time(self):
+        spec = self._spec(request="r" * 4100)
+        text = mr.render_mission_prompt(spec)
+        self.assertFalse(mr.mission_prompt_fit(text)["fits"])
+
+
+
 if __name__ == "__main__":
     unittest.main()
