@@ -228,3 +228,70 @@ test("[negative-control] deliberately broken settings journey fails its UI asser
   // The journey's normal assertion must fail when the settings route is broken.
   await expect(page.locator("#route-text")).toContainText("Primary: free");
 });
+
+test("06 driver NL intake plans, cancels, and runs through the served card", async ({ page }) => {
+  await signInOwner(page);
+  const plan = {
+    status: "plan",
+    plan_id: "plan-journey-1",
+    plan: [
+      { action: "open_app", params: { name: "notepad" }, class: "mutating" },
+      { action: "delete_file", params: { path: "notes.txt" }, class: "irreversible" },
+    ],
+  };
+  const run = {
+    status: "done",
+    plan_id: "plan-journey-1",
+    steps: [
+      { action: "open_app", ok: true },
+      { action: "delete_file", ok: true },
+    ],
+  };
+  await page.route("**/api/driver/nl", (route) => {
+    const body = JSON.parse(route.request().postData() || "{}");
+    let payload = plan;
+    if (body.confirm) payload = run;
+    else if (body.cancel_plan) payload = { status: "cancelled" };
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(payload),
+    });
+  });
+
+  const section = page.locator("#driver-nl");
+  await expect(section).toBeVisible();
+  await expect(page.locator("#driver-nl-card")).toBeHidden();
+  await expect(page.locator("#driver-nl-steps li")).toHaveCount(0);
+
+  // Empty input is refused in place; no request leaves the page.
+  await page.locator("#btn-driver-nl-plan").click();
+  await expect(page.locator("#driver-nl-status")).toHaveText("Type an instruction first.");
+
+  await page.locator("#driver-nl-input").fill("open notepad and delete notes.txt");
+  await page.locator("#btn-driver-nl-plan").click();
+  await expect(page.locator("#driver-nl-card")).toBeVisible();
+  await expect(page.locator("#driver-nl-steps li")).toHaveCount(2);
+  await expect(page.locator("#driver-nl-steps li").first()).toContainText("open_app");
+  await expect(page.locator("#driver-nl-steps li").first().locator(".driver-nl-class"))
+    .toHaveText("mutating");
+  await expect(page.locator("#driver-nl-steps li").nth(1).locator(".driver-nl-class.irreversible"))
+    .toHaveText("irreversible");
+  // The step-state slot shares the driver-nl-params class (the plan renderer
+  // uses it for both the params text and the live status cell), so the params
+  // assertion is scoped to the first match in the row.
+  await expect(page.locator("#driver-nl-steps li").first().locator(".driver-nl-params").first())
+    .toContainText("notepad");
+  await expect(page.locator("#driver-nl-status"))
+    .toHaveText("Plan ready — review each step, then Run Plan.");
+
+  // Cancel is a real request and reports its own status.
+  await page.locator("#btn-driver-nl-cancel").click();
+  await expect(page.locator("#driver-nl-status"))
+    .toHaveText("Cancellation requested — running steps stop between steps.");
+
+  await page.locator("#btn-driver-nl-run").click();
+  await expect(page.locator("#driver-nl-status")).toHaveText("Done.");
+  await expect(page.locator("#driver-nl-steps li").first().locator("[data-step-state]"))
+    .toContainText("✓");
+});
