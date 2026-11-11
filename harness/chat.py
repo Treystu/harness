@@ -360,10 +360,8 @@ def affordable_retry_tokens(error, requested):
     match = _AFFORDABLE_TOKENS.search(text)
     if not match:
         return None
-    try:
-        affordable = int(match.group(1).replace(",", ""))
-    except (TypeError, ValueError):
-        return None
+    # The pattern only matches digits, so int() cannot raise here.
+    affordable = int(match.group(1).replace(",", ""))
     if affordable <= 0 or affordable >= int(requested or 0):
         return None
     return affordable

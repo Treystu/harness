@@ -59,6 +59,8 @@ class ProviderSpendLimitError(HarnessError):
         # "without identifying the cause", so it is carried, redacted, on every
         # cause; secrets in it are stripped before it can reach a log.
         self.provider_message = redact_secrets(self.detail)[:400]
+        # Claims no remedy by default; each cause below sets its own.
+        self.next_step: Optional[str] = None
         quoted = (f" Provider said: {self.provider_message}"
                   if self.provider_message else "")
         if self.cause == "route_or_model_restriction":
@@ -74,9 +76,6 @@ class ProviderSpendLimitError(HarnessError):
                     f"Upstream provider returned payment required{status}; its "
                     "own message names the cause." + quoted + " This is not a "
                     "Harness run-cap finding.")
-                # Cause stays unattributable, so no next step is claimed; the
-                # provider's own sentence is in the message for the operator.
-                self.next_step = None
             else:
                 message = (
                     f"Upstream provider returned payment required{status} without "
@@ -84,7 +83,6 @@ class ProviderSpendLimitError(HarnessError):
                     "check the provider balance, key limits, and whether this "
                     "model or route is available to the key before retrying."
                 )
-                self.next_step = None
         else:
             message = (
                 f"Upstream provider spend limit exhausted{status}. "

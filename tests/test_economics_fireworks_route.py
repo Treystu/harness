@@ -459,6 +459,27 @@ class VoteReasoningControlTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual([b["max_tokens"] for b in bodies], [4096, 563])
 
+    def test_a_second_refusal_at_the_named_budget_propagates(self):
+        """If the provider still refuses at the budget it named, the run
+        stops with that refusal instead of retrying again."""
+        from harness.provider_errors import ProviderSpendLimitError
+
+        bodies = []
+
+        class NeverBudgeted:
+            def post(self, url, key, payload, *a, **kw):
+                bodies.append(dict(payload))
+                return 402, {"error": {"message":
+                                       "You requested up to 4096 tokens, but "
+                                       "can only afford 563."}}
+
+            def get(self, *a, **kw):
+                return 200, {}
+
+        with self.assertRaises(ProviderSpendLimitError):
+            chat(NeverBudgeted(), "or-key", "vendor/paid-pro", MESSAGES, 4096)
+        self.assertEqual([b["max_tokens"] for b in bodies], [4096, 563])
+
     def test_a_message_without_a_number_keeps_the_original_failure(self):
         from harness.chat import affordable_retry_tokens
         from harness.provider_errors import ProviderSpendLimitError
