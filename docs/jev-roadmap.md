@@ -1,8 +1,9 @@
 # Jev Full-Functionality Roadmap
 
 **Status:** active tracking doc  
+**Register of record:** the enumerated wave list filed on [issue #295](https://github.com/Treystu/harness/issues/295#issuecomment-6789137044) (2026-11-11). It carries every open issue exactly once, in execution order, with owner-side rows marked. This document keeps design, phases and the dated evidence ledger; that filing, not the tables below, is the live count and order.  
 **Implementer lanes:** Claude Code (`CLAUDE.md`, `/isolated-mission`), Codex, and Freebuff share this canon; use lane-specific handoffs as seat state, not parallel plans.
-**Historical audit date:** 2026-09-22 (Claude dogfood audit: 9 components, 31 confirmed findings — see `DF-*` below); current repository sweep: 2026-10-14.
+**Historical audit date:** 2026-09-22 (Claude dogfood audit: 9 components, 31 confirmed findings — see `DF-*` below); current repository sweep: 2026-10-14 (kept as the dated evidence sweep; it is no longer the open-issue count, which the #295 register of record above owns).
 **Live probe:** TypeSafe `POST https://api.typesafe.ai/v1/systemone` succeeded with key at `~/.config/harness/jev.env`
 
 This file is the **single source of truth** for Harness mission work (Jev / System One, HUL, hourglass, site, and follow-ups). Every future PR must carry an ID from the tracker below and reference an acceptance test named here. Do not open parallel ad-hoc plans — add or update rows here.
