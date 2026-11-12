@@ -1753,6 +1753,23 @@ class UiRequestHandler(BaseHTTPRequestHandler):
             return self._error(500, f"{type(e).__name__}: {e}")
 
     # -- POST --------------------------------------------------------------
+    def _api_intake(self, body):
+        """Admit one intake: the operator's mode decides routing, nothing else."""
+        from .intake import IntakeRefused, IntakeRequest, run_intake
+
+        try:
+            request = IntakeRequest(
+                root=body.get("root"),
+                prompt=body.get("prompt"),
+                mode=body.get("mode") or "build",
+                create=bool(body.get("create")),
+                test_command=tuple(body.get("test_command") or ()),
+                offline_wheels=body.get("offline_wheels") or None,
+            )
+            return self._send_json(run_intake(request))
+        except IntakeRefused as exc:
+            return self._error(400, str(exc), error_kind=exc.reason)
+
     def do_POST(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/auth/pair/redeem":
@@ -1778,6 +1795,9 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                 return self._api_session_delete(body)
             if parsed.path == "/api/settings":
                 return self._api_settings_update(body)
+            if parsed.path == "/api/intake":
+                # One folder and one prompt, admitted as a project (#457).
+                return self._api_intake(body)
             if parsed.path == "/api/runs":
                 return self._api_dispatch(body)
             if parsed.path == "/api/driver/step":

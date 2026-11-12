@@ -72,16 +72,23 @@ guard (`X-Harness-Auth` / loopback) as every other `/api` route.
 | `GET /api/missions[?root=missions][&limit=25][&offset=0]` | `harness.mission_record` | Compact summaries, stable offset pagination, `limit` 1–100; each page omits receipt/evaluation history and variable-length resume/request fields. `total` counts pack directories containing `mission.yaml`; corrupt selected packs are skipped. Missing/empty root returns an empty page. |
 | `GET /api/missions/<id>[?root=missions]` | `harness.mission_record` | Read-only full pack summary; does not regenerate `STATUS.md` or `INDEX.md`. The CLI/MCP `mission_status` commands retain their existing refresh behavior. |
 | MCP `jev_phase` | `harness.jev_completion` | Same local-only semantics as the HTTP face above; `{repo_root, phase, all, min_score}`. |
+| `POST /api/intake` | `harness.intake` (`run_intake`), executing through `harness.project_run` | One folder and one prompt. The `mode` the operator picks owns routing (`build` / `chat`), never a keyword classifier; `chat` executes nothing. `build` creates the folder only with `create: true`, builds the plan (venv, declared requirements, the project's own test gate), runs it under one workspace grant, and returns the verdict plus the run register path. No second execution path: the intake IS a governed project run. |
 
-**`plan` stays CLI/MCP-only.** `plan_and_execute` (MCP) and the DAG planner
-have no server `RUNNERS` entry to reuse: the HTTP dispatch lane's four run
-kinds (`apply`/`verify`/`continue`/`bench`) are each one call into an
-existing engine method, but planning is a multi-node executor with its own
-confirmation/waist flow that no existing server runner shape fits. Wiring
-it over HTTP would mean writing a second `plan` implementation, which is
-exactly the one-owner rule this document exists to keep. Use `harness plan`
-(CLI) or the MCP `plan_and_execute` tool until a server runner kind that
-actually fits shows up.
+**`plan` has a server runner; it had no pane.** The claim that `plan` is
+CLI/MCP-only was stale: `RUNNERS["plan"] = run_plan_task` (`harness/server.py`)
+has served the `plan` task kind, goal + `root_dir` + `execute`, since
+GAP-plan-http, and the dispatch lane accepts it alongside
+`apply`/`verify`/`continue`/`bench`. What was genuinely missing was a GUI pane
+and a project-intake door, both added for #457: the Intake pane
+(`harness/ui/panes.js` → `renderIntake`) posts to `POST /api/intake`, which
+admits the folder and the prompt under the operator's mode and runs the
+project's setup and test gate through `harness.project_run`. The pane renders
+the plan it ran, each step's command, the verdict and the register path.
+
+The model-driven `plan` task kind still has no pane of its own: its runner
+needs a live planner, so a hermetic CI pane test could only assert a double.
+That wiring is the open part of #457; the intake pane below is the built part,
+and it is the path the acceptance test exercises end to end.
 
 ## Deliberate non-goals in Phase 1
 

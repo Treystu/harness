@@ -1309,9 +1309,88 @@ async function renderLegacy(root) {
   }
 }
 
+// ---- Intake -----------------------------------------------------------------
+
+// One folder and one prompt. The mode picker -- not a keyword classifier --
+// decides routing: Build creates/targets the folder, sets the project up and
+// runs its own test gate under one grant; Chat executes nothing.
+async function renderIntake(root) {
+  root.append(
+    $("h2", {}, "Intake - one folder and one prompt"),
+    $("p", { class: "muted" },
+      "Point Harness at a project folder, write the build instruction, and pick the mode. Build creates the folder if you ask it to, sets the project up (its own venv, its declared dependencies), runs the project's own test gate, and shows the verdict from the run register. Chat executes nothing. The mode selector decides routing, not the wording of the prompt.")
+  );
+
+  const folder = $("input", { class: "pane-input", id: "intake-folder",
+    placeholder: "/absolute/path/to/project", autocomplete: "off", spellcheck: "false" });
+  const create = $("input", { type: "checkbox", id: "intake-create" });
+  const mode = $("select", { class: "pane-input", id: "intake-mode" },
+    $("option", { value: "build" }, "Build and run"),
+    $("option", { value: "chat" }, "Chat only"));
+  const prompt = $("textarea", { class: "pane-input", id: "intake-prompt", rows: "4",
+    placeholder: "Build instruction, e.g. a small CLI that parses the fixture and prints a summary" });
+  const runBtn = $("button", { type: "button", class: "btn-primary", id: "intake-run" }, "Run intake");
+  const out = $("div", { class: "pane-output", id: "intake-output" });
+
+  function renderResult(result) {
+    out.replaceChildren();
+    if (!result || result.executed === false) {
+      out.append($("div", { class: "pane-row" },
+        $("strong", {}, "Routed to chat. "),
+        $("span", { class: "muted" }, "Nothing was created and nothing ran; the mode selector decided this.")));
+      return;
+    }
+    out.append($("div", { class: "pane-row" },
+      $("strong", {}, `Verdict: ${result.verdict}`),
+      $("span", { class: "muted" },
+        `  root ${result.root} - ${result.steps_run} step(s), exit ${result.exit_code}`)),
+      $("div", { class: "pane-row muted small" }, `register ${result.register_path}`),
+      $("table", { class: "pane-table" },
+        $("thead", {}, $("tr", {}, $("th", {}, "Step"), $("th", {}, "Command"))),
+        $("tbody", {}, (result.plan || []).map((step) => $("tr", {},
+          $("td", {}, step.label || step.kind),
+          $("td", {}, $("code", {}, (step.argv || []).join(" "))))))));
+  }
+
+  runBtn.addEventListener("click", async () => {
+    runBtn.disabled = true;
+    out.replaceChildren($("div", { class: "muted" }, "Running the intake..."));
+    try {
+      const result = await api("/api/intake", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          root: folder.value.trim(),
+          prompt: prompt.value,
+          mode: mode.value,
+          create: create.checked,
+        }),
+      });
+      renderResult(result);
+    } catch (err) {
+      out.replaceChildren($("div", { class: "pane-row error" }, String(err.message || err)));
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
+
+  root.append(
+    $("div", { class: "pane-form" },
+      $("label", { for: "intake-folder" }, "Project folder"),
+      folder,
+      $("label", {}, create, " create the folder if it does not exist"),
+      $("label", { for: "intake-mode" }, "Mode"),
+      mode,
+      $("label", { for: "intake-prompt" }, "Build instruction"),
+      prompt,
+      runBtn),
+    out);
+}
+
 // ---- Tab wiring ----------------------------------------------------------
 
 const PANES = [
+  ["intake", "Intake", renderIntake],
   ["proof", "Proof", renderProof],
   ["insights", "Insights", renderInsights],
   ["driver", "Driver", renderDriver],
