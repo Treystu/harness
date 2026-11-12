@@ -788,6 +788,14 @@ def open_url(url):
         return False
 
 
+def venv_python(root):
+    """The interpreter a project venv exposes at ``root``, by platform layout."""
+    base = os.path.join(str(root), ".venv")
+    if os.name == "nt":
+        return os.path.join(base, "Scripts", "python.exe")
+    return os.path.join(base, "bin", "python")
+
+
 def python_exe():
     """The interpreter running this process -- the only gate executable.
 

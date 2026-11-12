@@ -14,12 +14,12 @@ execution path.
 from __future__ import annotations
 
 import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .errors import HarnessError
+from .osal import python_exe, venv_python
 from .project_run import (
     ProjectRunEnvelope, ProjectRunRefused, ProjectStep, WorkspaceGrant,
     discover_test_command, plan_digest, run_project,
@@ -47,14 +47,6 @@ class IntakeRefused(HarnessError):
 
 def _refuse(reason: str, message: str) -> IntakeRefused:
     return IntakeRefused(reason, message)
-
-
-def venv_python(root: Any) -> str:
-    """The interpreter the project's own venv exposes, by platform layout."""
-    base = Path(root).resolve() / ".venv"
-    if os.name == "nt":
-        return str(base / "Scripts" / "python.exe")
-    return str(base / "bin" / "python")
 
 
 @dataclass(frozen=True)
@@ -124,7 +116,7 @@ def build_plan(root: Any, *, request: IntakeRequest,
                python: Optional[str] = None) -> List[ProjectStep]:
     """The project's setup plan: venv, declared dependencies, its test gate."""
     workspace = Path(root).resolve()
-    python = python or sys.executable
+    python = python or python_exe()
     steps = [ProjectStep((python, "-m", "venv", ".venv"),
                          label="create the project venv")]
     interpreter = venv_python(workspace)
