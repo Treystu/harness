@@ -133,6 +133,21 @@ class ProjectRunEnvelope:
     wall_clock_s: int = DEFAULT_PROJECT_WALL_CLOCK_S
     max_output_bytes: int = DEFAULT_MAX_COMMAND_OUTPUT_BYTES
 
+    def __post_init__(self):
+        # The hard caps are absolute, so a directly constructed envelope is
+        # clamped exactly like a settings value: no caller can widen it.
+        object.__setattr__(self, "rounds", _bounded_int(
+            self.rounds, DEFAULT_PROJECT_ROUNDS, 1, HARD_PROJECT_ROUNDS))
+        object.__setattr__(self, "budget_usd", _bounded_float(
+            self.budget_usd, DEFAULT_PROJECT_BUDGET_USD, 0.0,
+            HARD_PROJECT_BUDGET_USD))
+        object.__setattr__(self, "wall_clock_s", _bounded_int(
+            self.wall_clock_s, DEFAULT_PROJECT_WALL_CLOCK_S, 1,
+            HARD_PROJECT_WALL_CLOCK_S))
+        object.__setattr__(self, "max_output_bytes", _bounded_int(
+            self.max_output_bytes, DEFAULT_MAX_COMMAND_OUTPUT_BYTES, 1_000,
+            MAX_COMMAND_OUTPUT_BYTES))
+
     @classmethod
     def from_settings(cls, settings=None, environ: Optional[Dict[str, str]] = None,
                       ) -> "ProjectRunEnvelope":
@@ -259,8 +274,9 @@ def governed_argv(argv: Sequence[str], *, root: Any) -> List[str]:
 
     The allowlist is the gate: a program outside :data:`ALLOWED_PROGRAMS` never
     runs, a shell string is refused (a string is a shell waiting to happen),
-    shell metacharacters are refused, and the executable and cwd must resolve
-    inside the workspace.
+    shell metacharacters are refused, and every argument resolves against the
+    workspace, so neither an absolute path nor a relative traversal can reach
+    outside it.
     """
     if isinstance(argv, (str, bytes)):
         raise _refuse("shell_string",
@@ -282,14 +298,15 @@ def governed_argv(argv: Sequence[str], *, root: Any) -> List[str]:
             "program_not_allowed",
             f"{tokens[0]!r} is not an allowlisted interpreter or tool")
     workspace = Path(root).resolve()
-    # Token 0 may be an absolute interpreter outside the workspace: that is how
-    # a run bootstraps its own venv (``<host python> -m venv .venv``). Every
-    # other absolute token is a path the command will touch, so it has to
-    # resolve inside the workspace.
+    # Token 0 is the program, found on PATH or given as an absolute interpreter
+    # (that is how a run bootstraps its own venv: ``<host python> -m venv
+    # .venv``). Every other token is resolved against the workspace -- relative
+    # tokens included, so ``../elsewhere`` cannot escape -- and refused when it
+    # lands outside.
     for token in tokens[1:]:
         candidate = Path(token)
         if not candidate.is_absolute():
-            continue
+            candidate = workspace / candidate
         try:
             candidate.resolve().relative_to(workspace)
         except (ValueError, OSError):
@@ -307,6 +324,10 @@ def command_env(root: Any) -> Dict[str, str]:
     # a bare interpreter imports; the product is still importable from the
     # script lane's pinned path.
     env["PYTHONPATH"] = str(Path(root).resolve())
+    # A bare host interpreter still honours this; without it it could import or
+    # shadow dependencies from the operator's HOME instead of the workspace's
+    # own venv, and the test gate would stop being deterministic.
+    env["PYTHONNOUSERSITE"] = "1"
     return env
 
 
@@ -362,6 +383,45 @@ class WorkspaceGrant:
                 "irreversible_needs_approval",
                 f"IRREVERSIBLE step {step.label or step.argv[0]!r} needs its own "
                 "approval; a plan-level grant never covers it")
+
+    def authorize_plan(self, steps: Iterable[ProjectStep]) -> None:
+        """Check the whole plan before anything runs.
+
+        An IRREVERSIBLE approval is single-use, so a plan that repeats the same
+        irreversible argv needs one approval per occurrence; checking the
+        quantities here refuses a plan that could only fail halfway.
+        """
+        needed: Dict[str, int] = {}
+        for step in steps:
+            if step.kind != IRREVERSIBLE:
+                continue
+            if step.digest not in self.approved_irreversible:
+                raise _refuse(
+                    "irreversible_needs_approval",
+                    f"IRREVERSIBLE step {step.label or step.argv[0]!r} needs its "
+                    "own approval; a plan-level grant never covers it")
+            needed[step.digest] = needed.get(step.digest, 0) + 1
+        for digest, count in needed.items():
+            have = self.approved_irreversible.count(digest)
+            if have < count:
+                raise _refuse(
+                    "irreversible_needs_approval",
+                    "this plan runs one IRREVERSIBLE command "
+                    f"{count} time(s) but only {have} single-use approval(s) exist")
+
+    def consume_irreversible(self, step: ProjectStep) -> None:
+        """Spend this step's single-use approval, or refuse."""
+        if step.kind != IRREVERSIBLE:
+            return
+        try:
+            index = self.approved_irreversible.index(step.digest)
+        except ValueError:
+            raise _refuse(
+                "irreversible_needs_approval",
+                f"the single-use approval for {step.label or step.argv[0]!r} was "
+                "already spent") from None
+        self.approved_irreversible = (self.approved_irreversible[:index]
+                                      + self.approved_irreversible[index + 1:])
 
     def approve_irreversible(self, step: ProjectStep) -> "WorkspaceGrant":
         """Record the single-use approval for exactly this step's argv."""
@@ -439,10 +499,10 @@ def run_project(steps: Sequence[ProjectStep], *, grant: WorkspaceGrant,
     envelope -- raise :class:`ProjectRunRefused` before anything runs.
     """
     steps = tuple(steps)
-    envelope = envelope or ProjectRunEnvelope()
-    meter = meter or ProjectRunMeter(envelope, clock=clock)
     clock = clock or time.monotonic
     runner = runner or osal.run_tree
+    envelope = envelope or ProjectRunEnvelope.from_settings()
+    meter = meter or ProjectRunMeter(envelope, clock=clock)
 
     grant.require_digest(plan_digest(steps))
     if len(steps) > envelope.rounds:
@@ -450,19 +510,24 @@ def run_project(steps: Sequence[ProjectStep], *, grant: WorkspaceGrant,
             "rounds_exhausted",
             f"the plan has {len(steps)} steps and the envelope allows "
             f"{envelope.rounds} rounds")
+    # Admission belongs to the whole plan, not to the first step: a plan that
+    # cannot finish is refused before any command runs, never halfway through.
+    admitted = [governed_argv(step.argv, root=grant.root) for step in steps]
+    grant.authorize_plan(steps)
 
-    register = RunRegister(
-        register_path or Path(grant.root) / ".harness" / "project-runs"
-        / f"{uuid.uuid4().hex}.jsonl")
+    target = (grant.check_inside(register_path) if register_path is not None
+              else Path(grant.root) / ".harness" / "project-runs"
+              / f"{uuid.uuid4().hex}.jsonl")
+    register = RunRegister(target)
     register.record(kind="run_start", workspace=grant.root,
                     approver=grant.approver, digest=grant.digest,
                     envelope=envelope.as_dict(), steps=len(steps))
 
     started = clock()
-    for index, step in enumerate(steps):
-        grant.authorize_step(step)
-        argv = governed_argv(step.argv, root=grant.root)
+    for index, (step, argv) in enumerate(zip(steps, admitted)):
         remaining = meter.check_wall_clock()
+        meter.next_round()
+        grant.consume_irreversible(step)
         timeout = float(min(int(step.timeout_s), max(1.0, remaining)))
         began = clock()
         outcome = runner(argv, cwd=grant.root, timeout=timeout,
@@ -484,7 +549,7 @@ def run_project(steps: Sequence[ProjectStep], *, grant: WorkspaceGrant,
         if int(status) != 0:
             register.record(kind="run_end", status="failed",
                             exit_code=int(status), argv=argv)
-            return RunResult("failed", int(status), index,
+            return RunResult("failed", int(status), index + 1,
                              str(register.path), clock() - started, argv)
 
     register.record(kind="run_end", status="ok", exit_code=0)

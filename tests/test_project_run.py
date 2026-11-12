@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 from pathlib import Path
 
@@ -190,6 +191,92 @@ class GrantTests(unittest.TestCase):
         approved.authorize_step(ProjectStep((sys.executable, "-c", "pass")))
 
 
+class ReviewCureTests(unittest.TestCase):
+    """Each finding the PR review raised, pinned by behavior."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.root = self.dir.name
+
+    def _grant(self, steps):
+        return WorkspaceGrant(self.root, plan_digest(steps))
+
+    def test_direct_construction_is_clamped_by_the_hard_caps(self):
+        env = ProjectRunEnvelope(rounds=10 ** 6, budget_usd=10 ** 9,
+                                 wall_clock_s=10 ** 6, max_output_bytes=10 ** 9)
+        self.assertEqual(env.rounds, HARD_PROJECT_ROUNDS)
+        self.assertEqual(env.budget_usd, HARD_PROJECT_BUDGET_USD)
+        self.assertEqual(env.wall_clock_s, pr.HARD_PROJECT_WALL_CLOCK_S)
+        self.assertEqual(env.max_output_bytes, pr.MAX_COMMAND_OUTPUT_BYTES)
+
+    def test_relative_traversal_cannot_leave_the_workspace(self):
+        with self.assertRaises(ProjectRunRefused) as ctx:
+            governed_argv([sys.executable, "-c", "pass", "../escape.py"],
+                          root=self.root)
+        self.assertEqual(ctx.exception.reason, "outside_workspace")
+
+    def test_the_register_must_live_inside_the_workspace(self):
+        steps = [ProjectStep((sys.executable, "-c", "print(1)"))]
+        outside = Path(self.root).parent / "register.jsonl"
+        with self.assertRaises(ProjectRunRefused) as ctx:
+            run_project(steps, grant=self._grant(steps),
+                        register_path=str(outside))
+        self.assertEqual(ctx.exception.reason, "outside_workspace")
+        self.assertFalse(outside.exists(), "nothing ran, nothing was written")
+
+    def test_the_default_envelope_comes_from_settings(self):
+        steps = [ProjectStep((sys.executable, "-c", "print(1)")),
+                 ProjectStep((sys.executable, "-c", "print(2)"))]
+        with mock.patch.dict(os.environ, {"HARNESS_PROJECT_ROUNDS": "1"}):
+            with self.assertRaises(ProjectRunRefused) as ctx:
+                run_project(steps, grant=self._grant(steps))
+        self.assertEqual(ctx.exception.reason, "rounds_exhausted")
+
+    def test_each_command_spends_one_round_of_the_meter(self):
+        steps = [ProjectStep((sys.executable, "-c", "print(1)")),
+                 ProjectStep((sys.executable, "-c", "print(2)"))]
+        envelope = ProjectRunEnvelope(rounds=2)
+        meter = ProjectRunMeter(envelope)
+        result = run_project(steps, grant=self._grant(steps),
+                             envelope=envelope, meter=meter)
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(meter.rounds_used, 2)
+
+    def test_an_exhausted_meter_stops_the_run_before_any_command(self):
+        steps = [ProjectStep((sys.executable, "-c", "print(1)"))]
+        envelope = ProjectRunEnvelope(rounds=1)
+        meter = ProjectRunMeter(envelope)
+        meter.next_round()
+        with self.assertRaises(ProjectRunRefused) as ctx:
+            run_project(steps, grant=self._grant(steps),
+                        envelope=envelope, meter=meter)
+        self.assertEqual(ctx.exception.reason, "rounds_exhausted")
+
+    def test_one_irreversible_approval_cannot_cover_two_occurrences(self):
+        step = ProjectStep((sys.executable, "-c", "print('once')"),
+                           kind="irreversible")
+        steps = [step, step]
+        grant = self._grant(steps).approve_irreversible(step)
+        with self.assertRaises(ProjectRunRefused) as ctx:
+            run_project(steps, grant=grant)
+        self.assertEqual(ctx.exception.reason, "irreversible_needs_approval")
+        self.assertFalse((Path(self.root) / ".harness").exists(),
+                         "the plan was refused before anything ran")
+
+    def test_an_irreversible_approval_is_spent_by_its_step(self):
+        step = ProjectStep((sys.executable, "-c", "print('once')"),
+                           kind="irreversible")
+        grant = self._grant([step]).approve_irreversible(step)
+        self.assertEqual(len(grant.approved_irreversible), 1)
+        result = run_project([step], grant=grant)
+        self.assertEqual(result.status, "ok")
+        self.assertEqual(grant.approved_irreversible, ())
+        with self.assertRaises(ProjectRunRefused) as ctx:
+            grant.consume_irreversible(step)
+        self.assertEqual(ctx.exception.reason, "irreversible_needs_approval")
+
+
 class RegisterTests(unittest.TestCase):
     def test_rows_append_and_missing_file_reads_empty(self):
         with tempfile.TemporaryDirectory() as root:
@@ -210,7 +297,7 @@ class RunProjectTests(unittest.TestCase):
         self.root = self.dir.name
         self.steps = [
             ProjectStep((sys.executable, "-c", "print('one')")),
-            ProjectStep((sys.executable, "-c", "print('two' * 200)")),
+            ProjectStep((sys.executable, "-c", "print('two' * 900)")),
         ]
         self.grant = WorkspaceGrant(self.root, plan_digest(self.steps))
 
@@ -229,7 +316,7 @@ class RunProjectTests(unittest.TestCase):
     def test_a_real_run_records_every_command_and_its_output(self):
         result = run_project(
             self.steps, grant=self.grant,
-            envelope=ProjectRunEnvelope(max_output_bytes=8))
+            envelope=ProjectRunEnvelope(max_output_bytes=1_000))
         self.assertEqual(result.status, "ok")
         self.assertEqual(result.steps_run, 2)
         self.assertEqual(result.exit_code, 0)
@@ -238,7 +325,7 @@ class RunProjectTests(unittest.TestCase):
         self.assertEqual(kinds, ["run_start", "step", "step", "run_end"])
         self.assertEqual(rows[1]["stdout"].strip(), "one")
         # The long line is capped by the envelope, and the cap is real.
-        self.assertLessEqual(len(rows[2]["stdout"]), 8)
+        self.assertLessEqual(len(rows[2]["stdout"]), 1_000)
         self.assertEqual(rows[1]["cwd"], str(Path(self.root).resolve()))
         self.assertIn("envelope", rows[0])
         receipt = result.as_dict()
@@ -254,6 +341,7 @@ class RunProjectTests(unittest.TestCase):
         self.assertEqual(result.status, "failed")
         self.assertEqual(result.exit_code, 3)
         self.assertEqual(result.failed_argv[0], sys.executable)
+        self.assertEqual(result.steps_run, 1, "the failed command did run")
         rows = RunRegister(result.register_path).entries()
         self.assertEqual([row["kind"] for row in rows],
                          ["run_start", "step", "run_end"])
