@@ -322,8 +322,6 @@ class GateDiscoveryTests(unittest.TestCase):
         self.assertEqual(found["argv"], ["python", "-m", "py_compile", "a.py"])
 
 
-@unittest.skipIf(os.name == "nt" and not hasattr(os, "symlink"),
-                 "needs a real interpreter matrix")
 class AcceptanceChainTests(unittest.TestCase):
     """The #458 acceptance: venv + dependency install + the project's suite,
     unattended, under ONE intake grant, every command in the register."""

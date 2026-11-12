@@ -9,13 +9,7 @@ break APIs between minor versions).
 
 ## [Unreleased]
 
-### Added
-- Governed project execution envelope (`harness/project_run.py`, #458): one
-  workspace-scoped intake grant covers an unattended venv/install/test run, with
-  an allowlisted argv executor, a scrubbed environment, process-tree timeouts
-  through `osal.run_tree`, a JSONL run register, project-sized rounds/budget/
-  wall-clock settings separate from the per-edit caps, and gate discovery that
-  prefers the project's own test command.
+Nothing yet.
 
 ## [0.5.1] — 2026-10-25
 
