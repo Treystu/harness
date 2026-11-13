@@ -31,7 +31,7 @@ happens to skip the interesting part.
 """
 import threading
 
-from . import osal
+from . import osal, targeting
 from .actions import IRREVERSIBLE, READ_ONLY
 from .audit import KIND_ACTION, required
 from .errors import (ConsentError, ExecutionOutcomeUnknown,
@@ -50,6 +50,9 @@ from .executor_registry import input_backend_needs
 #: comparison instead would quietly widen every grant.
 PARAM_NORMALISERS = {
     "resolve_path": osal.resolve_path,
+    # #481: a bounded target resolves to the window plus its client-relative
+    # rectangle, and that canonical record is what consent binds to.
+    "resolve_target": targeting.resolve_target,
 }
 
 

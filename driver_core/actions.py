@@ -167,7 +167,8 @@ def _declare():
         Action("focus", MUTATING, "focus", ("target",),
                "Bring a declared window or element to the foreground.", "any"),
         Action("click", MUTATING, "click", ("target",),
-               "Click a declared, resolved element.", "any"),
+               "Click a declared, resolved element.", "any",
+               normalisers={"target": "resolve_target"}),
         Action("type_text", MUTATING, "type_text", ("text",),
                "Type a literal string into the focused element.", "any"),
         Action("press_key", MUTATING, "press_key", ("keys",),
@@ -190,7 +191,8 @@ def _declare():
         Action("submit_irreversible", IRREVERSIBLE, "submit_irreversible",
                ("target",), "Activate a control whose effect cannot be undone "
                "by this system. Never batched; always a fresh human "
-               "confirmation.", "any"),
+               "confirmation.", "any",
+               normalisers={"target": "resolve_target"}),
     ]
     return actions
 
@@ -256,7 +258,13 @@ class Vocabulary:
 
 #: The one declared vocabulary. A caller may build its own for tests, but
 #: production has exactly one.
-DEFAULT_VOCABULARY = Vocabulary("driver-core-actions", "1.0.0", _declare())
+#:
+#: ``1.1.0``: ``click`` and ``submit_irreversible`` resolve their ``target``
+#: through :func:`driver_core.targeting.resolve_target` (#481), so a bounded
+#: target's consent binds to the exact window and rectangle instead of to a
+#: title alone. The legacy exact-title string resolves to itself, so nothing
+#: that worked stops working.
+DEFAULT_VOCABULARY = Vocabulary("driver-core-actions", "1.1.0", _declare())
 
 
 def check_batch(proposed, vocabulary):

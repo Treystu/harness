@@ -81,7 +81,7 @@ Reading of the mapping, stated plainly:
   the consuming desktop flow, not here, so the driver can verify these fields only
   through pixels until a schema exists. That is a finding, not a defect in this repo.
 - The `driver_core` vocabulary has `focus`, `click` and `type_text`
-  (`driver_core/actions.py:167`, `:169`, `:171`) but **no `launch_app`** yet — S2
+  (`driver_core/actions.py:167`, `:169`, `:172`) but **no `launch_app`** yet — S2
   (#270) is the open prerequisite for anything that must observe a freshly launched app.
 
 ## Part D — amendment list (proposed, not applied)
@@ -124,9 +124,10 @@ target file exists on this tip and is checked by the B6 test.
 
 - Executable guard: `python -m unittest tests.test_agent_desktop_audit_report`.
 - Repository references used above, re-verified at write time:
-  `driver_core/actions.py:167` (`focus`), `driver_core/actions.py:169` (`click`),
-  `driver_core/actions.py:171` (`type_text`), `harness/perception_client.py:183`
+  `driver_core/actions.py:168` (`focus`), `driver_core/actions.py:170` (`click`),
+  `driver_core/actions.py:172` (`type_text`), `harness/perception_client.py:183`
   (driver `health` client), `pyproject.toml:40` (`harness-desktop` entry point),
-  `docs/driver.md:369` (headless key provisioning), `docs/driver.md:382` (keyless vs
-  keyed table; both re-pointed after the native-input section grew in
-  #477, so the citation still lands on the claim it names).
+  `docs/driver.md:385` (headless key provisioning), `docs/driver.md:398` (keyless vs
+  keyed table; re-pointed after the native-input section grew in #477 and again
+  after the bounded-target section grew in #481, so each citation still lands on
+  the claim it names).
