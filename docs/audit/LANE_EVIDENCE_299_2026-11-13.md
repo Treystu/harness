@@ -16,10 +16,15 @@ readable here, and no combined status is offered as evidence.
 **Branch:** `lane/core-299-post-body-cap`
 **Fix commit:** `643fc8988f3d48f8af9b3e0815e3d159a65f8dd1` — the tree every
 count below was measured on.
-**Branch tip:** `604055d0131907608815396843b033984c9a20fd` — the fix plus this
-record (docs only). Correction, 2026-11-13: this line originally named the fix
-commit as the head; the head a merger checks out is the tip, which advances by
-the record commit. Both are stated so neither is mistaken for the other.
+**Branch tip:** the commit carrying this record, read it from the remote
+(`git ls-remote origin refs/heads/lane/core-299-post-body-cap`) — a record
+cannot name its own commit without going stale the moment it is written. At
+integration time the tip was
+`74c155f89cf7855ef44f58dfdb209f72117cdd49`; record-only commits after that
+advance it while leaving the code tree untouched (verified by diff in
+`lane/core-integration`). Correction, 2026-11-13: this line originally named
+the fix commit as the head. A merger checks out the tip; the measured tree is
+the fix commit. Both are named.
 
 ## Defect
 
