@@ -1,7 +1,7 @@
 # Jev Full-Functionality Roadmap
 
 **Status:** active tracking doc  
-**Canon register:** the wave list on [issue #295](https://github.com/Treystu/harness/issues/295) **governs this file**: where a row here and that filing disagree, the filing wins. **Register of record:** the enumerated wave list filed on [issue #295](https://github.com/Treystu/harness/issues/295#issuecomment-6789137044) (2026-11-11), kept true by the **register mirror** immediately below (2026-11-12), which is generated from live issue state and carries every open issue exactly once, in execution order, with owner-side rows marked. This document keeps design, phases and the dated evidence ledger; that filing and its mirror, not the tables below, are the live count and order.  
+**Canon register:** the wave list on [issue #295](https://github.com/Treystu/harness/issues/295) **governs this file**: where a row here and that filing disagree, the filing wins. **Register of record:** the enumerated wave list filed on [issue #295](https://github.com/Treystu/harness/issues/295#issuecomment-6789137044) (2026-11-11), kept true by the **register mirror** immediately below (2026-11-13), which is generated from live issue state and carries every open issue exactly once, in execution order, with owner-side rows marked. This document keeps design, phases and the dated evidence ledger; that filing and its mirror, not the tables below, are the live count and order.  
 **Implementer lanes:** Claude Code (`CLAUDE.md`, `/isolated-mission`), Codex, and Freebuff share this canon; use lane-specific handoffs as seat state, not parallel plans.
 **Historical audit date:** 2026-09-22 (Claude dogfood audit: 9 components, 31 confirmed findings — see `DF-*` below); current repository sweep: 2026-10-14 (kept as the dated evidence sweep; it is no longer the open-issue count, which the #295 register of record above owns).
 **Live probe:** TypeSafe `POST https://api.typesafe.ai/v1/systemone` succeeded with key at `~/.config/harness/jev.env`
@@ -17,7 +17,9 @@ Related design context (not the tracker): [system-one-integration.md](system-one
 ---
 
 <!-- BEGIN REGISTER_MIRROR -->
-## Register mirror - 2026-11-12 (#295)
+## Register mirror - 2026-11-13 (#295)
+
+**Change since 2026-11-12:** nothing opened or closed — PR #501 merged as `bf2348f` and left #454 open; census still **91** open issues / **0** open PRs by both reads.
 
 **This section, not the dated filings below, is the live count and order.**
 It is generated from live issue state, so every row it lists is an open
@@ -27,14 +29,17 @@ once with what closed it. The 2026-11-11 filing on #295 (comment
 its wave order and corrects its counts, because a snapshot cannot stay
 true while issues close.
 
-### Census
+### Census (2026-11-13 at `bf2348f`, post PR #501)
 
 - **91 open issues**, agreed by two independent reads:
   `gh issue list --state open` and the search API
-  (`type:issue state:open`) both return **91**.
+  (`type:issue state:open`) both return **91**; both open-PR reads return **0**.
 - The 2026-11-11 register carried **98 rows**. **91** are still open,
   **7** have closed since that filing, and **0** open issues are absent
   from it. The arithmetic reconciles: rows minus closed equals the census.
+- Nothing opened or closed since the 2026-11-12 mirror: PR #501
+  (`bf2348f`, merged 2026-11-13) references #454 without closing it
+  (#454 still OPEN).
 
 ### Rows that closed since the 2026-11-11 filing
 
