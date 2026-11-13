@@ -97,7 +97,8 @@ test — the negative-length `else None`, the zero-length `return {}`,
 the invalid-JSON `except` 400 block, and the under-cap
 `return super().handle_expect_100()`. Cured with four focused
 `PostBodyCapTests` (this file's case list above); focused run 9/9 OK.
-Validator re-review + fresh 15/15 rail required before merge.
+Merged onto current main `c73c673` as `cf13eb3`; validator re-review +
+fresh 15/15 rail on the final tip required before merge.
 
 ## Not checked
 
