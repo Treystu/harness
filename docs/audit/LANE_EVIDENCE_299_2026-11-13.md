@@ -54,14 +54,16 @@ inviting the body that a cap would refuse.
 
 | Suite | Result |
 | --- | --- |
-| `python3 -m unittest tests.test_server` | Ran 120 tests, OK (includes the 5 new `PostBodyCapTests`) |
+| `python3 -m unittest tests.test_server` | Ran 124 tests, OK (includes the 9 `PostBodyCapTests`) |
 | `python3 -m unittest tests.test_server_driver tests.test_intake tests.test_site_server` | Ran 100 tests, OK |
 | `ruff check harness/server.py tests/test_server.py` | All checks passed |
 
-New cases: over-cap refused without reading, over-cap refused before
+Cases: over-cap refused without reading, over-cap refused before
 `100-continue`, over-cap refused on the driver route, malformed
 `Content-Length` is 400, under-cap POST still dispatches (404 from the
-router, i.e. the body was read and routed).
+router, i.e. the body was read and routed); plus the D12-cure cases below
+(negative length 400, empty body dispatches, invalid JSON body 400,
+under-cap `100-continue` dispatches).
 
 ## Second, independent method (not the same run twice)
 
@@ -86,9 +88,18 @@ Merged onto current main (`9967aa8a3ff513cac3cbb8ccff52550622e009d3`) alone
 and together with #334/#445: see
 `lane/core-integration`, `docs/audit/LANE_EVIDENCE_INTEGRATION_2026-11-13.md`.
 
+## HAR-SAMS cure note (2026-11-13, on this branch)
+
+Rail at tip `2dfcd43` read 14/15: only `ci/circleci: audit` red. Cause at
+the cause, not the check: D12 holds changed harness statement lines to a
+95% suite-executed bar, and four added `server.py` lines had no covering
+test — the negative-length `else None`, the zero-length `return {}`,
+the invalid-JSON `except` 400 block, and the under-cap
+`return super().handle_expect_100()`. Cured with four focused
+`PostBodyCapTests` (this file's case list above); focused run 9/9 OK.
+Validator re-review + fresh 15/15 rail required before merge.
+
 ## Not checked
 
-- CircleCI rail statuses on this head (no access from this lane; a named
-  status read is required from a lane that has it).
-- A second non-author reviewer verdict (no reviewer reachable).
+- CircleCI rail statuses on the final head (HAR-SAMS reads them per head).
 - Live GUI/LAN behavior: the cap was exercised on loopback only.

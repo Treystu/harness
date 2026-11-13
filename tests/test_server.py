@@ -201,6 +201,58 @@ class PostBodyCapTests(ServerHarness):
             conn.close()
         self.assertEqual(status, 404)
 
+    def test_negative_content_length_is_400(self):
+        status, _ = self._announce_post("/api/chat", -5)
+        self.assertEqual(status, 400)
+
+    def test_empty_body_dispatches(self):
+        for extra in ({}, {"Content-Length": "0"}):
+            conn = self._conn()
+            self.addCleanup(conn.close)
+            conn.putrequest("POST", "/api/definitely-not-here",
+                            skip_host=True, skip_accept_encoding=True)
+            conn.putheader("Host", f"127.0.0.1:{self.port}")
+            conn.putheader("X-Harness-Auth", self.token)
+            for key, value in extra.items():
+                conn.putheader(key, value)
+            conn.endheaders()
+            resp = conn.getresponse()
+            resp.read()
+            self.assertEqual(resp.status, 404)
+
+    def test_invalid_json_body_is_400(self):
+        conn = self._conn()
+        self.addCleanup(conn.close)
+        payload = b"not-json"
+        conn.putrequest("POST", "/api/chat", skip_host=True,
+                        skip_accept_encoding=True)
+        conn.putheader("Host", f"127.0.0.1:{self.port}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(payload)))
+        conn.putheader("X-Harness-Auth", self.token)
+        conn.endheaders()
+        conn.send(payload)
+        resp = conn.getresponse()
+        resp.read()
+        self.assertEqual(resp.status, 400)
+
+    def test_under_cap_100_continue_dispatches(self):
+        conn = self._conn()
+        self.addCleanup(conn.close)
+        payload = b"{}"
+        conn.putrequest("POST", "/api/definitely-not-here", skip_host=True,
+                        skip_accept_encoding=True)
+        conn.putheader("Host", f"127.0.0.1:{self.port}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(payload)))
+        conn.putheader("Expect", "100-continue")
+        conn.putheader("X-Harness-Auth", self.token)
+        conn.endheaders()
+        conn.send(payload)
+        resp = conn.getresponse()
+        resp.read()
+        self.assertEqual(resp.status, 404)
+
 
 class TokenAuthTests(ServerHarness):
     token = "s3cret-token"
