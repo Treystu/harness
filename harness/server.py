@@ -1483,6 +1483,13 @@ class UiRequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     timeout = _HANDLER_TIMEOUT
 
+    #: Largest POST body the UI server will read. Every route takes a small
+    #: JSON document (a prompt, one driver step, a dispatch); 1 MiB is far
+    #: above any of them and keeps a client from choosing the handler's
+    #: allocation. Enforced from the announced Content-Length, before the
+    #: body is read (#299).
+    MAX_POST_BODY = 1 << 20
+
     @property
     def ui(self) -> UiState:
         return self.server.ui
@@ -1548,6 +1555,66 @@ class UiRequestHandler(BaseHTTPRequestHandler):
             if not chunk:
                 break
             remaining -= len(chunk)
+
+    def _announced_length(self):
+        """The announced Content-Length, or None when it is not a length.
+
+        An absent (or empty) header means a zero-length body, which is what
+        the routes have always done with it; a negative or non-numeric value
+        is a malformed request and is refused by the caller.
+        """
+        raw = (self.headers.get("Content-Length") or "").strip()
+        if not raw:
+            return 0
+        try:
+            n = int(raw)
+        except ValueError:
+            return None
+        return n if n >= 0 else None
+
+    def _read_json_body(self, limit=None):
+        """Read one JSON request body, bounded by ``limit`` bytes.
+
+        The cap is decided from the announced Content-Length, so an oversized
+        body is refused (413) before a byte of it is read: the handler never
+        allocates a body whose size the client chose. Returns the decoded
+        object, or None after writing the refusal.
+        """
+        limit = self.MAX_POST_BODY if limit is None else limit
+        n = self._announced_length()
+        if n is None:
+            self._drain_body()
+            self._error(400, "Content-Length is not a valid length",
+                        close=True)
+            return None
+        if n > limit:
+            # Refuse without draining: reading an oversized body to discard it
+            # is the allocation the cap exists to prevent. Close instead.
+            self.close_connection = True
+            self._error(413, f"request body exceeds {limit} bytes", close=True)
+            return None
+        if not n:
+            return {}
+        try:
+            return json.loads(self.rfile.read(n))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._error(400, "request body is not valid JSON", close=True)
+            return None
+
+    def handle_expect_100(self):
+        """Refuse an oversized body before inviting the client to send it.
+
+        Without this, ``Expect: 100-continue`` would have the base class send
+        the interim 100 and the client then streams the very body the cap
+        refuses.
+        """
+        n = self._announced_length()
+        if n is not None and n > self.MAX_POST_BODY:
+            self.close_connection = True
+            self._error(413, f"request body exceeds {self.MAX_POST_BODY} bytes",
+                        close=True)
+            return False
+        return super().handle_expect_100()
 
     def _authorized(self):
         """The token in ``X-Harness-Auth`` or ``Authorization: Bearer``.
@@ -1780,11 +1847,9 @@ class UiRequestHandler(BaseHTTPRequestHandler):
             return self._api_driver_nl_routed()
         if not self._guard():
             return
-        try:
-            n = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(n) or b"{}") if n else {}
-        except ValueError:
-            return self._error(400, "request body is not valid JSON")
+        body = self._read_json_body()
+        if body is None:
+            return
         try:
             if parsed.path == "/api/auth/pair/create":
                 return self._api_pair_create()
@@ -2328,11 +2393,9 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                 driver_token=self._driver_token_expected()):
             self._drain_body()
             return self._error(401, "unauthorized", close=True)
-        try:
-            n = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(n) or b"{}") if n else {}
-        except ValueError:
-            return self._error(400, "request body is not valid JSON")
+        body = self._read_json_body()
+        if body is None:
+            return
         return self._api_driver_nl(body)
 
     def _api_driver_nl(self, body):
