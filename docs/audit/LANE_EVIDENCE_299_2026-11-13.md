@@ -13,8 +13,13 @@ This record replaces the PR body so the merge case survives without a
 tracker. Rail: **NOT CHECKED from this lane** — CircleCI statuses are not
 readable here, and no combined status is offered as evidence.
 
-**Branch / exact head:** `lane/core-299-post-body-cap`
-`643fc8988f3d48f8af9b3e0815e3d159a65f8dd1` (verified on the remote).
+**Branch:** `lane/core-299-post-body-cap`
+**Fix commit:** `643fc8988f3d48f8af9b3e0815e3d159a65f8dd1` — the tree every
+count below was measured on.
+**Branch tip:** `604055d0131907608815396843b033984c9a20fd` — the fix plus this
+record (docs only). Correction, 2026-11-13: this line originally named the fix
+commit as the head; the head a merger checks out is the tip, which advances by
+the record commit. Both are stated so neither is mistaken for the other.
 
 ## Defect
 
@@ -69,6 +74,12 @@ probe: PASS
 A body-first server would have held the handler until the 10 s socket
 timeout and grown by the announced size; this one answered from the header in
 about a millisecond with a flat footprint.
+
+## Integration evidence
+
+Merged onto current main (`9967aa8a3ff513cac3cbb8ccff52550622e009d3`) alone
+and together with #334/#445: see
+`lane/core-integration`, `docs/audit/LANE_EVIDENCE_INTEGRATION_2026-11-13.md`.
 
 ## Not checked
 
