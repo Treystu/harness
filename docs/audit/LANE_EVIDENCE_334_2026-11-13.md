@@ -13,10 +13,15 @@ is readable here, and no combined status is offered as evidence.
 **Branch:** `lane/core-334-log-judgment-status`
 **Fix commit:** `2cdb4a23f6a394f320d67c91c16c55381bcad65e` — the tree every
 count below was measured on.
-**Branch tip:** `bbc6518d380a8c5b22a446e09929743e8d3ec26a` — the fix plus this
-record (docs only). Correction, 2026-11-13: this line originally named the fix
-commit as the head; the head a merger checks out is the tip, which advances by
-the record commit. Both are stated so neither is mistaken for the other.
+**Branch tip:** the commit carrying this record, read it from the remote
+(`git ls-remote origin refs/heads/lane/core-334-log-judgment-status`) — a
+record cannot name its own commit without going stale the moment it is
+written. At integration time the tip was
+`081dd363320e14f72d774773c579cfadf686589b`; record-only commits after that
+advance it while leaving the code tree untouched (verified by diff in
+`lane/core-integration`). Correction, 2026-11-13: this line originally named
+the fix commit as the head. A merger checks out the tip; the measured tree is
+the fix commit. Both are named.
 
 ## Defect
 
