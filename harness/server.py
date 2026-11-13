@@ -34,6 +34,7 @@ import uuid
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlparse, parse_qs
 
 from . import events as _events
@@ -758,6 +759,7 @@ def run_plan_task(task_id, args, cancel_check):
     frontier_model = args.get("frontier_model") or getattr(settings, "frontier_model", None)
     plan_ceiling = args.get("task_max_cost") or args.get("max_cost")
 
+    engine = None
     if execute:
         engine = apply_session(settings, max_cost=plan_ceiling,
                                allowed_roots=[str(root)])
@@ -791,7 +793,7 @@ def run_plan_task(task_id, args, cancel_check):
     # passed a positional goal and a settings kwarg that the keyword-only
     # signature with ``opts_goal`` never accepted, so every HTTP plan failed
     # with a TypeError before planning. Mirror the CLI/MCP call shape.
-    ledger = engine.ledger if execute else ledger_for(settings)
+    ledger = engine.ledger if engine is not None else ledger_for(settings)
     jev_policy = policy_for(settings, transport=transport, governor=gov,
                             ledger=ledger)
 
@@ -830,9 +832,21 @@ def run_plan_task(task_id, args, cancel_check):
         node["target_files"] = [str(resolve_workspace_path(root, target))
                                  for target in node.get("target_files", [])]
     dag = TaskDAG.from_dict(dag_dict)
+    # ONE execution assembly for every lane (executor.PlanExecutor), called the
+    # way the CLI and MCP call it: ``(engine, node_routes)`` positionally and
+    # ``execute(dag)``. The previous call passed ``dag``/``task_id``/
+    # ``cancel_check`` keywords this constructor never accepted, so every HTTP
+    # plan+execute failed with a TypeError before a node ran (#445).
+    node_routes = {node.get("node_id"): node
+                   for node in plan_result.get("nodes") or ()}
+    run_gate = None
+    for node in plan_result.get("nodes") or ():
+        if isinstance(node, dict) and node.get("local_gate"):
+            run_gate = node["local_gate"]
+            break
     executor = PlanExecutor(
-        engine=engine,
-        dag=dag,
+        engine,
+        node_routes,
         max_workers=int(args.get("max_workers") or DEFAULT_PLAN_WORKERS),
         parallel=bool(args.get("parallel", hourglass.get("parallel", True))),
         isolate=bool(args.get("isolate", True)),
@@ -840,12 +854,11 @@ def run_plan_task(task_id, args, cancel_check):
             args.get("require_diff_authorization", hourglass.get("require_diff_authorization", True))
         ),
         final_gate=args.get("final_gate"),
+        run_gate=run_gate,
         keep_going=bool(args.get("keep_going", False)),
-        task_id=task_id,
-        cancel_check=cancel_check,
         repo=str(root),
     )
-    exec_result = executor.execute()
+    exec_result = executor.execute(dag)
     return {"plan": plan_result, "execution": exec_result, "status": exec_result.get("status", "ok")}
 
 
@@ -853,7 +866,8 @@ def run_plan_task(task_id, args, cancel_check):
 _AUTO_APPROVE_CONSENT = {"granted": True, "action": "observe", "params": {},
                          "by": "harness:auto_approve"}
 _DRIVER_DAEMON = {}
-_DRIVER_PROBE_TIMEOUT = 2.0
+#: Seconds. An int, because PerceptionAdapter types its probe timeout as one.
+_DRIVER_PROBE_TIMEOUT = 2
 _DRIVER_DAEMON_LOCK = threading.Lock()
 
 
@@ -1113,6 +1127,9 @@ def run_driver_task(task_id, args, cancel_check, *, lifecycle=None,
                     "confidence": decision.get("confidence"),
                     "cost": decision.get("cost", 0.0),
                 }, confidence_threshold=0.0, final=True)
+            # A lifecycle recorded nothing without its state; assert rather
+            # than let a None state raise a bare subscript error mid-run.
+            assert lifecycle_state is not None
             lifecycle_state["execution"]["completed_steps"][str(step_num)] = step_record
             lifecycle.save(lifecycle_state)
         _events.emit(
@@ -1177,7 +1194,7 @@ def run_driver_task(task_id, args, cancel_check, *, lifecycle=None,
                    f"{ok_steps} step(s) ok, nothing verified.")
     elif cost_capped:
         status = "cost_capped"
-        summary = (f"Driver stopped at the ${float(max_cost):.4f} cost cap after "
+        summary = (f"Driver stopped at the ${float(max_cost or 0.0):.4f} cost cap after "
                    f"{len(steps)} step(s); {ok_steps} step(s) ok, nothing verified.")
     elif verify_failed:
         status = "verify_failed"
@@ -1485,20 +1502,23 @@ class UiRequestHandler(BaseHTTPRequestHandler):
 
     @property
     def ui(self) -> UiState:
-        return self.server.ui
+        # ``BaseHTTPRequestHandler`` types ``server`` as the stdlib base. This
+        # handler is only ever attached to ``UiServer``, which owns the state,
+        # so the narrowing is stated once here rather than at each use.
+        return cast("UiServer", self.server).ui
 
     # -- plumbing ----------------------------------------------------------
-    def log_message(self, fmt, *args):  # route through the harness voice
+    def log_message(self, format, *args):  # route through the harness voice
         # Never let a credential reach the log: redact any token= value that
         # a client put in a URL, whatever the server does with it.
-        line = _TOKEN_IN_LOG_RE.sub(r"\1REDACTED", fmt % args)
+        line = _TOKEN_IN_LOG_RE.sub(r"\1REDACTED", format % args)
         sys.stderr.write(f"[ui] {line}\n")
 
-    def log_error(self, fmt, *args):
+    def log_error(self, format, *args):
         # Benign idle keep-alive socket timeouts on HTTP/1.1 connections should not spam logs
         if args and any(isinstance(a, TimeoutError) or "timed out" in str(a).lower() for a in args):
             return
-        super().log_error(fmt, *args)
+        super().log_error(format, *args)
 
     def _send_json(self, obj, code=200, close=False):
         body = json.dumps(obj, indent=2).encode("utf-8")
@@ -2052,32 +2072,9 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                           "metrics": metrics}],
         })
 
-    def _api_site_route(self, body):
-        """SITE local mode: route a query through the ONE policy owner.
-        Mirrors `harness route` exactly; the demo site proxies this."""
-        from .route_pack import validate_route_pack
-        goal = str(body.get("goal") or "").strip()
-        if not goal:
-            raise HarnessError("route requires a non-empty 'goal'")
-        raw_pack = body.get("pack")
-        if raw_pack is None:
-            raise HarnessError("route requires 'pack' (declared rung ladder)")
-        try:
-            pack = validate_route_pack(raw_pack)
-        except ValueError as exc:
-            raise HarnessError(f"route pack invalid: {exc}") from exc
-        settings = load_settings()
-        _, governor = governor_for(settings)
-        from .jev_policy import policy_for
-        policy = policy_for(settings, ledger=ledger_for(settings),
-                            governor=governor)
-        _result, _structural, combo = policy.evaluate_model_route(
-            {"goal": goal}, pack, site="model_route")
-        return self._send_json({
-            "status": "ok" if combo.get("rung_id") else "unroutable",
-            "route": combo,
-            "is_fallback": bool(combo.get("is_fallback")),
-        })
+    # The route face is defined once, below: this class used to carry two
+    # identical `_api_site_route` methods, so the earlier one was dead code
+    # that shadowed nothing and could drift from the one that ran (#445).
 
     def _api_ledger_defer_stats(self, q):
         window = int((q.get("window") or ["500"])[0] or 500)
@@ -2232,6 +2229,9 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         offset_raw = (q.get("offset") or ["0"])[0] or "0"
         limit = _opt_int({"limit": limit_raw}, "limit", 1, 100, 25)
         offset = _opt_int({"offset": offset_raw}, "offset", 0, 1000000, 0)
+        # Both defaults are ints, so a None here is unreachable; say so rather
+        # than pass an Optional into a required-int parameter.
+        assert limit is not None and offset is not None
         return self._send_json({
             "root": root, **_list_missions(root, limit=limit, offset=offset)
         })
@@ -2384,6 +2384,10 @@ class UiServer(ThreadingHTTPServer):
     """
 
     allow_reuse_address = not osal.HARDEN_REUSE
+
+    #: The state this server serves. Attached by ``make_server`` before it
+    #: binds, and read by every handler through ``self.server.ui``.
+    ui: "UiState"
 
     def server_close(self):
         super().server_close()
