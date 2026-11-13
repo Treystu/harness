@@ -10,8 +10,13 @@ fetch/pull/push only, `gh` unauthenticated, REST 403). This record replaces
 the PR body. Rail: **NOT CHECKED from this lane** — no named CircleCI status
 is readable here, and no combined status is offered as evidence.
 
-**Branch / exact head:** `lane/core-334-log-judgment-status`
-`2cdb4a23f6a394f320d67c91c16c55381bcad65e` (verified on the remote).
+**Branch:** `lane/core-334-log-judgment-status`
+**Fix commit:** `2cdb4a23f6a394f320d67c91c16c55381bcad65e` — the tree every
+count below was measured on.
+**Branch tip:** `bbc6518d380a8c5b22a446e09929743e8d3ec26a` — the fix plus this
+record (docs only). Correction, 2026-11-13: this line originally named the fix
+commit as the head; the head a merger checks out is the tip, which advances by
+the record commit. Both are stated so neither is mistaken for the other.
 
 ## Defect
 
@@ -62,6 +67,12 @@ probe: PASS
 The same probe against the pre-fix hardcoded status would have printed `ok`;
 the bucket tallies match the unit expectation, so the analysis itself is
 unchanged and only the claim about it moved.
+
+## Integration evidence
+
+Merged onto current main (`9967aa8a3ff513cac3cbb8ccff52550622e009d3`) alone
+and together with #299/#445: see
+`lane/core-integration`, `docs/audit/LANE_EVIDENCE_INTEGRATION_2026-11-13.md`.
 
 ## Not checked
 
