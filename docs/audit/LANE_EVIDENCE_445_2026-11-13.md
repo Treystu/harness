@@ -10,7 +10,13 @@ record replaces the PR body. Rail: **NOT CHECKED from this lane** — no named
 CircleCI status is readable here, and no combined status is offered as
 evidence.
 
-**Branch / exact head:** `lane/core-445-server-pyright` (off `9967aa8`).
+**Branch:** `lane/core-445-server-pyright`, off
+`9967aa8a3ff513cac3cbb8ccff52550622e009d3` (current main).
+**Fix and record commit:** `5fea30e73800b082d57cda8c47dfa702ca6971f5` — the
+tree every count below was measured on: the fix, this record's first version.
+Correction, 2026-11-13: this line originally carried no SHA at all. The branch
+tip after this correction adds documentation only, so the measured code tree is
+unchanged; the tip a merger checks out is read from the remote.
 
 ## Scope, stated honestly
 
@@ -93,6 +99,12 @@ probe: PASS
 The old shape provably cannot construct; the shipped shape executes and
 returns an execution block. This is evidence a type checker cannot produce:
 the path works, not merely type-checks.
+
+## Integration evidence
+
+Merged onto current main (`9967aa8a3ff513cac3cbb8ccff52550622e009d3`) alone
+and together with #299/#334: see
+`lane/core-integration`, `docs/audit/LANE_EVIDENCE_INTEGRATION_2026-11-13.md`.
 
 ## Not checked
 
