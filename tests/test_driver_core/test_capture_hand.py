@@ -17,7 +17,12 @@ screen, no session, no second process:
 * BR3: every answered frame carries a declared envelope stamped when the
   reader returned the pixels, and the consumer refuses a frame it cannot
   date, one outside the declared window, and one stamped in the future
-  (two clocks that disagree), while tolerating jitter on one machine.
+  (two clocks that disagree), while tolerating jitter on one machine;
+* BR5: the owner's four gates -- kill switch, seat allowlist, single-use
+  capture grant, indicator -- each refusing by the condition that stopped
+  it, in a fixed order that never lets a later check rewrite an earlier
+  stop, and none of them spending a grant or running a reader when the
+  bridge is stopped.
 """
 import json
 import os
@@ -135,10 +140,12 @@ class HandPollTests(unittest.TestCase):
         self.assertIsNone(result["path"])
         self.assertIn("bridge down", result["detail"])
 
-    def test_status_reports_state_and_depth(self):
+    def test_status_reports_state_depth_and_the_gates(self):
         hand = self._hand()
         self.assertEqual(hand.status(),
-                         {"state": INTERACTIVE, "pending": 0})
+                         {"state": INTERACTIVE, "pending": 0,
+                          "stopped": False, "seats": [],
+                          "indicator": None})
         post_capture_request(self.root, "r7", "capture")
         self.assertEqual(hand.status()["pending"], 1)
 
@@ -508,6 +515,319 @@ class ConsumerFreshnessTests(unittest.TestCase):
     def test_an_impossible_window_fails_at_build_not_on_a_frame(self):
         with self.assertRaises(HandError):
             capture_hand.bus_capture_backend(self.root, max_age=-1)
+
+
+class KillSwitchTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.root = tempfile.mkdtemp(prefix="hand-kill-")
+        self.calls = []
+
+    def _hand(self, state=INTERACTIVE):
+        def fake_capture():
+            self.calls.append("capture")
+            return "/tmp/shot.png", ""
+
+        return CaptureHand(self.root, session_probe=lambda: state,
+                           capture=fake_capture,
+                           describe=lambda: ({"window_title": "t"}, ""),
+                           clock=lambda: 1000.0)
+
+    def test_engage_and_clear_are_separate_acts(self):
+        self.assertFalse(capture_hand.kill_switch_engaged(self.root))
+        path = capture_hand.engage_kill_switch(self.root, detail="owner stop")
+        self.assertTrue(capture_hand.kill_switch_engaged(self.root))
+        self.assertEqual(path, capture_hand.kill_switch_path(self.root))
+        self.assertTrue(capture_hand.clear_kill_switch(self.root))
+        self.assertFalse(capture_hand.kill_switch_engaged(self.root))
+        self.assertFalse(capture_hand.clear_kill_switch(self.root))
+
+    def test_a_stopped_hand_takes_no_frame(self):
+        capture_hand.engage_kill_switch(self.root)
+        post_capture_request(self.root, "k1", "capture")
+        result = self._hand().poll_once()
+        self.assertIsNone(result["path"])
+        self.assertIsNone(result[capture_hand.FRAME_FIELD])
+        self.assertIn("kill switch", result["detail"])
+        self.assertEqual(self.calls, [])
+
+    def test_a_stopped_hand_still_refuses_describe(self):
+        capture_hand.engage_kill_switch(self.root)
+        post_capture_request(self.root, "k2", "describe")
+        result = self._hand().poll_once()
+        self.assertIsNone(result["fields"])
+        self.assertIn("kill switch", result["detail"])
+        self.assertEqual(self.calls, [])
+
+    def test_the_stop_is_reported_before_the_seat_and_the_grant(self):
+        # A stopped bridge names the stop. If it named the seat, the owner
+        # would go looking for an allowlist defect that is not there.
+        capture_hand.engage_kill_switch(self.root)
+        post_capture_request(self.root, "k3", "capture", seat="stranger",
+                             grant="never-issued")
+        hand = CaptureHand(self.root, session_probe=lambda: INTERACTIVE,
+                           capture=lambda: ("/tmp/shot.png", ""),
+                           clock=lambda: 1000.0, seats=("driver",),
+                           require_grant=True)
+        result = hand.poll_once()
+        self.assertIn("kill switch", result["detail"])
+
+    def test_a_stopped_consumer_posts_nothing(self):
+        capture_hand.engage_kill_switch(self.root)
+        backend = capture_hand.bus_capture_backend(self.root)
+        path, detail = backend.capture()
+        self.assertIsNone(path)
+        self.assertIn("kill switch", detail)
+        self.assertEqual(capture_hand.pending_requests(self.root), [])
+
+    def test_a_resumed_bridge_answers_again(self):
+        capture_hand.engage_kill_switch(self.root)
+        capture_hand.clear_kill_switch(self.root)
+        post_capture_request(self.root, "k4", "capture")
+        result = self._hand().poll_once()
+        self.assertEqual(result["path"], "/tmp/shot.png")
+
+
+class SeatAllowlistTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.root = tempfile.mkdtemp(prefix="hand-seat-")
+        self.calls = []
+
+    def _hand(self, *, seats=("driver",)):
+        def fake_capture():
+            self.calls.append("capture")
+            return "/tmp/shot.png", ""
+
+        return CaptureHand(self.root, session_probe=lambda: INTERACTIVE,
+                           capture=fake_capture,
+                           describe=lambda: ({"window_title": "t"}, ""),
+                           clock=lambda: 1000.0, seats=seats)
+
+    def test_a_listed_seat_is_served_and_named_in_the_answer(self):
+        post_capture_request(self.root, "a1", "capture", seat="driver")
+        result = self._hand().poll_once()
+        self.assertEqual(result["path"], "/tmp/shot.png")
+        self.assertEqual(result["seat"], "driver")
+
+    def test_an_unlisted_seat_is_refused_by_name_without_a_reader(self):
+        post_capture_request(self.root, "a2", "capture", seat="stranger")
+        result = self._hand().poll_once()
+        self.assertIsNone(result["path"])
+        self.assertIn("stranger", result["detail"])
+        self.assertIn("allowlist", result["detail"])
+        self.assertEqual(self.calls, [])
+
+    def test_a_declared_allowlist_is_default_deny(self):
+        post_capture_request(self.root, "a3", "capture")
+        result = self._hand().poll_once()
+        self.assertIsNone(result["path"])
+        self.assertIn("None", result["detail"])
+        self.assertEqual(self.calls, [])
+
+    def test_the_bridge_serves_describe_only_to_listed_seats_too(self):
+        post_capture_request(self.root, "a4", "describe", seat="stranger")
+        result = self._hand().poll_once()
+        self.assertIsNone(result["fields"])
+        self.assertIn("stranger", result["detail"])
+
+    def test_an_undeclared_allowlist_serves_any_seat(self):
+        post_capture_request(self.root, "a5", "capture", seat="anyone")
+        result = self._hand(seats=None).poll_once()
+        self.assertEqual(result["path"], "/tmp/shot.png")
+
+    def test_status_names_the_declared_seats(self):
+        self.assertEqual(self._hand(seats=("driver", "jw")).status()["seats"],
+                         ["driver", "jw"])
+
+    def test_a_seat_name_is_not_free_text(self):
+        for bad in (None, "", "   ", 7):
+            with self.assertRaises(HandError):
+                CaptureHand(self.root, seats=(bad,))
+
+
+class CaptureGrantTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.root = tempfile.mkdtemp(prefix="hand-grant-")
+        self.calls = []
+
+    def _hand(self, *, require_grant=True, seats=("driver",)):
+        def fake_capture():
+            self.calls.append("capture")
+            return "/tmp/shot.png", ""
+
+        return CaptureHand(self.root, session_probe=lambda: INTERACTIVE,
+                           capture=fake_capture,
+                           describe=lambda: ({"window_title": "t"}, ""),
+                           clock=lambda: 1000.0, seats=seats,
+                           require_grant=require_grant)
+
+    def test_an_issued_grant_is_validated_and_then_spent(self):
+        grant = capture_hand.issue_capture_grant(
+            self.root, seat="driver", grant_id="g1", clock=lambda: 1000.0)
+        self.assertEqual(grant["seat"], "driver")
+        self.assertEqual(grant["expires_at"], 1000.0 +
+                         capture_hand.DEFAULT_GRANT_TTL)
+        ok, detail = capture_hand.validate_grant(
+            self.root, "g1", seat="driver", now=1001.0)
+        self.assertTrue(ok)
+        self.assertEqual(detail, "")
+        capture_hand.consume_grant(self.root, "g1", now=1002.0)
+        ok, detail = capture_hand.validate_grant(
+            self.root, "g1", seat="driver", now=1003.0)
+        self.assertFalse(ok)
+        self.assertIn("already been used", detail)
+
+    def test_a_missing_grant_is_refused_and_nothing_is_read(self):
+        post_capture_request(self.root, "g2", "capture", seat="driver")
+        result = self._hand().poll_once()
+        self.assertIsNone(result["path"])
+        self.assertIn("no capture grant", result["detail"])
+        self.assertEqual(self.calls, [])
+
+    def test_a_grant_for_another_seat_does_not_travel(self):
+        capture_hand.issue_capture_grant(self.root, seat="jw", grant_id="g3",
+                                         clock=lambda: 1000.0)
+        post_capture_request(self.root, "g4", "capture", seat="driver",
+                             grant="g3")
+        result = self._hand().poll_once()
+        self.assertIsNone(result["path"])
+        self.assertIn("issued to seat 'jw'", result["detail"])
+        self.assertEqual(self.calls, [])
+
+    def test_an_expired_grant_names_its_age(self):
+        capture_hand.issue_capture_grant(self.root, seat="driver",
+                                         grant_id="g5", ttl=10.0,
+                                         clock=lambda: 1000.0)
+        ok, detail = capture_hand.validate_grant(
+            self.root, "g5", seat="driver", now=1012.0)
+        self.assertFalse(ok)
+        self.assertIn("expired 2.000s ago", detail)
+
+    def test_an_unknown_grant_is_refused_by_name(self):
+        ok, detail = capture_hand.validate_grant(
+            self.root, "never-issued", seat="driver", now=1000.0)
+        self.assertFalse(ok)
+        self.assertIn("unknown capture grant", detail)
+
+    def test_a_successful_frame_spends_the_grant(self):
+        capture_hand.issue_capture_grant(self.root, seat="driver",
+                                         grant_id="g6", clock=lambda: 1000.0)
+        post_capture_request(self.root, "g7", "capture", seat="driver",
+                             grant="g6")
+        result = self._hand().poll_once()
+        self.assertEqual(result["path"], "/tmp/shot.png")
+        self.assertEqual(result["grant"], "g6")
+        spent = capture_hand.read_grant(self.root, "g6")
+        self.assertEqual(spent["used_at"], 1000.0)
+
+    def test_a_failed_reader_takes_no_frame_so_nothing_is_spent(self):
+        capture_hand.issue_capture_grant(self.root, seat="driver",
+                                         grant_id="g8", clock=lambda: 1000.0)
+
+        def boom():
+            raise RuntimeError("capture down")
+
+        hand = CaptureHand(self.root, session_probe=lambda: INTERACTIVE,
+                           capture=boom, clock=lambda: 1000.0,
+                           seats=("driver",), require_grant=True)
+        post_capture_request(self.root, "g9", "capture", seat="driver",
+                             grant="g8")
+        result = hand.poll_once()
+        self.assertIsNone(result["path"])
+        self.assertIsNone(capture_hand.read_grant(self.root, "g8")["used_at"])
+
+    def test_a_hand_that_requires_no_grant_ignores_one(self):
+        post_capture_request(self.root, "g10", "capture", seat="driver")
+        result = self._hand(require_grant=False).poll_once()
+        self.assertEqual(result["path"], "/tmp/shot.png")
+
+    def test_an_impossible_window_fails_at_issue(self):
+        with self.assertRaises(HandError):
+            capture_hand.issue_capture_grant(self.root, ttl=-1)
+
+    def test_the_consumer_forwards_its_seat_and_grant(self):
+        seen = {}
+
+        def issuer():
+            record = capture_hand.issue_capture_grant(
+                self.root, seat="driver", grant_id="c1", clock=lambda: 1000.0)
+            seen["id"] = record["grant_id"]
+            return record["grant_id"]
+
+        backend = capture_hand.bus_capture_backend(
+            self.root, request_id_factory=_ids("c1"), seat="driver",
+            grant=issuer, clock=lambda: 1002.0)
+        answered = self._answer_with(lambda: CaptureHand(
+            self.root, session_probe=lambda: INTERACTIVE,
+            capture=lambda: ("/tmp/granted.png", ""), clock=lambda: 1000.0,
+            seats=("driver",), require_grant=True))
+        path, _ = backend.capture()
+        answered.join(timeout=10)
+        self.assertEqual(path, "/tmp/granted.png")
+        self.assertEqual(seen["id"], "c1")
+        self.assertIsNotNone(capture_hand.read_grant(self.root, "c1")["used_at"])
+
+    def _answer_with(self, make_hand):
+        import threading
+
+        def answer():
+            import time as _time
+            while not capture_hand.pending_requests(self.root):
+                _time.sleep(0.001)
+            make_hand().poll_once()
+
+        worker = threading.Thread(target=answer, daemon=True)
+        worker.start()
+        return worker
+
+
+class IndicatorTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.root = tempfile.mkdtemp(prefix="hand-indicator-")
+        self.seen = []
+
+    def test_the_indicator_is_on_while_a_reader_runs_and_off_after(self):
+        def capture():
+            self.seen.append(capture_hand.read_indicator(self.root))
+            return "/tmp/shot.png", ""
+
+        hand = CaptureHand(self.root, session_probe=lambda: INTERACTIVE,
+                           capture=capture, clock=lambda: 1000.0)
+        post_capture_request(self.root, "i1", "capture")
+        hand.poll_once()
+        during = self.seen[0]
+        self.assertEqual(during["schema"], capture_hand.INDICATOR_SCHEMA)
+        self.assertTrue(during["on"])
+        self.assertEqual(during["request_id"], "i1")
+        after = capture_hand.read_indicator(self.root)
+        self.assertFalse(after["on"])
+        self.assertEqual(after["request_id"], "i1")
+
+    def test_no_indicator_before_the_hand_ever_ran(self):
+        self.assertIsNone(capture_hand.read_indicator(self.root))
+
+    def test_a_describe_never_turns_the_indicator_on(self):
+        hand = CaptureHand(self.root, session_probe=lambda: INTERACTIVE,
+                           capture=lambda: ("/tmp/shot.png", ""),
+                           describe=lambda: ({"window_title": "t"}, ""),
+                           clock=lambda: 1000.0)
+        post_capture_request(self.root, "i2", "describe")
+        hand.poll_once()
+        self.assertIsNone(capture_hand.read_indicator(self.root))
+
+    def test_a_reader_failure_clears_the_indicator_too(self):
+        def boom():
+            raise RuntimeError("capture down")
+
+        hand = CaptureHand(self.root, session_probe=lambda: INTERACTIVE,
+                           capture=boom, clock=lambda: 1000.0)
+        post_capture_request(self.root, "i3", "capture")
+        hand.poll_once()
+        after = capture_hand.read_indicator(self.root)
+        self.assertFalse(after["on"])
 
 
 if __name__ == "__main__":
