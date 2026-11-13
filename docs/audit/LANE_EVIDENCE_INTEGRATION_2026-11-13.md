@@ -16,11 +16,16 @@ proven by behavior.
 Base for every merge test: **main `9967aa8a3ff513cac3cbb8ccff52550622e009d3`**
 (the head named at the start of this pass, unchanged by it).
 
-| Item | Branch | Fix commit (measured tree) | Branch tip (carries the record) |
+| Item | Branch | Fix commit (measured tree) | Delivery tip at integration time |
 | --- | --- | --- | --- |
 | #299 POST body cap | `lane/core-299-post-body-cap` | `643fc8988f3d48f8af9b3e0815e3d159a65f8dd1` | `74c155f89cf7855ef44f58dfdb209f72117cdd49` |
 | #334 log_judgment status | `lane/core-334-log-judgment-status` | `2cdb4a23f6a394f320d67c91c16c55381bcad65e` | `081dd363320e14f72d774773c579cfadf686589b` |
 | #445 pyright / plan+execute | `lane/core-445-server-pyright` | `5fea30e73800b082d57cda8c47dfa702ca6971f5` | `7753384447b269688fa19e8282fa698e1a769220` |
+
+A record-only commit written after the merges were proved advances a tip
+without touching the code tree, so the tip a merger checks out is read from the
+remote (`git ls-remote`), and the sha above is what the merge tests used. Each
+item record states the same thing for itself.
 
 Heads were read from the remote (`git ls-remote`), not from local pointers.
 Record corrections made during this pass, stated as corrections rather than
