@@ -19,7 +19,7 @@ Related design context (not the tracker): [system-one-integration.md](system-one
 <!-- BEGIN REGISTER_MIRROR -->
 ## Register mirror - 2026-11-13 (#295)
 
-**Change since 2026-11-12:** nothing opened or closed — PR #501 merged as `bf2348f` and left #454 open; census still **91** open issues / **0** open PRs by both reads.
+**Change since 2026-11-12:** nothing opened or closed — PR #501 merged as `bf2348f` and left #454 open; census at `bf2348f` still **91** open issues / **0** open PRs by both reads (this mirror's own PR #502 opened after those reads).
 
 **This section, not the dated filings below, is the live count and order.**
 It is generated from live issue state, so every row it lists is an open
@@ -33,7 +33,7 @@ true while issues close.
 
 - **91 open issues**, agreed by two independent reads:
   `gh issue list --state open` and the search API
-  (`type:issue state:open`) both return **91**; both open-PR reads return **0**.
+  (`type:issue state:open`) both return **91**; both open-PR reads return **0** at `bf2348f`, before this mirror's own PR #502 opened.
 - The 2026-11-11 register carried **98 rows**. **91** are still open,
   **7** have closed since that filing, and **0** open issues are absent
   from it. The arithmetic reconciles: rows minus closed equals the census.
