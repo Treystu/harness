@@ -150,6 +150,18 @@ def _reject_nonstandard_json(value):
     raise ValueError(f"non-standard JSON constant: {value}")
 
 
+def _log_judgment_status(analysis):
+    """The honest status of one ``log_judgment`` analysis.
+
+    ``ok`` means at least one item was live-judged. A run in which every item
+    was fallback-judged (an unkeyed or degraded backend) still analyzed the
+    log, but no judgment happened, so it must not be reported as native
+    success (#334). The coverage block keeps the fallback provenance.
+    """
+    coverage = (analysis or {}).get("coverage") or {}
+    return "ok" if coverage.get("live_judged") else "no_live_judgments"
+
+
 class McpServer:
     """Lane workers (one serial worker per lane) with an independent stdio reader."""
 
@@ -1092,6 +1104,8 @@ class McpServer:
                 "pack_id": combo.get("pack_id"),
             }
         if name == "log_judgment":
+            # ``status`` is derived from coverage, below: zero live judgments
+            # is a truthful non-ok outcome, never unqualified success.
             # Thin face over the ONE policy owner (jev_policy.evaluate_log_item)
             # + code-owned aggregation (log_analysis). Never invents buckets,
             # levels, paths, or actions; unmatched stays honest.
@@ -1118,7 +1132,7 @@ class McpServer:
                 task_id=validate_mcp_task_id(args.get("task_id"))
                 if args.get("task_id") is not None else None)
             return {
-                "status": "ok",
+                "status": _log_judgment_status(analysis),
                 "analysis": analysis,
                 "pack_id": analysis.get("pack_id"),
                 "coverage": analysis.get("coverage"),
