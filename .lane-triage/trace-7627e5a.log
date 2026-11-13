@@ -1,0 +1,983 @@
+tracing full battery (2-4 min)...
+Discovered 5321 tests. Starting execution under trace...
+.................................................. [50/5321 - 0%]
+.................................................. [100/5321 - 1%]
+..................................s.s............. [150/5321 - 2%]
+...........................s...s.................. [200/5321 - 3%]
+.................................................. [250/5321 - 4%]
+.................................................. [300/5321 - 5%]
+....................................{
+  "bench": {
+    "statuses": {
+      "ok": 1
+    }
+  }
+}
+.........ss... [350/5321 - 6%]
+.................................................. [400/5321 - 7%]
+.................................................. [450/5321 - 8%]
+.................................................. [500/5321 - 9%]
+.................................................. [550/5321 - 10%]
+................................................{
+  "spent": 0.01,
+  "limit": 1.0,
+  "session": {
+    "spent": 0.01,
+    "ceiling": 1.0,
+    "remaining": 0.99
+  },
+  "jev": {
+    "calls": 10,
+    "input_tokens": 1000,
+    "output_tokens": 200,
+    "cost": 4.2e-05,
+    "monthly_credit": 5.0,
+    "remaining_credit": 4.999958,
+    "used_percent": 0.0
+  }
+}
+{
+  "total_cost": 0.01,
+  "events_count": 5,
+  "billable_calls": 3,
+  "free_calls": 2,
+  "savings": {
+    "baseline_frontier_cost": 0.5,
+    "net_savings": 0.49,
+    "savings_percent": 98.0
+  },
+  "jev": {
+    "calls": 10,
+    "input_tokens": 1000,
+    "output_tokens": 200,
+    "cost": 4.2e-05,
+    "monthly_credit": 5.0,
+    "remaining_credit": 4.999958,
+    "used_percent": 0.0
+  }
+}
+.. [600/5321 - 11%]
+.....{
+  "offers": 1,
+  "accepts": 0,
+  "declines": 0,
+  "defers": 0,
+  "redirects": 0,
+  "renew_accepts": 0,
+  "renew_defers": 0,
+  "dispatch_starts": 1,
+  "completions": 0,
+  "aborts": 1,
+  "deferred_midtask": 0,
+  "escalations": 0,
+  "accept_rate": 0.0,
+  "decline_rate": 0.0,
+  "defer_rate": 0.0,
+  "redirect_rate": 0.0,
+  "completion_rate": 0.0,
+  "consent_required_offers": 0,
+  "per_model": {
+    "(bench)": {
+      "offers": 1
+    }
+  },
+  "trust_gates": 0,
+  "trust_hostile": 0,
+  "per_caller": {},
+  "tracked_cost": 0.0,
+  "billable_event_count": 1,
+  "consent_looks_degenerate": false,
+  "calibration": {
+    "(bench)": {
+      "confident": 0,
+      "defer": 0,
+      "missing": 0,
+      "confident_verified": 0,
+      "confident_passed": 0,
+      "confident_failed": 0,
+      "confidence_precision": null,
+      "success_pass": 0,
+      "success_fail": 0,
+      "success_rate": null,
+      "gate_wasted_runs": 0,
+      "structured_pass": 0,
+      "structured_fail": 0,
+      "structured_success_rate": null,
+      "structured_samples": 0,
+      "json_samples": 0,
+      "samples": 0,
+      "unusable_outputs": 0,
+      "consent_unusable": 0,
+      "minority_dissent": 0,
+      "trust_denials": 0,
+      "trust_hostile": 0
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "confident": 0,
+      "defer": 0,
+      "missing": 0,
+      "confident_verified": 0,
+      "confident_passed": 0,
+      "confident_failed": 0,
+      "confidence_precision": null,
+      "success_pass": 0,
+      "success_fail": 0,
+      "success_rate": null,
+      "gate_wasted_runs": 1,
+      "structured_pass": 0,
+      "structured_fail": 0,
+      "structured_success_rate": null,
+      "structured_samples": 0,
+      "json_samples": 0,
+      "samples": 0,
+      "unusable_outputs": 0,
+      "consent_unusable": 0,
+      "minority_dissent": 0,
+      "trust_denials": 0,
+      "trust_hostile": 0
+    },
+    "z-ai/glm-5.3-flash": {
+      "confident": 0,
+      "defer": 0,
+      "missing": 0,
+      "confident_verified": 0,
+      "confident_passed": 0,
+      "confident_failed": 0,
+      "confidence_precision": null,
+      "success_pass": 0,
+      "success_fail": 0,
+      "success_rate": null,
+      "gate_wasted_runs": 0,
+      "structured_pass": 0,
+      "structured_fail": 0,
+      "structured_success_rate": null,
+      "structured_samples": 0,
+      "json_samples": 0,
+      "samples": 1,
+      "unusable_outputs": 0,
+      "consent_unusable": 0,
+      "minority_dissent": 0,
+      "trust_denials": 0,
+      "trust_hostile": 0
+    }
+  },
+  "confidence_precision": null,
+  "underconfident_or_overconfident": [],
+  "jev_calibration": {
+    "jev_evals": 1,
+    "jev_fallback_evals": 1,
+    "jev_cache_hit_evals": 0,
+    "jev_keyed_evals": 0,
+    "by_site": {
+      "escalation-decision": 1
+    },
+    "tasks_with_jev": 1,
+    "tasks_joined_with_verify": 0,
+    "confidence_buckets": {
+      "high_supported_ge_0.8": {
+        "evals": 0,
+        "tasks": 0,
+        "verify_pass": 0,
+        "verify_fail": 0,
+        "verify_pass_rate": null
+      },
+      "mid_supported_0.5_0.8": {
+        "evals": 0,
+        "tasks": 0,
+        "verify_pass": 0,
+        "verify_fail": 0,
+        "verify_pass_rate": null
+      },
+      "low_supported_lt_0.5": {
+        "evals": 0,
+        "tasks": 0,
+        "verify_pass": 0,
+        "verify_fail": 0,
+        "verify_pass_rate": null
+      }
+    },
+    "review_notes": [],
+    "notes": [
+      "advisory only: thresholds stay operator-owned; this report never mutates settings",
+      "join key is task_id; jev_eval without task_id is counted in site totals only"
+    ]
+  },
+  "bench": {
+    "tasks": 1,
+    "statuses": {
+      "verify_failed": 1
+    },
+    "pass_rate": 0.0,
+    "total_cost": 0.0,
+    "mean_cost": 0.0,
+    "total_rounds": 1,
+    "total_rotations": 0,
+    "results": [
+      {
+        "name": "b1",
+        "status": "verify_failed",
+        "task_id": "bench/b1",
+        "rounds": [
+          {
+            "phase": "escalation",
+            "rung": 0,
+            "model": "z-ai/glm-5.3-flash",
+            "status": "api_error",
+            "error": "nope",
+            "cost": 0.0,
+            "content": ""
+          }
+        ],
+        "cost": 0.0,
+        "rotations": 0,
+        "backend": "harness",
+        "verify_only": false,
+        "backup": null,
+        "verify_cmd": "python -c ''",
+        "verify": {
+          "command": "python -c ''",
+          "passed": false,
+          "output_tail": ""
+        },
+        "gate_ran": true,
+        "continuation": {
+          "schema_version": 1,
+          "file_path": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmp097amnid\\b1\\a.py",
+          "task_id": "bench/b1",
+          "backend": "harness",
+          "verify_only": false,
+          "max_lines": 500,
+          "edit_snippet": null,
+          "verify_cmd": "python -c ''",
+          "verify_gate_id": "3ea71c52f5c86d5a",
+          "verification_required": true,
+          "target_hash": "f1776ce4397fa7cbeaee31c3ff73d5b829eb49e5d15049f9266f099743f377e2",
+          "remaining_scope": "Fix the verification failures for: x",
+          "reason": "verification did not pass on the free tier; continue and fix",
+          "history": []
+        },
+        "model_requested": "deepseek/deepseek-v4.1-flash",
+        "model_observed": [
+          "z-ai/glm-5.3-flash"
+        ]
+      }
+    ]
+  }
+}
+................{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": null,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+.{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.005,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+...{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "model/one",
+      "model/two",
+      "model/three"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.05,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+.{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.05,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+.{
+  "status": "planned",
+  "decomposition": "heuristic",
+  "nodes": []
+}
+....................... [650/5321 - 12%]
+.................................................. [700/5321 - 13%]
+.................................................. [750/5321 - 14%]
+.................................................. [800/5321 - 15%]
+...{
+  "status": "ok",
+  "cost": 0.0,
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "openai/gpt-4o-mini",
+      "openai/gpt-5-mini",
+      "openai/gpt-5.6-luna",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": null,
+    "key_label_present": false
+  }
+}
+.{
+  "status": "ok",
+  "cost": 0.0,
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "openai/gpt-4o-mini",
+      "openai/gpt-5-mini",
+      "openai/gpt-5.6-luna",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": null,
+    "key_label_present": false
+  }
+}
+.{
+  "bench": {
+    "statuses": {}
+  }
+}
+.{
+  "captured_at": 0.0,
+  "refreshed": false,
+  "models": [],
+  "count": 0
+}
+.{
+  "captured_at": 0.0,
+  "refreshed": false,
+  "models": [],
+  "count": 0
+}
+........................................... [850/5321 - 15%]
+.................................................. [900/5321 - 16%]
+.................................................. [950/5321 - 17%]
+...s.............................................. [1000/5321 - 18%]
+.................................................. [1050/5321 - 19%]
+.................................................. [1100/5321 - 20%]
+.................................................. [1150/5321 - 21%]
+.................................................. [1200/5321 - 22%]
+.................................................. [1250/5321 - 23%]
+.................................................. [1300/5321 - 24%]
+.................................................. [1350/5321 - 25%]
+.................................fireworks pack matches the snapshot
+.fireworks pack matches the snapshot
+................ [1400/5321 - 26%]
+.................................................. [1450/5321 - 27%]
+.................................................. [1500/5321 - 28%]
+...................[OK] self-test: 24 classification cases behave as specified
+[WAIVED] HANDOFF/CTO_HANDOFF_HARNESS_JEV_FREEBUFF_AUDIT_2026-09-21.md: owner=Sovereign-Communication/harness operator (CTO seat) ticket=#108 date=2026-09-28 reason=Records, by design, that the sibling lane's identity/transport/WiFi handoff is NOT in this repository, and names its location so the exclusion is checkable. The reference establishes the boundary rather than importing foreign material. (aliases: sc messenger, scmessenger)
+[WAIVED] HANDOFF/FREEBUFF_TRANSITION.md: owner=Sovereign-Communication/harness operator ticket=#108 date=2026-09-28 reason=Transition record that cites a foreign-lane log path as dogfood evidence and states the rule that no foreign product code lands in Harness PRs. The named artifacts are pointers, not imported findings, evidence, status, or remediation. (aliases: sc messenger, scmessenger)
+[WAIVED] docs/MODEL_SELECTION_HANDOFF_2026-09-13.md: owner=Sovereign-Communication/harness operator ticket=#108 date=2026-09-28 reason=Carries its own authorship provenance (a recovery session belonging to the foreign lane) and uses that lane's failed board run as the evidence for the model-selection conclusions. Removing either would falsify the record. Confirmed as a substantive foreign reference, not an incidental mention, by HANDOFF/OWNERSHIP_GATE_UNTRACKED_2026-09-26.md. (aliases: sc messenger, scmessenger)
+[WAIVED] handoff/selftest/DIRTY.md: owner=operator ticket=#108 date=2026-09-26 reason=records SCMessenger (aliases: sc messenger, scmessenger)
+[WAIVED] handoff/selftest/DIRTY.md: owner=operator ticket=#108 date=2026-09-26 reason=records SCMessenger (aliases: sc messenger, scmessenger)
+[WAIVED] handoff/selftest/DIRTY.md: owner=operator ticket=#108 date=2026-09-26 reason=records SCMessenger (aliases: sc messenger, scmessenger)
+[OK] self-test: 24 classification cases and 25 waiver cases behave as specified
+.....ss........................ [1550/5321 - 29%]
+.................................................. [1600/5321 - 30%]
+.................................................. [1650/5321 - 31%]
+.................................................. [1700/5321 - 31%]
+.................................................. [1750/5321 - 32%]
+.................................................. [1800/5321 - 33%]
+.................................................. [1850/5321 - 34%]
+.................................................. [1900/5321 - 35%]
+.................................................. [1950/5321 - 36%]
+.................................................. [2000/5321 - 37%]
+..........................................{
+  "id": "m-err",
+  "pack_dir": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpz3drl_jf\\missions\\m-err",
+  "phase": "in_progress",
+  "terminal": false,
+  "request": "Implement HUL-A mission pack layout",
+  "success_definition": "Pack inits, receipts append, STATUS regenerates",
+  "scope": {
+    "in_scope": [
+      "mission_record.py",
+      "cli mission"
+    ],
+    "out_of_scope": [
+      "HUL-D driver live loop"
+    ]
+  },
+  "limits": {
+    "max_cost_usd": 0.5
+  },
+  "terminal_reserve": {
+    "cost_usd": 0.05
+  },
+  "verifier": {
+    "kind": "hermetic-local"
+  },
+  "budget": {
+    "max_cost_usd": 0.5,
+    "mission_id": "m-err",
+    "phase": "attempt",
+    "phase_ceiling": 0.45,
+    "phase_remaining": 0.45,
+    "spent": 0.0,
+    "terminal_available": 0.5,
+    "terminal_reserve_cost_usd": 0.05,
+    "updated_at": "2026-11-03T11:23:03+00:00",
+    "working_remaining": 0.45
+  },
+  "dual_budget": {
+    "working_remaining": 0.45,
+    "terminal_reserve_cost_usd": 0.05,
+    "terminal_available": 0.5,
+    "phase": "attempt"
+  },
+  "receipts_count": 0,
+  "jev_evals_count": 0,
+  "receipts": [],
+  "jev_evals": [],
+  "resume": {
+    "schema_version": 1,
+    "mission_id": "m-err",
+    "pack_dir": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpz3drl_jf\\missions\\m-err",
+    "status": "in_progress",
+    "receipts_seq": 0,
+    "attempts": 0,
+    "spent": 0.0,
+    "updated_at": "2026-11-03T11:23:03+00:00"
+  },
+  "status_md_path": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpz3drl_jf\\missions\\m-err\\STATUS.md",
+  "findings_md_path": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpz3drl_jf\\missions\\m-err\\FINDINGS.md",
+  "findings_md": "# FINDINGS \u2014 m-err\n\nNot terminal. Findings are written only when the mission reaches a terminal outcome via mark_terminal (HUL-D owns the until-limits driver).\n"
+}
+.s...... [2050/5321 - 38%]
+..ssss............................................ [2100/5321 - 39%]
+.................................................. [2150/5321 - 40%]
+.................................................. [2200/5321 - 41%]
+.................................................. [2250/5321 - 42%]
+.................................................. [2300/5321 - 43%]
+.................................................. [2350/5321 - 44%]
+.....................warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+....warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+..warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.......warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.......... [2400/5321 - 45%]
+.................................................. [2450/5321 - 46%]
+.................................................. [2500/5321 - 46%]
+.................................................. [2550/5321 - 47%]
+.................................................. [2600/5321 - 48%]
+....
+calibration: 28 cases, threshold 0.95, margin 0.2, false_proceed_rate 0.0, unnecessary_escalation_rate 0.0
+.............................................. [2650/5321 - 49%]
+.................................................. [2700/5321 - 50%]
+..........................................{
+  "pack_id": "scmessenger-ops-log-v1",
+  "declared_buckets": [
+    "ble",
+    "transport"
+  ],
+  "items": [
+    {
+      "id": "item-000001",
+      "line_index": 1,
+      "level": "warn",
+      "module": "scmessenger_cli::ble_daemon",
+      "evidence": "line 1 [warn] scmessenger_cli::ble_daemon",
+      "bucket": "ble",
+      "path_id": "log/ble",
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000002",
+      "line_index": 2,
+      "level": "warn",
+      "module": "scmessenger_cli::ble_mesh",
+      "evidence": "line 2 [warn] scmessenger_cli::ble_mesh",
+      "bucket": "ble",
+      "path_id": "log/ble",
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000003",
+      "line_index": 4,
+      "level": "warn",
+      "module": "scmessenger_core::transport::swarm",
+      "evidence": "line 4 [warn] scmessenger_core::transport::swarm",
+      "bucket": "transport",
+      "path_id": "log/transport",
+      "suggested_next_action": "review dial/relay policy",
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000004",
+      "line_index": 5,
+      "level": "warn",
+      "module": "misc::thing",
+      "evidence": "line 5 [warn] misc::thing",
+      "bucket": null,
+      "path_id": null,
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000005",
+      "line_index": 6,
+      "level": "error",
+      "module": "misc::other",
+      "evidence": "line 6 [error] misc::other",
+      "bucket": null,
+      "path_id": null,
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    }
+  ],
+  "coverage": {
+    "total_items": 5,
+    "bucketed": 3,
+    "unmatched": 2,
+    "fallbacks": 5,
+    "live_judged": 0
+  },
+  "buckets": {
+    "ble": 2,
+    "transport": 1
+  },
+  "scores": {
+    "by_level": {},
+    "mean_value": null
+  },
+  "mechanical": {
+    "total_lines": 6,
+    "selected_items": 5,
+    "by_level": {
+      "error": 1,
+      "warn": 4
+    },
+    "top_modules": [
+      {
+        "module": "misc::other",
+        "count": 1
+      },
+      {
+        "module": "misc::thing",
+        "count": 1
+      },
+      {
+        "module": "scmessenger_cli::ble_daemon",
+        "count": 1
+      },
+      {
+        "module": "scmessenger_cli::ble_mesh",
+        "count": 1
+      },
+      {
+        "module": "scmessenger_core::transport::swarm",
+        "count": 1
+      }
+    ]
+  }
+}
+..{
+  "pack_id": "scmessenger-ops-log-v1",
+  "declared_buckets": [
+    "ble",
+    "transport"
+  ],
+  "items": [],
+  "coverage": {
+    "total_items": 0,
+    "bucketed": 0,
+    "unmatched": 0,
+    "fallbacks": 0,
+    "live_judged": 0
+  },
+  "buckets": {},
+  "scores": {
+    "by_level": {},
+    "mean_value": null
+  },
+  "mechanical": {
+    "total_lines": 2,
+    "selected_items": 0,
+    "by_level": {},
+    "top_modules": []
+  }
+}
+...... [2750/5321 - 51%]
+.................................................. [2800/5321 - 52%]
+.................................................. [2850/5321 - 53%]
+........................................s......... [2900/5321 - 54%]
+.................................................. [2950/5321 - 55%]
+.........................................s........ [3000/5321 - 56%]
+.................................................. [3050/5321 - 57%]
+.................................................. [3100/5321 - 58%]
+.................................................. [3150/5321 - 59%]
+........ssssssssss..s....ssssssssss....ssssss....s [3200/5321 - 60%]
+.................................................. [3250/5321 - 61%]
+.................{"jsonrpc": "2.0", "id": 2, "error": {"code": -32800, "message": "Request cancelled before execution"}}
+................................. [3300/5321 - 62%]
+s..........ssss..............s.................... [3350/5321 - 62%]
+.................................................. [3400/5321 - 63%]
+..........warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+....................................s... [3450/5321 - 64%]
+.s.....................s.s..s..............s...... [3500/5321 - 65%]
+.................................................. [3550/5321 - 66%]
+.................................................. [3600/5321 - 67%]
+........................{
+  "status": "refused",
+  "goal": "Refactor concurrency architecture",
+  "total_nodes": 1,
+  "batches": [
+    [
+      "task_1"
+    ]
+  ],
+  "nodes": [
+    {
+      "node_id": "task_1",
+      "instruction": "Refactor concurrency architecture",
+      "target_files": [
+        "harness/sync.py"
+      ],
+      "dependencies": [],
+      "local_gate": "C:\\Users\\SCM\\Documents\\GitHub\\Harness\\.venv\\Scripts\\python.exe -m py_compile \"C:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\sync.py\"",
+      "complexity_tier": 2,
+      "recommended_model": "front/x",
+      "cost_ceiling": 1.0,
+      "backend": null,
+      "classification": {
+        "tier": 2,
+        "score": 0.7,
+        "reasons": [
+          "frontier keywords detected (+0.50): architect, concurrency",
+          "single target file scope"
+        ],
+        "estimated_cost_tier": "frontier"
+      },
+      "route": {
+        "ladder": [
+          "front/x",
+          "z-ai/glm-5.3-flash",
+          "deepseek/deepseek-v4-pro",
+          "qwen/qwen3.8-max-0902",
+          "openai/gpt-4.1",
+          "openai/gpt-5.6-sol"
+        ],
+        "cost_ceiling": 1.0
+      }
+    }
+  ],
+  "total_cost_ceiling": 1.0,
+  "dag": {
+    "nodes": [
+      {
+        "node_id": "task_1",
+        "instruction": "Refactor concurrency architecture",
+        "target_files": [
+          "harness/sync.py"
+        ],
+        "dependencies": [],
+        "local_gate": "C:\\Users\\SCM\\Documents\\GitHub\\Harness\\.venv\\Scripts\\python.exe -m py_compile \"C:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\sync.py\"",
+        "complexity_tier": 2,
+        "backend": null
+      }
+    ]
+  },
+  "decomposition": "heuristic",
+  "confirmation": {
+    "verdict": "refused",
+    "model": "front/x",
+    "rounds": 1,
+    "reason": "tier mismatch",
+    "evidence": "brief: task_1 needs frontier",
+    "cost": 0.0001
+  },
+  "composed_worst_case": {
+    "composed_worst_case": 1.00006,
+    "node_ceiling": 1.0,
+    "decompose": 0.0,
+    "waist": 6e-05,
+    "consensus": 0.0,
+    "remaining": 0.0499,
+    "plan_ceiling": 0.05,
+    "exceeds_remaining": true
+  },
+  "composition": {
+    "run_budget": "run",
+    "stages": [
+      {
+        "stage": "context",
+        "max_input_tokens": 200000,
+        "max_output_tokens": 64000,
+        "state": "pending"
+      },
+      {
+        "stage": "planning",
+        "max_input_tokens": 1024,
+        "max_output_tokens": 32000,
+        "state": "pending"
+      },
+      {
+        "stage": "execution",
+        "max_input_tokens": 1024,
+        "max_output_tokens": 16000,
+        "state": "pending"
+      },
+      {
+        "stage": "verification",
+        "max_input_tokens": 1024,
+        "max_output_tokens": 8000,
+        "state": "pending"
+      }
+    ],
+    "skipped": [],
+    "completed": [],
+    "bypassed": {},
+    "denied_bypass": {
+      "context": "supplied brief is not fresh; intake runs again"
+    }
+  },
+  "stage_states": {
+    "context": "pending",
+    "planning": "pending",
+    "execution": "pending",
+    "verification": "pending"
+  },
+  "token_budget": {
+    "label": "run",
+    "parent": null,
+    "max_input_tokens": 200000,
+    "max_output_tokens": 64000,
+    "used_input_tokens": 0,
+    "used_output_tokens": 0,
+    "used_reasoning_tokens": 0,
+    "used_cached_tokens": 0,
+    "token_kinds": {
+      "input": 0,
+      "output": 0,
+      "reasoning": 0,
+      "cached": 0
+    },
+    "estimation_markers": {
+      "has_estimates": false,
+      "has_unavailable": false,
+      "all_actual": false
+    },
+    "reserved_input_tokens": 0,
+    "reserved_output_tokens": 0,
+    "remaining_input_tokens": 200000,
+    "remaining_output_tokens": 64000,
+    "calls": 0,
+    "cancelled": 0,
+    "open_allowances": 0,
+    "over_input_tokens": 0,
+    "over_output_tokens": 0,
+    "usage_sources": {
+      "actual": 0,
+      "estimated": 0,
+      "unavailable": 0
+    },
+    "by_label": {},
+    "token_kinds_by_label": {}
+  },
+  "brief": {
+    "schema_version": 2,
+    "goal": "Refactor concurrency architecture",
+    "built_at": "2026-11-03T11:27:02Z",
+    "grounding": {
+      "rules": "models may use only the cited windows below; every claim a consumer emits must carry source_ids citing those windows (or the goal); uncited assertions are invalid -- drop them or list them as unknowns; truncated windows cover only the bytes shown",
+      "sources": [],
+      "claims": [],
+      "unknowns": []
+    },
+    "windows": [],
+    "scope": {
+      "included": [],
+      "excluded": [
+        "harness/sync.py"
+      ]
+    },
+    "coverage": {
+      "sources_declared": 0,
+      "windows_cited": 0,
+      "omitted": 0,
+      "truncated_windows": 0,
+      "gaps": []
+    },
+    "omitted": [],
+    "conflicts": [],
+    "estimated_tokens": 168
+  }
+}
+.......................... [3650/5321 - 68%]
+.................................................. [3700/5321 - 69%]
+.................................................. [3750/5321 - 70%]
+.................................................. [3800/5321 - 71%]
+.................................................. [3850/5321 - 72%]
+.................................................. [3900/5321 - 73%]
+........................................s......... [3950/5321 - 74%]
+.................................................. [4000/5321 - 75%]
+.................................................. [4050/5321 - 76%]
+............[release] CHANGELOG flattened to [0.3.3] 2026-11-03
+[release] version bumped in pyproject.toml: 0.3.2 -> 0.3.3
+[release] version bumped in harness/__init__.py: 0.3.2 -> 0.3.3
+[release] editable install reports 0.3.3 (D5 satisfied)
+...................................... [4100/5321 - 77%]
+.................................................. [4150/5321 - 77%]
+.................................................. [4200/5321 - 78%]
+.................................................. [4250/5321 - 79%]
+.................................................. [4300/5321 - 80%]
+.................................................. [4350/5321 - 81%]
+.................................................. [4400/5321 - 82%]
+.................................................. [4450/5321 - 83%]
+...............ss.............s................s.. [4500/5321 - 84%]
+......s........................................... [4550/5321 - 85%]
+.................................................. [4600/5321 - 86%]
+...................E.............................. [4650/5321 - 87%]
+.................................................. [4700/5321 - 88%]
+.................................................. [4750/5321 - 89%]
+.................................................. [4800/5321 - 90%]
+.................................................. [4850/5321 - 91%]
+.................................................. [4900/5321 - 92%]
+.................................................. [4950/5321 - 93%]
+....................................{
+  "status": "stale",
+  "checked": 1,
+  "stale": [
+    "TestRepo"
+  ],
+  "up_to_date": 0
+}
+.............. [5000/5321 - 93%]
+.................................................. [5050/5321 - 94%]
+.................................................. [5100/5321 - 95%]
+.................................................. [5150/5321 - 96%]
+.................................................. [5200/5321 - 97%]
+.................................................. [5250/5321 - 98%]
+...................s...............ss............. [5300/5321 - 99%]
+..................... [5321/5321 - 100%]
+.
+======================================================================
+ERROR: test_cli_verify_and_server_runner_same_assembly (tests.test_service_closeout.ServiceParityTests)
+CLI == server parity at the ONE seam: the CLI's verify command and
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\SCM\Documents\GitHub\Harness\tests\test_service_closeout.py", line 325, in test_cli_verify_and_server_runner_same_assembly
+    cli._run_claims_verify(settings, prompt="hi", task_id="t/cli")
+  File "C:\Users\SCM\Documents\GitHub\Harness\harness\cli.py", line 203, in _run_claims_verify
+    return _service_verify(
+TypeError: run_verify() got an unexpected keyword argument 'ensure_task_id'
+
+----------------------------------------------------------------------
+Ran 5321 tests in 918.375s
+
+FAILED (errors=1, skipped=65)
+ABORTED: battery failed under trace; no baseline written
+ERROR: test_cli_verify_and_server_runner_same_assembly (tests.test_service_closeout.ServiceParityTests)
+Traceback (most recent call last):
+  File "C:\Users\SCM\Documents\GitHub\Harness\tests\test_service_closeout.py", line 325, in test_cli_verify_and_server_runner_same_assembly
+    cli._run_claims_verify(settings, prompt="hi", task_id="t/cli")
+  File "C:\Users\SCM\Documents\GitHub\Harness\harness\cli.py", line 203, in _run_claims_verify
+    return _service_verify(
+TypeError: run_verify() got an unexpected keyword argument 'ensure_task_id'
+

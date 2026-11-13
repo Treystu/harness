@@ -1,0 +1,19 @@
+OC hv0 held material review: SHA-256 | disposition | indicators | path
+Whole-file byte scans for selected credential/PII patterns; identifiers and secret values suppressed. Absence of hits is not proof of safety.
+All nonempty files remain semantic-review candidates unless separately cleared by independent review.
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | EMPTY-LOW-RISK | none | hv0-review-stdout-ling.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | EMPTY-LOW-RISK | none | hv0-review-stdout.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | EMPTY-LOW-RISK | none | hv0-vision-assessment-live.stdout.json
+05adab3529f006f8693f835bd1f3b0ea179663bce887d330fb2e37a8a4eb402c | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/SCM-REPO-MAP.md
+cc00d423f6e9c32e74e5d9674028ed500cb09abf10c337e511be93a9cfd6105e | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/full-run.log
+f54d1b80a122a5d3f9ec79be8d662bcf63274849434df79e02b0b368eed91b30 | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/logjudge.log
+0a511b993f65b61f1de864d8ce62d006998a02c8af9cf5d430ff78cc741bb6e0 | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/native-run.log
+52a68e824d5dfb5b4a0c082b5106fb7004e9261d906bce367bd5d39add020b12 | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/native-run2.log
+56d7132aa9c6e8864b9c20858d459f5e1a607988728ea500d1a49543788c9285 | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/native-run3.log
+a212f74b8dd5ff3e1057d261aafda618721b3afcb33e1362add92b4e45e06189 | REVIEW-GITHUB-RUNNER-PATH | posix_home_path:33; runner paths are public CI environment paths, not credentials | scm-audit/pr361-android.tracing.log
+0c57ff8b8ee65a0c4654e65f3340ffc2a6d00c73727331c1e2de005df86b9f35 | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/scm-full.json
+edd0fe01401451f434ef07770d4795cb3435983e84e65b3a9a61c5346bc9c9ed | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/scm-full.json.judgments.jsonl
+0fd023cd75d0fa3a0ef8de3335351ee1b3f932b91b80faa7797882ce6fb11561 | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/scm-native.json
+9287e8fdaf1044e9c92fffc6d8242d495da782b6316207c51642a1c74d0808ac | REVIEW-NO-SELECTED-INDICATOR | none | scm-audit/scm-native.json.judgments.jsonl
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | EMPTY-LOW-RISK | none | scmessenger-review-stdout.json
+

@@ -1,0 +1,12 @@
+495a76b557650af4191d3d23bdf1313489bd42eb622c52b7bf0c1ea6de7e69b4  agent-desktop-ffi-v1.0.2-aarch64-apple-darwin.tar.gz
+ad031402bdc14cd67b78fef269c07e376751c55ff54eae6c6b21c4e756889b52  agent-desktop-ffi-v1.0.2-aarch64-pc-windows-msvc.zip
+236273ae211ca8d5c77a597b44ff1460856d8e4cd1300776859952476bb76332  agent-desktop-ffi-v1.0.2-aarch64-unknown-linux-gnu.tar.gz
+182c984d03d919580a554f3d449adf21ae8a473bdee511cb70729b8c03a8cfb0  agent-desktop-ffi-v1.0.2-x86_64-apple-darwin.tar.gz
+baf08bdca22cced212f258455cad9835b06678a3e1969a3b21cb501c377d35dc  agent-desktop-ffi-v1.0.2-x86_64-pc-windows-msvc.zip
+d4f57bb0a8e86c96b2e3dff96c2875d56cb737dc2dccc177784cf520eefa6310  agent-desktop-ffi-v1.0.2-x86_64-unknown-linux-gnu.tar.gz
+7bee385196d7b478de80cf05ca4304aaa38f0eba593b3406ad3c247c1773be19  agent-desktop-v1.0.2-aarch64-apple-darwin.tar.gz
+a0ecd6e17e60a0bcfbb45533a72f2d3a7a73508769588273ef08b0477d2b9687  agent-desktop-v1.0.2-aarch64-pc-windows-msvc.tar.gz
+864cb782e0afc8bf0df19622016b24bdbd1a83fc7749f784ee82aa49a7f845eb  agent-desktop-v1.0.2-aarch64-unknown-linux-gnu.tar.gz
+8edda6df17eafc042395502a823dbb8415bc8ac14835a6731e4d8becc9cb4121  agent-desktop-v1.0.2-x86_64-apple-darwin.tar.gz
+2186c76e7df197c0e67365e45d36d869f74714c56bb8a73817e2a66f3e18e222  agent-desktop-v1.0.2-x86_64-pc-windows-msvc.tar.gz
+ad661b7a3fd8f990a769243f4889a240ca0e2c8dab3ef5bddd6019086c71e0b4  agent-desktop-v1.0.2-x86_64-unknown-linux-gnu.tar.gz

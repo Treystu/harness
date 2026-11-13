@@ -1,0 +1,7 @@
+Selected issue evidence files; full semantic read and selected credential-pattern scan completed; see scanner packet for limitations.
+SHA-256<TAB>PATH
+f10d6d466f249303c5f2aa62d45b092ce9386f44af2219687fefab5f48a3617a	.lane-triage/421.md
+9c9445f8688cc06792f8a59b20bfd9906dc2382b4f58ecf16c3e8aee4333f42b	.lane-triage/446.md
+11c2e4d58b471e9d6f78987077b3f3aab21b319063d6984c926ced1173424f35	.lane-triage/dc16.md
+fde280ae8bfe29d8010ee1041a44248f59fb875815c3c9ffcabba6e14fd3afc9	.lane-triage/i445.md
+65e05e34fc31ba456574848b6a8e036a386f120029b044761dfc69be22361e46	.lane-triage/i454.md

@@ -1,0 +1,14 @@
+>                   EndpointPrice("Bad", prompt=1e-6, completion=1e-6,
+                                  input_cache_read=value)
+E                   AssertionError: HarnessError not raised
+
+tests\test_economics_index.py:218: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_economics_index.py::EndpointPriceValidationTests::test_a_malformed_override_threshold_is_refused
+FAILED tests/test_economics_index.py::EndpointPriceValidationTests::test_a_nan_override_rate_is_refused
+FAILED tests/test_economics_index.py::EndpointPriceValidationTests::test_a_negative_cache_rate_is_refused
+FAILED tests/test_economics_index.py::EndpointPriceValidationTests::test_a_negative_feed_rate_is_refused_at_feed_parse
+FAILED tests/test_economics_index.py::EndpointPriceValidationTests::test_a_negative_override_rate_is_refused
+FAILED tests/test_economics_index.py::EndpointPriceValidationTests::test_a_non_object_override_is_refused_at_feed_parse
+FAILED tests/test_economics_index.py::EndpointPriceValidationTests::test_nan_and_infinite_cache_rates_are_refused
+7 failed, 2 passed, 7 deselected in 0.28s

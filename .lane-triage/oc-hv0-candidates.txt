@@ -1,0 +1,33 @@
+OC hv0 nonignored untracked inventory; read-only scan, 2026-11-08
+SHA-256 | disposition | relative path
+No disposition is comprehensive semantic clearance; independent review required.
+The tracing log remains held. Ignored paths and git history are outside scope.
+d299e7e8ee9888d16f420e58732f83f5c70b222d4dedbf4d9a8a201b38694337 | CANDIDATE-pattern-screen-only-review-required | HANDOFF/OC_HANDOFF_2026-09-25.md
+dc6c15bc44dcaac822bf7375eb0ae04d9a26de26694718528c1ced290bed5655 | CANDIDATE-pattern-screen-only-review-required | hv0-review-prompt.txt
+5f0e76e17628fe8dfa4f2d41c267bdd33e4850f2dd5d849dc30a61d5a688ad83 | CANDIDATE-pattern-screen-only-review-required | hv0-review-result-ling.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | HOLD-run-artifact-privacy-review | hv0-review-stdout-ling.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | HOLD-run-artifact-privacy-review | hv0-review-stdout.json
+e52cab950c3d914688da2723ca5570965fc4148d0eba330744c9e5ff97c7529f | CANDIDATE-pattern-screen-only-review-required | hv0-vision-assessment-live.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | HOLD-run-artifact-privacy-review | hv0-vision-assessment-live.stdout.json
+191726c1b40f0c1bfb2065b71094d76f91c7d22acba8f10a7daf22174fce49eb | CANDIDATE-pattern-screen-only-review-required | scm-audit/SCM-NATIVE-MAP.md
+05adab3529f006f8693f835bd1f3b0ea179663bce887d330fb2e37a8a4eb402c | HOLD-large-generated-content-semantic-review | scm-audit/SCM-REPO-MAP.md
+afbf98f06aac6a17a8bbbaece072eca0e376ab16a4de1d90ceaf8e69372d1e65 | CANDIDATE-pattern-screen-only-review-required | scm-audit/ci_failure_triage.pack.json
+cc00d423f6e9c32e74e5d9674028ed500cb09abf10c337e511be93a9cfd6105e | HOLD-run-artifact-privacy-review | scm-audit/full-run.log
+f54d1b80a122a5d3f9ec79be8d662bcf63274849434df79e02b0b368eed91b30 | HOLD-run-artifact-privacy-review | scm-audit/logjudge.log
+0a511b993f65b61f1de864d8ce62d006998a02c8af9cf5d430ff78cc741bb6e0 | HOLD-run-artifact-privacy-review | scm-audit/native-run.log
+52a68e824d5dfb5b4a0c082b5106fb7004e9261d906bce367bd5d39add020b12 | HOLD-run-artifact-privacy-review | scm-audit/native-run2.log
+56d7132aa9c6e8864b9c20858d459f5e1a607988728ea500d1a49543788c9285 | HOLD-run-artifact-privacy-review | scm-audit/native-run3.log
+0cecee329028d9d8378f89e07f3e5c239af3759e98fe7181c9cdb4925544a4c3 | CANDIDATE-pattern-screen-only-review-required | scm-audit/normalize_gh_log.py
+ac1896009cf454b2da79800b919a6110f4b80c5aeb1532366b89e704f2bc2332 | CANDIDATE-pattern-screen-only-review-required | scm-audit/pilot-map.md
+74fdec6c9e0e323ed0f4ee1ba559e31832eaa505fdd630600ba117602aa0a966 | CANDIDATE-pattern-screen-only-review-required | scm-audit/pilot.json
+bf3e9668260150932d51b84adb34490e35ef5dc9a54472bc3cbb6ed438a3786c | CANDIDATE-pattern-screen-only-review-required | scm-audit/pilot.json.judgments.jsonl
+a212f74b8dd5ff3e1057d261aafda618721b3afcb33e1362add92b4e45e06189 | HOLD-user-path | scm-audit/pr361-android.tracing.log
+322fe5c3ad04b80e9a061943ad36e47a8c36bb28069ed99dc96fd7e1aa6e1175 | CANDIDATE-pattern-screen-only-review-required | scm-audit/pr361-logjudgment.json
+0c57ff8b8ee65a0c4654e65f3340ffc2a6d00c73727331c1e2de005df86b9f35 | HOLD-large-generated-content-semantic-review | scm-audit/scm-full.json
+edd0fe01401451f434ef07770d4795cb3435983e84e65b3a9a61c5346bc9c9ed | HOLD-large-generated-content-semantic-review | scm-audit/scm-full.json.judgments.jsonl
+0fd023cd75d0fa3a0ef8de3335351ee1b3f932b91b80faa7797882ce6fb11561 | HOLD-large-generated-content-semantic-review | scm-audit/scm-native.json
+9287e8fdaf1044e9c92fffc6d8242d495da782b6316207c51642a1c74d0808ac | HOLD-large-generated-content-semantic-review | scm-audit/scm-native.json.judgments.jsonl
+79a6f58bd0bab1853d179aa4bf19ca7a676bc92240171dbcd70a78211e3fe84d | CANDIDATE-pattern-screen-only-review-required | scm-audit/scmessenger_native.pack.json
+8780228ade049cecf1235bd28ece743a3ac62d45cb6dd005294ae3a0b055fee9 | CANDIDATE-pattern-screen-only-review-required | scmessenger-review-prompt.txt
+b7a0a4b866d8bf153dd855651789b8ea7a4aad03f3321c1a9304b3375ea6a75b | CANDIDATE-pattern-screen-only-review-required | scmessenger-review-result.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 | HOLD-run-artifact-privacy-review | scmessenger-review-stdout.json

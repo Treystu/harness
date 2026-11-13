@@ -1,0 +1,4 @@
+Full-content semantic review: scripts only; neither file was executed.
+SHA-256 | disposition | path
+c54b95c9911f92201a1407d9db10bfde14f9911192abbf9052c5701868d5f575 | low-risk-candidate-independent-review-required | .lane-triage/apply446.py
+40c5f424f448454070a1bae30fca7517890fe4c3a737c54490076c01da6e06bf | low-risk-candidate-independent-review-required | .lane-triage/d12check.py

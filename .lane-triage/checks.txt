@@ -1,0 +1,17 @@
+success	Change scope
+success	Checkout hygiene
+success	Driving hygiene (deterministic)
+success	UI Playwright smoke (single worker)
+success	audit
+success	changed-file typecheck (pyright)
+success	handoff scope (advisory)
+success	hermetic suite (macos-latest, py3.11)
+success	hermetic suite (ubuntu-22.04, py3.9)
+success	hermetic suite (ubuntu-latest, py3.11)
+success	hermetic suite (ubuntu-latest, py3.13)
+success	hermetic suite (ubuntu-latest, py3.14)
+success	hermetic suite (windows-latest, py3.11)
+success	installed package (macos-latest)
+success	installed package (ubuntu-latest)
+success	installed package (windows-latest)
+success	package

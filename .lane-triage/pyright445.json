@@ -1,0 +1,350 @@
+{
+    "version": "1.1.414",
+    "time": "1793707784308",
+    "generalDiagnostics": [
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\chat.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"known_cost\" for class \"HarnessError\"\n  Attribute \"known_cost\" is unknown",
+            "range": {
+                "start": {
+                    "line": 700,
+                    "character": 16
+                },
+                "end": {
+                    "line": 700,
+                    "character": 26
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\chat.py",
+            "severity": "error",
+            "message": "Cannot assign to attribute \"cost_accounted\" for class \"HarnessError\"\n  Attribute \"cost_accounted\" is unknown",
+            "range": {
+                "start": {
+                    "line": 701,
+                    "character": 16
+                },
+                "end": {
+                    "line": 701,
+                    "character": 30
+                }
+            },
+            "rule": "reportAttributeAccessIssue"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"int | None\" cannot be assigned to parameter \"number\" of type \"SupportsIndex\" in function \"oct\"\n  Type \"int | None\" is not assignable to type \"SupportsIndex\"\n    \"None\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present",
+            "range": {
+                "start": {
+                    "line": 582,
+                    "character": 22
+                },
+                "end": {
+                    "line": 582,
+                    "character": 26
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"str | None\" cannot be assigned to parameter \"fireworks_key\" of type \"str\" in function \"__init__\"\n  Type \"str | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 1128,
+                    "character": 22
+                },
+                "end": {
+                    "line": 1128,
+                    "character": 35
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"int | float\" cannot be assigned to parameter \"token_budget_input\" of type \"int\" in function \"__init__\"\n  Type \"int | float\" is not assignable to type \"int\"\n    \"float\" is not assignable to \"int\"",
+            "range": {
+                "start": {
+                    "line": 1146,
+                    "character": 27
+                },
+                "end": {
+                    "line": 1146,
+                    "character": 45
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"int | float\" cannot be assigned to parameter \"token_budget_output\" of type \"int\" in function \"__init__\"\n  Type \"int | float\" is not assignable to type \"int\"\n    \"float\" is not assignable to \"int\"",
+            "range": {
+                "start": {
+                    "line": 1147,
+                    "character": 28
+                },
+                "end": {
+                    "line": 1147,
+                    "character": 47
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"int | float\" cannot be assigned to parameter \"mcp_tool_timeout\" of type \"int\" in function \"__init__\"\n  Type \"int | float\" is not assignable to type \"int\"\n    \"float\" is not assignable to \"int\"",
+            "range": {
+                "start": {
+                    "line": 1163,
+                    "character": 25
+                },
+                "end": {
+                    "line": 1163,
+                    "character": 41
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | str | Any | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToFloat\" in function \"__new__\"\n  Type \"Unknown | str | Any | None\" is not assignable to type \"ConvertibleToFloat\"\n    Type \"None\" is not assignable to type \"ConvertibleToFloat\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsFloat\"\n        \"__float__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"\n  ...",
+            "range": {
+                "start": {
+                    "line": 1174,
+                    "character": 32
+                },
+                "end": {
+                    "line": 1174,
+                    "character": 61
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | str | Any | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToFloat\" in function \"__new__\"\n  Type \"Unknown | str | Any | None\" is not assignable to type \"ConvertibleToFloat\"\n    Type \"None\" is not assignable to type \"ConvertibleToFloat\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsFloat\"\n        \"__float__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"",
+            "range": {
+                "start": {
+                    "line": 1174,
+                    "character": 32
+                },
+                "end": {
+                    "line": 1174,
+                    "character": 61
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | str | Any | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToFloat\" in function \"__new__\"\n  Type \"Unknown | str | Any | None\" is not assignable to type \"ConvertibleToFloat\"\n    Type \"None\" is not assignable to type \"ConvertibleToFloat\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsFloat\"\n        \"__float__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"\n  ...",
+            "range": {
+                "start": {
+                    "line": 1176,
+                    "character": 36
+                },
+                "end": {
+                    "line": 1176,
+                    "character": 69
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\config.py",
+            "severity": "error",
+            "message": "Argument of type \"Unknown | str | Any | None\" cannot be assigned to parameter \"x\" of type \"ConvertibleToFloat\" in function \"__new__\"\n  Type \"Unknown | str | Any | None\" is not assignable to type \"ConvertibleToFloat\"\n    Type \"None\" is not assignable to type \"ConvertibleToFloat\"\n      \"None\" is not assignable to \"str\"\n      \"None\" is incompatible with protocol \"Buffer\"\n        \"__buffer__\" is not present\n      \"None\" is incompatible with protocol \"SupportsFloat\"\n        \"__float__\" is not present\n      \"None\" is incompatible with protocol \"SupportsIndex\"",
+            "range": {
+                "start": {
+                    "line": 1176,
+                    "character": 36
+                },
+                "end": {
+                    "line": 1176,
+                    "character": 69
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\fireworks.py",
+            "severity": "error",
+            "message": "Object of type \"None\" cannot be used as iterable value",
+            "range": {
+                "start": {
+                    "line": 89,
+                    "character": 17
+                },
+                "end": {
+                    "line": 89,
+                    "character": 23
+                }
+            },
+            "rule": "reportOptionalIterable"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\service.py",
+            "severity": "error",
+            "message": "Argument of type \"Literal['ungrounded']\" cannot be assigned to parameter \"value\" of type \"list[Unknown]\" in function \"__setitem__\"\n  \"Literal['ungrounded']\" is not assignable to \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 409,
+                    "character": 8
+                },
+                "end": {
+                    "line": 409,
+                    "character": 24
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\service.py",
+            "severity": "error",
+            "message": "Argument of type \"Literal[True]\" cannot be assigned to parameter \"value\" of type \"list[Unknown]\" in function \"__setitem__\"\n  \"Literal[True]\" is not assignable to \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 436,
+                    "character": 8
+                },
+                "end": {
+                    "line": 436,
+                    "character": 27
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\service.py",
+            "severity": "error",
+            "message": "Argument of type \"dict[str, Unknown] | Unknown\" cannot be assigned to parameter \"value\" of type \"list[Unknown]\" in function \"__setitem__\"\n  Type \"dict[str, Unknown] | Unknown\" is not assignable to type \"list[Unknown]\"\n    \"dict[str, Unknown]\" is not assignable to \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 440,
+                    "character": 4
+                },
+                "end": {
+                    "line": 440,
+                    "character": 20
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\service.py",
+            "severity": "error",
+            "message": "Argument of type \"Literal['not_confirmed']\" cannot be assigned to parameter \"value\" of type \"list[Unknown]\" in function \"__setitem__\"\n  \"Literal['not_confirmed']\" is not assignable to \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 443,
+                    "character": 8
+                },
+                "end": {
+                    "line": 443,
+                    "character": 24
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\service.py",
+            "severity": "error",
+            "message": "Argument of type \"Literal['ok', 'incomplete']\" cannot be assigned to parameter \"value\" of type \"list[Unknown]\" in function \"__setitem__\"\n  Type \"Literal['ok', 'incomplete']\" is not assignable to type \"list[Unknown]\"\n    \"Literal['incomplete']\" is not assignable to \"list[Unknown]\"",
+            "range": {
+                "start": {
+                    "line": 476,
+                    "character": 4
+                },
+                "end": {
+                    "line": 476,
+                    "character": 20
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\spend.py",
+            "severity": "error",
+            "message": "No overloads for \"__init__\" match the provided arguments",
+            "range": {
+                "start": {
+                    "line": 226,
+                    "character": 14
+                },
+                "end": {
+                    "line": 226,
+                    "character": 59
+                }
+            },
+            "rule": "reportCallIssue"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\spend.py",
+            "severity": "error",
+            "message": "Argument of type \"dict[str, Unknown] | None\" cannot be assigned to parameter \"iterable\" of type \"Iterable[tuple[str, _VT@dict]]\" in function \"__init__\"\n  Type \"dict[str, Unknown] | None\" is not assignable to type \"Iterable[tuple[str, float]]\"\n    \"dict[str, Unknown]\" is not assignable to \"Iterable[tuple[str, float]]\"\n      Type parameter \"_T_co@Iterable\" is covariant, but \"str\" is not a subtype of \"tuple[str, float]\"\n        \"str\" is not assignable to \"tuple[str, float]\"",
+            "range": {
+                "start": {
+                    "line": 226,
+                    "character": 19
+                },
+                "end": {
+                    "line": 226,
+                    "character": 32
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\spend.py",
+            "severity": "error",
+            "message": "Object of type \"None\" cannot be used as iterable value",
+            "range": {
+                "start": {
+                    "line": 410,
+                    "character": 48
+                },
+                "end": {
+                    "line": 410,
+                    "character": 54
+                }
+            },
+            "rule": "reportOptionalIterable"
+        },
+        {
+            "file": "c:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\spend.py",
+            "severity": "error",
+            "message": "Object of type \"None\" cannot be used as iterable value",
+            "range": {
+                "start": {
+                    "line": 908,
+                    "character": 31
+                },
+                "end": {
+                    "line": 908,
+                    "character": 37
+                }
+            },
+            "rule": "reportOptionalIterable"
+        }
+    ],
+    "summary": {
+        "filesAnalyzed": 6,
+        "errorCount": 21,
+        "warningCount": 0,
+        "informationCount": 0,
+        "timeInSec": 4.633
+    }
+}
+

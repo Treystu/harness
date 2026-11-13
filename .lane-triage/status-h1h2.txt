@@ -1,0 +1,24 @@
+LANE STATUS - URGENT QUEUE H1/H2 - 2026-11-03
+
+DONE: read the exact H1/H2 text from Treystu 6605150240 (13:31Z). No Treystu STOP newer than the latest resume on #442 or #295. origin/lane/burndown = 48cbe4e = local head.
+
+BLOCKED H1 (harness-verify claim coverage for four arbitrary-criteria shapes):
+- Surface missing: no tools/harness-verify directory on lane/burndown, on origin/main, or on any remote branch. GitHub contents API returns 404 for tools/.
+- Specimen missing: generality-a9.test.ts and drive-scratch/generality-program/RESULTS.md are in the hackathon lane's goal record, not in this repo. The directive says the hackathon lane can supply the file on request.
+- Nearest existing surface, harness/claims.py (434 lines; parse_claims, lint_claims, build_claims_prompt), has no shape classes for combined-only research, residue accounting, candidate direction, or bare-name resolution. Implementing those would invent the shape contract without the specimen.
+- Unblock: owner or hackathon lane supplies the specimen file or the tools/harness-verify surface; then H1 is a surface slice on claims.py + tests/test_claims.py.
+
+BLOCKED H2 (bookend attribution on the app path, F4):
+- Surface missing: the route-contract cure and the app-path bookend wiring are not in this repo. A grep for bookend/hourglass in the app code finds only the CI resolve_hourglass call and CHANGELOG entries. A grep for route-contract and last-run markers finds nothing in site/ or harness/. site/ has no diagnostics or meter code.
+- Evidence source (hackathon burndown log 2026-11-03 02:56-02:58, F4; route-contract RESULTS) is outside this repo.
+- Unblock: the route-contract cure must land on this lane, or its SHA and path must be named; then H2 is a per-route last-run marker or first-class answer-card verification labels.
+
+NEXT: post the report-job disposition on #442 from the #446 cure (still owed); then the #438 chain and Batch 0 remainder.
+
+BLOCKERS (unchanged, owner-reserved): base main red on run 41576644039; merges to main owner-reserved; cures #446 (6a4988d), #445 (1b3869b), #447 (cbbfc31), #434 (92986a2) are on lane only.
+
+DIRECTIVES: none new. No force-push. No merge to main. Parked items untouched.
+
+HEADS: lane/burndown 48cbe4e (unchanged this pass; no code change needed). main 5eb9c36.
+DISK: C: free space checked before heavy phases; above the 5 GB floor.
+USAGE: FreeBuff paid-hour TIME: 2 blocks this session (stop audit + ledger pass; this H1/H2 orientation pass). Estimate, not metered.

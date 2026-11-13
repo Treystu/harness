@@ -1,0 +1,85 @@
+c:\Users\SCM\Documents\GitHub\Harness\harness\chat.py
+  c:\Users\SCM\Documents\GitHub\Harness\harness\chat.py:687:17 - error: Cannot assign to attribute "known_cost" for class "HarnessError"
+    Attribute "known_cost" is unknown (reportAttributeAccessIssue)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\chat.py:688:17 - error: Cannot assign to attribute "cost_accounted" for class "HarnessError"
+    Attribute "cost_accounted" is unknown (reportAttributeAccessIssue)
+c:\Users\SCM\Documents\GitHub\Harness\harness\config.py
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:547:23 - error: Argument of type "int | None" cannot be assigned to parameter "number" of type "SupportsIndex" in function "oct"
+    Type "int | None" is not assignable to type "SupportsIndex"
+      "None" is incompatible with protocol "SupportsIndex"
+        "__index__" is not present (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1004:23 - error: Argument of type "str | None" cannot be assigned to parameter "fireworks_key" of type "str" in function "__init__"
+    Type "str | None" is not assignable to type "str"
+      "None" is not assignable to "str" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1020:28 - error: Argument of type "int | float" cannot be assigned to parameter "token_budget_input" of type "int" in function "__init__"
+    Type "int | float" is not assignable to type "int"
+      "float" is not assignable to "int" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1021:29 - error: Argument of type "int | float" cannot be assigned to parameter "token_budget_output" of type "int" in function "__init__"
+    Type "int | float" is not assignable to type "int"
+      "float" is not assignable to "int" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1037:26 - error: Argument of type "int | float" cannot be assigned to parameter "mcp_tool_timeout" of type "int" in function "__init__"
+    Type "int | float" is not assignable to type "int"
+      "float" is not assignable to "int" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1048:33 - error: Argument of type "Unknown | str | Any | None" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | str | Any | None" is not assignable to type "ConvertibleToFloat"
+      Type "None" is not assignable to type "ConvertibleToFloat"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "None" is incompatible with protocol "SupportsIndex"
+    ... (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1048:33 - error: Argument of type "Unknown | str | Any | None" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | str | Any | None" is not assignable to type "ConvertibleToFloat"
+      Type "None" is not assignable to type "ConvertibleToFloat"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "None" is incompatible with protocol "SupportsIndex" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1050:37 - error: Argument of type "Unknown | str | Any | None" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | str | Any | None" is not assignable to type "ConvertibleToFloat"
+      Type "None" is not assignable to type "ConvertibleToFloat"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "None" is incompatible with protocol "SupportsIndex"
+    ... (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\config.py:1050:37 - error: Argument of type "Unknown | str | Any | None" cannot be assigned to parameter "x" of type "ConvertibleToFloat" in function "__new__"
+    Type "Unknown | str | Any | None" is not assignable to type "ConvertibleToFloat"
+      Type "None" is not assignable to type "ConvertibleToFloat"
+        "None" is not assignable to "str"
+        "None" is incompatible with protocol "Buffer"
+          "__buffer__" is not present
+        "None" is incompatible with protocol "SupportsFloat"
+          "__float__" is not present
+        "None" is incompatible with protocol "SupportsIndex" (reportArgumentType)
+c:\Users\SCM\Documents\GitHub\Harness\harness\fireworks.py
+  c:\Users\SCM\Documents\GitHub\Harness\harness\fireworks.py:72:18 - error: Object of type "None" cannot be used as iterable value (reportOptionalIterable)
+c:\Users\SCM\Documents\GitHub\Harness\harness\service.py
+  c:\Users\SCM\Documents\GitHub\Harness\harness\service.py:393:9 - error: Argument of type "Literal['ungrounded']" cannot be assigned to parameter "value" of type "list[Unknown]" in function "__setitem__"
+    "Literal['ungrounded']" is not assignable to "list[Unknown]" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\service.py:420:9 - error: Argument of type "Literal[True]" cannot be assigned to parameter "value" of type "list[Unknown]" in function "__setitem__"
+    "Literal[True]" is not assignable to "list[Unknown]" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\service.py:424:5 - error: Argument of type "dict[str, Unknown] | Unknown" cannot be assigned to parameter "value" of type "list[Unknown]" in function "__setitem__"
+    Type "dict[str, Unknown] | Unknown" is not assignable to type "list[Unknown]"
+      "dict[str, Unknown]" is not assignable to "list[Unknown]" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\service.py:427:9 - error: Argument of type "Literal['not_confirmed']" cannot be assigned to parameter "value" of type "list[Unknown]" in function "__setitem__"
+    "Literal['not_confirmed']" is not assignable to "list[Unknown]" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\service.py:460:5 - error: Argument of type "Literal['ok', 'incomplete']" cannot be assigned to parameter "value" of type "list[Unknown]" in function "__setitem__"
+    Type "Literal['ok', 'incomplete']" is not assignable to type "list[Unknown]"
+      "Literal['incomplete']" is not assignable to "list[Unknown]" (reportArgumentType)
+c:\Users\SCM\Documents\GitHub\Harness\harness\spend.py
+  c:\Users\SCM\Documents\GitHub\Harness\harness\spend.py:223:15 - error: No overloads for "__init__" match the provided arguments (reportCallIssue)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\spend.py:223:20 - error: Argument of type "dict[str, Unknown] | None" cannot be assigned to parameter "iterable" of type "Iterable[tuple[str, _VT@dict]]" in function "__init__"
+    Type "dict[str, Unknown] | None" is not assignable to type "Iterable[tuple[str, float]]"
+      "dict[str, Unknown]" is not assignable to "Iterable[tuple[str, float]]"
+        Type parameter "_T_co@Iterable" is covariant, but "str" is not a subtype of "tuple[str, float]"
+          "str" is not assignable to "tuple[str, float]" (reportArgumentType)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\spend.py:395:49 - error: Object of type "None" cannot be used as iterable value (reportOptionalIterable)
+  c:\Users\SCM\Documents\GitHub\Harness\harness\spend.py:865:32 - error: Object of type "None" cannot be used as iterable value (reportOptionalIterable)
+21 errors, 0 warnings, 0 informations

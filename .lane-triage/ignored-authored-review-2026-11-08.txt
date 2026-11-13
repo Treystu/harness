@@ -1,0 +1,28 @@
+Path | SHA256 | credential/privacy pattern result | content class
+Whole-file UTF-8 scan for private-key headers, selected provider prefixes, quoted credential assignments, emails, and user paths. Pattern hits need investigation, no hits are not a secret/privacy guarantee. Audit files were programmatically classified by location, not semantically certified.
+audits\scmessenger\prompts\01_negotiate_suite.txt | cd8270278e4202d70097510b1d4610ae635d6041e214230292657dcc9c38bc76 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\01b_negotiate_suite_consensus.txt | 3695e47740ece8b78b4fa5974aa31ede31f783b408c3c5e952d5bbcf61187279 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\02_decrypt_ratcheted_v2.txt | 1f60e62394857e1493cad78a12c405607ed6802fc541b61e81ba74ad20d6a277 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\02b_decrypt_ratcheted_v2_consensus.txt | 1e4e8adb825c038bd491fd50bf9bcf65e61c56cd38ba38ddb49d0a7802955ef2 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\03_ratchet_encrypt.txt | 5e3a36a2a8a584c1735d51e1de5fa7f892422ed3a2fff4667af3eb7676c3dea3 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\03b_ratchet_encrypt_consensus.txt | 77a1d4ed27339f6d693b49cf24b4089dfbb6856d433a53f7aa46564ae5245351 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\04_ratchet_decrypt.txt | 8a75dc4052e6ad69ec96b34843b332ee8a9ec29d81c1b98bcdb7f3760b44dd3d | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\04b_ratchet_decrypt_consensus.txt | 9e37d1fff07e2ee238e21965c7d6dfbfe38048940d2a43f34d41f839488326fa | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\05_decode_wire_signed_envelope.txt | 0edcea8112ac542fb6686805aa1aab0068527878d2f45065f8053a8b013c6485 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\05b_decode_wire_signed_envelope_consensus.txt | 1cdaa8bfd78d8043c12dfc2d20df3392ad76ccea512c4ea9fb3a42ae6929e47b | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\06_construct_onion.txt | 8bf8c8dc291aacb4ccbf2aabd27c080aa236d299c8094c1c8509b41e28dc947a | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\06b_construct_onion_consensus.txt | bf8127fd99d453af2824c6970f4dd17596737ad5f20e6cb7645593ea90c44975 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\06c_construct_onion_consensus.txt | 73befe81acd05b7d11e1c368dbf75d947b63b01f453dca72c257b85f0c57e9f9 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\07_peel_layer.txt | 3f097a74e57ad0a71880014f326ca977566d1eea955b676ede826ed43bdd158c | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\07b_peel_layer_consensus.txt | 91e870845c84016cc92e09b9da9470f0a52605e66a99c9a2c1b4780baf6b0b43 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\07c_peel_layer_consensus.txt | d32bb1b188d7cfefd0e2c289c5565b558e0afbe67ee33fa031f4d0cafb357236 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\08_safety_number.txt | b6c9e98bfcfc72cc0936c8daa34da8f427ae93e0ed8752455b0eebf5ec1f7060 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\08b_safety_number_consensus.txt | 908f2097d824302b2aa9c31faa4dbf96c08ce97ba017313f413d73ad808d109a | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\08c_safety_number_consensus.txt | 25e5f36d0a0ab8550ea567710f52e6a32fe8836a7a4a0a695dd6e1531388f6c4 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\09_verify_bundle.txt | 212cc6be8a94794874a811f47bc0f4536c91beb6d65f7244b743abead78547ba | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\09_verify_bundle_claims_v4.json | 7357c54b78fa6b13f28495f591ccadc76a52e73ad685bdc4b68b7352ccec9e70 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\09_verify_bundle_src.txt | 77c862e3978370583a32f3e7316f6fbf90469dcf6f5b8652bf29001872c321f4 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\scmessenger\prompts\09b_verify_bundle_consensus.txt | 1ece1c467750e48f780c866a4d9b75fa48ecf836b8c88109aa4ab8e5fefa96e3 | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\self\prompts\01_config_pools_claims.json | 4850d2fa2ff7d1497ebc08325ec8ea0165e565b296eda5f7ce549364001b1f5f | NO_PATTERN_HITS | audit prompt/source or assessment
+audits\self\prompts\01_config_pools_src.txt | 2edd2acf13a58146c02d7507ce5c21bd7caf09f663b3110597c06c9937d06dfd | NO_PATTERN_HITS | audit prompt/source or assessment
+bench\tasks\add\adds.py.orig | cbab6f9954b05fb43a1de4c03b8b96543b3399904d7e056f573e5c5082f624e2 | NO_PATTERN_HITS | small benchmark backup

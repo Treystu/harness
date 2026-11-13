@@ -1,0 +1,8 @@
+PRESERVATION RECORD: The following same-name remote heads match the local SHAs below. Git ls-remote reads independently checked by VALIDATOR at 2026-11-08T20:23:25Z and CRITICAL_VALIDATOR at 20:23:21Z. Scanner and validator separately screened novel commit and blob objects for selected credential patterns; neither scan proves absence of all secrets. This does not authorize cleanup.
+
+backup/lane-local-5fcee56	5fcee560d636d5c50f3c93c283ea80bc3d2a3553	55
+backup/lane-local-9acdf55	9acdf551909fe1c1a167f589dc293ea13044e1cf	57
+backup/lane-local-fb5c763	fb5c763a701bb637855fff8847d1224fc60b044a	51
+freebuff/harness-driver-build-fresh-round	86165805a648797519a8e7542198c99f924d1ea2	64
+lane/461-d12-cure	8952d23a0affb6562c9684eae4e25a1e599d9821	1
+lane/burndown	86165805a648797519a8e7542198c99f924d1ea2	64

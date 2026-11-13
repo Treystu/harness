@@ -1,0 +1,16 @@
+test(snapshot): take the freshness test off the wall clock (#446)
+
+test_check_fresh_emits_tier_snapshot_freshness asserted that the shipped
+packs/tiers.snapshot.json sat inside its 14-day window, so the hermetic
+suite went red on 2026-11-01 (captured 2026-10-18) on every head, main
+included -- the same expired artifact also fails the scheduled rankings
+"report" job, which runs the same command.
+
+The CLI contract stays asserted: a fixture snapshot captured now is
+pinned through the loader's path seam, the payload shape and age are
+checked, and the stale-path exit-2 test is untouched. Data currency
+belongs to the scheduled job; a new deterministic test pins the shipped
+artifact's shape and ISO timestamp so a malformed snapshot fails at once
+instead of only when its window expires.
+
+Refs #446

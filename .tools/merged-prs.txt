@@ -1,0 +1,291 @@
+441 2026-10-29T18:20:58Z docs: add LANE PROTOCOL to AGENTS.md
+437 2026-10-29T19:17:24Z [consent] Emit one rotation event per unusable model
+436 2026-10-29T00:42:23Z [tests] Cover historic #293 edge paths
+411 2026-10-26T20:06:54Z ci: type-check changed Python files in PRs
+410 2026-10-26T19:10:58Z docs: finalize post-merge blocker receipt
+409 2026-10-26T18:46:46Z docs: record #306 blocker and synchronize burndown state
+408 2026-10-26T17:12:40Z docs: track visibility issue 407
+406 2026-10-26T16:52:15Z docs: record issue 282 burndown receipt
+405 2026-10-26T15:37:13Z [Issue #282] Add safe GUI auth handoff and Playwright smoke
+404 2026-10-26T11:52:36Z docs: reconcile #279 receipt and results counts
+403 2026-10-26T11:20:37Z [cli] Add harness doctor preflight
+402 2026-10-26T08:55:15Z docs: finalize issue 287 receipt
+401 2026-10-26T08:19:18Z docs(ci): complete #287 probe receipt and queue bookkeeping
+400 2026-10-26T06:57:04Z ci: preserve audit while skipping docs-only matrix (#287)
+399 2026-10-26T06:11:30Z docs: record #333 burndown receipt
+398 2026-10-26T05:40:43Z [MCP] Require ledger offers for task IDs (#333)
+396 2026-10-25T23:41:25Z docs: record zero required approvals with PR protection
+395 2026-10-25T23:28:01Z docs: record main protection and name #277 as next
+394 2026-10-25T23:10:46Z docs(release): record the published 0.5.1 artifacts
+393 2026-10-25T22:50:29Z release: 0.5.1 carries the corrected PyPI description
+392 2026-10-25T21:10:51Z docs(release): record the immutable 0.5.0 metadata caveat
+391 2026-10-25T20:57:38Z docs(release): record the published 0.5.0 and refresh public counts
+390 2026-10-25T20:34:08Z docs(release): finalize the 0.5.0 changelog and paid-attestation receipt
+389 2026-10-25T20:17:01Z fix(attest): bound the verifier reserve; prove paid default attestation
+388 2026-10-25T08:59:16Z docs: prove the parallel plan DAG under worktree isolation
+387 2026-10-25T08:36:46Z docs: point the queue snapshot at the plan-execute merge
+386 2026-10-25T08:23:48Z fix(plan): root CLI plans at CWD so execute is gated
+385 2026-10-25T07:58:34Z docs: map the six new tracking issues into the queue
+384 2026-10-25T07:44:28Z docs: point the queue snapshot at the seam-sweep merge
+383 2026-10-25T07:29:15Z fix(seams): isolate MCP gates from stdio and repair HTTP plan/dogfood
+376 2026-10-25T05:28:42Z docs: refresh counts after the bench budget merge
+375 2026-10-25T05:13:52Z fix(bench): fund bundled fixtures and expose --task-max-cost
+374 2026-10-25T04:37:07Z docs: refresh the public counts after the sweep merge
+373 2026-10-25T04:22:29Z fix(cli): forward the session ceiling to apply and dogfood apply
+372 2026-10-25T02:55:42Z docs: record the #331 receipt and reconcile the public counts
+371 2026-10-25T02:39:35Z fix(audit): keep D12 SKIP visible and unscored in JSON (#331)
+370 2026-10-25T02:09:21Z docs: record the #276 receipt and reconcile the public counts
+369 2026-10-25T01:54:19Z fix(audit): measure D12 against the runtime merge-base (#276)
+368 2026-10-25T00:44:01Z docs: reconcile public results and queue with landed receipts
+367 2026-10-25T00:02:07Z fix(tools): resolve gate interpreters and ruff through one owner (#278)
+366 2026-10-24T22:39:10Z fix(cli): resolve gates and the default route pack from the checkout root
+365 2026-10-24T21:48:35Z release: land rendered site evidence, durable context, 0.5.0 packaging, and #347
+364 2026-10-24T20:42:06Z fix(dogfood): accept cancel_check at the verify seam (#330)
+363 2026-10-24T01:27:50Z refactor(script): let the terminal frame own proposal refusals
+362 2026-10-24T00:17:47Z feat(script): assistant-authored proposals and untrusted result answers (SCR-3)
+361 2026-10-23T22:59:24Z fix(script): close every refusal with the terminal script_end frame
+360 2026-10-23T21:54:03Z feat(script): SCR-2 chat lane, consent-bound execution and approval card
+359 2026-10-23T19:01:05Z fix(script): let a script use the capabilities the product owns (#357)
+358 2026-10-23T18:31:10Z feat(script): one governed script surface for every lane (#357)
+356 2026-10-23T16:15:55Z fix(web): read a named public page through bot protection (#355)
+354 2026-10-23T14:44:40Z fix(jev): advances_goal below the bar investigates, per v1 rule 6 (#324)
+353 2026-10-23T14:12:26Z fix(jev): a disposition lead equal to the margin is not ambiguous (#326)
+352 2026-10-23T13:15:21Z fix(audit): print D12's fail-open SKIP as skip, not pass (#331)
+351 2026-10-23T11:43:09Z docs(canon): record that the D12 baseline outage is resolved
+350 2026-10-23T11:29:42Z docs(canon): plan all 61 open issues with native Jev review receipts (#295)
+349 2026-10-23T11:20:44Z fix(audit): re-point the D12 coverage baseline at main so PR checkouts can resolve it
+341 2026-10-22T09:36:51Z fix: refuse off-subject search results as evidence for a site audit
+339 2026-10-24T20:32:42Z evidence: harness efficiency experiment 10x$0.01 (2026-10-21)
+338 2026-10-22T08:09:43Z chore: regenerate audit score after A1–A5 (bar met, 4808 tests)
+323 2026-10-22T07:34:30Z feat: optional web-fetch allowlist (GUI), bare-domain fetch, site-focused search
+322 2026-10-22T09:53:32Z docs: add canonical Jev Gate Policy v1
+321 2026-10-22T05:56:19Z Restore simple-query retry continuity, ask lane, and GUI auth fragment contract
+320 2026-10-22T04:31:02Z Sync chat escalation state from server settings
+312 2026-10-22T04:13:07Z Unify Harness install, auth, and chat recovery
+307 2026-10-21T00:39:19Z Unify Jev lifecycle across request lanes
+305 2026-10-20T20:57:14Z docs: burndown — stage #304 (Fireworks routing / EV-8 completion) + verification findings 
+298 2026-10-20T20:04:09Z docs: add #297 (unified Jev review + resumable lifecycle) to burndown Wave 4
+296 2026-10-20T18:51:12Z docs: completion burndown 2026-10-20 — all remaining work waved in canon (tracker #295)
+274 2026-10-20T08:34:13Z Improve context-aware routing and chat continuation
+269 2026-10-20T00:25:08Z Secure GUI sessions to explicit workspaces
+268 2026-10-19T14:02:54Z Report effective verify lane metadata
+267 2026-10-19T13:45:12Z Fix free models blocked by learned BYOK prefixes
+266 2026-10-19T12:52:37Z Fix successful Apply result styling
+265 2026-10-19T12:15:06Z Block Driver execution when task goal is blank
+264 2026-10-19T12:06:34Z Restore the D12 changed-line coverage gate
+263 2026-10-19T12:14:46Z Keep Driver restart failures in the pane
+262 2026-10-19T12:16:08Z Fix Dogfood result feedback in desktop UI
+261 2026-10-19T11:12:31Z DF-CLI-5: Report empty verify prompts accurately
+260 2026-10-19T10:57:18Z DF-MEDIA-1: Report invalid media job IDs cleanly
+259 2026-10-19T10:34:48Z Report accepted no-wait media jobs
+258 2026-10-19T10:26:44Z Reject empty offer tasks before dispatch
+257 2026-10-19T10:18:57Z Reject non-exact Fireworks verification replies
+256 2026-10-19T09:47:12Z Remove unusable Fireworks verify CLI alias
+255 2026-10-19T09:31:14Z Propagate adapter failures from the Python CLI entry point
+254 2026-10-19T09:13:46Z Fix terminal mission resume status
+253 2026-10-19T08:00:05Z Sync MCP tool inventory documentation
+252 2026-10-19T07:53:15Z Clarify Proof Bench publish validation flow
+251 2026-10-19T07:46:51Z Correct Traces confidence display copy
+250 2026-10-19T07:39:52Z Correct Home evidence link claim
+249 2026-10-19T07:32:33Z Show unknown run depths in hourglass
+248 2026-10-19T07:21:35Z Clarify Router demo pack behavior
+247 2026-10-19T07:10:47Z Serve demo snapshot from the public site
+246 2026-10-19T06:57:51Z Fix broken relative links in JEV docs
+245 2026-10-19T06:25:53Z fix(mcp): preserve driver tool failure boundaries (DF-MCP-2)
+244 2026-10-19T05:25:49Z fix(provision): classify inventory interpreter safely
+243 2026-10-19T04:31:32Z fix(ui): keep header controls reachable on narrow panels
+242 2026-10-19T03:07:20Z fix(refine): validate CLI inputs and action selection
+241 2026-10-19T02:13:05Z feat(economics): unify EV-1..EV-8, #195-#197, and final canon burndown
+240 2026-10-19T00:02:08Z feat(refine): Phase 0 pilot + P0-P3 prerequisites for #239
+238 2026-10-18T11:28:59Z docs(audit): disposition test gaps and concurrency queues (#187, #188, #191)
+237 2026-10-18T11:09:55Z docs(audit): record formal dispositions for production-path stubs (#192)
+236 2026-10-18T10:46:58Z fix(wip): disposition unlanded codex branches (DF-CLI-4, DF-AUDIT-6, #179)
+235 2026-10-18T10:23:02Z fix(provider): handle upstream spend-limit exhaustion gracefully (DF-API-1, #199)
+234 2026-10-18T08:33:20Z feat(economics): complete EV-0 with live discount probe receipt and status flip
+233 2026-10-18T07:22:54Z feat(driver): complete DRV-1 and DRV-2 with live dogfood receipt and status flip
+232 2026-10-18T06:50:18Z feat(surfaces): provision, repo-cards, and jev-calibration CLI/MCP/server/agent faces
+231 2026-10-18T01:58:40Z fix(driver): sync input capabilities and trim duplicate assertion
+230 2026-10-17T11:48:29Z fix(agent): prevent conversation plan escalation and preserve multi-turn context
+229 2026-10-17T11:06:39Z fix(query-opt): simple request resilience, waist json repair, and baseline refresh
+228 2026-10-17T08:54:29Z fix(test): move test_agent global patches to setUpModule for subset run isolation
+227 2026-10-17T08:41:45Z fix(cli): add --no-escalation flag, govern escalation by max_rotations, and harden http wo
+226 2026-10-17T07:49:08Z fix(chat): enforce reasoning param mutual exclusion, optimize query routing and circuit co
+225 2026-10-17T06:48:08Z fix(waist): arm live jev in plan, mission, and vision with resilient parsing
+224 2026-10-17T00:44:48Z chore(canon): prune out-of-scope civicscope, reconcile DRV-2 and EV-0 status rows
+223 2026-10-16T22:41:52Z fix(driver): harden DRV-2 consent and capability boundaries
+222 2026-10-15T04:33:25Z fix: harden simple answer routing and review status
+221 2026-10-15T03:36:45Z feat(lifecycle): #207 request lifecycle - fastpath promotion plus bounded simple-answer la
+220 2026-10-15T00:26:02Z docs(canon): reconcile burndown and simple-request release gates
+214 2026-10-11T21:35:03Z fix(ui): redact provider keys from settings responses
+213 2026-10-14T21:32:12Z fix(gui): interruptible provider I/O, worker reap, and task-scoped progress (#198)
+210 2026-10-09T04:23:15Z chore(audit): re-point D12 coverage baseline at pushed main head
+209 2026-10-09T05:33:04Z Request lifecycle: simple-action tier for site checks (#200-#203)
+208 2026-10-09T05:34:03Z docs: continue the economics addendum with Fireworks rows EV-6..EV-8
+194 2026-10-08T08:41:36Z fix(security): quote media job_id in path; jail missions ?root= to ./missions
+193 2026-10-06T11:28:04Z docs: Jev phase-2 prescription + battery data (harness completion program)
+180 2026-10-08T13:56:03Z fix(cli): return deferred status for inconclusive verify
+178 2026-10-06T03:15:54Z docs(jev): reconcile recent merges and open work
+176 2026-10-05T03:45:46Z refactor(completion): one owner for registration, one for the row vocabulary
+175 2026-10-05T02:53:34Z fix(completion): stop the phase gate hiding itself three ways
+174 2026-10-05T01:32:17Z fix(completion): register the six shipped canon rows the gate could not see
+173 2026-10-06T03:08:43Z chore(claude): drop static Claude model pins and ids
+172 2026-10-05T00:34:43Z docs(canon): reconcile STATUS with merged main — 11 merges flipped no row
+171 2026-10-04T22:11:07Z feat(router): wire dynamic model ranking into rotation (the engine's model half was inert)
+170 2026-10-04T20:16:55Z fix(chat): parse real response shapes, remember reasoning rejections, bound the run in wal
+169 2026-10-04T21:34:04Z feat(jev): calibration analysis module + evidence docs (tracks #168)
+167 2026-10-04T20:44:31Z fix(economics): EV-0 endpoint-fetch budget is enforced on the report path
+166 2026-10-04T06:07:54Z feat(provision): host-aware provisioning core (probe, plan, approve, execute) behind an ar
+165 2026-10-04T05:06:34Z feat(jev): land the Jev core hardening branch (spend invariants, atomic reservations, cras
+164 2026-10-04T04:45:04Z feat(cards): repo philosophy cards scanned from committed config
+163 2026-10-04T05:27:22Z feat(economics): EV-0 evidence ingest and the discount-semantics gate
+162 2026-10-04T03:41:59Z feat(dogfood): strict matrix scoring, full-ledger monthly Jev credit, honest claim verific
+161 2026-10-04T02:51:51Z fix(driver): repair the five pane defects from the dogfood, and enforce panel_verify's per
+160 2026-10-04T01:23:26Z fix(canon): correct the DRV-1 row, harden the driver/ui fixes, make local gates reproducib
+159 2026-10-03T22:36:09Z feat(driver): native driver_core, Driver GUI pane, MCP tools, Jev spend/credit truth
+158 2026-10-03T03:25:02Z feat(allocation): dynamic resource allocation engine, adaptive windowing, and  cost cap
+157 2026-10-01T20:49:27Z chore(release): v0.4.2 - token kinds, dogfood A/B evidence, and roadmap exit
+156 2026-10-01T19:58:52Z feat(resilience): waist degradation envelope and deterministic judge fallback
+155 2026-10-01T19:26:00Z feat(surfaces): brief CLI/MCP tool, HTTP plan runner, and UI panes
+154 2026-10-01T18:26:12Z feat(safety): consent staleness reason enum and pre-write diff authorization
+153 2026-10-01T17:58:09Z feat(hourglass): wire HV-1 stage dimensions into waist and agent calling lanes
+152 2026-10-01T16:59:22Z feat(drv): harness driver adapter for verified extraction -> Jev decision -> action
+151 2026-10-01T16:09:30Z fix(tests): isolate test_agent settings and harden node subprocess runner
+150 2026-10-01T03:48:56Z feat(agent): dynamic answer token allocation and graceful truncation recovery
+149 2026-09-30T20:56:09Z docs(jev): flip HV-6 to complete after PR #148 merge
+148 2026-09-30T20:42:42Z feat(hourglass): HV-6 surface parity, token budgets, and dogfood loop
+147 2026-09-30T11:50:27Z docs(jev): flip HV-5 to complete after PR #146 merge
+146 2026-09-30T11:28:52Z feat(hv5): expanded-token execution and sovereign handoffs
+145 2026-09-30T08:41:49Z docs(jev): flip HV-4 to complete after all constituent PRs merged
+143 2026-09-30T01:55:15Z docs(handoff): correct the worktree evidence record after re-measurement
+142 2026-09-30T01:03:44Z docs(handoff): worktree removal evidence and verdicts (read-only audit)
+140 2026-09-29T22:25:37Z HV-5: invoke selected composed planning stage
+139 2026-09-29T12:25:31Z docs(jev): close DF-MS-4 after green merge
+138 2026-09-29T12:14:49Z fix(models): remove stale free Ling listing
+137 2026-09-29T03:35:15Z docs(jev): HV-2-use records the delivered brief intake on its merge id
+136 2026-09-29T02:49:22Z feat(jev): the intake brief is the composed plan run's artifact (HV-2-use)
+135 2026-09-29T02:15:57Z docs(jev): record the composed-run caller on the merge it landed as
+134 2026-09-29T02:08:34Z feat(jev): the composed-run caller -- HV-4's path finally executes
+133 2026-09-29T01:35:47Z docs(jev): flip GAP-recondense to complete on the merge it was waiting for
+132 2026-09-29T01:20:22Z feat(jev): the re-condense trigger a composed run needs (GAP-recondense)
+131 2026-09-29T00:51:50Z docs(jev): STATUS — GAP-freeze-face complete on merge ede24262
+130 2026-09-29T00:47:14Z feat(jev): the missing JEV-P4 freeze face (GAP-freeze-face)
+129 2026-09-29T00:28:48Z fix(audit): D12 fails closed in CI, re-point the coverage baseline (DF-AUDIT-3)
+128 2026-09-28T23:26:49Z fix(audit): isolate the suite ledger and R13's environment
+127 2026-09-28T23:29:33Z docs(jev): GAP-* coverage addendum
+126 2026-09-28T22:55:04Z feat(hv1): a code-owned redundancy guard so an unneeded stage judgment costs nothing
+125 2026-09-28T22:55:12Z fix(jev): fail closed on ambiguous STATUS rows
+124 2026-09-28T22:55:26Z fix(ci): stop passing --json to harness rankings, which rejects it (red since 09-21)
+123 2026-09-28T22:55:19Z docs(canon): reconcile STATUS with merged reality; split the two untracked residuals
+122 2026-09-28T17:50:28Z feat(handoff): stamp the ownership gate's documents and wire its CI job
+121 2026-09-28T17:29:00Z fix(jev): gate the decision Choice on dominance, not distribution concentration
+118 2026-09-28T23:22:40Z feat(hourglass): HV-4 stage composition and planning waist (canon-owned single owner)
+117 2026-09-28T17:31:37Z feat(release): publish to PyPI by tag push via OIDC trusted publishing
+115 2026-09-28T04:22:42Z fix(gates): resolve code-owned verification gates from sys.executable
+114 2026-09-28T03:48:25Z feat(handoff): advisory warn-only ownership gate + waiver register
+113 2026-09-28T03:24:38Z test: pin media early-intercept before build_parser (residual from #105)
+112 2026-09-28T03:19:03Z test: pin resume-instruction overrides remaining_scope (residual from #105)
+111 2026-09-27T20:33:34Z feat(hv2): reconcile MicroBrief onto brief schema v2, record condensation as ledger eviden
+110 2026-09-27T12:31:04Z docs(plat): PLAT-* rows complete -- PR #104 MERGED 6e95a23, CI green
+109 2026-09-28T03:04:25Z Add evaluate_decision Jev primitive (typed pre-escalation decision gate)
+104 2026-09-27T12:19:47Z docs(plat): Platform unification roadmap — PLAT-* track for cross-OS canonical product
+103 2026-09-27T04:37:57Z fix(cli): harness brief crashed on every run with KeyError('status')
+102 2026-09-27T04:23:01Z docs(jev): reconcile the merged Hourglass stack and restore the HV-1 STATUS row
+101 2026-09-27T04:14:52Z merge: land the merged Hourglass stack on main (HV-0 close, HV-1, HV-2, HV-3)
+100 2026-09-27T04:11:21Z feat(hourglass): HV-3 token allowance owner, independent of the dollar ceiling
+99 2026-09-27T03:43:44Z feat(hourglass): HV-2 evidence-bearing brief (schema v2)
+98 2026-09-27T03:39:49Z feat(hourglass): HV-1 stage-specific Jev integrations and restart-target enum
+97 2026-09-27T03:37:50Z docs(jev): HV-0 complete -- live pilot receipt and STATUS flip
+96 2026-09-27T03:20:20Z fix(jev): DF-JEV-2 score tolerance, DF-JEV-3 recoverable choice answers, DF-JEV-4 honest s
+95 2026-09-27T10:09:29Z docs(handoff): the ownership gate is untracked, not unmerged — and a cross-lane document i
+94 2026-09-27T10:07:20Z docs(handoff): three Jev-client defects — ALL THREE FIXED in #96; one measurement outstand
+93 2026-09-25T07:44:40Z feat(jev): add bounded Hourglass vision assessment
+92 2026-09-25T02:36:17Z Harden OC handoff completion evidence gate
+91 2026-09-24T13:57:49Z docs: reconcile OC handoff acceptance status
+90 2026-09-24T13:43:48Z Add bounded OC findings handoff worker
+89 2026-09-24T12:29:49Z docs: unify lane canon and record integrations
+88 2026-09-24T11:03:12Z feat(jev): HV answer lifecycle unified into the Jev bar owner (integrated from Freebuff la
+87 2026-09-24T09:47:42Z feat(media): harness media adapter (integrated from operator-tree lane work)
+86 2026-09-24T08:59:10Z feat(config): DF-LING-2 — Ling in rotation, never default (operator ruling)
+85 2026-09-25T04:40:26Z feat(ui+mcp): DF-UI-2 read faces for jev-phase, cost, missions
+84 2026-09-24T04:51:27Z docs(jev): STATUS sync -- flip DF-HUL-1..3, DF-LEDGER-1, DF-AUDIT-2, DF-MS-2b, DF-UI-1/3 t
+83 2026-09-24T04:41:07Z feat(ui+mcp): DF-UI-1 verify/continue panes, DF-UI-3 mission_status + continue_work MCP to
+82 2026-09-24T02:27:53Z fix(verify): DF-MS-2b size preflight to the retry plan actually used
+81 2026-09-24T01:43:37Z fix(ledger+audit): DF-LEDGER-1 segment glob, DF-AUDIT-2 unique R13 worktree branches
+80 2026-09-24T00:28:36Z docs(jev): STATUS sync -- PR #72/#74/#76/#79 merged, DF-* rows flipped
+79 2026-09-24T00:16:12Z feat(jev): JEV-AUDIT-GATE — Jev 4-dimension self-audit gate (tested keyed path, honest par
+78 2026-09-24T01:02:12Z fix(hul): DF-HUL-1..3 — honest budget note, resume --run, attempt-seat clarity
+77 2026-09-23T22:27:49Z docs(hourglass): define vision and Freebuff lanes
+76 2026-09-23T21:18:10Z fix(chat): DF-LING-1 — robust JSON extraction + Ling reasoning hint
+74 2026-09-23T20:28:46Z chore(ci+docs): DF-CI-1..3, DF-DOCS-1..5, DF-AUDIT-1 hygiene
+72 2026-09-23T18:45:24Z fix(verify+hourglass): DF-CLI-2, DF-BOD-1, DF-HG-3b fail-closed preview (opt-in degrade), 
+71 2026-09-23T01:43:15Z docs(seats): BOD/CEO/CTO state after Antigravity audit + Board session; canon rows for PR 
+70 2026-09-23T01:27:35Z fix(lane): DF-CLI-1, DF-APPLY-1, DF-SITE-1 + MS canary (turns main green); canon honesty a
+69 2026-09-22T23:35:45Z feat(router): MS-* cheapest-capable routing, auto paid failover, DF-MS-1..3
+68 2026-09-22T22:43:57Z feat(hourglass): HG repair -- composed ceiling task-max-cost (DF-HG-1), cold-start pyramid
+67 2026-09-22T22:20:34Z feat(jev): JEV-BAR sentiment buckets — full per-axis sentiment + improvement buckets drive
+66 2026-09-22T21:58:54Z chore(claude): CLAUDE-LANE — Claude Code lane, isolated skills, seats, MCP negotiation fix
+65 2026-09-22T19:21:39Z JEV-P6: repo summary — hourglass stages A/B (extract, condense, ledgered judgment, envelop
+64 2026-09-22T10:33:14Z docs(jev): JEV-LOG-dogfood complete — self-dogfood evidence (harness on itself)
+63 2026-09-22T08:51:05Z feat(gate+cli+ms+site): completion-gate canon coverage, thin-face parity, MS envelope, sit
+62 2026-09-22T03:39:56Z feat(ui+waist): runtime settings seam + no-interruptions waist degrade
+61 2026-09-22T00:23:58Z feat(site): dogfood hardening — serve Proof Bench pages from harness serve
+60 2026-09-21T23:05:56Z feat(site): Proof Bench site (SITE-1..9) unified with Jev-directed escalation
+59 2026-09-21T22:07:14Z test(jev): canonize Jev escalation lifecycle seam + close JEV-P2-dead-code STATUS
+58 2026-09-21T21:20:53Z feat(jev): wire Jev-directed escalation (JEV-P2-dead-code)
+57 2026-09-21T19:02:04Z feat(jev): JEV-LOG envelope + factor-pass freeze gate + log-judgment CLI/MCP
+56 2026-09-21T18:09:07Z feat(jev): JEV-LOG-schema + parse + judgment first slice
+55 2026-09-21T17:36:07Z docs(jev): STATUS complete #42/#47/#48; promote JEV-LOG track
+54 2026-09-21T16:18:40Z docs(handoff): archive unique JEV-LOG + CTO notes onto origin
+53 2026-09-21T11:37:25Z fix(changelog): remove merge conflict markers on origin/main
+52 2026-09-21T11:01:56Z docs(jev): STATUS complete — JEV-COMPLETION + HUL-B
+51 2026-09-21T10:30:18Z docs(freebuff): transition handoff for remaining JEV/HUL/JEV-LOG work
+50 2026-09-21T06:57:09Z docs(jev): order of operations — canon then addendum
+49 2026-09-21T06:44:06Z docs(jev): STATUS align open PRs + deferred JEV-LOG addendum
+48 2026-09-21T17:29:45Z feat(harness): HUL-C scope gate + HUL-D mission driver
+47 2026-09-21T10:30:09Z feat(harness): HUL-B dual budget reserve envelope
+46 2026-09-21T06:05:31Z feat(jev): JEV-P4 ops/exit wiring
+45 2026-09-21T04:48:36Z docs(jev): STATUS complete — HUL-A, P3, P5, HG
+44 2026-09-21T04:40:45Z feat(hourglass): composition ceilings, final gate, decompose default, hybrid isolate, resu
+43 2026-09-21T03:45:28Z feat(jev): JEV-P3-route — typed route choice via one policy owner
+42 2026-09-21T04:28:16Z feat(jev): JEV-P5 operator issue-sort packs, 0-hallucination policy owner
+41 2026-09-21T03:31:58Z feat(harness): HUL-A mission pack
+40 2026-09-21T02:28:07Z docs(jev): STATUS P2 complete + remaining product tracks
+39 2026-09-21T09:19:20Z feat(jev): JEV-COMPLETION 0-100 phase score dogfood gate
+38 2026-09-21T00:37:42Z docs(freebuff): AGENTS.md context pack + cheap-paid model tracking
+37 2026-09-21T00:23:33Z docs(jev): P2 freebuff unblock — honest STATUS + repair playbook
+36 2026-09-21T02:07:06Z feat(jev): JEV-P2 confidence gating and triage
+35 2026-09-20T23:57:28Z feat(jev): JEV-P1 — one policy owner and lane evidence
+34 2026-09-20T08:29:26Z feat(jev): JEV-P0 contract truth and token-priced evaluation
+33 2026-09-20T01:08:50Z Fix host-dependent gate rebasing; restore CI green
+32 2026-09-19T21:05:17Z Route GUI edits through governed escalation
+31 2026-09-19T18:54:19Z Make planned edits governed, chunked, isolated, and auditable
+30 2026-09-17T13:22:33Z feat(chat): honest web tools for the UI chat lane + live session sidebar
+29 2026-09-17T07:58:35Z docs(architecture): incorporate System One / Jev design patterns
+28 2026-09-17T03:35:22Z chore(release): cut v0.3.3
+27 2026-09-17T03:28:13Z fix(release): BAR MET gate reads the machine-readable verdict
+26 2026-09-17T03:18:25Z fix(release): preserve changelog header in the driver's flatten; em-dash headings; real-pa
+25 2026-09-17T03:03:31Z fix(release): cross-platform smoke venv + real-run hardening before v0.3.3
+24 2026-09-17T02:49:05Z fix(release): interpreter discovery fails open when uv is absent
+23 2026-09-17T02:39:33Z feat(release): scripted release driver + battery covers the CI matrix locally
+22 2026-09-17T02:24:33Z refactor: split ledger.py and apply.py into one-owner-per-concern pairs
+21 2026-09-17T01:38:09Z feat(audit): measure the battery's reach — changed-line coverage gate (D12)
+20 2026-09-17T01:17:01Z feat(audit): R13's classifier self-verifies its contract (R14)
+19 2026-09-17T01:04:56Z feat(audit): hash-pin the audit's read-only evidence corpus (D11)
+18 2026-09-17T00:11:59Z fix(audit): classify unraisable warnings deterministically in R13
+17 2026-09-16T23:14:59Z fix(tests): close unclosed file handles that flaked the release gate
+16 2026-09-16T22:39:30Z chore(release): cut v0.3.2; make the docs-module check subpackage-aware
+15 2026-09-16T21:55:32Z docs(contributing): complete the module map; mechanize its coverage in D10
+14 2026-09-16T21:32:26Z refactor(cli): extract presentation layer to cli_report.py
+13 2026-09-16T21:12:39Z feat(capability): demote apply-lead models with gate-waste evidence
+12 2026-09-16T20:30:01Z test: v0.3.1 live dogfood round evidence (verify, saturation, gated apply at $0 spend)
+11 2026-09-16T19:43:12Z release: cut 0.3.1
+10 2026-09-16T19:24:26Z Ship the parser-construction owner and the release-runbook honesty repair
+9 2026-09-16T18:46:49Z Ship the post-merge queue: rankings + diff surfaces, keep-going batches, resume proof, rel
+8 2026-09-15T23:36:16Z Unify verify assembly and MCP module ownership; enforce repo conventions mechanically
+7 2026-09-14T00:08:49Z feat(ui): full web-UI parity — claims verify, trust view, verdict summaries
+6 2026-09-13T21:02:06Z feat: localhost web UI, judge-seat rotation, and SCMessenger burndown fixes
+5 2026-09-05T19:39:47Z Release plumbing for sovereign-harness 0.2.0: rename distribution, single-source version, 
+4 2026-09-05T18:34:16Z Fix historical run count in progression section (38 → 47)
+3 2026-09-05T18:23:38Z SCMessenger cross-round progression analysis
+2 2026-09-05T18:12:44Z Round-4 audit artifacts + full results table
+1 2026-09-05T17:28:29Z Re-curate defaults to proven emitters; wire --max-cost everywhere; audit P0 fixes

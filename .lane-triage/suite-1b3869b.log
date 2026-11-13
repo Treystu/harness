@@ -1,0 +1,2792 @@
+......................................................................[plan] git worktree isolation unavailable; falling back to shared-tree mutex execution
+.[plan] git worktree isolation unavailable; falling back to shared-tree mutex execution
+..[plan] git worktree isolation unavailable; falling back to shared-tree mutex execution
+.....................................................[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.s[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.s[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat FAILED: HTTP 429: rate limited -- rotating.
+[apply] cohere/north-mini-code:free did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+...[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+..[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+..[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+..[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+..[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat declares HARNESS_READY: defer (not qualified) -- rotating.
+[apply] cohere/north-mini-code:free declares HARNESS_READY: defer (still not qualified) -- rotating.
+.[apply] deepseek/deepseek-chat declares HARNESS_READY: defer (cannot verify timing safety) -- rotating.
+.[apply] deepseek/deepseek-chat returned no content (reasoning-only); rotating.
+[apply] cohere/north-mini-code:free did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat FAILED: HTTP 429: rate limited -- rotating.
+[apply] cohere/north-mini-code:free did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] deepseek/deepseek-chat FAILED: HTTP 429: Rate limit exceeded: free-models-per-day. Please try again later. -- rotating.
+[apply] cohere/north-mini-code:free FAILED: HTTP 429: Rate limit exceeded: free-models-per-day. Please try again later. -- rotating.
+[apply] z-ai/glm-5.2:free FAILED: HTTP 429: Rate limit exceeded: free-models-per-day. Please try again later. -- rotating.
+.[apply] deepseek/deepseek-chat returned no content (reasoning-only); rotating.
+[apply] cohere/north-mini-code:free returned no content (reasoning-only); rotating.
+[apply] z-ai/glm-5.2:free returned no content (reasoning-only); rotating.
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+..[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.s[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+..s...........................................................................[FATAL] D12: merge-base ffffffffffff cannot be diffed in this checkout, so D12 cannot compute a changed-line ratio -- failing closed
+.[FATAL] D12: D12 cannot resolve a merge-base (no origin/main); changed-line coverage was not measured -- failing closed
+.[warn] D12: D12 cannot resolve a merge-base (no origin/main); changed-line coverage was not measured -- SKIP (fail-open) locally
+............................................................................[bench] running 'a' ...
+[bench] 'a' -> ok
+..[bench] running 'a' ...
+[bench] 'a' -> ok
+.....[bench] running 'a' ...
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[bench] 'a' -> ok
+[bench] running 'b' ...
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[bench] 'b' -> ok
+.[bench] running 'a' ...
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[bench] 'a' -> ok
+[bench] running 'b' ...
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+[bench] 'b' -> verify_failed
+..ss...........................[ui] "GET /api/ledger/defer-stats?window=50 HTTP/1.1" 200 -
+....[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  google/gemma-4-31b-it:free (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: http_500 (down)
+[judge] transient provider error; one bounded retry.
+[judge] inclusionai/ling-2.6-flash: http_500 (down)
+[judge] rotating to fallback candidate google/gemma-4-31b-it:free ...
+[judge] google/gemma-4-31b-it:free: http_500 (down)
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling google/gemma-4-31b-it:free ...
+[panel] google/gemma-4-31b-it:free: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  google/gemma-4-31b-it:free (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: truncated
+[judge] rotating to fallback candidate google/gemma-4-31b-it:free ...
+[judge] google/gemma-4-31b-it:free: parseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (judge attempt 1/2): $0.000251
+  ibm-granite/granite-4.1-8b (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling ibm-granite/granite-4.1-8b ...
+[judge] ibm-granite/granite-4.1-8b: http_500 (down)
+[judge] transient provider error; one bounded retry.
+[judge] ibm-granite/granite-4.1-8b: http_500 (down)
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  google/gemma-4-31b-it:free (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: http_500 (down)
+[judge] transient provider error; one bounded retry.
+[judge] inclusionai/ling-2.6-flash: http_500 (down)
+[judge] rotating to fallback candidate google/gemma-4-31b-it:free ...
+[judge] google/gemma-4-31b-it:free: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  google/gemma-4-31b-it:free (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: reasoning_only
+[judge] rotating to fallback candidate google/gemma-4-31b-it:free ...
+[judge] google/gemma-4-31b-it:free: parseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  google/gemma-4-31b-it:free (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: http_502 (bad gateway)
+[judge] transient provider error; one bounded retry.
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  google/gemma-4-31b-it:free (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: truncated
+[judge] rotating to fallback candidate google/gemma-4-31b-it:free ...
+[judge] google/gemma-4-31b-it:free: parseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000000
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  google/gemma-4-31b-it:free (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[judge] rotating to fallback candidate google/gemma-4-31b-it:free ...
+[judge] google/gemma-4-31b-it:free: parseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.......[preflight] worst-case cost breakdown:
+  vendor-free/gemma-free:free (panel attempt 1/3): $0.000000
+  vendor-free/gemma-free:free (panel attempt 2/3): $0.000000
+  vendor-free/gemma-free:free (panel attempt 3/3): $0.000000
+  other/model-b (panel attempt 1/3): $0.000082
+  other/model-b (panel attempt 2/3): $0.000082
+  other/model-b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000750 (ceiling: $0.050000)
+[panel] calling vendor-free/gemma-free:free ...
+[panel] vendor-free/gemma-free:free: cost=$0.000000, finish_reason=stop, 0.0s
+[panel] calling other/model-b ...
+[panel] other/model-b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  vendor/gemma-free:free (panel attempt 1/3): $0.000000
+  vendor/gemma-free:free (panel attempt 2/3): $0.000000
+  vendor/gemma-free:free (panel attempt 3/3): $0.000000
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000210
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000421 (ceiling: $0.050000)
+[panel] calling vendor/gemma-free:free ...
+[panel] vendor/gemma-free:free: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  vendor/paid-pro (panel attempt 1/3): $0.008243
+  vendor/paid-pro (panel attempt 2/3): $0.008243
+  vendor/paid-pro (panel attempt 3/3): $0.008243
+  other/model-b (panel attempt 1/3): $0.000082
+  other/model-b (panel attempt 2/3): $0.000082
+  other/model-b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.025479 (ceiling: $0.050000)
+[panel] calling vendor/paid-pro ...
+[panel] vendor/paid-pro is BYOK-routed (paid); recorded and rotating.
+[panel] calling other/model-b ...
+[panel] other/model-b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+[panel] vendor/paid-pro skipped: learned-BYOK org filter (paid route) -- widen the pool or clear byok_prefixes.json to restore.
+[preflight] worst-case cost breakdown:
+  other/model-b (panel attempt 1/3): $0.000082
+  other/model-b (panel attempt 2/3): $0.000082
+  other/model-b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000210
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000668 (ceiling: $0.050000)
+[panel] calling other/model-b ...
+[panel] other/model-b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  vendor/paid-pro (panel attempt 1/3): $0.008243
+  vendor/paid-pro (panel attempt 2/3): $0.008243
+  vendor/paid-pro (panel attempt 3/3): $0.008243
+  other/model-b (panel attempt 1/3): $0.000082
+  other/model-b (panel attempt 2/3): $0.000082
+  other/model-b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.025479 (ceiling: $0.050000)
+[panel] calling vendor/paid-pro ...
+[panel] vendor/paid-pro is BYOK-routed (paid); recorded and rotating.
+[panel] calling other/model-b ...
+[panel] other/model-b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+......................[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000210
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000915 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.............................................[retry] paid/x rejected reasoning param; retrying without it.
+....[retry] paid/x rejected reasoning param; retrying without it.
+.................................................................[retry] test/model rejected reasoning param; retrying without it.
+[retry] test/model rejected reasoning param; retrying without it.
+[retry] test/model rejected reasoning param; retrying without it.
+[retry] test/model rejected reasoning param; retrying without it.
+[retry] test/model rejected reasoning param; retrying without it.
+..[retry] paid/x rejected reasoning param; retrying without it.
+.......................[retry] deepseek/deepseek-v4.1-flash rejected reasoning param; retrying without it.
+.[retry] deepseek/deepseek-v4.1-flash rejected reasoning param; retrying without it.
+.[retry] deepseek/deepseek-v4.1-flash rejected reasoning param; retrying without it.
+.[retry] deepseek/deepseek-v4.1-flash rejected reasoning param; retrying without it.
+......................................[cost] Total spend: $0.010000 across 5 events (3 billable, 2 free)
+[cost] Baseline frontier estimate: $0.500000
+[cost] Net savings: $0.490000 (98.0%)
+[cost] TypeSafe Jev: 10 calls, 1,000 in / 200 out tokens
+[cost] TypeSafe Jev Spend: $0.000042 / $5.00 monthly credit ($5.0000 remaining, 0.00% used)
+.......................................[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp0zlas4tk\out.json
+..[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpgkpe3cm0\out.json
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp58kvgfft\out.json
+..............0.5.1
+..clean
+.lint errors
+............................[consent] inclusionai/ling-2.6-flash: reasoning-only output; rotating.
+.....[consent] inclusionai/ling-2.6-flash: HTTP 500; rotating.
+[consent] meta-llama/llama-3.1-8b-instruct: HTTP 500; rotating.
+.[consent] inclusionai/ling-2.6-flash: reasoning-only output; rotating.
+.[consent] inclusionai/ling-2.6-flash: reasoning-only output; rotating.
+.[consent] inclusionai/ling-2.6-flash: reasoning-only output; rotating.
+.[consent] inclusionai/ling-2.6-flash: unparseable or missing a valid decision; rotating.
+....[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+..[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] inclusionai/ling-2.6-flash returned malformed/missing claim JSON -- rotating.
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+..........................................[memory] could not update conversation memory: projection failed
+....[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmptl0bmg6r\cost.json
+.[cost] Total spend: $0.013700 across 4 events (3 billable, 1 free)
+[cost] Baseline frontier estimate: $0.060000
+[cost] Net savings: $0.046300 (77.2%)
+
+Spend by Tier:
+Tier        Calls     Cost ($)
+------------------------------
+T0              1     0.000000
+T1              1     0.000200
+T2              1     0.001500
+T3              1     0.012000
+
+Spend by Model:
+Model                                    Tier      Calls     Cost ($)
+---------------------------------------------------------------------
+qwen/qwen3.8-max-0902                    T3            1     0.012000
+google/gemini-2.5-flash                  T2            1     0.001500
+deepseek/deepseek-chat                   T0            2     0.000200
+[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpsx7xltaz\cost_pretty.json
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpnky8bol6\cost_jev.json
+.........................................................(no models in pools with capability profiles)
+.(no models in pools with capability profiles)
+...[dogfood] no defect survived the panel tally; nothing to apply.
+.[dogfood] no defect survived the panel tally; nothing to apply.
+.....[dogfood] curated 1 claim(s) from the ledger; evidence window written to C:\Users\SCM\AppData\Local\Temp\harness-dogfood-40crvltw\evidence.json
+[dogfood] curated manifest written to C:\Users\SCM\AppData\Local\Temp\tmpqqgth_fj\curated.json
+.[dogfood] curated 1 claim(s) from the ledger; evidence window written to C:\Users\SCM\AppData\Local\Temp\harness-dogfood-pz_4cwrs\evidence.json
+[dogfood] curated manifest written to C:\Users\SCM\AppData\Local\Temp\tmpm_p9pnpg\curated.json
+.[FATAL] [harness_error] --from-ledger curates the claims manifest from the ledger; it cannot be combined with --claims-file
+.[FATAL] [harness_error] --from-ledger requires --claims-out: the curated manifest must be persisted for the next run
+......................................................................................................................................s...........................................................................................................................................................................................................................................................................................................................................................[economics] probe was not conclusive (ambiguous: provider prices alias); nothing recorded, the price gate keeps refusing.
+.[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpy41vtyvy\economics.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+..[economics] probe was not conclusive (unresolved: no provider-reported cost); nothing recorded, the price gate keeps refusing.
+......[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpltlyg_hn\scratch-verdict.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+.......[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpfh3vvue2\economics.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+.[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpyxwibp8a\economics.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpyxwibp8a\economics.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+.[economics] discount probe acme/sol: ambiguous (measured $0.00030000 over 100in/40out; both hypotheses match a published offer -- provider prices alias, so this model cannot settle the question)
+..[economics] discount probe acme/sol: unresolved (measured $0.50000000 over 100in/40out; measured charge matches no published offer under either hypothesis)
+.[economics] discount probe acme/sol: discount_is_multiplier (measured $0.00030000 over 100in/40out; measured charge matches the listed rate times (1 - discount), so the promotion must still be applied)
+..[economics] discount probe acme/sol: listed_is_effective (measured $0.00060000 over 100in/40out; measured charge matches the listed rate, so the promotion is already applied)
+....[economics] discount probe acme/sol: listed_is_effective (measured $0.00060000 over 100in/40out; measured charge matches the listed rate, so the promotion is already applied)
+..[economics] discount probe acme/sol: unresolved (measured $0.00001000 over 100in/40out; measured charge matches no published offer under either hypothesis)
+......[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpt6zmvey5\audits\self\dogfood\EV0A_DISCOUNT_SEMANTICS.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+.[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpm5hxe76m\audits\self\dogfood\EV0A_DISCOUNT_SEMANTICS.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+.[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmp4g5v61no\audits\self\dogfood\EV0A_DISCOUNT_SEMANTICS.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+.....[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpqctpl37u\economics.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+..[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmpyap7t0u1\economics.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+..................................................................[economics] wrote repo evidence C:\Users\SCM\AppData\Local\Temp\tmp9jsis5he\verdict.json; commit it -- a verdict that lives on one machine is not repo evidence and the gate reads only the committed receipt.
+...............................[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp4otzcvip\nested\deep\result.json
+.[escalation] rung 0 model free/a:free: HTTP 401; bad key
+....[escalation] rung 0 model free/a:free: HTTP 429; rate limited
+.............[events] sink dropped (sink exploded)
+....................................[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.....[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct FAILED (500): down -- rotating to next model.
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 1/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 2/3): $0.000082
+  google/gemma-4-31b-it:free (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.001244 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+..[retry] x-r1 rejected reasoning param; retrying without it.
+.................handoff scope: BLOCKED
+[FAIL] C:\Users\SCM\AppData\Local\Temp\tmpk_atx0r2\DIRTY.md: document is outside declared repository root C:\Users\SCM\Documents\GitHub\Harness
+....ss.........................................[plan] LLM decomposition attempt 1 failed (failed to parse JSON from task decomposition: Expecting value: line 1 column 1 (char 0)); retrying
+[plan] LLM decomposition failed (failed to parse JSON from task decomposition: Expecting value: line 1 column 1 (char 0)); loud heuristic fallback
+.[plan] LLM decomposition attempt 1 failed (failed to parse JSON from task decomposition: Expecting value: line 1 column 1 (char 0)); retrying
+.[plan] LLM decomposition attempt 1 failed (failed to parse JSON from task decomposition: Expecting value: line 1 column 1 (char 0)); retrying
+.............................................[waist] Confirmation unreachable across ladder (HTTP 429: Provider returned error); degrading to local-gate execution (verdict=unavailable)
+...............................................................................................................................................................................................................................................................................[saturation] Every attempted model on the free tier is saturated (rate limits / daily caps / reasoning-only responses) -- this is a tier condition, not a problem with your task. Options: wait for the daily tier reset and retry, retry later when the tier recovers, run with --no-consent only under a strong verification gate, or add a paid/BYOK key to route around the free tier.
+...................................................[retry] test/model rejected reasoning param; retrying without it.
+......................................................[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp033czdef\out.json
+...........................................[FATAL] [harness_error] success_definition must be a non-empty string
+...[FATAL] [harness_error] mission pack not found: C:\Users\SCM\AppData\Local\Temp\tmpenj5s3_r\missions\m-nope
+.usage: harness mission [-h] {init,status,findings,resume,run} ...
+harness mission: error: argument mission_cmd: invalid choice: 'x' (choose from 'init', 'status', 'findings', 'resume', 'run')
+......s........ssss....................................[consent] inclusionai/ling-2.6-flash: unparseable or missing a valid decision; rotating.
+....[consent] inclusionai/ling-2.6-flash: unparseable or missing a valid decision; rotating.
+[consent] meta-llama/llama-3.1-8b-instruct: unparseable or missing a valid decision; rotating.
+...................................................................................................................................................................................................................................................................................warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+....warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+..warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.......warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+.warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+....................................................................................................................................................................................................................................[apply] test/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] test/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] test/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[escalation] rung 0 refused by spend governor: model 'paid/b' not found in live OpenRouter model list.
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+........................[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] cheap/a did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[FATAL] [harness_error] jev_model must be a model id (letters, digits and . _ : / @ + -, starting alphanumeric, max 128 chars)
+.[FATAL] [harness_error] refusing to persist a freeze the environment overrides: jev_model via HARNESS_JEV_MODEL; unset it and re-run so the pin is the one that takes effect
+..[jev-freeze] preview only (no write); pass --persist to pin
+...[jev-freeze] preview only (no write); pass --persist to pin
+.........................................[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpsz50jl42\out.json
+....................[apply] test/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] test/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+...[apply] test/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+..[apply] apply/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] rewound target to its pre-run content (run did not pass its verification gate).
+.[apply] apply/model did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+......................{
+  "bench": {
+    "statuses": {
+      "ok": 1
+    }
+  }
+}
+{
+  "spent": 0.01,
+  "limit": 1.0,
+  "session": {
+    "spent": 0.01,
+    "ceiling": 1.0,
+    "remaining": 0.99
+  },
+  "jev": {
+    "calls": 10,
+    "input_tokens": 1000,
+    "output_tokens": 200,
+    "cost": 4.2e-05,
+    "monthly_credit": 5.0,
+    "remaining_credit": 4.999958,
+    "used_percent": 0.0
+  }
+}
+{
+  "total_cost": 0.01,
+  "events_count": 5,
+  "billable_calls": 3,
+  "free_calls": 2,
+  "savings": {
+    "baseline_frontier_cost": 0.5,
+    "net_savings": 0.49,
+    "savings_percent": 98.0
+  },
+  "jev": {
+    "calls": 10,
+    "input_tokens": 1000,
+    "output_tokens": 200,
+    "cost": 4.2e-05,
+    "monthly_credit": 5.0,
+    "remaining_credit": 4.999958,
+    "used_percent": 0.0
+  }
+}
+{
+  "offers": 1,
+  "accepts": 0,
+  "declines": 0,
+  "defers": 0,
+  "redirects": 0,
+  "renew_accepts": 0,
+  "renew_defers": 0,
+  "dispatch_starts": 1,
+  "completions": 0,
+  "aborts": 1,
+  "deferred_midtask": 0,
+  "escalations": 0,
+  "accept_rate": 0.0,
+  "decline_rate": 0.0,
+  "defer_rate": 0.0,
+  "redirect_rate": 0.0,
+  "completion_rate": 0.0,
+  "consent_required_offers": 0,
+  "per_model": {
+    "(bench)": {
+      "offers": 1
+    }
+  },
+  "trust_gates": 0,
+  "trust_hostile": 0,
+  "per_caller": {},
+  "tracked_cost": 0.0,
+  "billable_event_count": 1,
+  "consent_looks_degenerate": false,
+  "calibration": {
+    "z-ai/glm-5.3-flash": {
+      "confident": 0,
+      "defer": 0,
+      "missing": 0,
+      "confident_verified": 0,
+      "confident_passed": 0,
+      "confident_failed": 0,
+      "confidence_precision": null,
+      "success_pass": 0,
+      "success_fail": 0,
+      "success_rate": null,
+      "gate_wasted_runs": 0,
+      "structured_pass": 0,
+      "structured_fail": 0,
+      "structured_success_rate": null,
+      "structured_samples": 0,
+      "json_samples": 0,
+      "samples": 1,
+      "unusable_outputs": 0,
+      "consent_unusable": 0,
+      "minority_dissent": 0,
+      "trust_denials": 0,
+      "trust_hostile": 0
+    },
+    "(bench)": {
+      "confident": 0,
+      "defer": 0,
+      "missing": 0,
+      "confident_verified": 0,
+      "confident_passed": 0,
+      "confident_failed": 0,
+      "confidence_precision": null,
+      "success_pass": 0,
+      "success_fail": 0,
+      "success_rate": null,
+      "gate_wasted_runs": 0,
+      "structured_pass": 0,
+      "structured_fail": 0,
+      "structured_success_rate": null,
+      "structured_samples": 0,
+      "json_samples": 0,
+      "samples": 0,
+      "unusable_outputs": 0,
+      "consent_unusable": 0,
+      "minority_dissent": 0,
+      "trust_denials": 0,
+      "trust_hostile": 0
+    },
+    "deepseek/deepseek-v4.1-flash": {
+      "confident": 0,
+      "defer": 0,
+      "missing": 0,
+      "confident_verified": 0,
+      "confident_passed": 0,
+      "confident_failed": 0,
+      "confidence_precision": null,
+      "success_pass": 0,
+      "success_fail": 0,
+      "success_rate": null,
+      "gate_wasted_runs": 1,
+      "structured_pass": 0,
+      "structured_fail": 0,
+      "structured_success_rate": null,
+      "structured_samples": 0,
+      "json_samples": 0,
+      "samples": 0,
+      "unusable_outputs": 0,
+      "consent_unusable": 0,
+      "minority_dissent": 0,
+      "trust_denials": 0,
+      "trust_hostile": 0
+    }
+  },
+  "confidence_precision": null,
+  "underconfident_or_overconfident": [],
+  "jev_calibration": {
+    "jev_evals": 1,
+    "jev_fallback_evals": 1,
+    "jev_cache_hit_evals": 0,
+    "jev_keyed_evals": 0,
+    "by_site": {
+      "escalation-decision": 1
+    },
+    "tasks_with_jev": 1,
+    "tasks_joined_with_verify": 0,
+    "confidence_buckets": {
+      "high_supported_ge_0.8": {
+        "evals": 0,
+        "tasks": 0,
+        "verify_pass": 0,
+        "verify_fail": 0,
+        "verify_pass_rate": null
+      },
+      "mid_supported_0.5_0.8": {
+        "evals": 0,
+        "tasks": 0,
+        "verify_pass": 0,
+        "verify_fail": 0,
+        "verify_pass_rate": null
+      },
+      "low_supported_lt_0.5": {
+        "evals": 0,
+        "tasks": 0,
+        "verify_pass": 0,
+        "verify_fail": 0,
+        "verify_pass_rate": null
+      }
+    },
+    "review_notes": [],
+    "notes": [
+      "advisory only: thresholds stay operator-owned; this report never mutates settings",
+      "join key is task_id; jev_eval without task_id is counted in site totals only"
+    ]
+  },
+  "bench": {
+    "tasks": 1,
+    "statuses": {
+      "verify_failed": 1
+    },
+    "pass_rate": 0.0,
+    "total_cost": 0.0,
+    "mean_cost": 0.0,
+    "total_rounds": 1,
+    "total_rotations": 0,
+    "results": [
+      {
+        "name": "b1",
+        "status": "verify_failed",
+        "task_id": "bench/b1",
+        "rounds": [
+          {
+            "phase": "escalation",
+            "rung": 0,
+            "model": "z-ai/glm-5.3-flash",
+            "status": "api_error",
+            "error": "nope",
+            "cost": 0.0,
+            "content": ""
+          }
+        ],
+        "cost": 0.0,
+        "rotations": 0,
+        "backend": "harness",
+        "verify_only": false,
+        "backup": null,
+        "verify_cmd": "python -c ''",
+        "verify": {
+          "command": "python -c ''",
+          "passed": false,
+          "output_tail": ""
+        },
+        "gate_ran": true,
+        "continuation": {
+          "schema_version": 1,
+          "file_path": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmp4d7_s5as\\b1\\a.py",
+          "task_id": "bench/b1",
+          "backend": "harness",
+          "verify_only": false,
+          "max_lines": 500,
+          "edit_snippet": null,
+          "verify_cmd": "python -c ''",
+          "verify_gate_id": "3ea71c52f5c86d5a",
+          "verification_required": true,
+          "target_hash": "f1776ce4397fa7cbeaee31c3ff73d5b829eb49e5d15049f9266f099743f377e2",
+          "remaining_scope": "Fix the verification failures for: x",
+          "reason": "verification did not pass on the free tier; continue and fix",
+          "history": []
+        },
+        "model_requested": "deepseek/deepseek-v4.1-flash",
+        "model_observed": [
+          "z-ai/glm-5.3-flash"
+        ]
+      }
+    ]
+  }
+}
+{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": null,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.005,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "model/one",
+      "model/two",
+      "model/three"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.05,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+.[FATAL] [harness_error] log pack invalid: operator pack requires a non-empty buckets map
+............................................................................[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp3vj53i51\report.json
+...[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmphk6ti_j_\report.json
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp9xc7xngk\report.json
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpbb8radyd\report.json
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpbwaek6s0\report.json
+.................................................................s...............[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+....................................................................................s[convergence] inclusionai/ling-2.6-flash: no parseable JSON; rotating.
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001163 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] inclusionai/ling-2.6-flash: no parseable JSON; rotating.
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000210
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000668 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+............[preflight] worst-case cost breakdown:
+  m/a (panel attempt 1/6): $0.000082
+  m/a (panel attempt 2/6): $0.000082
+  m/a (panel attempt 3/6): $0.000082
+  m/a (panel attempt 4/6): $0.000082
+  m/a (panel attempt 5/6): $0.000082
+  m/a (panel attempt 6/6): $0.000082
+  m/j (judge attempt 1/2): $0.000210
+  m/j (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000915 (ceiling: $0.050000)
+[panel] calling m/a ...
+[panel] m/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling m/j ...
+[judge] m/j: parseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+[preflight] worst-case cost breakdown:
+  m/a (panel attempt 1/3): $0.000082
+  m/a (panel attempt 2/3): $0.000082
+  m/a (panel attempt 3/3): $0.000082
+  z-ai/glm-5.3-flash (judge attempt 1/3): $0.000210
+  z-ai/glm-5.3-flash (judge attempt 2/3): $0.000210
+  z-ai/glm-5.3-flash (judge attempt 3/3): $0.000210
+[preflight] TOTAL worst-case: $0.000878 (ceiling: $0.050000)
+[panel] calling m/a ...
+[panel] m/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling z-ai/glm-5.3-flash ...
+[judge] z-ai/glm-5.3-flash: parseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  m/a (panel attempt 1/6): $0.000082
+  m/a (panel attempt 2/6): $0.000082
+  m/a (panel attempt 3/6): $0.000082
+  m/a (panel attempt 4/6): $0.000082
+  m/a (panel attempt 5/6): $0.000082
+  m/a (panel attempt 6/6): $0.000082
+  m/j (judge attempt 1/3): $0.000210
+  m/j (judge attempt 2/3): $0.000210
+  m/j (judge attempt 3/3): $0.000210
+[preflight] TOTAL worst-case: $0.001126 (ceiling: $0.050000)
+[panel] calling m/a ...
+[panel] m/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling m/j ...
+[judge] m/j: parseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  m/a (panel attempt 1/6): $0.000082
+  m/a (panel attempt 2/6): $0.000082
+  m/a (panel attempt 3/6): $0.000082
+  m/a (panel attempt 4/6): $0.000082
+  m/a (panel attempt 5/6): $0.000082
+  m/a (panel attempt 6/6): $0.000082
+  m/j (judge attempt 1/2): $0.000210
+  m/j (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000915 (ceiling: $0.050000)
+[panel] calling m/a ...
+[panel] m/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling m/j ...
+[judge] m/j: parseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  m/a (panel attempt 1/6): $0.000082
+  m/a (panel attempt 2/6): $0.000082
+  m/a (panel attempt 3/6): $0.000082
+  m/a (panel attempt 4/6): $0.000082
+  m/a (panel attempt 5/6): $0.000082
+  m/a (panel attempt 6/6): $0.000082
+  m/j (judge attempt 1/2): $0.000210
+  m/j (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000915 (ceiling: $0.050000)
+[panel] calling m/a ...
+[panel] m/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling m/j ...
+[judge] m/j: parseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+...[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmp52ftj05p\led.jsonl; run `harness ledger verify` for status.
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmp52ftj05p\led.jsonl; run `harness ledger verify` for status.
+.[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpyzptjsx6\ledger.jsonl; run `harness ledger verify` for status.
+.......[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmp22c8q3w7\led.jsonl; run `harness ledger verify` for status.
+.[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpduiotcf5\led.jsonl; run `harness ledger verify` for status.
+..[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmp8dumyr17\led.jsonl; run `harness ledger verify` for status.
+.[ledger] ignoring 1 non-segment file(s) matching 'ledger.jsonl.*' (not a rotation name): ledger.jsonl.bak-20260918-dogfood
+[ledger] ignoring 1 non-segment file(s) matching 'ledger.jsonl.*' (not a rotation name): ledger.jsonl.bak-20260918-dogfood
+.[ledger] ignoring 1 non-segment file(s) matching 'ledger.jsonl.*' (not a rotation name): ledger.jsonl.bak-20260918-dogfood
+[ledger] ignoring 1 non-segment file(s) matching 'ledger.jsonl.*' (not a rotation name): ledger.jsonl.bak-20260918-dogfood
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmp_jacze2m\ledger.jsonl.20260918T101500.123456; run `harness ledger verify` for status.
+..[ledger] ignoring 8 non-segment file(s) matching 'ledger.jsonl.*' (not a rotation name): ledger.jsonl.2026-09-18, ledger.jsonl.20260918, ledger.jsonl.20260918T101500, ledger.jsonl.bak, ledger.jsonl.bak-20260918-dogfood, ledger.jsonl.old, ledger.jsonl.orig, ledger.jsonl.swp
+[ledger] ignoring 8 non-segment file(s) matching 'ledger.jsonl.*' (not a rotation name): ledger.jsonl.2026-09-18, ledger.jsonl.20260918, ledger.jsonl.20260918T101500, ledger.jsonl.bak, ledger.jsonl.bak-20260918-dogfood, ledger.jsonl.old, ledger.jsonl.orig, ledger.jsonl.swp
+[ledger] ignoring 8 non-segment file(s) matching 'ledger.jsonl.*' (not a rotation name): ledger.jsonl.2026-09-18, ledger.jsonl.20260918, ledger.jsonl.20260918T101500, ledger.jsonl.bak, ledger.jsonl.bak-20260918-dogfood, ledger.jsonl.old, ledger.jsonl.orig, ledger.jsonl.swp
+............[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmp26j9oedf\ledger.jsonl; run `harness ledger verify` for status.
+.[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpewjd1k86\ledger.jsonl; run `harness ledger verify` for status.
+..[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpnp81jrxf\ledger.jsonl; run `harness ledger verify` for status.
+....................................................................................................................ssssssssss..s....ssssssssss....ssssss....s...[local_fit] advisory demoted within tier: acme/mid:free
+..[local_fit] standing down: degenerate artifact (score_spread_too_small); advisory order suppressed (baseline kept, 3 candidates scored)
+[local_fit] advisory stood down: degenerate artifact (score_spread_too_small); baseline order kept
+.[local_fit] advisory demoted within tier: p/cheap
+.[local_fit] advisory demoted within tier: acme/mid:free
+................................[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+............................{
+  "consensus": {
+    "defer": false
+  },
+  "cost_by_model": {},
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.05,
+    "key_label_present": false
+  },
+  "status": "ok"
+}
+{
+  "status": "planned",
+  "decomposition": "heuristic",
+  "nodes": []
+}
+{
+  "status": "ok",
+  "cost": 0.0,
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "openai/gpt-4o-mini",
+      "openai/gpt-5-mini",
+      "openai/gpt-5.6-luna",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": null,
+    "key_label_present": false
+  }
+}
+{
+  "status": "ok",
+  "cost": 0.0,
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "openai/gpt-4o-mini",
+      "openai/gpt-5-mini",
+      "openai/gpt-5.6-luna",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": null,
+    "key_label_present": false
+  }
+}
+{
+  "bench": {
+    "statuses": {}
+  }
+}
+{
+  "captured_at": 0.0,
+  "refreshed": false,
+  "models": [],
+  "count": 0
+}
+{
+  "captured_at": 0.0,
+  "refreshed": false,
+  "models": [],
+  "count": 0
+}
+fireworks pack matches the snapshot
+fireworks pack matches the snapshot
+[OK] self-test: 24 classification cases behave as specified
+[WAIVED] HANDOFF/CTO_HANDOFF_HARNESS_JEV_FREEBUFF_AUDIT_2026-09-21.md: owner=Sovereign-Communication/harness operator (CTO seat) ticket=#108 date=2026-09-28 reason=Records, by design, that the sibling lane's identity/transport/WiFi handoff is NOT in this repository, and names its location so the exclusion is checkable. The reference establishes the boundary rather than importing foreign material. (aliases: sc messenger, scmessenger)
+[WAIVED] HANDOFF/FREEBUFF_TRANSITION.md: owner=Sovereign-Communication/harness operator ticket=#108 date=2026-09-28 reason=Transition record that cites a foreign-lane log path as dogfood evidence and states the rule that no foreign product code lands in Harness PRs. The named artifacts are pointers, not imported findings, evidence, status, or remediation. (aliases: sc messenger, scmessenger)
+[WAIVED] docs/MODEL_SELECTION_HANDOFF_2026-09-13.md: owner=Sovereign-Communication/harness operator ticket=#108 date=2026-09-28 reason=Carries its own authorship provenance (a recovery session belonging to the foreign lane) and uses that lane's failed board run as the evidence for the model-selection conclusions. Removing either would falsify the record. Confirmed as a substantive foreign reference, not an incidental mention, by HANDOFF/OWNERSHIP_GATE_UNTRACKED_2026-09-26.md. (aliases: sc messenger, scmessenger)
+[WAIVED] handoff/selftest/DIRTY.md: owner=operator ticket=#108 date=2026-09-26 reason=records SCMessenger (aliases: sc messenger, scmessenger)
+[WAIVED] handoff/selftest/DIRTY.md: owner=operator ticket=#108 date=2026-09-26 reason=records SCMessenger (aliases: sc messenger, scmessenger)
+[WAIVED] handoff/selftest/DIRTY.md: owner=operator ticket=#108 date=2026-09-26 reason=records SCMessenger (aliases: sc messenger, scmessenger)
+[OK] self-test: 24 classification cases and 25 waiver cases behave as specified
+{
+  "id": "m-err",
+  "pack_dir": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpza17wk4d\\missions\\m-err",
+  "phase": "in_progress",
+  "terminal": false,
+  "request": "Implement HUL-A mission pack layout",
+  "success_definition": "Pack inits, receipts append, STATUS regenerates",
+  "scope": {
+    "in_scope": [
+      "mission_record.py",
+      "cli mission"
+    ],
+    "out_of_scope": [
+      "HUL-D driver live loop"
+    ]
+  },
+  "limits": {
+    "max_cost_usd": 0.5
+  },
+  "terminal_reserve": {
+    "cost_usd": 0.05
+  },
+  "verifier": {
+    "kind": "hermetic-local"
+  },
+  "budget": {
+    "max_cost_usd": 0.5,
+    "mission_id": "m-err",
+    "phase": "attempt",
+    "phase_ceiling": 0.45,
+    "phase_remaining": 0.45,
+    "spent": 0.0,
+    "terminal_available": 0.5,
+    "terminal_reserve_cost_usd": 0.05,
+    "updated_at": "2026-11-03T12:13:14+00:00",
+    "working_remaining": 0.45
+  },
+  "dual_budget": {
+    "working_remaining": 0.45,
+    "terminal_reserve_cost_usd": 0.05,
+    "terminal_available": 0.5,
+    "phase": "attempt"
+  },
+  "receipts_count": 0,
+  "jev_evals_count": 0,
+  "receipts": [],
+  "jev_evals": [],
+  "resume": {
+    "schema_version": 1,
+    "mission_id": "m-err",
+    "pack_dir": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpza17wk4d\\missions\\m-err",
+    "status": "in_progress",
+    "receipts_seq": 0,
+    "attempts": 0,
+    "spent": 0.0,
+    "updated_at": "2026-11-03T12:13:15+00:00"
+  },
+  "status_md_path": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpza17wk4d\\missions\\m-err\\STATUS.md",
+  "findings_md_path": "C:\\Users\\SCM\\AppData\\Local\\Temp\\tmpza17wk4d\\missions\\m-err\\FINDINGS.md",
+  "findings_md": "# FINDINGS \u2014 m-err\n\nNot terminal. Findings are written only when the mission reaches a terminal outcome via mark_terminal (HUL-D owns the until-limits driver).\n"
+}
+
+calibration: 28 cases, threshold 0.95, margin 0.2, false_proceed_rate 0.0, unnecessary_escalation_rate 0.0
+{
+  "pack_id": "scmessenger-ops-log-v1",
+  "declared_buckets": [
+    "ble",
+    "transport"
+  ],
+  "items": [
+    {
+      "id": "item-000001",
+      "line_index": 1,
+      "level": "warn",
+      "module": "scmessenger_cli::ble_daemon",
+      "evidence": "line 1 [warn] scmessenger_cli::ble_daemon",
+      "bucket": "ble",
+      "path_id": "log/ble",
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000002",
+      "line_index": 2,
+      "level": "warn",
+      "module": "scmessenger_cli::ble_mesh",
+      "evidence": "line 2 [warn] scmessenger_cli::ble_mesh",
+      "bucket": "ble",
+      "path_id": "log/ble",
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000003",
+      "line_index": 4,
+      "level": "warn",
+      "module": "scmessenger_core::transport::swarm",
+      "evidence": "line 4 [warn] scmessenger_core::transport::swarm",
+      "bucket": "transport",
+      "path_id": "log/transport",
+      "suggested_next_action": "review dial/relay policy",
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000004",
+      "line_index": 5,
+      "level": "warn",
+      "module": "misc::thing",
+      "evidence": "line 5 [warn] misc::thing",
+      "bucket": null,
+      "path_id": null,
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    },
+    {
+      "id": "item-000005",
+      "line_index": 6,
+      "level": "error",
+      "module": "misc::other",
+      "evidence": "line 6 [error] misc::other",
+      "bucket": null,
+      "path_id": null,
+      "suggested_next_action": null,
+      "score": {
+        "id": "sentiment",
+        "level": null,
+        "value": null,
+        "confidence": 0.0
+      },
+      "is_fallback": true
+    }
+  ],
+  "coverage": {
+    "total_items": 5,
+    "bucketed": 3,
+    "unmatched": 2,
+    "fallbacks": 5,
+    "live_judged": 0
+  },
+  "buckets": {
+    "ble": 2,
+    "transport": 1
+  },
+  "scores": {
+    "by_level": {},
+    "mean_value": null
+  },
+  "mechanical": {
+    "total_lines": 6,
+    "selected_items": 5,
+    "by_level": {
+      "error": 1,
+      "warn": 4
+    },
+    "top_modules": [
+      {
+        "module": "misc::other",
+        "count": 1
+      },
+      {
+        "module": "misc::thing",
+        "count": 1
+      },
+      {
+        "module": "scmessenger_cli::ble_daemon",
+        "count": 1
+      },
+      {
+        "module": "scmessenger_cli::ble_mesh",
+        "count": 1
+      },
+      {
+        "module": "scmessenger_core::transport::swarm",
+        "count": 1
+      }
+    ]
+  }
+}
+{
+  "pack_id": "scmessenger-ops-log-v1",
+  "declared_buckets": [
+    "ble",
+    "transport"
+  ],
+  "items": [],
+  "coverage": {
+    "total_items": 0,
+    "bucketed": 0,
+    "unmatched": 0,
+    "fallbacks": 0,
+    "live_judged": 0
+  },
+  "buckets": {},
+  "scores": {
+    "by_level": {},
+    "mean_value": null
+  },
+  "mechanical": {
+    "total_lines": 2,
+    "selected_items": 0,
+    "by_level": {},
+    "top_modules": []
+  }
+}
+{"jsonrpc": "2.0", "id": 2, "error": {"code": -32800, "message": "Request cancelled before execution"}}
+........[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+.......[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000006 (ceiling: $0.050000)
+..........[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+..[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000998 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+[panel] ibm-granite/granite-4.1-8b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.....s.[preflight] worst-case cost breakdown:
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 1/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 2/3): $0.000082
+  ibm-granite/granite-4.1-8b (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling ibm-granite/granite-4.1-8b ...
+.[apply] deepseek/deepseek-chat returned no content (reasoning-only); rotating.
+......[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+..ssss..............s.......[plan] git worktree isolation unavailable; falling back to shared-tree mutex execution
+.......................................................................[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+....[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpi_x4ylgt\issue-out.json
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp0uxg8fa6\stdout.json
+[FATAL] [harness_error] max_cost must be in [0.0, 1.0]
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmppr2j78wx\route-out.json
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpwt6cq2w3\u-out.json
+............[apply] morph/morph-v3-fast did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] morph/morph-v3-fast did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[apply] morph/morph-v3-fast did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.[apply] morph/morph-v3-fast did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+.............warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+....................................s....s.....................s.s..s..............s.........[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash FAILED (500): x -- rotating to next model.
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct FAILED (500): y -- rotating to next model.
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: http_500 (judge down)
+[judge] transient provider error; one bounded retry.
+[judge] inclusionai/ling-2.6-flash: http_500 (judge still down)
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000210
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000915 (ceiling: $0.001000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash rate-limited; bounded retry 1/2.
+[panel] inclusionai/ling-2.6-flash: cost=$0.000300, finish_reason=stop, 0.5s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000600 (ceiling: $0.001000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash FAILED (500): boom -- rotating to next model.
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000210
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000915 (ceiling: $0.001000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash FAILED (500): down -- rotating to next model.
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000300, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000600 (ceiling: $0.001000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=length, 0.0s
+[panel] WARNING: inclusionai/ling-2.6-flash truncated by --max-tokens.
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[panel] strike/demotion gating removed from dispatch: google/gemini-3.8-flash
+[preflight] worst-case cost breakdown:
+  provider-a/capable-1 (panel attempt 1/3): $0.008243
+  provider-a/capable-1 (panel attempt 2/3): $0.008243
+  provider-a/capable-1 (panel attempt 3/3): $0.008243
+  provider-b/capable-2 (panel attempt 1/3): $0.008243
+  provider-b/capable-2 (panel attempt 2/3): $0.008243
+  provider-b/capable-2 (panel attempt 3/3): $0.008243
+  provider-c/capable-3 (panel attempt 1/3): $0.008243
+  provider-c/capable-3 (panel attempt 2/3): $0.008243
+  provider-c/capable-3 (panel attempt 3/3): $0.008243
+  provider-d/capable-4 (panel attempt 1/3): $0.008243
+  provider-d/capable-4 (panel attempt 2/3): $0.008243
+  provider-d/capable-4 (panel attempt 3/3): $0.008243
+  provider-a/capable-1 (judge attempt 1/2): $0.033319
+  provider-a/capable-1 (judge attempt 2/2): $0.033319
+[preflight] TOTAL worst-case: $0.165554 (ceiling: $1.000000)
+[panel] calling provider-a/capable-1 ...
+[panel] provider-a/capable-1: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling provider-b/capable-2 ...
+[panel] provider-b/capable-2: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling provider-c/capable-3 ...
+[panel] provider-c/capable-3: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling provider-d/capable-4 ...
+[panel] provider-d/capable-4: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling provider-a/capable-1 ...
+[judge] provider-a/capable-1: unparseable
+
+[TOTAL] actual cost this run: $0.000005 (ceiling: $1.000000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $1.000000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $1.000000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  judge/small-window (judge attempt 1/2): $0.000251
+  judge/small-window (judge attempt 2/2): $0.000251
+  judge/small-window (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $1.000000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] context budget 0 tokens: dropped oldest votes from ['inclusionai/ling-2.6-flash'] to stay within judge/small-window's window.
+[judge] calling judge/small-window ...
+[judge] judge/small-window: unparseable
+[convergence] context budget 351 tokens: dropped oldest votes from ['inclusionai/ling-2.6-flash'] to fit the specialist window.
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $1.000000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $1.000000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $1.000000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $1.000000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $1.000000)
+............................................................................................[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "GET /api/runs/cdfb1a7a76ee/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/cdfb1a7a76ee/result HTTP/1.1" 200 -
+.[ui] "POST /api/provision/plan HTTP/1.1" 400 -
+....................................................................................................................[panel] x/a skipped: learned-BYOK org filter (paid route) -- widen the pool or clear byok_prefixes.json to restore.
+[preflight] worst-case cost breakdown:
+  y/b (panel attempt 1/3): $0.000082
+  y/b (panel attempt 2/3): $0.000082
+  y/b (panel attempt 3/3): $0.000082
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000668 (ceiling: $0.050000)
+[panel] calling y/b ...
+[panel] y/b: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] x/j routes via paid BYOK on this account; raw panel outputs only.
+
+[TOTAL] actual cost this run: $0.000001 (ceiling: $0.050000)
+............................................................................................................................................................................................[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\provision_test_yr7ovu3j\ledger.jsonl; run `harness ledger verify` for status.
+............................s..............................................................................[retry] z-ai/glm-5.3-flash rejected reasoning param; retrying without it.
+...[retry] z-ai/glm-5.3-flash rejected reasoning param; retrying without it.
+.........................................[release] ABORT at step 'publish': no python executable in the smoke venv at ('C:\\Users\\SCM\\AppData\\Local\\Temp\\tmp8xcid45h', 'Scripts/python.exe', 'bin/python')
+...................................................................................................[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmpnile6l4x\route.json
+...................................................................................[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+...[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/b (panel attempt 1/3): $0.000000
+  x/b (panel attempt 2/3): $0.000000
+  x/b (panel attempt 3/3): $0.000000
+  x/c (panel attempt 1/3): $0.000000
+  x/c (panel attempt 2/3): $0.000000
+  x/c (panel attempt 3/3): $0.000000
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+  x/b (judge fallback reserve 1/1): $0.000000
+  x/c (judge fallback reserve 1/1): $0.000000
+[preflight] TOTAL worst-case: $0.000668 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+[judge] rotating to fallback candidate x/b ...
+[judge] x/b: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  deepseek/deepseek-r1:free (panel attempt 1/6): $0.000000
+  deepseek/deepseek-r1:free (panel attempt 2/6): $0.000000
+  deepseek/deepseek-r1:free (panel attempt 3/6): $0.000000
+  deepseek/deepseek-r1:free (panel attempt 4/6): $0.000000
+  deepseek/deepseek-r1:free (panel attempt 5/6): $0.000000
+  deepseek/deepseek-r1:free (panel attempt 6/6): $0.000000
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+  deepseek/deepseek-r1:free (judge fallback reserve 1/2): $0.000000
+  deepseek/deepseek-r1:free (judge fallback reserve 2/2): $0.000000
+[preflight] TOTAL worst-case: $0.000668 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+[judge] rotating to fallback candidate deepseek/deepseek-r1:free ...
+[judge] deepseek/deepseek-r1:free: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000668 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+..[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/b (panel attempt 1/3): $0.000000
+  x/b (panel attempt 2/3): $0.000000
+  x/b (panel attempt 3/3): $0.000000
+  x/c (panel attempt 1/3): $0.000000
+  x/c (panel attempt 2/3): $0.000000
+  x/c (panel attempt 3/3): $0.000000
+  x/j (judge attempt 1/2): $0.000292
+  x/j (judge attempt 2/2): $0.000292
+[preflight] TOTAL worst-case: $0.000832 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling x/b ...
+[panel] x/b: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling x/c ...
+[panel] x/c: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+  x/j (convergence attempt 1/1): $0.000124
+[preflight] TOTAL worst-case: $0.000792 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+[convergence] x/j: no parseable JSON; rotating.
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+[preflight] TOTAL worst-case: $0.000668 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+
+[TOTAL] actual cost this run: $0.000002 (ceiling: $0.050000)
+.[OK] result written to C:\Users\SCM\AppData\Local\Temp\tmp__fl3ik1\out.json
+.[FATAL] [harness_error] route pack not readable: C:\Users\SCM\AppData\Local\Temp\tmpm6_8n4tf\nope.json (No such file or directory)
+[FATAL] [harness_error] route pack invalid: route pack requires a non-empty rungs list
+.................................................................[warn] backup failed for C:\Users\SCM\AppData\Local\Temp\tmp7ucqqspf\src.py: backup destination already exists, refusing: C:\Users\SCM\AppData\Local\Temp\tmp7ucqqspf\harness-backups\task-r1-1-deadbeef-src.py
+..[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpq68qrjp9\ledger.jsonl; run `harness ledger verify` for status.
+........................................................................................................................[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "GET /api/runs/58520bd6ffa7/result HTTP/1.1" 200 -
+.[ui] "POST /api/chat HTTP/1.1" 201 -
+[ui] "POST /api/runs/fc674afe99fc/cancel HTTP/1.1" 200 -
+[ui] "GET /api/runs/fc674afe99fc/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/fc674afe99fc/result HTTP/1.1" 200 -
+[ui] "POST /api/chat HTTP/1.1" 201 -
+[ui] "GET /api/runs/b05dfaeac001/result HTTP/1.1" 200 -
+.[ui] "POST /api/chat HTTP/1.1" 201 -
+[ui] "POST /api/chat HTTP/1.1" 201 -
+[ui] "GET /api/runs/f6fc4abc8338/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/f6fc4abc8338/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/f6fc4abc8338/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/f6fc4abc8338/result HTTP/1.1" 200 -
+[ui] "POST /api/runs/633ba7eb7807/cancel HTTP/1.1" 200 -
+[ui] "GET /api/runs/633ba7eb7807/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/633ba7eb7807/result HTTP/1.1" 200 -
+.[ui] "POST /api/chat HTTP/1.1" 201 -
+[ui] "GET /api/runs/e9f50eb454d2/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/e9f50eb454d2/result HTTP/1.1" 200 -
+[ui] "GET /api/chat/history?session_id=test-sid HTTP/1.1" 200 -
+...[ui] "POST /api/runs HTTP/1.1" 201 -
+[OK] using key 'sk-or-v1-361...a57', limit=$1.5, remaining=$1.500000 (resets: daily)
+.[ui] "POST /api/runs HTTP/1.1" 400 -
+.[ui] "POST /api/chat/session/delete HTTP/1.1" 200 -
+[ui] "POST /api/chat/session/delete HTTP/1.1" 200 -
+[ui] "POST /api/chat/session/delete HTTP/1.1" 400 -
+.[ui] "POST /api/chat/session/delete HTTP/1.1" 400 -
+[ui] "POST /api/chat/session/delete HTTP/1.1" 400 -
+[ui] "POST /api/chat/session/delete HTTP/1.1" 400 -
+.[ui] "GET /api/chat/sessions HTTP/1.1" 200 -
+.[ui] "GET /api/chat/sessions HTTP/1.1" 200 -
+.[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "POST /api/runs/0b7028bb7559/cancel HTTP/1.1" 200 -
+[ui] "GET /api/runs/0b7028bb7559/result HTTP/1.1" 200 -
+.[ui] "POST /api/runs HTTP/1.1" 400 -
+.[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "GET /api/runs/ec05ca06a47c/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/ec05ca06a47c/result HTTP/1.1" 200 -
+.[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "GET /api/runs/fadb7191b8ac/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/fadb7191b8ac/result HTTP/1.1" 200 -
+.[ui] "GET /api/cost?by_tier=true&last=24h HTTP/1.1" 200 -
+.[ui] "GET /api/status HTTP/1.1" 401 -
+[ui] "GET /api/status HTTP/1.1" 200 -
+.[OK] harness desktop at http://127.0.0.1:4242/ (token-protected)
+[OK] user recovery shortcut saved at gui-open.url
+....ss.[OK] harness desktop at http://127.0.0.1:4242/ (token-protected)
+[OK] user recovery shortcut saved at C:\Users\SCM\AppData\Local\Temp\harness-desktop-g9so8hq2\gui-open.url
+[OK] browser mode; Ctrl-C to stop the server
+.[OK] harness desktop at http://127.0.0.1:4242/ (token-protected)
+[OK] user recovery shortcut saved at C:\Users\SCM\AppData\Local\Temp\harness-desktop-7e40iyo3\gui-open.url
+[OK] browser mode; Ctrl-C to stop the server
+
+[interrupted] UI server stopped
+.[OK] harness desktop at http://127.0.0.1:4242/ (token-protected)
+[OK] user recovery shortcut saved at C:\Users\SCM\AppData\Local\Temp\harness-desktop-6fqhfnf_\gui-open.url
+[OK] browser mode; Ctrl-C to stop the server
+.[OK] harness desktop at http://127.0.0.1:4242/ (token-protected)
+[OK] user recovery shortcut saved at C:\Users\SCM\AppData\Local\Temp\harness-desktop-a9mfflx2\gui-open.url
+[OK] browser mode; Ctrl-C to stop the server
+..[OK] harness desktop at http://127.0.0.1:4242/ (token-protected)
+[OK] user recovery shortcut saved at C:\Users\SCM\AppData\Local\Temp\harness-desktop-dsresh44\gui-open.url
+[OK] browser mode; Ctrl-C to stop the server
+.[FATAL] Cannot persist the Harness owner credential; refusing to start so recovery remains possible: could not persist the Harness UI owner credential at C:\Users\SCM\AppData\Local\Temp\harness-desktop-6g92n_gf\desktop_token
+.[FATAL] loopback bind only
+..[OK] harness desktop at http://127.0.0.1:4242/ (token-protected)
+[OK] user recovery shortcut saved at C:\Users\SCM\AppData\Local\Temp\harness-desktop-1y63yv_4\gui-open.url
+[OK] browser mode; Ctrl-C to stop the server
+.[OK] harness UI serving at http://127.0.0.1:4242/ (token-protected; Ctrl-C to stop)
+[OK] user recovery shortcut saved at C:\Users\SCM\AppData\Local\Temp\harness-desktop-nj0uo0nb\gui-open.url
+..s[FATAL] Cannot persist the Harness owner credential; refusing to start so recovery remains possible: could not persist the Harness UI owner credential at C:\Users\SCM\AppData\Local\Temp\harness-desktop-tgvyz6vd\blocker\desktop_token
+..........[ui] "GET /api/cost HTTP/1.1" 200 -
+.[ui] "GET /api/spend HTTP/1.1" 200 -
+[ui] "GET /api/cost HTTP/1.1" 200 -
+.[ui] "GET /api/spend HTTP/1.1" 200 -
+.[ui] "GET /api/jev-phase?phase=X HTTP/1.1" 401 -
+.[ui] "GET /api/jev-phase?repo_root=C:\Users\SCM\AppData\Local\Temp\tmpw6em0eqw HTTP/1.1" 200 -
+.[ui] "GET /api/jev-phase?phase=JEV-P2&repo_root=C:\Users\SCM\AppData\Local\Temp\tmp1jbtd_f0 HTTP/1.1" 200 -
+.s[ui] "GET /api/missions/m-trav-1?root=.. HTTP/1.1" 400 -
+.[ui] "GET /api/missions/m-http-sibling?root=sibling HTTP/1.1" 200 -
+.[ui] "GET /api/missions/m-http-3?root=missions HTTP/1.1" 200 -
+.[ui] "GET /api/missions/does-not-exist?root=missions HTTP/1.1" 400 -
+.[ui] "GET /api/missions HTTP/1.1" 200 -
+.[ui] "GET /api/missions?root=missions HTTP/1.1" 200 -
+.[ui] "GET /api/missions?root=missions HTTP/1.1" 200 -
+.[ui] "GET /api/missions?root=missions&limit=0 HTTP/1.1" 400 -
+[ui] "GET /api/missions?root=missions&limit=101 HTTP/1.1" 400 -
+[ui] "GET /api/missions?root=missions&offset=-1 HTTP/1.1" 400 -
+[ui] "GET /api/missions?root=missions&offset=bad HTTP/1.1" 400 -
+.s[ui] "GET /api/missions?root=.. HTTP/1.1" 400 -
+[ui] "GET /api/missions?root=../.. HTTP/1.1" 400 -
+[ui] "GET /api/missions?root=/etc HTTP/1.1" 400 -
+[ui] "GET /api/missions?root=/tmp HTTP/1.1" 400 -
+.[ui] "GET /api/missions?root=missions&limit=2&offset=1 HTTP/1.1" 200 -
+.[ui] "GET /api/missions?root=missions HTTP/1.1" 200 -
+..[ui] "POST /api/auth/pair/create HTTP/1.1" 200 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+.[ui] "POST /api/auth/pair/create HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/create HTTP/1.1" 200 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 200 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "GET /api/status HTTP/1.1" 200 -
+.[ui] "POST /api/auth/pair/create HTTP/1.1" 503 -
+.[ui] "POST /api/auth/pair/create HTTP/1.1" 200 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 401 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 429 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 413 -
+..[ui] "POST /api/auth/pair/redeem HTTP/1.1" 415 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 400 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 400 -
+.[ui] "POST /api/auth/pair/redeem HTTP/1.1" 400 -
+.[ui] "POST /api/auth/pair/create HTTP/1.1" 200 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 403 -
+[ui] "POST /api/auth/pair/redeem HTTP/1.1" 403 -
+.[ui] "GET /api/status HTTP/1.1" 200 -
+[ui] "GET /api/status HTTP/1.1" 200 -
+[ui] "GET /api/status HTTP/1.1" 401 -
+.[ui] "GET /api/status HTTP/1.1" 200 -
+.[ui] "GET / HTTP/1.1" 200 -
+.[ui] "GET /api/status HTTP/1.1" 401 -
+.[ui] "GET /api/rankings HTTP/1.1" 200 -
+.[ui] "GET /api/rankings HTTP/1.1" 200 -
+.[ui] "GET /api/rankings HTTP/1.1" 200 -
+.[ui] "GET /api/rankings HTTP/1.1" 200 -
+..[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "POST /api/runs/37489d27d139/cancel HTTP/1.1" 200 -
+[ui] "GET /api/runs/37489d27d139/result HTTP/1.1" 200 -
+.[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "POST /api/runs/392114ae33ae/cancel HTTP/1.1" 200 -
+[ui] "GET /api/runs/392114ae33ae/result HTTP/1.1" 200 -
+.[ui] "POST /api/runs HTTP/1.1" 400 -
+.[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "GET /api/runs/2f4a3fe19498/events?after=0 HTTP/1.1" 200 -
+[ui] "GET /api/events?after=0 HTTP/1.1" 200 -
+.[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "GET /api/runs/a47de613136b/result HTTP/1.1" 200 -
+.[ui] "POST /api/runs HTTP/1.1" 201 -
+[ui] "POST /api/runs/d93226744e18/cancel HTTP/1.1" 200 -
+.[ui] "GET /api/status HTTP/1.1" 200 -
+.[ui] "GET /api/status HTTP/1.1" 403 -
+.[ui] "GET /api/definitely-not-here HTTP/1.1" 404 -
+..[FATAL] Cannot persist the Harness owner credential; refusing to start so recovery remains possible: private state unavailable
+.........[ui] "GET /api/settings HTTP/1.1" 200 -
+[ui] "POST /api/settings HTTP/1.1" 200 -
+.[ui] "GET /index.html HTTP/1.1" 200 -
+.[ui] "GET /api/status HTTP/1.1" 401 -
+.[ui] "GET /api/trust HTTP/1.1" 503 -
+.[ui] "GET /api/trust?caller=cli HTTP/1.1" 200 -
+.......[ui] "POST /api/driver/drive HTTP/1.1" 201 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+[ui] "GET /api/runs/82a94eed3050/result HTTP/1.1" 200 -
+.[ui] "POST /api/driver/drive HTTP/1.1" 400 -
+.[ui] "GET /api/driver/health HTTP/1.1" 401 -
+[ui] "GET /api/driver/vocabulary HTTP/1.1" 401 -
+[ui] "GET /api/driver/schemas HTTP/1.1" 401 -
+[ui] "GET /api/driver/verify HTTP/1.1" 401 -
+[ui] "POST /api/driver/step HTTP/1.1" 401 -
+[ui] "POST /api/driver/start HTTP/1.1" 401 -
+[ui] "POST /api/driver/drive HTTP/1.1" 401 -
+[ui] "GET /api/driver/health?token=REDACTED HTTP/1.1" 401 -
+.[ui] "GET /api/driver/health HTTP/1.1" 401 -
+[ui] "GET /api/driver/vocabulary HTTP/1.1" 401 -
+[ui] "GET /api/driver/schemas HTTP/1.1" 401 -
+[ui] "GET /api/driver/verify HTTP/1.1" 401 -
+[ui] "POST /api/driver/step HTTP/1.1" 401 -
+[ui] "POST /api/driver/start HTTP/1.1" 401 -
+[ui] "POST /api/driver/drive HTTP/1.1" 401 -
+.[ui] "GET /api/driver/health HTTP/1.1" 200 -
+.[ui] "GET /api/driver/health HTTP/1.1" 200 -
+[ui] "GET /api/driver/vocabulary HTTP/1.1" 200 -
+[ui] "GET /api/driver/schemas HTTP/1.1" 200 -
+[ui] "GET /api/driver/verify HTTP/1.1" 200 -
+.[ui] "POST /api/driver/start HTTP/1.1" 200 -
+.[ui] "POST /api/driver/step HTTP/1.1" 400 -
+[ui] "POST /api/driver/step HTTP/1.1" 400 -
+.[ui] "POST /api/driver/step HTTP/1.1" 503 -
+[ui] "POST /api/driver/step HTTP/1.1" 500 -
+[ui] "POST /api/driver/start HTTP/1.1" 500 -
+[ui] "GET /api/driver/vocabulary HTTP/1.1" 503 -
+[ui] "GET /api/driver/schemas HTTP/1.1" 503 -
+[ui] "GET /api/driver/verify HTTP/1.1" 503 -
+.[ui] "POST /api/driver/step HTTP/1.1" 200 -
+.[ui] "GET /api/driver/health HTTP/1.1" 401 -
+............................[ui] "POST /api/driver/drive HTTP/1.1" 201 -
+.[ui] "GET /api/driver/health HTTP/1.1" 200 -
+.[ui] "GET /api/driver/health HTTP/1.1" 200 -
+.[ui] "GET /api/driver/schemas HTTP/1.1" 200 -
+.[ui] "POST /api/driver/step HTTP/1.1" 400 -
+.[ui] "POST /api/driver/step HTTP/1.1" 200 -
+.[ui] "POST /api/driver/step HTTP/1.1" 200 -
+.[ui] "GET /api/driver/verify HTTP/1.1" 200 -
+.[ui] "GET /api/driver/vocabulary HTTP/1.1" 200 -
+...[ui] "GET /api/status HTTP/1.1" 401 -
+[ui] "GET /api/status HTTP/1.1" 401 -
+[ui] "GET /api/status HTTP/1.1" 200 -
+[ui] "GET /api/status HTTP/1.1" 401 -
+.[ui] "GET /api/status HTTP/1.1" 403 -
+.[ui] "GET /api/status HTTP/1.1" 401 -
+.[ui] "POST /api/chat HTTP/1.1" 401 -
+.[ui] "POST /api/chat HTTP/1.1" 401 -
+..[ui] "GET /api/status HTTP/1.1" 401 -
+.[ui] "GET /api/status HTTP/1.1" 200 -
+[ui] "GET /api/status HTTP/1.1" 200 -
+[ui] "GET /api/status?token=REDACTED HTTP/1.1" 401 -
+..............[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+  x/j (convergence attempt 1/1): $0.000124
+[preflight] TOTAL worst-case: $0.000792 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+[convergence] x/j: no parseable JSON; rotating.
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+  x/j (convergence attempt 1/1): $0.000124
+[preflight] TOTAL worst-case: $0.000792 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: unparseable
+[convergence] x/j: no parseable JSON; rotating.
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  x/a (panel attempt 1/3): $0.000082
+  x/a (panel attempt 2/3): $0.000082
+  x/a (panel attempt 3/3): $0.000082
+  x/j (judge attempt 1/2): $0.000210
+  x/j (judge attempt 2/2): $0.000210
+  x/j (convergence attempt 1/1): $0.000124
+[preflight] TOTAL worst-case: $0.000792 (ceiling: $0.050000)
+[panel] calling x/a ...
+[panel] x/a: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling x/j ...
+[judge] x/j: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.[ui] "POST /api/settings HTTP/1.1" 200 -
+.[ui] "POST /api/settings HTTP/1.1" 200 -
+[ui] "POST /api/settings HTTP/1.1" 200 -
+[ui] "POST /api/settings HTTP/1.1" 400 -
+.[ui] "POST /api/settings HTTP/1.1" 400 -
+[ui] "POST /api/settings HTTP/1.1" 400 -
+.[ui] "POST /api/settings HTTP/1.1" 400 -
+.[ui] "POST /api/settings HTTP/1.1" 400 -
+.[ui] "POST /api/settings HTTP/1.1" 400 -
+.[ui] "POST /api/settings HTTP/1.1" 401 -
+.[ui] "POST /api/settings HTTP/1.1" 200 -
+[ui] "POST /api/settings HTTP/1.1" 200 -
+.[ui] "POST /api/settings HTTP/1.1" 200 -
+..[ui] "POST /api/settings HTTP/1.1" 200 -
+................................................................................................................................[FATAL] [harness_error] site-export publishes evidence beyond this machine; pass --yes together with a consent record you actually signed
+.[site-export] bundle 4b74e7e417fc0e63 written: C:\Users\SCM\AppData\Local\Temp\tmpkp1x170s\bundle.json (1547 bytes, 1 runs, truncated=False)
+.[site-export] bundle 9b6a8c469a608589 written: C:\Users\SCM\AppData\Local\Temp\tmpdt6w77yf\bundle.json (1419 bytes, 1 runs, truncated=False)
+.[ui] "GET /api/site/demo-snapshot HTTP/1.1" 200 -
+.[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpfgcd14ee\ledger.jsonl; run `harness ledger verify` for status.
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpfgcd14ee\ledger.jsonl; run `harness ledger verify` for status.
+[ui] "GET /api/snapshot HTTP/1.1" 400 -
+.......................[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\site_export_test_kn5mo7dg\ledger.jsonl; run `harness ledger verify` for status.
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\site_export_test_kn5mo7dg\ledger.jsonl; run `harness ledger verify` for status.
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\site_export_test_kn5mo7dg\ledger.jsonl; run `harness ledger verify` for status.
+..........................[ui] "GET /api/site/demo-snapshot HTTP/1.1" 200 -
+.[ui] "POST /api/route HTTP/1.1" 200 -
+.[ui] "POST /api/route HTTP/1.1" 400 -
+.[ui] "POST /api/route HTTP/1.1" 400 -
+[ui] "POST /api/route HTTP/1.1" 400 -
+[ui] "POST /api/route HTTP/1.1" 400 -
+.[ui] "POST /api/route HTTP/1.1" 200 -
+.......[ui] "GET /api/snapshot HTTP/1.1" 401 -
+[ui] "GET /api/snapshot HTTP/1.1" 200 -
+.[ui] "GET /site/index.html HTTP/1.1" 200 -
+[ui] "GET /site/index.html HTTP/1.1" 200 -
+[ui] "GET /site/index.html HTTP/1.1" 403 -
+..[ui] "GET /site/data/demo/snapshot.json HTTP/1.1" 200 -
+..[ui] "GET /site/assets/app.js HTTP/1.1" 200 -
+.[ui] "GET /site/ HTTP/1.1" 200 -
+[ui] "GET /site/methodology HTTP/1.1" 200 -
+[ui] "GET /site/methodology/ HTTP/1.1" 200 -
+.[ui] "GET /site/assets/ HTTP/1.1" 404 -
+[ui] "GET /site/nope/ HTTP/1.1" 404 -
+.[ui] "GET /tiers/index.html HTTP/1.1" 404 -
+.[ui] "GET /site/index.html HTTP/1.1" 200 -
+..[ui] "GET /site/assets/missing.js HTTP/1.1" 404 -
+[ui] "GET /site/nope/index.html HTTP/1.1" 404 -
+.[ui] "GET /site/C:/windows/win.ini HTTP/1.1" 404 -
+[ui] "GET /site//a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/x.html HTTP/1.1" 404 -
+.[ui] "GET /site/../harness/server.py HTTP/1.1" 404 -
+[ui] "GET /site/..%2Fserver.py HTTP/1.1" 404 -
+[ui] "GET /site/....//server.py HTTP/1.1" 404 -
+[ui] "GET /site/\..\server.py HTTP/1.1" 404 -
+.[ui] "GET /site/data/demo/.gitignore HTTP/1.1" 404 -
+..[ui] "GET /api/snapshot HTTP/1.1" 200 -
+.[ui] "GET /panes.js HTTP/1.1" 200 -
+[ui] "GET /panes.css HTTP/1.1" 200 -
+..................................................[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+..[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct rate-limited; bounded retry 1/2.
+[panel] meta-llama/llama-3.1-8b-instruct rate-limited; bounded retry 2/2.
+[panel] meta-llama/llama-3.1-8b-instruct FAILED (429): rate limited -- rotating to next model.
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: http_429 (rate limited)
+[judge] transient provider error; one bounded retry.
+[judge] inclusionai/ling-2.6-flash: parseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+..[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] skipping fallback z-ai/glm-5.2:free: model 'z-ai/glm-5.2:free' not found in live OpenRouter model list.
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+..[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] inclusionai/ling-2.6-flash: HTTP 500; rotating.
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] inclusionai/ling-2.6-flash: reasoning-only output (no visible content); rotating.
+
+[TOTAL] actual cost this run: $0.000005 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] inclusionai/ling-2.6-flash: no parseable JSON; rotating.
+
+[TOTAL] actual cost this run: $0.000005 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000000, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000000, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] inclusionai/ling-2.6-flash: no parseable JSON; rotating.
+
+[TOTAL] actual cost this run: $0.000007 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  spec/small-window (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] context budget 351 tokens: dropped oldest votes from ['inclusionai/ling-2.6-flash'] to fit the specialist window.
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+  inclusionai/ling-2.6-flash (convergence attempt 1/1): $0.000165
+[preflight] TOTAL worst-case: $0.001162 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+[convergence] skipping fallback ghost/model-that-does-not-exist: model 'ghost/model-that-does-not-exist' not found in live OpenRouter model list.
+
+[TOTAL] actual cost this run: $0.000004 (ceiling: $0.050000)
+.[OK] using key 'sk-or-v1-aaaa', limit=$1.0, remaining=$0.500000 (resets: None)
+[OK] using key 'sk-or-v1-bbbb', limit=$1.0, remaining=$0.500000 (resets: None)
+.[OK] using key 'sk-or-v1-aaaa', limit=$1.0, remaining=unknown (resets: None)
+....[OK] using key 'sk-test', limit=$1.0, remaining=unknown (resets: None)
+..........[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.001000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000900, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+.[preflight] worst-case cost breakdown:
+  inclusionai/ling-2.6-flash (panel attempt 1/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 2/3): $0.000082
+  inclusionai/ling-2.6-flash (panel attempt 3/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 1/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 2/3): $0.000082
+  meta-llama/llama-3.1-8b-instruct (panel attempt 3/3): $0.000082
+  inclusionai/ling-2.6-flash (judge attempt 1/2): $0.000251
+  inclusionai/ling-2.6-flash (judge attempt 2/2): $0.000251
+[preflight] TOTAL worst-case: $0.000997 (ceiling: $0.050000)
+[panel] calling inclusionai/ling-2.6-flash ...
+[panel] inclusionai/ling-2.6-flash: cost=$0.000001, finish_reason=stop, 0.0s
+[panel] calling meta-llama/llama-3.1-8b-instruct ...
+[panel] meta-llama/llama-3.1-8b-instruct: cost=$0.000001, finish_reason=stop, 0.0s
+[judge] calling inclusionai/ling-2.6-flash ...
+[judge] inclusionai/ling-2.6-flash: unparseable
+
+[TOTAL] actual cost this run: $0.000003 (ceiling: $0.050000)
+.................................[jev-freeze] calibration recommended min_confidence: 0.850
+[jev-freeze] preview only (no write); pass --persist to pin
+.........................[repo-cards] stale: TestRepo
+...[ui] "GET /api/cards?repo_root=C%3A%5CUsers%5CSCM%5CAppData%5CLocal%5CTemp%5Ctmpvijxwuv9 HTTP/1.1" 200 -
+.[ui] "GET /api/jev-calibration HTTP/1.1" 200 -
+.[ui] "POST /api/provision/plan HTTP/1.1" 200 -
+.[ui] "POST /api/provision/plan HTTP/1.1" 400 -
+.[ui] "GET /api/provision/probe HTTP/1.1" 200 -
+.....[bench] running 'fizzbuzz' ...
+[apply] deepseek/deepseek-chat did not emit HARNESS_READY; treating as confident (verify + DEFER still guard).
+[bench] 'fizzbuzz' -> ok
+..............................................................................................[waist] Confirmation unreachable across ladder (HTTP 429: Provider returned error); degrading to local-gate execution (verdict=unavailable)
+...[plan] Critique re-planning failed (decomposition service unavailable); retaining initial result
+....[plan] LLM decomposition attempt 1 failed (HTTP 429: rate limited); retrying
+[plan] LLM decomposition failed (HTTP 429: rate limited); loud heuristic fallback
+.....[plan] LLM decomposition attempt 1 failed (HTTP 429: rate limited); retrying
+[plan] LLM decomposition failed (HTTP 429: rate limited); loud heuristic fallback
+.[plan] LLM decomposition attempt 1 failed (HTTP 429: rate limited); retrying
+................................................[plan] LLM decomposition attempt 1 failed (HTTP 429: rate limited); retrying
+[plan] LLM decomposition failed (HTTP 429: rate limited); loud heuristic fallback
+.[plan] LLM decomposition attempt 1 failed (HTTP 429: rate limited); retrying
+.[waist] Confirmation unreachable across ladder (HTTP 429: Provider rate limited); degrading to local-gate execution (verdict=unavailable)
+..................................................................................................................s...............ss...................................
+----------------------------------------------------------------------
+Ran 5355 tests in 414.983s
+
+OK (skipped=65)
+{
+  "status": "refused",
+  "goal": "Refactor concurrency architecture",
+  "total_nodes": 1,
+  "batches": [
+    [
+      "task_1"
+    ]
+  ],
+  "nodes": [
+    {
+      "node_id": "task_1",
+      "instruction": "Refactor concurrency architecture",
+      "target_files": [
+        "harness/sync.py"
+      ],
+      "dependencies": [],
+      "local_gate": "C:\\Users\\SCM\\Documents\\GitHub\\Harness\\.venv\\Scripts\\python.exe -m py_compile \"C:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\sync.py\"",
+      "complexity_tier": 2,
+      "recommended_model": "front/x",
+      "cost_ceiling": 1.0,
+      "backend": null,
+      "classification": {
+        "tier": 2,
+        "score": 0.7,
+        "reasons": [
+          "frontier keywords detected (+0.50): architect, concurrency",
+          "single target file scope"
+        ],
+        "estimated_cost_tier": "frontier"
+      },
+      "route": {
+        "ladder": [
+          "front/x",
+          "z-ai/glm-5.3-flash",
+          "deepseek/deepseek-v4-pro",
+          "qwen/qwen3.8-max-0902",
+          "openai/gpt-4.1",
+          "openai/gpt-5.6-sol"
+        ],
+        "cost_ceiling": 1.0
+      }
+    }
+  ],
+  "total_cost_ceiling": 1.0,
+  "dag": {
+    "nodes": [
+      {
+        "node_id": "task_1",
+        "instruction": "Refactor concurrency architecture",
+        "target_files": [
+          "harness/sync.py"
+        ],
+        "dependencies": [],
+        "local_gate": "C:\\Users\\SCM\\Documents\\GitHub\\Harness\\.venv\\Scripts\\python.exe -m py_compile \"C:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\sync.py\"",
+        "complexity_tier": 2,
+        "backend": null
+      }
+    ]
+  },
+  "decomposition": "heuristic",
+  "confirmation": {
+    "verdict": "refused",
+    "model": "front/x",
+    "rounds": 1,
+    "reason": "tier mismatch",
+    "evidence": "brief: task_1 needs frontier",
+    "cost": 0.0001
+  },
+  "composed_worst_case": {
+    "composed_worst_case": 1.00006,
+    "node_ceiling": 1.0,
+    "decompose": 0.0,
+    "waist": 6e-05,
+    "consensus": 0.0,
+    "remaining": 0.0499,
+    "plan_ceiling": 0.05,
+    "exceeds_remaining": true
+  },
+  "composition": {
+    "run_budget": "run",
+    "stages": [
+      {
+        "stage": "context",
+        "max_input_tokens": 200000,
+        "max_output_tokens": 64000,
+        "state": "pending"
+      },
+      {
+        "stage": "planning",
+        "max_input_tokens": 1024,
+        "max_output_tokens": 32000,
+        "state": "pending"
+      },
+      {
+        "stage": "execution",
+        "max_input_tokens": 1024,
+        "max_output_tokens": 16000,
+        "state": "pending"
+      },
+      {
+        "stage": "verification",
+        "max_input_tokens": 1024,
+        "max_output_tokens": 8000,
+        "state": "pending"
+      }
+    ],
+    "skipped": [],
+    "completed": [],
+    "bypassed": {},
+    "denied_bypass": {
+      "context": "supplied brief is not fresh; intake runs again"
+    }
+  },
+  "stage_states": {
+    "context": "pending",
+    "planning": "pending",
+    "execution": "pending",
+    "verification": "pending"
+  },
+  "token_budget": {
+    "label": "run",
+    "parent": null,
+    "max_input_tokens": 200000,
+    "max_output_tokens": 64000,
+    "used_input_tokens": 0,
+    "used_output_tokens": 0,
+    "used_reasoning_tokens": 0,
+    "used_cached_tokens": 0,
+    "token_kinds": {
+      "input": 0,
+      "output": 0,
+      "reasoning": 0,
+      "cached": 0
+    },
+    "estimation_markers": {
+      "has_estimates": false,
+      "has_unavailable": false,
+      "all_actual": false
+    },
+    "reserved_input_tokens": 0,
+    "reserved_output_tokens": 0,
+    "remaining_input_tokens": 200000,
+    "remaining_output_tokens": 64000,
+    "calls": 0,
+    "cancelled": 0,
+    "open_allowances": 0,
+    "over_input_tokens": 0,
+    "over_output_tokens": 0,
+    "usage_sources": {
+      "actual": 0,
+      "estimated": 0,
+      "unavailable": 0
+    },
+    "by_label": {},
+    "token_kinds_by_label": {}
+  },
+  "brief": {
+    "schema_version": 2,
+    "goal": "Refactor concurrency architecture",
+    "built_at": "2026-11-03T12:14:37Z",
+    "grounding": {
+      "rules": "models may use only the cited windows below; every claim a consumer emits must carry source_ids citing those windows (or the goal); uncited assertions are invalid -- drop them or list them as unknowns; truncated windows cover only the bytes shown",
+      "sources": [],
+      "claims": [],
+      "unknowns": []
+    },
+    "windows": [],
+    "scope": {
+      "included": [],
+      "excluded": [
+        "harness/sync.py"
+      ]
+    },
+    "coverage": {
+      "sources_declared": 0,
+      "windows_cited": 0,
+      "omitted": 0,
+      "truncated_windows": 0,
+      "gaps": []
+    },
+    "omitted": [],
+    "conflicts": [],
+    "estimated_tokens": 168
+  }
+}
+[release] CHANGELOG flattened to [0.3.3] 2026-11-03
+[release] version bumped in pyproject.toml: 0.3.2 -> 0.3.3
+[release] version bumped in harness/__init__.py: 0.3.2 -> 0.3.3
+[release] editable install reports 0.3.3 (D5 satisfied)
+{
+  "status": "stale",
+  "checked": 1,
+  "stale": [
+    "TestRepo"
+  ],
+  "up_to_date": 0
+}

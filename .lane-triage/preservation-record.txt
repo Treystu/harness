@@ -1,0 +1,18 @@
+PRESERVATION RECORD: The following same-name remote heads match the local SHAs below. Git ls-remote reads independently checked by VALIDATOR at 2026-11-08T20:21:31Z and CRITICAL_VALIDATOR at 20:20:53Z. The commits were already reachable from advertised remote heads before these refs were created. This does not authorize cleanup or attest to ignored files.
+
+freebuff/293-edge-coverage-20261028	a7267234cb966f5603b831421cd049e4211035be	0
+freebuff/chat-071c1667-da6a-4531-8a6b-5231bb604cfe	5eb9c3639b2ae89016447904d555b06bded2ee5e	0
+freebuff/chat-62d0951e-e4e6-4153-9298-93057940a069	5eb9c3639b2ae89016447904d555b06bded2ee5e	0
+freebuff/chat-9d22c6cc-c219-46fe-879c-c4ea66d7e374	5eb9c3639b2ae89016447904d555b06bded2ee5e	0
+freebuff/chat-b82369a0-d22f-402e-96c0-d90b5659d611	5eb9c3639b2ae89016447904d555b06bded2ee5e	0
+freebuff/chat-e3283ca2-b87b-47cb-a4d5-f2197dc833c0	5eb9c3639b2ae89016447904d555b06bded2ee5e	0
+freebuff/chat-e940433e-e86b-4c25-9681-00a789b7be81	0780ea7473e761638c75d12d20670264d7781916	0
+freebuff/harness-issue-burndown-plan	b4b341a3916e33eeeeca7dba8f8767f183ee2990	0
+freebuff/harness-issue-burndown-session	b4b341a3916e33eeeeca7dba8f8767f183ee2990	0
+freebuff/harness-lane-burndown-continue	5eb9c3639b2ae89016447904d555b06bded2ee5e	0
+freebuff/harness-lane-task-selection	b4b341a3916e33eeeeca7dba8f8767f183ee2990	0
+freebuff/harness-reachability-probe-and-jev-dogfood	828474615e2a23c4d8bfffd4d7d0e0c777354039	0
+freebuff/harness-reconciliation-and-issue-burndown-138f0570-1a1f-4038-942b-399fc5ea219a	a2cc45042fe505bef34bdaf37af1950bb9d4ebf6	0
+freebuff/laptop-lane-full-burndown	4758c518d7acca43050257f12ddf7f46a741a526	0
+freebuff/pr-461-read-only-audit	1f1443592a23b6b527f49cea65942e0943513c32	0
+lane/laptop-verify	5b368f15d37fe1c2d6c4c1e6ed878c93431b1003	0

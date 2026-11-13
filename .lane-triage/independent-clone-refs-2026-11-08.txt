@@ -1,0 +1,32 @@
+Read UTC: 2026-11-08T20:24:24.0193451Z
+Source: git ls-remote --heads treystu and git for-each-ref; same-name DIFFERENT does not establish divergence.
+REPO C:\Users\SCM\Documents\GitHub\OC\runtime\worktrees\harness-hv0-main-2cf24b5
+SHALLOW false
+DIFFERENT main 2cf24b569d9d73afaf78d489561ca0b79fc5490a remote=cd18dc8fae0e4b376640caef7a746067a016fb99
+ROOTS 0785091036adcf4f5820367c21890e3badf40d99
+REPO C:\Users\SCM\Documents\GitHub\OC\runtime\worktrees\harness-main
+SHALLOW true
+DIFFERENT main 049927779c31a78fea2df2dd81055974ac36a0b0 remote=cd18dc8fae0e4b376640caef7a746067a016fb99
+ROOTS 049927779c31a78fea2df2dd81055974ac36a0b0
+REPO C:\Users\SCM\Documents\GitHub\OC\runtime\worktrees\harness-mcp-http
+SHALLOW false
+MISSING fix/mcp-trust-identity-and-token-compare d6eb62cce8ffb88ad4c4b883fbab6388eee7ee80 remote=
+DIFFERENT main 2cf24b569d9d73afaf78d489561ca0b79fc5490a remote=cd18dc8fae0e4b376640caef7a746067a016fb99
+ROOTS 0785091036adcf4f5820367c21890e3badf40d99
+REPO C:\Users\SCM\Documents\GitHub\OC\runtime\worktrees\harness-openclaw
+SHALLOW false
+EQUAL codex/openclaw-dogfood-worker ca97e706df9ab45585693d2d47e3dfb91f3d98fb remote=ca97e706df9ab45585693d2d47e3dfb91f3d98fb
+DIFFERENT main ff5dc8aa82351e4bf55c925faed4f1a9eb48ef35 remote=cd18dc8fae0e4b376640caef7a746067a016fb99
+ROOTS 0785091036adcf4f5820367c21890e3badf40d99
+REPO C:\Users\SCM\Documents\GitHub\SCMessenger\tmp\freebuff-622-20261031\vendor\sovereign-harness
+SHALLOW false
+DIFFERENT main ffc055c4519ffd6b692643e0b94a3494cbb68894 remote=cd18dc8fae0e4b376640caef7a746067a016fb99
+ROOTS 0785091036adcf4f5820367c21890e3badf40d99
+REPO C:\Users\SCM\Documents\GitHub\SCMessenger\tmp\orchestration\worktrees\v051-burndown-20261023\vendor\sovereign-harness
+SHALLOW false
+DIFFERENT main ffc055c4519ffd6b692643e0b94a3494cbb68894 remote=cd18dc8fae0e4b376640caef7a746067a016fb99
+ROOTS 0785091036adcf4f5820367c21890e3badf40d99
+REPO C:\Users\SCM\Documents\GitHub\SCMessenger\vendor\sovereign-harness
+SHALLOW false
+DIFFERENT main 5eb9c3639b2ae89016447904d555b06bded2ee5e remote=cd18dc8fae0e4b376640caef7a746067a016fb99
+ROOTS 0785091036adcf4f5820367c21890e3badf40d99

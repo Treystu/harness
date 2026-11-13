@@ -1,0 +1,1699 @@
+Refreshing run status every 20 seconds. Press Ctrl+C to quit.
+
+* lane/burndown ci Sovereign-Communication/harness#442 · 41624604065
+Triggered via pull_request about 7 minutes ago
+
+JOBS
+✓ UI Playwright smoke (single worker) in 39s (ID 125878682138)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Run actions/setup-node@v4
+  ✓ Install Playwright test dependency
+  ✓ Install Chromium and system dependencies
+  ✓ Run served UI journeys (one worker)
+  ✓ Upload browser line coverage for D12
+  ✓ Post Run actions/setup-node@v4
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Change scope in 7s (ID 125878682341)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run run_hermetic=true
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Driving hygiene (deterministic) in 7s (ID 125878682375)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Demonstrate deterministic check fixtures
+  ✓ Scan PR text, diff, credentials, and issue plans
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ handoff scope (advisory) in 9s (ID 125878682460)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Resolve the diff base
+  ✓ Classifier self-test (strict; reported, not enforced)
+  - Report a drifted classifier
+  ✓ Advisory scan of changed handoff documents
+  - Annotate any ownership findings
+  ✓ Always print the register
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ package in 26s (ID 125878682478)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Build sdist and wheel
+  ✓ Check metadata (twine)
+  ✓ Version parity (pyproject vs harness.__version__ vs MCP)
+  ✓ Smoke-install wheel in a clean venv
+  ✓ DF-CI-3 -- serve + MCP stdio smoke test (installed wheel, no network)
+  ✓ Upload dist artifacts
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+X changed-file typecheck (pyright) in 24s (ID 125878682527)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  X Type-check changed Python files
+  - Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Checkout hygiene in 5s (ID 125878682665)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ A fresh checkout must be clean
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.13) in 2m52s (ID 125878754650)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (macos-latest, py3.11) in 5m10s (ID 125878754688)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-22.04, py3.9) in 3m1s (ID 125878754691)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* hermetic suite (windows-latest, py3.11) (ID 125878754704)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  * Run tests (hermetic, no network, warnings clean)
+  * Post Run actions/setup-python@v5
+  * Post Run actions/checkout@v4
+✓ hermetic suite (ubuntu-latest, py3.11) in 3m4s (ID 125878754755)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.14) in 3m13s (ID 125878755022)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (windows-latest) in 36s (ID 125878904106)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (ubuntu-latest) in 12s (ID 125878904249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (macos-latest) in 25s (ID 125878904377)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* audit (ID 125879017637)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download browser coverage for D12
+  ✓ Install development tooling
+  ✓ Lint audit script
+  * 4-dimensional audit (9.5+ bar on every dimension)
+  * Live model-freshness check (only when OPENROUTER_API_KEY secret is set)
+  * Post Run actions/setup-python@v5
+  * Post Run actions/checkout@v4
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+UI Playwright smoke (single worker): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+UI Playwright smoke (single worker): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Change scope: .github#4
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Change scope: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Driving hygiene (deterministic): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Driving hygiene (deterministic): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+handoff scope (advisory): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+handoff scope (advisory): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+package: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+package: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+changed-file typecheck (pyright): .github#2
+
+X Process completed with exit code 1.
+changed-file typecheck (pyright): .github#144
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+changed-file typecheck (pyright): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Checkout hygiene: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Checkout hygiene: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.13): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.13): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (macos-latest, py3.11): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+hermetic suite (macos-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-22.04, py3.9): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.11): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.14): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.14): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (windows-latest): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (ubuntu-latest): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+installed package (ubuntu-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+installed package (macos-latest): .github#1
+
+Refreshing run status every 20 seconds. Press Ctrl+C to quit.
+
+* lane/burndown ci Sovereign-Communication/harness#442 · 41624604065
+Triggered via pull_request about 7 minutes ago
+
+JOBS
+✓ UI Playwright smoke (single worker) in 39s (ID 125878682138)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Run actions/setup-node@v4
+  ✓ Install Playwright test dependency
+  ✓ Install Chromium and system dependencies
+  ✓ Run served UI journeys (one worker)
+  ✓ Upload browser line coverage for D12
+  ✓ Post Run actions/setup-node@v4
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Change scope in 7s (ID 125878682341)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run run_hermetic=true
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Driving hygiene (deterministic) in 7s (ID 125878682375)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Demonstrate deterministic check fixtures
+  ✓ Scan PR text, diff, credentials, and issue plans
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ handoff scope (advisory) in 9s (ID 125878682460)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Resolve the diff base
+  ✓ Classifier self-test (strict; reported, not enforced)
+  - Report a drifted classifier
+  ✓ Advisory scan of changed handoff documents
+  - Annotate any ownership findings
+  ✓ Always print the register
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ package in 26s (ID 125878682478)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Build sdist and wheel
+  ✓ Check metadata (twine)
+  ✓ Version parity (pyproject vs harness.__version__ vs MCP)
+  ✓ Smoke-install wheel in a clean venv
+  ✓ DF-CI-3 -- serve + MCP stdio smoke test (installed wheel, no network)
+  ✓ Upload dist artifacts
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+X changed-file typecheck (pyright) in 24s (ID 125878682527)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  X Type-check changed Python files
+  - Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Checkout hygiene in 5s (ID 125878682665)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ A fresh checkout must be clean
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.13) in 2m52s (ID 125878754650)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (macos-latest, py3.11) in 5m10s (ID 125878754688)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-22.04, py3.9) in 3m1s (ID 125878754691)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (windows-latest, py3.11) in 6m54s (ID 125878754704)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.11) in 3m4s (ID 125878754755)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.14) in 3m13s (ID 125878755022)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (windows-latest) in 36s (ID 125878904106)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (ubuntu-latest) in 12s (ID 125878904249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (macos-latest) in 25s (ID 125878904377)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* audit (ID 125879017637)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download browser coverage for D12
+  ✓ Install development tooling
+  ✓ Lint audit script
+  * 4-dimensional audit (9.5+ bar on every dimension)
+  * Live model-freshness check (only when OPENROUTER_API_KEY secret is set)
+  * Post Run actions/setup-python@v5
+  * Post Run actions/checkout@v4
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+UI Playwright smoke (single worker): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+UI Playwright smoke (single worker): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Change scope: .github#4
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Change scope: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Driving hygiene (deterministic): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Driving hygiene (deterministic): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+handoff scope (advisory): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+handoff scope (advisory): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+package: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+package: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+changed-file typecheck (pyright): .github#2
+
+X Process completed with exit code 1.
+changed-file typecheck (pyright): .github#144
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+changed-file typecheck (pyright): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Checkout hygiene: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Checkout hygiene: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.13): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.13): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (macos-latest, py3.11): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+hermetic suite (macos-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-22.04, py3.9): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (windows-latest, py3.11): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.14): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.14): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (windows-latest): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (ubuntu-latest): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+installed package (ubuntu-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+installed package (macos-latest): .github#1
+
+Refreshing run status every 20 seconds. Press Ctrl+C to quit.
+
+* lane/burndown ci Sovereign-Communication/harness#442 · 41624604065
+Triggered via pull_request about 7 minutes ago
+
+JOBS
+✓ UI Playwright smoke (single worker) in 39s (ID 125878682138)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Run actions/setup-node@v4
+  ✓ Install Playwright test dependency
+  ✓ Install Chromium and system dependencies
+  ✓ Run served UI journeys (one worker)
+  ✓ Upload browser line coverage for D12
+  ✓ Post Run actions/setup-node@v4
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Change scope in 7s (ID 125878682341)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run run_hermetic=true
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Driving hygiene (deterministic) in 7s (ID 125878682375)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Demonstrate deterministic check fixtures
+  ✓ Scan PR text, diff, credentials, and issue plans
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ handoff scope (advisory) in 9s (ID 125878682460)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Resolve the diff base
+  ✓ Classifier self-test (strict; reported, not enforced)
+  - Report a drifted classifier
+  ✓ Advisory scan of changed handoff documents
+  - Annotate any ownership findings
+  ✓ Always print the register
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ package in 26s (ID 125878682478)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Build sdist and wheel
+  ✓ Check metadata (twine)
+  ✓ Version parity (pyproject vs harness.__version__ vs MCP)
+  ✓ Smoke-install wheel in a clean venv
+  ✓ DF-CI-3 -- serve + MCP stdio smoke test (installed wheel, no network)
+  ✓ Upload dist artifacts
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+X changed-file typecheck (pyright) in 24s (ID 125878682527)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  X Type-check changed Python files
+  - Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Checkout hygiene in 5s (ID 125878682665)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ A fresh checkout must be clean
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.13) in 2m52s (ID 125878754650)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (macos-latest, py3.11) in 5m10s (ID 125878754688)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-22.04, py3.9) in 3m1s (ID 125878754691)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (windows-latest, py3.11) in 6m54s (ID 125878754704)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.11) in 3m4s (ID 125878754755)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.14) in 3m13s (ID 125878755022)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (windows-latest) in 36s (ID 125878904106)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (ubuntu-latest) in 12s (ID 125878904249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (macos-latest) in 25s (ID 125878904377)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* audit (ID 125879017637)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download browser coverage for D12
+  ✓ Install development tooling
+  ✓ Lint audit script
+  * 4-dimensional audit (9.5+ bar on every dimension)
+  * Live model-freshness check (only when OPENROUTER_API_KEY secret is set)
+  * Post Run actions/setup-python@v5
+  * Post Run actions/checkout@v4
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+UI Playwright smoke (single worker): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+UI Playwright smoke (single worker): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Change scope: .github#4
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Change scope: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Driving hygiene (deterministic): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Driving hygiene (deterministic): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+handoff scope (advisory): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+handoff scope (advisory): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+package: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+package: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+changed-file typecheck (pyright): .github#2
+
+X Process completed with exit code 1.
+changed-file typecheck (pyright): .github#144
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+changed-file typecheck (pyright): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Checkout hygiene: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Checkout hygiene: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.13): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.13): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (macos-latest, py3.11): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+hermetic suite (macos-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-22.04, py3.9): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (windows-latest, py3.11): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.14): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.14): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (windows-latest): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (ubuntu-latest): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+installed package (ubuntu-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+installed package (macos-latest): .github#1
+
+Refreshing run status every 20 seconds. Press Ctrl+C to quit.
+
+* lane/burndown ci Sovereign-Communication/harness#442 · 41624604065
+Triggered via pull_request about 8 minutes ago
+
+JOBS
+✓ UI Playwright smoke (single worker) in 39s (ID 125878682138)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Run actions/setup-node@v4
+  ✓ Install Playwright test dependency
+  ✓ Install Chromium and system dependencies
+  ✓ Run served UI journeys (one worker)
+  ✓ Upload browser line coverage for D12
+  ✓ Post Run actions/setup-node@v4
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Change scope in 7s (ID 125878682341)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run run_hermetic=true
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Driving hygiene (deterministic) in 7s (ID 125878682375)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Demonstrate deterministic check fixtures
+  ✓ Scan PR text, diff, credentials, and issue plans
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ handoff scope (advisory) in 9s (ID 125878682460)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Resolve the diff base
+  ✓ Classifier self-test (strict; reported, not enforced)
+  - Report a drifted classifier
+  ✓ Advisory scan of changed handoff documents
+  - Annotate any ownership findings
+  ✓ Always print the register
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ package in 26s (ID 125878682478)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Build sdist and wheel
+  ✓ Check metadata (twine)
+  ✓ Version parity (pyproject vs harness.__version__ vs MCP)
+  ✓ Smoke-install wheel in a clean venv
+  ✓ DF-CI-3 -- serve + MCP stdio smoke test (installed wheel, no network)
+  ✓ Upload dist artifacts
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+X changed-file typecheck (pyright) in 24s (ID 125878682527)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  X Type-check changed Python files
+  - Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Checkout hygiene in 5s (ID 125878682665)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ A fresh checkout must be clean
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.13) in 2m52s (ID 125878754650)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (macos-latest, py3.11) in 5m10s (ID 125878754688)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-22.04, py3.9) in 3m1s (ID 125878754691)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (windows-latest, py3.11) in 6m54s (ID 125878754704)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.11) in 3m4s (ID 125878754755)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.14) in 3m13s (ID 125878755022)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (windows-latest) in 36s (ID 125878904106)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (ubuntu-latest) in 12s (ID 125878904249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (macos-latest) in 25s (ID 125878904377)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* audit (ID 125879017637)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download browser coverage for D12
+  ✓ Install development tooling
+  ✓ Lint audit script
+  * 4-dimensional audit (9.5+ bar on every dimension)
+  * Live model-freshness check (only when OPENROUTER_API_KEY secret is set)
+  * Post Run actions/setup-python@v5
+  * Post Run actions/checkout@v4
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+UI Playwright smoke (single worker): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+UI Playwright smoke (single worker): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Change scope: .github#4
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Change scope: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Driving hygiene (deterministic): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Driving hygiene (deterministic): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+handoff scope (advisory): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+handoff scope (advisory): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+package: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+package: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+changed-file typecheck (pyright): .github#2
+
+X Process completed with exit code 1.
+changed-file typecheck (pyright): .github#144
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+changed-file typecheck (pyright): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Checkout hygiene: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Checkout hygiene: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.13): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.13): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (macos-latest, py3.11): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+hermetic suite (macos-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-22.04, py3.9): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (windows-latest, py3.11): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.14): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.14): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (windows-latest): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (ubuntu-latest): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+installed package (ubuntu-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+installed package (macos-latest): .github#1
+
+Refreshing run status every 20 seconds. Press Ctrl+C to quit.
+
+* lane/burndown ci Sovereign-Communication/harness#442 · 41624604065
+Triggered via pull_request about 8 minutes ago
+
+JOBS
+✓ UI Playwright smoke (single worker) in 39s (ID 125878682138)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Run actions/setup-node@v4
+  ✓ Install Playwright test dependency
+  ✓ Install Chromium and system dependencies
+  ✓ Run served UI journeys (one worker)
+  ✓ Upload browser line coverage for D12
+  ✓ Post Run actions/setup-node@v4
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Change scope in 7s (ID 125878682341)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run run_hermetic=true
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Driving hygiene (deterministic) in 7s (ID 125878682375)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Demonstrate deterministic check fixtures
+  ✓ Scan PR text, diff, credentials, and issue plans
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ handoff scope (advisory) in 9s (ID 125878682460)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Resolve the diff base
+  ✓ Classifier self-test (strict; reported, not enforced)
+  - Report a drifted classifier
+  ✓ Advisory scan of changed handoff documents
+  - Annotate any ownership findings
+  ✓ Always print the register
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ package in 26s (ID 125878682478)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Build sdist and wheel
+  ✓ Check metadata (twine)
+  ✓ Version parity (pyproject vs harness.__version__ vs MCP)
+  ✓ Smoke-install wheel in a clean venv
+  ✓ DF-CI-3 -- serve + MCP stdio smoke test (installed wheel, no network)
+  ✓ Upload dist artifacts
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+X changed-file typecheck (pyright) in 24s (ID 125878682527)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  X Type-check changed Python files
+  - Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Checkout hygiene in 5s (ID 125878682665)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ A fresh checkout must be clean
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.13) in 2m52s (ID 125878754650)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (macos-latest, py3.11) in 5m10s (ID 125878754688)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-22.04, py3.9) in 3m1s (ID 125878754691)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (windows-latest, py3.11) in 6m54s (ID 125878754704)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.11) in 3m4s (ID 125878754755)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.14) in 3m13s (ID 125878755022)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (windows-latest) in 36s (ID 125878904106)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (ubuntu-latest) in 12s (ID 125878904249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (macos-latest) in 25s (ID 125878904377)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+* audit (ID 125879017637)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download browser coverage for D12
+  ✓ Install development tooling
+  ✓ Lint audit script
+  * 4-dimensional audit (9.5+ bar on every dimension)
+  * Live model-freshness check (only when OPENROUTER_API_KEY secret is set)
+  * Post Run actions/setup-python@v5
+  * Post Run actions/checkout@v4
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+UI Playwright smoke (single worker): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+UI Playwright smoke (single worker): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Change scope: .github#4
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Change scope: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Driving hygiene (deterministic): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Driving hygiene (deterministic): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+handoff scope (advisory): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+handoff scope (advisory): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+package: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+package: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+changed-file typecheck (pyright): .github#2
+
+X Process completed with exit code 1.
+changed-file typecheck (pyright): .github#144
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+changed-file typecheck (pyright): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Checkout hygiene: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Checkout hygiene: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.13): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.13): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (macos-latest, py3.11): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+hermetic suite (macos-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-22.04, py3.9): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (windows-latest, py3.11): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.14): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.14): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (windows-latest): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (ubuntu-latest): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+installed package (ubuntu-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+installed package (macos-latest): .github#1
+
+X lane/burndown ci Sovereign-Communication/harness#442 · 41624604065
+Triggered via pull_request about 8 minutes ago
+
+JOBS
+✓ UI Playwright smoke (single worker) in 39s (ID 125878682138)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Run actions/setup-node@v4
+  ✓ Install Playwright test dependency
+  ✓ Install Chromium and system dependencies
+  ✓ Run served UI journeys (one worker)
+  ✓ Upload browser line coverage for D12
+  ✓ Post Run actions/setup-node@v4
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Change scope in 7s (ID 125878682341)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run run_hermetic=true
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Driving hygiene (deterministic) in 7s (ID 125878682375)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Demonstrate deterministic check fixtures
+  ✓ Scan PR text, diff, credentials, and issue plans
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ handoff scope (advisory) in 9s (ID 125878682460)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Resolve the diff base
+  ✓ Classifier self-test (strict; reported, not enforced)
+  - Report a drifted classifier
+  ✓ Advisory scan of changed handoff documents
+  - Annotate any ownership findings
+  ✓ Always print the register
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ package in 26s (ID 125878682478)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Build sdist and wheel
+  ✓ Check metadata (twine)
+  ✓ Version parity (pyproject vs harness.__version__ vs MCP)
+  ✓ Smoke-install wheel in a clean venv
+  ✓ DF-CI-3 -- serve + MCP stdio smoke test (installed wheel, no network)
+  ✓ Upload dist artifacts
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+X changed-file typecheck (pyright) in 24s (ID 125878682527)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  X Type-check changed Python files
+  - Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ Checkout hygiene in 5s (ID 125878682665)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ A fresh checkout must be clean
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.13) in 2m52s (ID 125878754650)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (macos-latest, py3.11) in 5m10s (ID 125878754688)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-22.04, py3.9) in 3m1s (ID 125878754691)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (windows-latest, py3.11) in 6m54s (ID 125878754704)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  - Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.11) in 3m4s (ID 125878754755)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ hermetic suite (ubuntu-latest, py3.14) in 3m13s (ID 125878755022)
+  ✓ Set up job
+  - Docs/site-only matrix receipt
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Install development tooling
+  ✓ Lint (ruff)
+  ✓ Compile
+  ✓ Check repo philosophy cards (drift check)
+  ✓ Run tests (hermetic, no network, warnings clean)
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (windows-latest) in 36s (ID 125878904106)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (ubuntu-latest) in 12s (ID 125878904249)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+✓ installed package (macos-latest) in 25s (ID 125878904377)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download the built wheel
+  ✓ Smoke-install the wheel in a clean venv
+  ✓ Clean up the smoke venv
+  ✓ Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+X audit in 8m1s (ID 125879017637)
+  ✓ Set up job
+  ✓ Run actions/checkout@v4
+  ✓ Run actions/setup-python@v5
+  ✓ Download browser coverage for D12
+  ✓ Install development tooling
+  ✓ Lint audit script
+  X 4-dimensional audit (9.5+ bar on every dimension)
+  - Live model-freshness check (only when OPENROUTER_API_KEY secret is set)
+  - Post Run actions/setup-python@v5
+  ✓ Post Run actions/checkout@v4
+  ✓ Complete job
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+UI Playwright smoke (single worker): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+UI Playwright smoke (single worker): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Change scope: .github#4
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Change scope: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Driving hygiene (deterministic): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Driving hygiene (deterministic): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+handoff scope (advisory): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+handoff scope (advisory): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+package: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+package: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+changed-file typecheck (pyright): .github#2
+
+X Process completed with exit code 1.
+changed-file typecheck (pyright): .github#144
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+changed-file typecheck (pyright): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Checkout hygiene: .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+Checkout hygiene: .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.13): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.13): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (macos-latest, py3.11): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+hermetic suite (macos-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-22.04, py3.9): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (windows-latest, py3.11): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.11): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+hermetic suite (ubuntu-latest, py3.14): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+hermetic suite (ubuntu-latest, py3.14): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (windows-latest): .github#2
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (ubuntu-latest): .github#2
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+installed package (ubuntu-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+installed package (macos-latest): .github#2
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+installed package (macos-latest): .github#1
+
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+audit: .github#2
+
+X Process completed with exit code 1.
+audit: .github#86
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+audit: .github#1
+

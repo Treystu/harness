@@ -1,0 +1,771 @@
+[
+{
+"number": 447,
+"title": "Muse preset: panel/apply/verify lanes calling chat() directly still transport via OpenRouter - direct-Meta transport follow-on from PR #444",
+"labels": [],
+"created": "2026-11-03",
+"updated": "2026-11-03",
+"comments": 0,
+"body": "The named residual from PR #444 (Meta-direct Muse lane, landed under owner exception), filed in its landing pass as the follow-on slice.\n\nState after #444: under the Muse preset (HARNESS_MODEL_PRESET=muse or HARNESS_USE_META=true), the panel/apply/escalation pools and the judge pin to committed Muse ids, load_settings refuses non-Muse overrides, routing resolves Muse ids through the Meta lane, and the question-answer path (harness ask) runs on Muse end to end. What does not yet route via Meta: the panel/apply/verify lanes that call chat() directly - under the preset they hold Muse model ids but their transport still posts to OpenRouter, so a Muse-only run is not yet Muse-transport-only on those lanes.\n\nScope: when the Meta lane is active, route those direct chat() calls through the Meta transport (harness/meta.py), with the same fail-closed behavior the lane already has - a Muse id with no committed offer refuses, and the Meta lane disabled means no silent fallback for a Muse id. Hermetic tests in the shape of tests/test_meta_lane.py (no live spend) are the acceptance evidence; a lane calling chat() under the preset demonstrably posts to the Meta endpoint and never to OpenRouter."
+},
+{
+"number": 446,
+"title": "test_check_fresh_emits_tier_snapshot_freshness errors on every head including main - hermetic and audit legs red repo-wide",
+"labels": [],
+"created": "2026-11-03",
+"updated": "2026-11-03",
+"comments": 0,
+"body": "Filed from the PR #444 landing pass (owner exception, Path B) as tracked pre-existing debt - recorded, not waived. Root cause is undiagnosed; this issue is the diagnosis and cure.\n\nSymptom: tests.test_economics_cli.test_check_fresh_emits_tier_snapshot_freshness errors (the economics command exits 2 inside the test). It reproduces identically on main 0780ea74 and on PR heads, in two independent sandboxes. On PR #444's prior head, the CI hermetic log (py3.11 leg) showed errors=2 - this error plus the PR's D1 defect; D1 is cured, and this error is now the suite's only remaining error.\n\nBlast radius: all five hermetic legs fail on it, and the audit job fails through it - the audit's D12 traced battery exits 1 on any suite error and fails closed on coverage (prior head's audit log, run 41558775569). Timeline: the lane hit this same failure on its own head on 2026-10-31; PRs merged before that (#436, #437, #441, Oct 28-29) show all hermetic legs successful, so the failure began firing between Oct 29 and Oct 31 on heads that did not cause it.\n\nWhat it is not: not PR #444 (suite delta against main is zero), not a sandbox artifact (it fires in CI), not the settled bare-python environmental class (that discrepancy was closed separately).\n\nWork: diagnose the root cause - read the test and the economics freshness path it exercises, vary one factor at a time in the same hermetic environment, and record what the check treats as fresh and what time or state it compares against. Then cure it"
+},
+{
+"number": 445,
+"title": "Baseline pyright debt in core modules makes the changed-file typecheck leg fail on any PR that touches them (40 errors, identical on main)",
+"labels": [],
+"created": "2026-11-03",
+"updated": "2026-11-03",
+"comments": 0,
+"body": "Filed from the PR #444 landing pass (owner exception, Path B) as tracked pre-existing debt - recorded, not waived.\n\nEvidence (reproduced 2026-11-02 under CI's exact invocation: pyright 1.1.414, --pythonversion 3.9, the PR's changed files as roots): PR #444's head carries 40 errors, and main's versions of the same files carry the identical 40 - same file, same rule, same message. Per file: harness/cli.py 19, harness/config.py 9, harness/service.py 5, harness/spend.py 4, harness/chat.py 2, harness/fireworks.py 1. PR #444 introduced zero of them (its own new/changed logic - session.py, harness/meta.py, the meta-lane tests - is clean).\n\nMechanics: the typecheck-changed job in .github/workflows/ci.yml runs pyright over the PR's changed Python files and exits with pyright's status - there is no baseline subtraction. Untouched files stay grandfathered; any PR that must touch one of the six files above inherits all 40 and cannot turn the leg green without curing them. Recent merges (#436, #437, #441) landed with the leg green because their changed sets avoided these errors.\n\nScope for whoever takes this: cure the 40 as a typing-only pass (the suite's result set must stay identical before/after), file by file if that is the safer shape; or propose a baseline-aware typecheck job as a separate CI-policy change with its own gate. Sits in the Batch 2 CI-hygiene family alongside #440. Until this is cured, any PR touching these files needs either the cure in-branch or a recorded owner excep"
+},
+{
+"number": 443,
+"title": "[ci] Cover declared Python 3.14 support in the hermetic matrix",
+"labels": [],
+"created": "2026-10-31",
+"updated": "2026-10-31",
+"comments": 0,
+"body": "\ufeffScope evidence (2026-10-30):\n\n- At main `0780ea7473e761638c75d12d20670264d7781916`, the exact hermetic command from `.github/workflows/ci.yml`, `python -W error::ResourceWarning -m unittest discover -s tests -v`, was run locally with Python 3.14.6. It exited 0: 5,168 tests, 65 skipped.\n- Main CI run `40938737769` completed successfully at the same SHA. Its hermetic matrix covers Ubuntu 22.04/Python 3.9, Ubuntu latest/Python 3.11 and 3.13, macOS latest/Python 3.11, and Windows latest/Python 3.11. It does not run Python 3.14.\n- `pyproject.toml` declares `requires-python = \">=3.9\"` and advertises the Python 3.14 classifier.\n\nThe reported Oct 28 local failure did not reproduce in this run, and its original failure log was not retained. No failing tests or cause are claimed here. This issue records the independently verified CI scope gap: Python 3.14 is declared supported but absent from the hermetic CI matrix.\n\nAcceptance:\n\n- Add the same hermetic suite on a supported Python 3.14 runner, or make an explicit support decision and update package metadata and documentation consistently.\n- Keep the workflow's current hermetic command and retain the full-suite result in CI.\r\n"
+},
+{
+"number": 440,
+"title": "[ci] Approved driving-hygiene CI job is not on main (deterministic sub-checks, Lucas-approved 2026-10-27)",
+"labels": [],
+"created": "2026-10-29",
+"updated": "2026-10-29",
+"comments": 0,
+"body": "## Gap (verified 2026-10-28, main ffeb4d2)\n\nLucas approved a hybrid CI scope on 2026-10-27: deterministic driving-hygiene sub-checks run in CI as a blocking job; voice categories and the bias pass stay in the driving-agent loop only; the Lucas Gate itself does not become a merge-blocking CI gate.\n\nEvidence on current main:\n- Workflows present: ci.yml, publish.yml, rankings.yml, site.yml. None defines a driving-hygiene job.\n- Repo-wide search for driving-hygiene / driving_hygiene across .github/, docs/, harness/ returns zero matches on main.\n- Dedupe: open-issue search for hygiene returns only #302 (apply intake hardening, a different subject) and #295 (tracker; its hygiene mention is branch hygiene). No open issue covers this job.\n\n## Approved scope (deterministic only, no model calls, no secrets)\n\n- Negated-close-language scan on PR text and diffs.\n- Close-keyword scan.\n- Credential scan.\n- Planning-structure check on docs/issue-plans/*.md.\n\nExplicitly out of scope: voice-category scoring in CI, advisory voice scores in CI, any model call in the job.\n\n## Acceptance criteria\n\n- A blocking driving-hygiene job exists in CI and runs on pull requests.\n- Each of the four checks above has at least one passing and one failing fixture demonstrated in the PR that adds the job.\n- The job makes no network model calls and reads no secrets.\n- A PR containing a seeded credential pattern or a seeded close-keyword violation fails the job; the same PR with the violation removed passes.\n\n## Wh"
+},
+{
+"number": 439,
+"title": "[driver-core] run_probe is declared read-only but refused unless write authority is enabled",
+"labels": [],
+"created": "2026-10-29",
+"updated": "2026-10-29",
+"comments": 0,
+"body": "Found by oversight audit 2026-10-28, from the live vocabulary/health output of the sandbox checkout (driver_core v3.4.0).\n\nEvidence: the action vocabulary declares run_probe as class read_only (run a declared read-only command, return stdout/exit/stderr), yet the same output marks it executable=false, refused_until_backend=true, with the need: executor run_probe is not registered; actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off.\n\nWhy it matters: verification use is read-only by design (allow_write=false is the correct posture for an oversight verifier), but deterministic probes are exactly what a verifier needs to check live state (run a check script, read its exit code). Today that requires enabling write authority the verifier should not hold, or skipping probes entirely. The read-only classification and the write-gate refusal contradict each other.\n\nAcceptance:\n- run_probe executes in a build with allow_write=false, constrained to declared read-only commands (allowlisted command shapes, no shell composition beyond the declaration).\n- Probe results (stdout, exit code, stderr) land in the audit chain like other actions.\n- Write-class actions remain refused under allow_write=false; the vocabulary output no longer lists a read-only action as refused for a write-gate reason.\n- A regression test covers: probe allowed and recorded with writes off; a non-allowlisted command shape refused."
+},
+{
+"number": 438,
+"title": "[provision] Headless key provisioning for driver_core verification use (keyed=false blocks model-backed steps)",
+"labels": [],
+"created": "2026-10-29",
+"updated": "2026-10-29",
+"comments": 0,
+"body": "Found by oversight audit 2026-10-28, from live probes of the sandbox checkout (driver_core v3.4.0).\n\nContext: oversight uses driver_core in a headless sandbox for independent verification (health, audit-chain verify, observe/verify steps with micro-budget ceilings). Deterministic surfaces work keyless: health ok, verify reports chain verified (52 records), $0 spent. But health also reports keyed=false, and nothing in the CLI output says how a headless deployment is supposed to become keyed.\n\nGap: no documented, supported path for provisioning the TypeSafe key to a headless driver_core install (for example a named environment variable), and health does not surface the missing piece or the fix. Model-backed extraction and Jev decision steps are therefore unavailable to headless verification use even where the operator holds a valid key. This is distinct from #306 (Fireworks key into the config environment, operator-gated) and #294 (provider onboarding validations).\n\nAcceptance:\n- A documented provisioning path exists for headless installs (named env var or config entry), discoverable from the repo docs and from health output.\n- health reports keyed state and, when unkeyed, names the provisioning step without printing or logging any secret value.\n- A keyed headless install can run one observe/verify step end to end; the step spend appears in verify output.\n- Docs state which surfaces are intentionally keyless (health, verify) vs keyed (extraction, Jev steps)."
+},
+{
+"number": 434,
+"title": "[verification] Overlay-style verification (run a suite against a composed tree) has no named surface on main",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Triage, checked 2026-10-28 against main (4ccee99):\n- Panel + judge verification IS supported: harness/panel.py (857 lines; rotating independent takes, one synthesis; structured-claims run with a deterministic tally owning the verdict) plus the README verification section. No issue needed for panel + judge.\n- Overlay: zero hits. No module named overlay in harness/ on main, no overlay line in README, no overlay doc in docs/, no open issue, repo code search 0 results.\n\nAsk: confirm whether any existing surface already provides composed-tree verification (run a suite against a composed tree). If yes, name it and document it. If no, implement it. Do not invent requirements beyond that loop step: run a suite against a composed tree and report green/red.\n\nScope: Harness-repo capability only. This issue changes no other lane's workbench.\n"
+},
+{
+"number": 433,
+"title": "[gate] Lucas Gate v2 in the driving-agent loop is not on main (runner unlanded, profile absent, MCP catalog gap)",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "Gap, checked 2026-10-28 against main (4ccee99):\n- harness/lucas_gate.py returns 404 on main.\n- No open issue names Lucas Gate (title scan of 74 open issues).\n- The v2 implementation plan lives only on the plans branch (PR #397), not main.\n- A deterministic typed-track validator was built in a prior lane session (lucas_gate.py, mcp.py, mcp_schemas.py, test_lucas_gate_v2.py; 6 focused tests pass) but is UNCOMMITTED, with no PR.\n- The private v2 profile is absent from the lane and its documented config location. Zero gate-dependent GitHub writes can pass until it is present.\n- Connected MCP lists 30 tools with no lucas_gate_v2; a fresh stdio launch lists 31 including it. Catalog gap.\n\nAcceptance (what \"supported\" means):\n- Validator + MCP tool landed on main with tests green.\n- Profile loading documented: private profile, never committed, never pasted into GitHub text, never printed.\n- Connected catalog exposes lucas_gate_v2.\n- The driving loop actually gates (semantic pass against the real profile). A synthetic scorecard pass alone does not count.\n- Related, not this: #325 (v1 assessment gate has no code counterpart) is separate.\n\nScope: Harness-repo capability only. This issue changes no other lane's workbench.\n"
+},
+{
+"number": 432,
+"title": "[proposal] Voice workstream for Harness: reusable transcription core (PROPOSAL ONLY - deferral decision pending)",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Status: PROPOSAL ONLY. Harness has not committed to building this. The decision whether voice becomes a separate Harness workstream is pending with Lucas. Do not start implementation until Lucas directs it.\n\nProposed reusable core (generic, Harness-long-term):\n- Transcription client: speech-to-text shape behind a provider-agnostic interface.\n- Consent-before-mic pattern: first-use consent before any capture.\n- Transcript-as-editable-chips: a misheard place or number never silently drives a search; low-confidence routes to clarification.\n- Spoken-number handling through the same validation principles as written numbers.\n- Audio metering hooks.\n\nFraming: first-class AND accessible-compatible. Mic as an equal main input plus full accessibility, not either/or.\n\nExplicitly NOT Harness work: product-specific parts (search intents, figure validation, fair-housing rules). Those belong to the product that uses voice, not to the reusable core, and would need rework wherever voice lands.\n\nAsk of this lane: evaluate scope and sequencing. The decision stays with Lucas.\n"
+},
+{
+"number": 430,
+"title": "[lifecycle] Stop repeated retries after validated restart or consent refusal",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "## Finding (2026-10-28 conversation trace; source-checked)\n\nThe supplied trace repeated an identical Autonomous Waist Gate refusal: restarting to `execution` was rejected because that target was not earlier than the current `execution` stage, and the assignment's consent had expired. The same hold message appeared repeatedly and the workflow never reached a resumable stage or one clear consent-renewal action.\n\nThe underlying validator is fail-closed by design. `harness/jev_packs.py:1033-1156` rejects same/later-stage restart targets and reports when consent must be renewed; `tests/test_hourglass_consent_handoff.py` already checks the consent-renewal signal. This issue does not ask to weaken that guard. #418 owns durable request recovery after process restarts; #344 owns web-evidence checkpoint identity. Neither covers stopping a retry loop after the same validated refusal.\n\nThe trace later shows a provider HTTP 402, but this issue does not claim the retry loop caused that response.\n\n## Deterministic end state\n\nA validated restart/consent refusal becomes one durable `blocked` or `reapproval_required` run state. The runner preserves the request id, assignment hash, current/completed stages, checkpoint, prior results, consent identity, and refusal reason. It does not automatically retry the same refused transition, dispatch a provider, write files, or spend more budget. The UI/API presents one valid next step: resume from a compatible checkpoint or renew consent for the exact ch"
+},
+{
+"number": 429,
+"title": "[audit] Refuse or recover truncated JEV judgment state before append",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Full-source Jev review found that `harness/repo_summary.py::load_judgment_rows()` treats any malformed JSON row as an interrupted tail and returns the valid prefix, while `append_judgment_row()` appends without repairing or refusing a malformed final line.\n\nVerified reproduction: write one valid judgment row followed by a truncated JSON object, load the state, then append a new row. The append is concatenated to the truncated bytes; the next load still returns only the first valid row and silently loses the newly appended judgment. In a resumed repo audit this can repeat work and spend while the state file appears to accept writes.\n\n## Deterministic end state\n\nA repo-summary resume file must either be a complete valid stream or enter an explicit corruption/recovery state. The loader and writer must never silently append behind a damaged tail or report the stream as a normal valid prefix.\n\n## Acceptance criteria\n\n- Detect malformed rows with path and line information; distinguish a truncated final append from corruption in the middle of the file.\n- Before any new judgment append, either safely recover an incomplete final row at a verified record boundary and report that recovery, or refuse without changing the file. Do not append behind malformed bytes.\n- A middle-row corruption must fail closed and must not dispatch new judgment calls or persist additional rows.\n- Add deterministic tests for valid resume, truncated final row plus append/reload, malformed middle row, unchanged"
+},
+{
+"number": 428,
+"title": "[economics] Reject negative endpoint override and cache prices",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Full-source Jev audit flagged `harness/endpoint_pricing.py` for spend/cost correctness. Base prompt and completion rates pass `finite_number()` with its non-negative default. In contrast, `EndpointPrice.__post_init__()` stores `input_cache_read` through `optional_float()` and leaves override prices unvalidated; `rates_for()` then uses those values directly.\n\nVerified reproduction: construct an endpoint with positive base rates, `input_cache_read=-0.00001`, and negative override prompt/completion prices. `rates_for(..., cache_eligible=True)` returns negative rates and `effective_price()` reports a negative call cost (`-0.00005` in the reproduction). This makes the economics index rank invalid feed data as an artificially cheap offer and can corrupt cost evidence.\n\n## Deterministic end state\n\nEvery price component accepted by the endpoint economics path must be finite and non-negative. Invalid optional feed fields must not become valid pricing evidence; the caller must either reject the endpoint with a visible error or explicitly fall back to validated base rates and mark the endpoint unusable for price evidence.\n\n## Acceptance criteria\n\n- Validate `input_cache_read` and each long-context override prompt/completion rate as finite, non-negative per-token prices before they can affect `rates_for()` or `effective_price()`.\n- Validate override thresholds as non-negative integers and reject malformed override structures without silently creating a cheaper offer.\n- Add hermetic tests"
+},
+{
+"number": 427,
+"title": "[mission] Surface malformed receipt and Jev-evaluation records",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-31",
+"comments": 2,
+"body": "Full-source Jev review found that `harness/mission_record.py::_load_jsonl()` catches malformed JSON and continues. Reproduction with valid row, malformed row, then another valid row returns both valid rows with no error or corruption marker. `load_receipts()` and `load_jev_evals()` feed resume attempt counts, status generation, and machine-readable pack summaries, so corrupted or missing evidence is silently represented as a complete stream.\n\n## Deterministic end state\n\nMission receipt and Jev-evaluation readers must never silently omit malformed records. They must either return a complete validated stream or surface an integrity condition that prevents callers from treating the stream as complete. Any permitted recovery of an interrupted final append must be explicit and visible in status and resume output.\n\n## Acceptance criteria\n\n- Report the path and one-based line number for malformed JSON and non-object JSON rows.\n- Do not continue past a malformed middle row and return later records as a complete stream.\n- For an interrupted final row, either fail closed or implement explicit tail recovery that marks the stream incomplete, preserves the raw bytes, and prevents normal completion/receipt-count claims until the operator or a deterministic recovery path resolves it.\n- Ensure resume counters, generated STATUS, `pack_summary`, and mission-driver completion cannot hide or bypass a receipt/evaluation integrity error.\n- Add deterministic tests for a valid stream, malformed midd"
+},
+{
+"number": 426,
+"title": "[security] Enforce public-network policy for browser evidence rendering",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-29",
+"comments": 1,
+"body": "Full-source Jev review identified a security gap in `harness/site_evidence.py`. `render_site_evidence()` validates the initial URL with `_public_https()`, then calls Playwright `page.goto()` without intercepting or constraining browser traffic. Chromium follows redirects and can load iframes, scripts, images, fetches, and other subresources. The module docstring claims private-address redirects are never followed, but that property is not enforced by the renderer. The allowlisted fetch path in `harness/web.py` has explicit no-redirect and address checks; the browser path does not.\n\n## Deterministic end state\n\nRendering public-site evidence must have an enforceable network boundary for the entire browser session. A public initial URL must never enable a request to loopback, private, link-local, reserved, or cloud metadata addresses, including after redirects, from subresources, or through DNS rebinding. The browser must fail closed before connecting to a disallowed destination.\n\n## Acceptance criteria\n\n- Enforce public HTTPS and public destination-address policy at connection time for every browser request, not only the initial URL. Use a validated egress proxy or an equivalent mechanism that prevents browser-side DNS rebinding between validation and connection.\n- Revalidate every redirect hop and block navigation, popup, iframe, subresource, fetch/XHR, and other supported request types when the destination is disallowed. Keep the existing one-page and bounded-time behavior.\n-"
+},
+{
+"number": 425,
+"title": "[driver-core] Refuse append when an existing audit chain is invalid",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-29",
+"comments": 2,
+"body": "Finding from the full-source Jev audit (2026-10-27, commit 4ccee9927b44df21c714de47c542376882529372): `AuditLog._tail()` validates inter-record `previous` pointers only after the first row. It does not validate the genesis pointer, sequence numbers, or each record digest before initializing the append state. A payload modified without changing its stored hash is therefore accepted at startup and can be extended by `append()`.\n\nVerified reproduction: append one record, change its payload while retaining its hash, reopen `AuditLog`, append a second record. Current result: initialization succeeds with count 1, append succeeds with count 2, and `verify()` then reports `record 0 has been altered`. This conflicts with the `AuditError` contract that an untrusted chain may not be extended.\n\n## Deterministic end state\n\nOpening an existing audit log must establish that the complete existing chain is valid before any append can be accepted. An invalid chain must remain byte-for-byte unchanged and must not be extendable. Preserve valid append-and-restart compatibility and return a specific, actionable integrity error.\n\n## Acceptance criteria\n\n- Validate the first record against the genesis hash, every sequence number, every previous-hash link, and every record digest before allowing append.\n- On any invalid row, refuse append before writing any bytes; preserve the original file exactly.\n- Cover wrong genesis pointer, sequence gap, changed payload with unchanged hash, altered hash, broken"
+},
+{
+"number": 424,
+"title": "[docs] Align System One feature claims with shipped status",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-29",
+"comments": 1,
+"body": "## Finding\n\nREADME.md:46-48 describes \u201csub-second machine-native jury panels\u201d as an existing Harness feature. The linked docs/system-one-integration.md:134-135 says the lean JEV jury is deferred and still needs a fail-closed contract and dedicated coverage. The reader cannot tell which capabilities are shipped.\n\n## Deterministic end state\n\nThe README lists only shipped System One behavior as current. Deferred jury capabilities are labeled planned/deferred and linked to their owning roadmap entry. The architecture document remains explicit about the boundary between typed probabilities and workflow behavior, and no documentation implies that an individual probability guarantees correctness. TypeSafe's [System One concept page](https://docs.typesafe.ai/concepts/system-one) says calibration is measured across groups and does not guarantee an individual answer.\n\n## Acceptance criteria\n\n- README and linked integration/roadmap documents agree on whether System One jury panels are shipped.\n- Every feature presented as current has an implementation and an exercised test/receipt; otherwise it is labeled deferred or removed from the shipped-feature list.\n- Calibration wording states the group-level guarantee accurately and keeps the normal deterministic verification gate as authority.\n- Documentation links resolve and the update introduces no new feature promise.\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, depen"
+},
+{
+"number": 423,
+"title": "[audit] Add a resumable full-source Jev audit command",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Finding\n\nThe existing JEV-P6 repo-summary pipeline judges bounded structural summaries (symbols, imports, headings, and other inventory facts). It does not provide a reproducible, resumable Jev pass over full source/document text. For this request, a separate temporary runner had to chunk raw files and call the policy directly. That produced useful leads, but there is no shipped command to reproduce the pass manifest, independently scan code and documentation, resume safely, or disposition every finding.\n\n## Deterministic end state\n\nProvide an opt-in CLI/MCP source-audit workflow that snapshots the repository commit and file manifest, then runs separate named passes for code/configuration, documentation, and explicitly supported evidence/data files. Each chunk has stable file identity, source hash, line range, chunk hash, pass, and pack version. The run is resumable only when source and policy identities match; changed inputs invalidate the affected chunk and downstream report.\n\nThe audit enforces a global conservative token/cost ceiling through existing spend preflight, records actual usage and discarded/fallback results separately, and refuses new calls before exceeding the remaining budget. It never sends credentials, ignored environment files, binaries, or excluded generated artifacts. Findings remain leads: no Jev score alone authorizes edits, issue filing, or a claim that a defect is verified. Default outputs contain paths, hashes, line ranges, scores, and dispositio"
+},
+{
+"number": 422,
+"title": "[research] Verify citation metadata and claim-to-source support",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 2,
+"body": "## Finding\n\nThe Harness has Jev claim-support evaluation, but this audit found no end-to-end workflow that resolves scholarly citation identities and records which primary-source passage supports each report claim. A live literature review can therefore have a research plan and relevant web hits while still containing a wrong DOI/title/year, a preprint/journal mismatch, or a citation that does not support the attached claim. This is separate from the shared research-plan/result lifecycle in #342 and per-result relevance in #343.\n\n## Deterministic end state\n\nEach report claim and bibliography item has a stable ID and a provenance record. Bibliography metadata is resolved from an authoritative DOI/metadata registry or publisher page and compared with the supplied title, authors, year, venue, DOI, and version. Each factual claim links to one or more retrieved source records and an exact passage locator (page, section, paragraph, or stable URL anchor), with source type and retrieval timestamp recorded.\n\nThe system assigns only closed-set statuses: supported, partially_supported, contradicted, or not_verifiable. Metadata mismatch, unavailable source, paywall, retrieval failure, missing passage, or version ambiguity cannot be silently promoted to verified. Jev may advise on semantic support; code-owned checks decide metadata matches, provenance completeness, and whether a report may be labeled citation-verified. No generated citation metadata is invented.\n\n## Acceptance criteria\n\n-"
+},
+{
+"number": 421,
+"title": "[consent] Emit one rotation event for each unusable model",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-29",
+"comments": 1,
+"body": "## Finding\n\nIn harness/consent.py:303-306, each unusable consent candidate emits the same rotation event twice, while the corresponding consent_rotate ledger event is appended once. This duplicates UI/event-stream evidence and makes rotation counts disagree with the ledger. Existing rotation tests cover fallback and parsed decisions but do not assert the emitted event count.\n\n## Deterministic end state\n\nFor each unusable candidate, emit exactly one rotation event and append exactly one matching consent_rotate ledger row. A parsed accept/decline/defer/redirect emits neither. Preserve candidate ordering, fail-closed behavior, cost attribution, and the rule that parsed sovereign decisions are never shopped to another model.\n\n## Acceptance criteria\n\n- A single unusable candidate followed by a successful fallback yields one event and one ledger row for that candidate.\n- Two unusable candidates yield exactly two ordered events and two ordered ledger rows with matching task, model, reason, and cost.\n- A parsed decision emits zero rotation events, including parsed defer/decline/redirect.\n- Existing tests for preflight, fallback, spend, and consent semantics remain green.\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roa"
+},
+{
+"number": 420,
+"title": "[site] Use the TypeSafe System One contract for route judgments",
+"labels": [],
+"created": "2026-10-28",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "## Finding\n\nsite/worker/wrangler.toml documents JEV_ENDPOINT as https://api.typesafe.ai/v1/systemone, but site/worker/index.js:222-258 sends an OpenAI chat-completions body (model + messages) and parses choices[0].message.content. TypeSafe's documented System One API instead requires model, state, and named questions, and returns named typed answers. A normal System One response therefore cannot produce the worker's live route; it falls through to and caches the deterministic fallback. See the [System One API reference](https://docs.typesafe.ai/api/system-one).\n\n## Deterministic end state\n\n- Build one typed Choice question from the request goal and the validated, operator-declared route ladder. The question vocabulary must contain only declared rung IDs.\n- Send the documented System One request shape and parse the documented answer shape for that question.\n- Return is_fallback=false only when the typed answer is present and its choice exactly matches a declared rung.\n- For absent credentials, transport/HTTP errors, malformed responses, missing answers, or out-of-ladder choices, return the existing deterministic fallback with an explicit reason and is_fallback=true.\n- Cache a live result only after all validation passes; do not cache an invalid response as live.\n- Keep the worker configuration, examples, and tests on one canonical endpoint and request contract.\n\n## Acceptance criteria\n\n- Worker tests assert the exact outgoing System One JSON and authorization/content-type head"
+},
+{
+"number": 419,
+"title": "[desktop] Separate local server health from backend and request status",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "\ufeff## Finding\n\nDuring the same recovery check, the local Harness desktop API responded with `status=ok` while the connected Harness MCP backend's status and ledger calls failed with an SSH connection timeout. The local API also showed no run records. There was no single view distinguishing local UI/server health, backend reachability, and the request's lifecycle state, so the user could not tell whether the request had stopped or its status was simply unavailable.\n\n## Expected behavior\n\n- Show local desktop/API health, configured backend health, and request state as separate indicators.\n- When the backend cannot confirm a request, label its state `unknown` or `stale`; do not infer that it completed, failed, or was cancelled.\n- Show the last successful backend check and a concise, actionable connection error.\n- Keep the request ID and original prompt available for reconnect/recovery, and reconcile status when connectivity returns without automatically submitting duplicate work.\n- Offer a copyable diagnostic summary with endpoint details and timestamps while redacting auth tokens and other credentials.\n\n## Acceptance criteria\n\n- A focused test keeps the local API healthy while the backend is unreachable and verifies the UI reports the two states separately.\n- On backend recovery, the request is reconciled without duplicate submission or spend.\n- Diagnostics never include auth tokens.\r\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe s"
+},
+{
+"number": 418,
+"title": "[desktop] Preserve and recover long-running requests after restarts",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "\ufeff## Problem\n\nA recovery check for a long-running research request found the desktop server itself still alive and `/api/status` returned `status=ok`, but `runs` was empty and the 11 buffered events were only `spend_check`. The request had no visible run handle, saved checkpoint, result, or recent-run entry to reconnect to. The connected Harness MCP status and ledger calls also timed out, leaving it unclear whether the work had stopped, completed, or continued elsewhere.\n\nThis is a lifecycle-recovery gap. #274 addressed losing prompt/candidate/context on cancellation; this asks for discovery and recovery across process/server restarts and backend disconnects.\n\n## Expected behavior\n\n- Keep a stable request/run ID and recovery record that survives desktop/server restarts.\n- Persist a privacy-conscious prompt reference, current state, timestamps, last result/error, and supported continuation checkpoint with a clear retention policy.\n- On startup/reconnect, list recent requests and classify them as running, interrupted, completed, failed, or unknown/stale rather than silently returning an empty run list.\n- Let users resume from a valid checkpoint or restart from the preserved request; make restart safe against duplicate provider calls, spend, and side effects.\n- If the request cannot be resumed, preserve the original prompt and clearly say so.\n\n## Acceptance criteria\n\n- A focused test simulates process termination while a request is running and verifies the request appears on rest"
+},
+{
+"number": 417,
+"title": "[driver-core] Verify must identify which audit store/chain it verified",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Finding (2026-10-27 GUI audit, main 4ccee99): driver-core verify reports 'audit: VERIFIED (52 records) -- chain verified' from the sandbox HOME store (~/.driver-core/audit.jsonl) even when run from an empty cwd. That output verifies the local store, NOT the harness chain, and is easily misread as harness evidence.\n\nAcceptance:\n- Verify output names the store path and chain identity it checked.\n- An empty-cwd run does not present as harness evidence (explicit store label or refusal).\n- Docs note the distinction.\n\nEvidence: audit report workspace/harness-gui-audit-2026-10-27.md.\n\nRelated: #292 (driver-core sync) as context.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 417; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 416,
+"title": "[docs] GUI first-use acceptance doc + serve/auth doc corrections",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Finding (2026-10-27 GUI audit, main 4ccee99, docs aspect score 65 PARTIAL): serve/desktop guidance is scattered (docs/ui-readiness, security, releasing, media, jev-roadmap, issue-plans 282/279). ui-readiness covers CLI envelopes, not a GUI acceptance checklist. No single GUI first-use acceptance doc was found.\n\nCorrections from primary sources at 4ccee99:\n- make_server default port is 8765, NOT 8800 (8800 needs an explicit --port).\n- /api/status returns 200 only with auth (unauthenticated 401 by design).\n\nAcceptance:\n- One acceptance doc covering the first-use flow (modal, pairing, recovery, no stranded user).\n- The two corrections landed in serve docs.\n- Doc renders and links verified.\n\nEvidence: audit report workspace/harness-gui-audit-2026-10-27.md; server.py and ui_auth.py reads at 4ccee99.\n\nRelated: #277.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 416; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 415,
+"title": "[gui] Live model/Jev semantic approvals via GUI (audit: NOT RUN)",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Finding (2026-10-27 GUI audit, main 4ccee99, aspect score 10 NOT RUN): the audit ran only Jev decision gates ($0.00001079 total). No model approval flow and no paid calls beyond gates were run.\r\n\r\nAcceptance:\r\n- One real ask through the GUI with the Jev semantic approval path.\r\n- Model, spend, and verdict recorded.\r\n- Spend kept bounded; no paid attestation re-run.\r\n\r\nEvidence: audit report workspace/harness-gui-audit-2026-10-27.md.\r\n\r\nRelated: #277.\n\n## 2026-10-28 web-research approval coverage\n\nWhen GUI live approval is exercised, include one external-research request and record the exact proposed query/source plan, Jev accept/revise/decline decision, and whether any network call occurred. The GUI must distinguish route selection from approval of the exact query. A decline, Jev failure, or missing web capability must show zero search/fetch calls. Use #342 as the shared lifecycle owner; do not substitute fixtures for the requested live GUI proof.\n\n## Runtime capability and exact-plan approval (2026-10-28)\n\nGUI state must distinguish the user's web preference from actual search/fetch/browser capabilities bound to this GUI request. If the current adapter has no callable capability, show `capability_unavailable` and make zero network calls even when the toggle says web is enabled. The approval card is bound to the exact effective goal, query/hash, target domain, evidence/recency requirements, Jev model/pack verdict, current consent, and budget; edits invalidate approval. The GU"
+},
+{
+"number": 414,
+"title": "[mcp] Verify installed MCP runtime identity via real-client check (audit: NOT VERIFIED)",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Finding (2026-10-27 GUI audit, main 4ccee99, aspect score 20 NOT VERIFIED): no MCP tools exist in the sandbox environment, so stdio smoke could not run there. The prior receipt claim (30 tools OK on laptop) is stale second-hand evidence, not current proof.\n\nThis is distinct from #284-#286 and #334-#335, which cover tool annotations and logging. This verifies runtime identity.\n\nAcceptance:\n- MCP stdio initialize + tools-list from a real client, exact tool count recorded (verify the count; do not trust the prior 30).\n- ledger_status present in the tool list.\n- One read-only tool call run and recorded.\n\nEvidence: audit report workspace/harness-gui-audit-2026-10-27.md.\n\nRelated: #277.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 414; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 413,
+"title": "[driver] Verify loopback-browser round-trip end to end (audit: NOT VERIFIED)",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Finding (2026-10-27 GUI audit, main 4ccee99, aspect score 30 NOT VERIFIED): driver vocabulary + driver API tests pass, but no live browser round-trip was run; driver service 8791 was down in the sandbox; the in-process loopback driver probe needs an authenticated session.\n\nThis is distinct from #270-#273, which build NL control features. This verifies the existing loopback path.\n\nAcceptance:\n- Authenticated driver health + vocabulary output recorded.\n- One read_dom/click round-trip through the loopback driver recorded.\n- Driver service identity (8791) and loopback-only binding confirmed.\n\nEvidence: audit report workspace/harness-gui-audit-2026-10-27.md; tests/test_server_driver.py at 4ccee99.\n\nRelated: #277.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 413; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 412,
+"title": "[gui] Verify first-use auth handoff live UX (audit: OPEN)",
+"labels": [],
+"created": "2026-10-27",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Finding (2026-10-27 GUI audit, main 4ccee99, aspect score 55 OPEN): code-level recovery EXISTS (auth modal help text, gui-open.url shortcut, pairing flow, serve --open reuse), but the live first-use UX is unproven without a real browser. The 2026-10-26 dead-end claim (auth gate rejects empty/wrong token with no recovery/handoff) is neither confirmed nor refuted at UX level.\n\nAcceptance (all recorded with HTTP codes + screenshots):\n- Fresh browser profile: auth modal renders with recovery text.\n- Empty pairing-code submit shows the expected client feedback.\n- Wrong code shows 401 feedback.\n- A signed-in window creates a code; a second browser redeems it to connected.\n- gui-open.url recovery works after stop.\n- serve --open reuse works.\n- No stranded browser user at any step.\n\nEvidence: audit report workspace/harness-gui-audit-2026-10-27.md; server.py and ui index/app.js reads at 4ccee99; server/driver suites 173 passed + 8 subtests.\n\nRelated: #277 (this feeds the #277 checklist pass; #277 itself remains the final report).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 412; keep its deliverab"
+},
+{
+"number": 407,
+"title": "[visibility-site] public receipt-backed model statistics with opt-in ingestion",
+"labels": [],
+"created": "2026-10-26",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "## Objective\n\nBuild a separate public visibility site that shows a worldwide model roster and usage, success-rate, cost-per-successful-task, and latency statistics.\n\n## Privacy and consent\n\n- Ingestion is limited to users who explicitly opt in.\n- Publish aggregate statistics only. Never ingest or expose raw ledger rows, keys, tokens, paths, or user-attributable data.\n- Document the sanitization and aggregation rules and prove them with hermetic regression tests, including negative cases for prohibited fields and non-consenting input.\n- Make opt-in explicit and revocable.\n\n## Metrics and provenance\n\nEvery published figure must trace to a verifiable receipt. Do not invent or estimate metrics. When there is not enough verified aggregated evidence for a figure, show an honest no-data state.\n\n## Installation path\n\nMake `pip install sovereign-harness`, the CLI console scripts, and the documentation link prominent. Feature the 0.23-cent driving visual-audit receipt only with its evidence and a clear statement of what it did not assess.\n\n## Deployment\n\nDeploy through the local Cloudflare setup after operator confirmation and availability of the required `CF_API_TOKEN` and D1/KV IDs. Verify the recorded public URL serves both the visibility site and the results page. If setup is missing or broken, state exactly what is missing. Never claim a deployment without a successful public-origin verification.\n\n## Acceptance criteria\n\n- The visibility site is separate from the existing results "
+},
+{
+"number": 382,
+"title": "[tracking, low priority] Session-start model picker: choose preset/custom set easily at launch",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-25",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Priority: Low \u2014 tracking only, no lane work until scheduled.\n\nChoosing which models a session may use must be an easily doable first-class step at session start, not config spelunking: show available providers + presets + custom sets, the resulting effective model list, and the cost tier of each choice, then confirm. This is the UX face of the allowlist + presets work.\n\nAcceptance: (1) picker shows effective model list before any spend; (2) Meta-only is one choice, not a manual list; (3) the chosen set is recorded in the session record.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 382; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 381,
+"title": "[tracking, low priority] Calibrate Fusion Lite panels against Jev on golden sets before any gate swap",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-25",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Priority: Low \u2014 tracking only, no lane work until scheduled.\n\nPanels are text LLMs emulating judgments; Jev is a trained judgment model. Before any gate trusts panels, measure agreement: run panel judgments and Jev judgments over the same golden sets (decision gates + assessment aspects) and report agreement rate, disagreement classes, and cost per judgment. A panel configuration ships as a gate replacement only if it clears an agreed threshold; otherwise it stays advisory.\n\nAcceptance: (1) calibration report format + threshold rule exist; (2) at least one Meta-only panel configuration measured; (3) disagreements are classified, not averaged away.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 381; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 380,
+"title": "[tracking, low priority] Jev-free judgment backend: Fusion Lite panels replacing Jev gates",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-25",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Priority: Low \u2014 tracking only, no lane work until scheduled.\n\nHarness already has a jev_disabled switch, but no replacement for what Jev does when it is off. Build a Jev-free judgment backend on the Fusion Lite pattern (SCMessenger scripts/fusion_lite.py: 2-4 cheap panel models in parallel, no tools key, one judge synthesizing agreement/disagreement/verdict, pre-flight cost ceiling, hard refusals): panel models emit JSON-schema-constrained votes mapping onto Jev's noul/choice/score outputs, fused into one gate verdict with the same interface the gates already consume.\n\nAcceptance: (1) judgment backend selectable: jev | panel; (2) panel path enforces the Fusion Lite guarantees (no tools, pre-flight ceiling, refusal on breach); (3) a gate run end-to-end on panels with no Jev key present.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 380; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 379,
+"title": "[tracking, low priority] Direct Meta Model API provider (api.meta.ai) alongside OpenRouter/Fireworks",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-25",
+"updated": "2026-10-31",
+"comments": 1,
+"body": "Priority: Low \u2014 tracking only, no lane work until scheduled.\n\nHarness has no Meta provider today (providers.py: OpenRouter + Fireworks direct lane + CLI drivers; Meta models are reachable only as OpenRouter routes, if at all). Add a direct Meta Model API provider following the Fireworks direct-lane pattern: base URL https://api.meta.ai/v1 (OpenAI-compatible), MODEL_API_KEY resolution (env file + env var, same pattern as other keys), model ids muse-spark-1.1/1.2/1.3, muse-wonder-1.0, muse-image-1.0.\n\nAcceptance: (1) a direct Meta call succeeds with a Meta key and is billed by Meta, not an aggregator; (2) Standard vs Contributor tier is an explicit, visible choice (Contributor = Meta may train on prompts \u2014 never the silent default for private code); (3) the provider participates in the session allowlist.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 379; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 378,
+"title": "[tracking, low priority] Model presets + custom include/exclude sets (JSON/text file)",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-25",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Priority: Low \u2014 tracking only, no lane work until scheduled.\n\nModel choice must be comprehensive and easy: pre-configured sets (All Meta, All Anthropic, All OpenAI, free-only, etc.) plus user customization \u2014 an include/exclude list in a JSON or text file naming every model the user does and does not want used. Presets compose with the session allowlist; custom sets override presets.\n\nAcceptance: (1) at least the vendor presets exist as data, not hard-coded per-lane lists; (2) a custom file round-trips (load, validate ids against the live catalog, report unknown ids); (3) preset + custom selection is visible at session start.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 378; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 377,
+"title": "[tracking, low priority] Session model allowlist: restrict a session to an explicit model set (e.g. Meta-only)",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-25",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "Priority: Low \u2014 tracking only, no lane work until scheduled.\n\nA session must be launchable with an explicit model allowlist: only listed models can be chosen by any lane, panel, judge, or escalation path, and anything outside the list is refused before spend. The motivating case is a Meta-only session (only Meta Model API models runnable) for the CivicScope hackathon build, but the mechanism is vendor-neutral.\n\nAcceptance: (1) allowlist settable via config + env + session flag; (2) a Meta-only session demonstrably refuses a non-Meta model id at every selection point; (3) a validation run (Meta-only session launch proof) is recorded as evidence.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 377; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 346,
+"title": "[planning] Exclude completed planning calls from the remaining execution allowance",
+"labels": [],
+"created": "2026-10-23",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Finding ? controlled compose_plan reproduction\nCase 4 invoked compose_plan(execute=True, decompose_llm=True, confirm=False, plan_consensus=False) with a real governor and controlled decomposition/accounting seams.\n\nInputs: session cap $0.10; successful decomposition already recorded $0.02; future node allowance $0.07; no outstanding liability.\nObserved: status=refused, envelope={composed_worst_case:0.09,node_ceiling:0.07,decompose:0.02,waist:0,consensus:0,remaining:0.08,plan_ceiling:0.10,exceeds_remaining:true}.\nThe feasible all-in total is $0.09. The refusal compares an allowance containing completed work against a balance that already deducted that work. Probe exited 0. All accounting amounts were synthetic; no live model charge.\n\n## Precise locations\n- `harness/waist.py:1632,1667`: decomposition call/result precedes checks.\n- `harness/waist.py:730-826`, especially :778 and :801-805: composed_worst_case adds decomposition allowance and reads already-reduced remaining.\n- `harness/waist.py:1752-1760`: early check after decomposition passes decompose_llm=True.\n- `harness/waist.py:2049-2072`: final calculation repeats planning allowances; analogous consensus/confirmation treatment is source-only, not separately exercised.\n\n## Acceptance for a later fix phase\n- Compare only not-yet-incurred worst-case liability with remaining, or consistently compare total all-in cost with its matching original ceiling.\n- Count every actual/reserved/unknown call once, including planning retri"
+},
+{
+"number": 345,
+"title": "[spend] Attribute request caps independently of unrelated concurrent session spending",
+"labels": [],
+"created": "2026-10-23",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Finding ? controlled accounting reproduction\nCase 3 used the real SpendGovernor with a $1.00 synthetic session cap. Request A entered task_scope($0.10), starting at $0.00 session spend. An independent worker recorded $0.20 for request B. A spent nothing.\n\nObserved: A remaining allowance changed $0.10 -> $0.00; session remaining was $0.80. Thus unrelated spending exhausts A's individual cap even while both its own allowance and the shared session budget permit more work. This reproduces a false refusal, not a demonstrated overspend. All dollar amounts in this reproduction were synthetic; actual paid cost was zero. Early process exit status was not retained.\n\n## Precise locations\n- `harness/spend.py:259-278`: effective ceiling uses scope.baseline + scope.max_cost.\n- `harness/spend.py:282-301`, especially :294: baseline snapshots global spent.\n- `harness/spend.py:652-665`: remaining subtracts global spent and outstanding liability.\n\nContextVar isolation prevents scope-stack sharing but does not provide per-request spend attribution.\n\n## Acceptance for a later fix phase\n- Independently enforce each request's own actual/outstanding liability and the shared session ceiling.\n- Preserve nested scope bounds, cancellation/unknown liability settlement, concurrent reservations, and cleanup.\n- Prove that B's spending can reduce shared capacity without being charged against A's individual allowance; retain shared-cap refusal controls.\n\n## Evidence scope and planning\nEvidence comes from "
+},
+{
+"number": 344,
+"title": "[lifecycle] Bind resumed web context to the current request and retrieval decision",
+"labels": [],
+"created": "2026-10-23",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Finding ? two controlled reproductions\r\nHistorical lifecycle work #297 is closed; the current local change still permits context reuse without binding it to the current effective request or approval.\r\n\r\n- Case 1: call run_hourglass_request with a saved calculator-context checkpoint and a changed ocean-tides prompt. Observed status=ok, old evidence delivered=true, route reviews=0, context rebuilds=0.\r\n- Case 2: resume a checkpoint containing 24-hour-old web evidence while supplying a new native answer/no-web route. Observed status=ok, old evidence delivered=true, route reviews=0, context rebuilds=0.\r\n\r\nThese are direct lifecycle-entry controlled reproductions, not a demonstrated GUI continuation failure. Process exit statuses for these early probes were not retained; their JSON outcomes were captured. No live providers were used.\r\n\r\n## Precise locations\r\n- `harness/hourglass_lifecycle.py:361-400`: _hourglass_context_matches validates root/file inventory/hashes, not current request/plan identity.\r\n- `harness/hourglass_lifecycle.py:525-526`: saved route_preflight can be reused.\r\n- `harness/hourglass_lifecycle.py:644-654`: saved context and web_sources reused.\r\n- `harness/hourglass_lifecycle.py:647-649`: not-web bypasses the web freshness check.\r\n\r\n## Acceptance for a later fix phase\r\n- Reuse research evidence only when bound to the same effective request, approved plan/receipt, and freshness policy.\r\n- A changed/declined research decision cannot inherit incompatible or stale "
+},
+{
+"number": 343,
+"title": "[web] Reject unrelated hits individually instead of accepting a mixed target-site result batch",
+"labels": [],
+"created": "2026-10-23",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Finding ? reproduced with controlled MCP request\r\nCase 8 exercised the real MCP stdio ask adapter -> run_prompt -> hourglass -> legacy web parser/gatherer, with fixture route/answer judgments and fixture HTTP content. The named subject was www.freeoffgridcalculator.com. Search HTML included one calculator hit and one Microsoft Exchange mailbox-audit hit.\r\n\r\nObserved: status=ok, no RPC error, search HTTP calls=1, fetch attempts=1, unrelated Microsoft mailbox evidence reached the answer context=true. Both new research reviewer call counts were zero. Provider posts=0; containing probe exited 0. The web route was approved by a fixture judgment; there was no typed target-domain ResearchPlan to approve.\r\n\r\n## Precise locations\r\n- `harness/web.py:285-293`: relevance filtering removes only fixed title-pattern clutter.\r\n- `harness/web.py:319-328`: subject check succeeds when any one result mentions the brand.\r\n- `harness/web.py:364-418`: search applies that batch gate.\r\n- `harness/web.py:538-553`: gathering includes unrelated snippets as ok evidence.\r\n- `harness/conversation_lifecycle.py:301-315`: current lifecycle gather seam.\r\n\r\n## Acceptance for a later implementation phase\r\n- Enforce accepted target-domain requirements on each candidate and its final fetched URL; one matching hit cannot admit unrelated neighbors.\r\n- Use the shared native result reviewer for semantic relevance where needed; uncertain/rejected content must not become answer evidence.\r\n- Preserve source/provenance"
+},
+{
+"number": 342,
+"title": "[research] Implement the missing shared model-proposed ResearchPlan and native Jev review lifecycle",
+"labels": [],
+"created": "2026-10-23",
+"updated": "2026-10-28",
+"comments": 4,
+"body": "## Finding ? missing functionality, source-confirmed\r\nThe requested shared research phase does not exist in the audited change. `harness/jev_policy.py:3824-3844` defines `evaluate_research_plan` / `evaluate_research_results`, and `harness/jev_packs.py:45,106` provides packs, but the source-reference check found no production callers and no `ResearchPlan` type.\r\n\r\nCurrent callers: CLI `harness/cli.py:782` and MCP `harness/mcp.py:589` delegate to `run_prompt`; GUI `harness/server.py:430-455` delegates to the request lifecycle. `harness/simple_answer_lifecycle.py:212-229` / `harness/hourglass_lifecycle.py:597-606` select a web route; `hourglass_lifecycle.py:152` calls the legacy gatherer directly. This is route selection, not model plan creation or bounded review/revision.\r\n\r\n## Recorded behavior\r\n- Case 7 (controlled CLI ask): native route review chose answer; status ok, search=0, fetch=0, research-plan reviews=0. This proves only the no-web answer route.\r\n- Case 8 (controlled MCP ask): web-route judgment led to retrieval; research-plan reviews=0, research-result reviews=0.\r\n- Evaluator-only fixture outputs were not used to claim lifecycle functionality.\r\n\r\n## Acceptance for a later implementation phase\r\n- One owner for a bounded typed model-proposed plan: retrieval-needed decision, queries/URLs, target domains, freshness, evidence requirements and budget.\r\n- Native Jev accept/revise/decline with bounded revisions before retrieval. Invalid/unavailable judgments and advisory heu"
+},
+{
+"number": 340,
+"title": "[economics][MEDIUM] harness-reported costs drift \\u00b115\\u201340% off measured spend; #318 metric must use measured",
+"labels": [
+"bug"
+],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "Found in the 2026-10-21 efficiency experiment (10 efforts \\u00d7 175 requests, `HARNESS_USE_FREE=0`, spend measured independently via the OpenRouter key-usage endpoint):\n\n**Symptom:** per-effort harness-reported costs drift \\u00b115\\u201340% off OpenRouter-measured spend. Worst case, effort 5 (code-explain): reported $0.00015 vs measured $0.00142 \\u2014 an order of magnitude. Overall: reported sum $0.01035 vs measured $0.01209 (\\u201317% low). Drift goes both directions (effort 2: reported $0.00025 vs measured $0.00076; effort 6: reported $0.00089 vs measured $0.00034).\n\n**Root cause (hypothesis):** the pricing snapshot the reporter uses lags the live dynamic prices the router actually paid. The router correctly acted on intraday moves (glm-5.3-flash dropped to $0.01/$0.18 live; deepseek-v4.1-flash was in its $0.30/$1.20 peak window) while the reporter priced against a stale catalog.\n\n**Why it matters:** #318 tracks \u201ccost per successful task\u201d as the selector\u2019s own metric. If that metric is built on reported costs with up to 40% drift, the loop optimizes against a distorted signal. The metric must use measured spend (key-usage delta or provider-returned usage), not the reporter estimate.\n\n**Acceptance:** cost-per-success in #318 is computed from measured spend; reported-vs-measured drift documented per effort in audits/self/efficiency/EFFICIENCY_2026-10-21.md.\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, "
+},
+{
+"number": 337,
+"title": "ledger: validated criteria-prompt library for interrogating the ledger across models",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Directive (operator, 2026-10-21 \u2014 fully approved)\nValidated criteria prompts over the ledger: when someone wants to flush out the ledger for a given criteria, there's an associated validated prompt that evaluates that criteria across the models \u2014 not an ad-hoc prompt written each time.\n\n## Jev evaluation (2026-10-21)\n- Need strength 72/100 (conf 0.87) \u2014 recurring operational need.\n- Best approach: validated library, unanimous (1.00, conf 1.00) \u2014 beats ad-hoc prompting and dashboards.\n- Net-positive: 0.65 at zero confidence \u2014 the open question is maintenance cost as models and the ledger evolve.\n- Verdict: build it, but start small and let usage prove out the maintenance cost before growing the library.\n\n## Design\n- A library of versioned prompt templates, each **validated**: tested against known ledger fixtures with measured accuracy and documented limitations (the canary \"known test calls\" idea from #336, generalized from fixed probes to criteria-driven interrogation).\n- Each prompt evaluates its criteria **across the pool models** using the ledger as evidence (#318's always-on outcomes + #336's labeled canaries), cites the ledger entries behind its verdict, and its output can itself be Jev-gated under v1.\n## Comprehensive catalog (operator directive 2026-10-21: everything accounted for \u2014 world-ready debut)\nThe library covers the full surface, not just the starter three. Rollout is prioritized (debut-readiness aggregator first), but the catalog is the complete target:\n\n**"
+},
+{
+"number": 336,
+"title": "ledger: self-pruning via anchored compaction + automatic canary updates",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Directive (operator, 2026-10-21)\nTwo behaviors for the harness ledger:\n1. **Self-pruning** \u2014 automatically prune non-relevant entries (test noise, phantom entries like the `defer_midtask` repro from #333, superseded events).\n2. **Automatic updates** \u2014 the ledger stays fresh on its own, via known test calls (canaries) that verify key aspects as needed.\n\n## Design tension (must be resolved, not ignored)\nThe ledger is hash-chained: naive deletion breaks verification. Pruning must go through **compaction with anchors** \u2014 low-relevance entries are folded into a signed checkpoint (summary + hash of the compacted segment + entry count), and the chain continues from the checkpoint. Verification then checks segment anchors instead of every raw entry. Deletion without an anchor is never allowed.\n\n## Proposed mechanics\n1. **Relevance scoring per entry** (code-owned, deterministic): entry type + age + whether any gate/report cited it. Examples: test/repro noise \u2192 low; phantom/deferred-never-offered \u2192 low; superseded events \u2192 low after their replacement lands; spend/financial entries, trust events, judgments a gate relied on \u2192 never prunable.\n2. **Compaction job**: on a cadence (or when the ledger crosses a size threshold), entries below the relevance bar are compacted into an anchored checkpoint. The checkpoint itself is a first-class ledger entry, so the audit trail stays complete.\n3. **Canary test calls**: a small set of known, cheap, deterministic probes (routing resolves, Jev reac"
+},
+{
+"number": 335,
+"title": "[mcp][LOW] tool annotations inaccurate: read_only_hint missing on read-only tools, absent on mutating ones",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## What\nMost read-only tools carry no `read_only_hint` (`ledger_status`, `participation_report`, `spend_status`, `trust_status`, `jev_phase`, `jev_freeze`, `generate_brief`, all four `driver_*`, `issue_sort`, `route_query`, `log_judgment`) \u2014 only `ask`, `site_check`, `host_provision_*`, `jev_calibration`, `economics_report` set it. Worse: `defer_work` **mutates the ledger** but carries no annotation at all, and `apply_edit` (file writes) carries no `destructive_hint`.\n\n## Severity\nLow. Matters for client UX and for #285 (agent-eval tool selection / tool chaining scored by pass-rate). Distinct from #284 (description text lint) \u2014 this is the machine-readable annotation layer.\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 335; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 334,
+"title": "[mcp][LOW] log_judgment reports ok when zero items were live-judged",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## What\nUnkeyed (no Jev key), `log_judgment` returns status `\"ok\"` with the item keyword-matched and score `{\"level\": null, \"value\": null, \"confidence\": 0.0}`, coverage `{\"fallbacks\": 1, \"live_judged\": 0}`. The \"fallback counts are reported, never smoothed\" clause is honored, so the degradation is disclosed \u2014 but the description's unqualified claim (\"the ONE Jev policy owner judges every item\") is false in unkeyed operation while the envelope still says `ok`.\n\n## Severity\nLow. Consumers keying on `live_judged`/`is_fallback` are safe; consumers reading only `status` are not. Either qualify the description for unkeyed operation or downgrade the envelope when `live_judged == 0`.\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 334; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 332,
+"title": "[audit] inconsistent fallback model labeling: is_fallback=True with model=jev-latest vs model=local-heuristic",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## What\nTwo honest-fallback paths label themselves differently: the audit gate prints `(is_fallback=True, model=jev-latest)` (`harness/jev_policy.py:3351` falls back to the configured evaluator name), while `jev-phase` honestly prints `model=local-heuristic` (`harness/jev_completion.py:1535`). A reader comparing reports can't tell both are the same local fallback.\n\n## Severity\nLow \u2014 pick one labeling convention for fallback model identity.\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 332; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 329,
+"title": "[cli] polish: desktop usage line + shared --out/--quiet/--events/--no-color flags missing on defer/media/driver",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## What\nTwo cosmetic CLI-surface nits from the self-test pass:\n1. `desktop --help` usage line reads `harness-desktop` instead of `harness desktop`.\n2. The shared `--out/--quiet/--events/--no-color` flags are missing from `defer`, all `media` subcommands, and all `driver` subcommands.\n\n## Severity\nCosmetic.\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 329; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 328,
+"title": "[cli][MINOR] no version surface: --version / -v / version all exit 2",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## What\n`harness --version`, `harness -v`, and `harness version` all exit 2 (unknown). `harness.__version__` (0.4.2) exists but is only reachable indirectly via `gates --run import`.\n\n## Severity\nMinor \u2014 standard CLI affordance; every bug report asks for the version first.\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 328; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 325,
+"title": "[jev][MED] v1 assessment gate (5-aspect suite + flexibility rule) has no code counterpart",
+"labels": [],
+"created": "2026-10-22",
+"updated": "2026-10-31",
+"comments": 2,
+"body": "## What\nThe v1 assessment gate \u2014 5 aspects (completeness, confidence, correctness, no-regression, evidence quality), relevance-first, flexibility rule (4/5 \u226590 with 5th at 85\u201389 \u2192 auto-investigate \u2192 PASS with note if no real risk) \u2014 exists only as operator procedure. There is no 5-aspect suite, flexibility rule, or single-point rule anywhere in `harness/`, `packs/`, or `audits/` (name-grep + pack enumeration on main).\n\n## Design gap (needs Lucas, not just code)\nv1's assessment language is point scores (\u226590 / 85\u201389 / <85), but live Jev score answers are probability distributions over levels. There is no declared aggregation rule (EV \u2265 1.5? argmax? P(level\u22651)?) mapping distributions to bands \u2014 the flexibility rule cannot be applied mechanically even if a composer existed. Self-test probes confirmed the band is expressible but the crisp trigger never materializes cleanly (mass spreads across levels).\n\n## Recommendation from the audit (for the lane's plan)\nDo NOT port v1 assessment semantics into the 4-dimension audit gate or the phase-completion gate: those are release-truth instruments whose raison d'\u00eatre is hard fail-closed, and a headless CI audit has no investigation actor. v1's investigate/flexibility semantics belong to lane agent workflows. Partial integration only: decision-verdict layer (separate issue), leave the authoritative audit bar absolute.\n\n## Severity\nMedium \u2014 tracking/design. Nothing is broken today (the native gates are coherent instruments); the gap is v1-no"
+},
+{
+"number": 319,
+"title": "route(models): automated model intake pipeline \u2014 all OpenRouter models auto-screened into pools",
+"labels": [],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 2,
+"body": "## Directive (operator, 2026-10-21)\nNot per-model issues \u2014 **all models automatically**. Pool membership should be an intake pipeline, not a filing queue. #315/#316/#317 are superseded by this: they were manual insertions; the pipeline ingests them (and everything else) the same way.\n\n## Current state\nPool membership is curated snapshots (`packs/tiers.snapshot.json`, `model_route.pack.json`). Dynamic pricing already resolves via OpenRouter (`harness/spend.py`) \u2014 but only for models someone put in the pool. Discovery is manual (the 2026-10-21 sweep).\n\n## The pipeline \u2014 discover \u2192 screen \u2192 insert \u2192 evaluate\n1. **Discover.** **Sync on every session load, plus a 15-min periodic backstop** \u2014 Jev-gated cadence verdict, RE-EVALUATED 2026-10-21 (choice conf 1.00: session+15min 1.00; the earlier 6h verdict is superseded). What changed: the operator corrected the framing \u2014 the fleet is ~7 providers (2 keyed), each with independent catalog velocity, model variations (batch/floor/free variants, renames, dead listings), and price changes; OpenRouter alone lists 468 endpoints / 382 base models. The decisive fact: **sync cadence != screen cadence** \u2014 a sync is N provider HTTP GETs (negligible; no rate-limit risk at 15-min), while the Jev 4-aspect screen (fractions of a cent) runs ONLY on genuine deltas after cheap-filter dedupe, so expected screens stay ~a few per week even at 15-min syncs. Session-load sync guarantees a fresh catalog at the exact moment of use; the backstop covers long-liv"
+},
+{
+"number": 318,
+"title": "route(selection): continuous recursive self-improving model selection \u2014 always-on auditing, dynamic as needed",
+"labels": [],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 2,
+"body": "## Directive (operator, 2026-10-21)\n\"We're constantly auditing all models, recursively self-improving model selection all the time, dynamically as needed.\" Not scheduled re-benchmarks \u2014 a living loop where every task's outcome improves future selection, and audits fire when the signals call for them.\n\n## What already exists (build on it, don't duplicate)\n- `harness/capability.py:638` `order_pool` \u2014 observed-corrected view: declared capability as prior, corrected by probe/ledger evidence. Free tier sorts by reliability desc; paid tier cost asc with reliability breaking ties; ledger-driven observed demotion; hard capability gate.\n- `harness/capability.py:1037` `rotate_pool_by_streak` \u2014 bounded exploration (DF-EV-7): rotates the head after `max_streak` clean runs so non-head models accumulate ledger observations.\n- `_shrink_weight(n)` \u2014 low-sample models don't dominate on noise.\n- The refine loop's regression-gate pattern (#239/#241) \u2014 TIER changes gated on held-out tasks.\n\n## The delta \u2014 make it continuous, recursive, dynamic\n1. **Always-on outcome capture.** Every routed task writes its outcome (model, task family, verify rounds, success, cost, latency, tokens) into the calibration/ledger store \u2014 not just bench runs. If live capture already exists, wire it as the observed-calibration feed; if it's bench-only, that's the gap.\n2. **Exploration that onboards newcomers.** `rotate_pool_by_streak` is the mechanism \u2014 verify it's sufficient for a brand-new pool member to earn signal ("
+},
+{
+"number": 314,
+"title": "feat(jev): offline Jev-like judge modules (local inference backends)",
+"labels": [],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "# Offline Jev-like judges \u2014 module plan (2026-10-21, operator-commissioned)\n\n## Hardware answer\n\nYes. The harness runs on standard dev machines (Linux/macOS/Windows, Python 3.9\u20133.13 per the CI matrix). A 121M\u2013421M model needs tens of MB of RAM and runs on CPU \u2014 Laya does ~33ms on CPU via pip install, and Needle 3 hits ~4,000 tok/s on a Raspberry Pi 5, far weaker than any harness host. **Compute is not the constraint.** The real work is (1) inference engine per platform, (2) weight provisioning, (3) calibration to the harness's verdict semantics. Engine portability is the gating factor per backend (below).\n\n## Design\n\nOne seam, pluggable backends. Keyed Jev stays the default; offline is a first-class fallback above today's structural checks.\n\n### New modules\n\n1. **`harness/jev_local.py`** \u2014 `LocalJudge` interface. Accepts the same TypeSafe question schemas (noul/choice/score) as keyed Jev and returns the same `JevEvaluationResult` type, with backend provenance (`backend=\"local:<model>\"`) instead of today's bare `is_fallback` boolean. Lanes swap keyed\u2194offline with no code changes.\n2. **`harness/jev_local_laya.py`** \u2014 Laya adapter. First backend to build: `pip install laya`, CPU-runnable cross-platform, Apache-2.0, typed decisions. No custom engine.\n3. **`harness/jev_local_kev.py`** \u2014 Kev adapter. Same `POST /v1/systemone` shape as Jev \u2192 nearly drop-in; self-host (CUDA/ROCm/Mac MLX) or OpenRouter-hosted. Apache-2.0 weights.\n4. **`harness/jev_local_needle.py`** \u2014 Needle 3 adapter"
+},
+{
+"number": 313,
+"title": "eval(models): evaluate Inception Mercury 3 (diffusion LLM) for cheapest-capable routing",
+"labels": [],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Task (eval lane \u2014 operator directive, 2026-10-21)\n\nEvaluate **Inception Mercury 3** (diffusion LLM, released Oct 19\u201320 2026) for onboarding into cheapest-capable routing. It is NOT in the repo today (zero hits for \"mercury\"/\"inception\" on main).\n\n## Verified facts (operator's research, 2026-10-21)\n\n- **What:** diffusion language model \u2014 drafts the whole response, refines all positions in parallel. 1,068 tokens/sec on NVIDIA GPUs (vs ~240 for Claude Haiku 5.5, ~130 for GPT-6 Luna per Inception).\n- **Context:** 1M tokens. Params undisclosed (>40\u00d7 Mercury 1).\n- **Benchmarks (self-reported, medium settings \u2014 NO independent verification published yet):** beats GPT-6 Luna and Claude Haiku 5.5 on 8 of 12 tests; strongest on SWE-Bench Atlas (51.1 vs 33.3 / 32.3); trails on DeepSWE (46.3 vs 51.6) and one long-context test. One independent test (Medium, ~$34 / 48k calls): genuinely fast and good, \"not the cheapest per right answer,\" noted \"one very odd habit.\"\n- **Pricing:** $0.20/M input / $0.70/M output; launch promo halves to $0.10/$0.35; cached input 90% off input rate.\n- **Served:** Inception's own API (own NVIDIA hardware, API-only, no open weights) + partners **OpenRouter**, Baseten, Vercel. OpenAI API compatible.\n\n## Price fit (vs current T1, `packs/tiers.snapshot.json`)\n\n- Promo rates ($0.10/$0.35 \u2192 1e-7/3.5e-7 per token): beats `openai/gpt-4o-mini` (1.5e-7/6e-7) on both legs; does NOT beat `deepseek/deepseek-v4.1-flash` (2e-8 input) or `inclusionai/ling-3.0-flash` (7e-8/2."
+},
+{
+"number": 311,
+"title": "[local-fit] Exercise training and export extra in hermetic CI",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "\ufeff## Finding\n\nThe repo-wide dogfood audit found a verification gap in the optional local-fit training/export path. `.github/workflows/ci.yml` installs `.[dev]`, while `tests/test_local_fit_model.py` guards the training, ONNX export, and runtime scoring tests with `skipUnless(numpy, onnx, onnxruntime)`. The `local-fit-train` extra is declared separately in `pyproject.toml`. Thus the default CI matrix can pass without exercising the artifact-generation path.\n\nAudit score (0\u2013100): spec 95, design 90, correctness 58, quality 89. Correctness is capped because this audit did not execute the optional-dependency path.\n\n## Acceptance criteria\n\n- Add a separate, hermetic CI job that installs `.[dev,local-fit-train]` and runs the existing training/export/runtime tests without relying on skip decorators.\n- Exercise deterministic rows and a temporary model directory; verify export, reload, feature shape, and score schema.\n- Make no provider/network calls, require no API key, and commit no generated model artifact.\n- Keep training dependencies out of the default runtime install; report the optional-job test and skip counts.\n\nAudit follow-up to tracker #295.\r\n\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical "
+},
+{
+"number": 310,
+"title": "[provision] Split admission, approval, and execution by trust boundary",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "\ufeff## Finding\n\nThe repo-wide dogfood audit found `harness/provision.py` is 2,379 lines and owns host probing, plan/step schemas, command admission and path policy, approval records/gating, process execution and idempotency receipts, package recipes, and Jev-based selection/review. Those functions cross different trust and side-effect boundaries, yet changes currently land in one module. The hermetic provisioning suite passes; this audit did not run real package-manager installs, which would mutate the host.\n\nAudit score (0\u2013100): spec 96, design 82, correctness 95, quality 84. The correctness deduction is for host-level execution not being exercised; the design/quality gap is the mixed ownership in the module.\n\n## Acceptance criteria\n\n- Separate pure host probing/planning and command admission from approval persistence and approved execution; keep recipe selection as a distinct concern.\n- Preserve one authoritative approval gate, root/scheme admission policy, durable completion receipt, and no-replay behavior for uncertain execution.\n- Behavior tests cover allowed/denied commands, approval changes, checkpoint/resume, partial execution, and uncertain receipts using temporary roots and injected runners.\n- No test performs a real system package install or writes outside its temporary workspace.\n- Update architecture/module documentation and pass Ruff, D12 changed-line coverage, and the full supported Python/OS CI matrix.\n\nAudit follow-up to tracker #295.\r\n\r\n\r\n---\r\n\r\n<!-- canonical-"
+},
+{
+"number": 309,
+"title": "[jev] Separate domain evaluators from shared policy dispatch",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 2,
+"body": "\ufeff## Finding\n\nThe repo-wide dogfood audit found `harness/jev_policy.py` is 3,909 lines. The `JevPolicy` class combines shared dispatch governance (reservation, cancellation settlement, deduplication, fallback accounting, and ledger recording) with many unrelated domain evaluators: diff/hourglass/answer, route and file triage, claims, mission scope, issue sort, log judgment, repo summary, phase completion, and audit dimensions. The tests are broad and CI is green, but the implementation puts many independently changing packs behind one very large class.\n\nAudit score (0\u2013100): spec 96, design 82, correctness 96, quality 84. The gap is in internal cohesion and the size of the change/review surface, not an observed CI failure.\n\n## Acceptance criteria\n\n- Keep `policy_for` as the single construction path and preserve one owner for dispatch, spend reservation, fallback, cancellation, and ledger semantics.\n- Move domain-specific evaluator logic into cohesive internal modules with typed inputs/outputs; avoid duplicating shared policy or introducing circular imports.\n- Preserve existing site names, result envelopes, fallback reasons, spend accounting, and caller behavior.\n- Add/retain focused behavior tests for each evaluator family and shared dispatch failure cases (rate limits, cancellation, cache/deduplication, fallback, and ledger).\n- Update architecture/module ownership documentation and pass Ruff, D12 changed-line coverage, and the full supported Python/OS CI matrix.\n\nAudit follow-"
+},
+{
+"number": 308,
+"title": "[planning] Split waist.py by planning responsibility",
+"labels": [
+"enhancement"
+],
+"created": "2026-10-21",
+"updated": "2026-10-28",
+"comments": 2,
+"body": "\ufeff## Finding\n\nThe repo-wide dogfood audit found `harness/waist.py` is 3,237 lines and owns several distinct planning concerns: decomposition prompts and parsing (`parse_decomposition_response`, `decompose_via_llm`), consensus/confirmation/composition (`plan_consensus`, `confirm_plan`, `compose_plan`), context brief/recondensing (`intake_brief`, `recondense_decision`), and stage budgets/outcomes (`compose_stages`, `run_planning`). The full hermetic CI suite passes, but this module boundary makes changes to context compression, planning policy, or stage scheduling difficult to review and test in isolation.\n\nAudit score (0\u2013100): spec 96, design 84, correctness 98, quality 86. The 98-point target is missed on the planning subsystem\u2019s internal ownership and change surface.\n\n## Acceptance criteria\n\n- Assign decomposition/parsing, plan consensus and confirmation, brief/recondense, and stage composition/budget state to clear internal owners.\n- Keep one owner for plan policy and stage-budget decisions; do not introduce import cycles or re-export-only facades.\n- Preserve CLI, MCP, and AutonomousAgent plan, approval, and budget behavior with behavior-level tests on each existing caller surface.\n- Update the architecture/module map to match the resulting ownership.\n- Pass Ruff, D12 changed-line coverage, and the full supported Python/OS CI matrix.\n- Keep tests hermetic; model/network calls and repository writes remain controlled by existing fixtures and gates.\n\nAudit follow-up to tracker "
+},
+{
+"number": 306,
+"title": "ops(fireworks): place the Fireworks key into the harness config environment and complete EV-8 verification",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 3,
+"body": "## Task (for the freebuff lane \u2014 operator directive, 2026-10-20)\n\nThe Fireworks API key is present on this lane's machine (operator-confirmed). Task it into the environment the harness actually reads, then complete the EV-8 verification in full. This is the execution piece of #304 step (e); the routing build in #304 parts (a)\u2013(d) is separate and does **not** block this issue.\n\n## Steps\n\n1. **Copy \u2014 don't move \u2014 the key into the harness config environment.** Destination: `~/.config/harness/fireworks.env` (the sibling of the `jev.env` already on this machine; the loader also accepts `~/.config/scmorc/fireworks.env` first \u2014 `resolve_fireworks_key()`, `harness/config.py:601-621`). The file must define `FIREWORKS_API_KEY` (or `HARNESS_FIREWORKS_KEY`). Permissions: file `0600`, directory `0700`.\n2. **Verify resolution through the harness's own loader** \u2014 confirm the settings surface reports the key as present. Presence booleans only: the key value must never be printed, logged, screenshotted, committed, or pasted into any comment, PR, ledger entry, or chat. It must never enter the repo tree.\n3. **Check the probe's one-shot state in this checkout before running anything.** The probe writes a marker before any network call and refuses while it exists (`harness/fireworks_probe.py:62-64, 92-97`), and the operator states the call was already done once (confirmations recorded on #304, comment 6301370969). Look for the existing marker and for `audits/self/dogfood/FIREWORKS_VERIFY_RECEIPT."
+},
+{
+"number": 304,
+"title": "feat(economics): include Fireworks in automatic cheapest-capable routing with dynamic price checking \u2014 completes EV-8",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 6,
+"body": "## Operator requirement (Lucas, 2026-10-20)\n\nFireworks must be **included in the automatic best-cheapest-capable model selection, with dynamic price checking across all routing options**, so the harness always runs at its most efficient configuration at any given time. The operator holds ~$6 in Fireworks free credits. This issue is the completion path for canon item `EV-8` and for the unmet requirement stated in canon's P1 provider-economics paragraph (`docs/jev-roadmap.md:63`).\n\nToday that requirement is **not met** \u2014 verified on main `dd83caf9` (details below). Fireworks is reachable only by explicitly naming a model path or by a whole-session operator toggle; the automatic router never chooses it, and its prices are a static snapshot.\n\n## Current state (verified, file:line)\n\n**Exists and works:**\n- Dispatch: any lane naming a confirmed `accounts/fireworks/models/...` path routes `chat()` \u2192 `_chat_fireworks` (`harness/chat.py:402-403, 728`), budget-guarded (`chat.py:744`), with enforced accounting (`chat.py:713`). Whole-session direct lanes exist via `use_fireworks` (`harness/config.py:462, 663-672, 869-887`; slates at `config.py:432-443`; governor at `harness/session.py:30-45`).\n- Routable pack: `packs/fireworks.endpoints.json` \u2014 14 live-confirmed slugs, generated from the dated snapshot `audits/self/dogfood/FIREWORKS_CATALOG_2026-10-08.md` (EV-6, complete).\n- The EV-8 probe is complete and fail-closed (`harness/fireworks_probe.py`): one-shot marker before any network call"
+},
+{
+"number": 303,
+"title": "fix(site-check): non-http(s) schemes in prose prompts bypass the scheme gate via extractor normalization (minor)",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 0,
+"body": "## Problem (minor)\n\n`site-check`'s https-only scheme gate only ever sees the *normalized* URL. When a target arrives inside a prose prompt with a non-http(s) scheme, the prompt extractor rewrites it to `https://` before validation, so the scheme refusal never fires for that input class \u2014 the refusal that does occur comes from a later, unrelated guard.\n\nFound during the 2026-10-20 full verification pass on main `dd83caf9`.\n\n## Evidence (verified live)\n\nGuard chain in `harness/web.py`:\n\n- `harness/web.py:535` \u2014 scheme gate: \"only https:// URLs are probed\" (verified: a direct `http://127.0.0.1:9` target is refused here).\n- `harness/web.py:537` \u2014 credentials-in-URL rejection (verified: `https://user:pass@example.com` refused cleanly).\n- `harness/web.py:512` \u2014 non-public-address refusal (verified for `https://127.0.0.1`).\n\nProbe: a prose prompt naming `ftp://example.com` was **not** refused for its scheme. The extractor normalized the target to `https://example.com` before the guard chain ran; the probe was then refused at `web.py:512` only because this VM's DNS resolves to non-public (fake-IP) addresses. On a host with normal public DNS, the same prompt would proceed to probe `https://example.com` \u2014 a defensible behavior, but currently it happens *incidentally*, not by a decision recorded anywhere, and the structured `deferred` result gives no hint the scheme was rewritten.\n\n## Desired end state\n\nPick one, and make the result honest about it:\n\n- **A (enforce):** the extractor pre"
+},
+{
+"number": 302,
+"title": "harden(apply): screen refusal/non-code model output at intake; stop crediting model health for missing-marker responses",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Problem\n\nOn the apply path, a model response that carries no `HARNESS_READY` marker is treated as a confident candidate \u2014 including when the response is not code at all (e.g. a safety-refusal string). The refusal class is not screened at intake, and the model is credited with a healthy result for it. Downstream gates caught the observed instance (zero bytes written), so this is intake hygiene + health-accounting correctness, not a breach \u2014 but the screening belongs at intake, where the other malformed-output classes are already handled.\n\nFound during the 2026-10-20 full verification pass on main `dd83caf9`.\n\n## Evidence (verified in code + observed live)\n\nIntake flow:\n\n- `harness/prompts.py:204-249` \u2014 `_parse_ready` returns `\"missing\"` when no marker is present. The treat-as-confident policy is deliberate and documented at `prompts.py:209-211` (\"treat as confident with a warning so the verify gate + DEFER backstop still protect us\").\n- `harness/apply_policy.py:424` \u2014 `ready, ready_reason, content = _parse_ready(content)`.\n- `harness/apply_policy.py:443-448` \u2014 the `ready == \"missing\"` branch logs `\"did not emit HARNESS_READY; treating as confident (verify + DEFER still guard)\"` and falls through with the raw content as the candidate.\n- `harness/apply_policy.py:441-442` \u2014 the response is recorded billable with status `\"ok\"`, and at `apply_policy.py:458` `_note_model_health(attempt_model, ok=True)` credits the model's health \u2014 for a response that may be a refusal.\n- `harness/"
+},
+{
+"number": 301,
+"title": "ci: driver_core is outside the ruff scope \u2014 dead import (F401) sits unseen on main",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 2,
+"body": "## Problem\n\n`driver_core/` is not covered by CI's ruff step, and it already carries a lint error on main that no gate can see.\n\nFound during the 2026-10-20 full verification pass on main `dd83caf9`.\n\n## Evidence (verified)\n\n- `.github/workflows/ci.yml` lint step runs `python -m ruff check harness tests examples/oc_handoff` \u2014 `driver_core` is absent from the path list (the audit job's ruff scope has the same gap).\n- Running ruff (0.17.1, repo config) over `driver_core` on pristine `dd83caf9` reports exactly 1 error: **F401 `.png.SIGNATURE` imported but unused** at `driver_core/osal.py:52` \u2014 `from .png import SIGNATURE as PNG_SIGNATURE, decodable as png_decodable`; `PNG_SIGNATURE` is referenced nowhere else in the package.\n- Corroborating detail: `driver_core/extractors.py:294` defines its own private copy (`_PNG_SIGNATURE = b\"\\x89PNG\\r\\n\\x1a\\n\"`) instead of importing the shared constant \u2014 the dead import at `osal.py:52` looks like the leftover of that split.\n\n## Desired end state\n\n- `driver_core` is added to the ruff path list in the CI lint step (and the self-audit's ruff scope, if it enumerates paths separately).\n- The dead import at `driver_core/osal.py:52` is removed (`decodable as png_decodable` stays \u2014 it is used).\n- Optionally (lane's call): `extractors.py:294` imports `SIGNATURE` from `.png` instead of duplicating the literal.\n\n## Notes\n\n- Related: #292 (driver-core v3.4.0 \u2192 v3.5.0 sync). Check whether v3.5.0 already drops the dead import; the CI scope change is the du"
+},
+{
+"number": 300,
+"title": "fix(driver_core): check_batch docstring overstates the irreversible-mix guarantee it enforces",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-11-03",
+"comments": 2,
+"body": "## Problem\n\nIn `driver_core` \u2014 the package's most safety-sensitive module \u2014 the `check_batch` docstring states a guarantee the implementation does not enforce. Anyone (or any future lane) trusting the documented contract gets weaker protection than documented.\n\nFound during the 2026-10-20 full verification pass on main `dd83caf9`.\n\n## Evidence (verified live)\n\n- `driver_core/actions.py:253-258` \u2014 `check_batch` docstring: \"Refuses a batch that mixes an irreversible action with anything else.\"\n- `driver_core/actions.py:262-269` \u2014 the implementation only refuses **more than one** irreversible action in the batch.\n- Live proof on `dd83caf9`: `check_batch([\"delete_file\", \"observe\"], v)` returned the batch **unchanged** \u2014 an irreversible action mixed with another action was accepted, contradicting the docstring.\n- `check_batch` currently has **no production caller**: the only exercise is `tests/test_driver_core/test_declarations.py:219`. Per-step irreversible consent is enforced separately in `driver_core/executor.py:331-336`, and `Driver.step` takes one decision per step \u2014 which is why the impact is low today. The risk is the documented contract being relied on when a batch path is wired up later (see #270-#273).\n\n## Desired end state (either option closes this; option A preferred)\n\n- **A (enforce the contract):** `check_batch` refuses any batch mixing an irreversible action with any other action, matching its docstring, and the function is called from the driver's batch/plan path"
+},
+{
+"number": 299,
+"title": "fix(server): cap POST body size before reading \u2014 return 413 over the limit",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Problem\n\nThe GUI server's POST handler reads the entire request body into memory with no size limit. On a `ThreadingHTTPServer`, concurrent oversized bodies multiply memory use; a token holder (or any local process, if the token ever leaks) can force the server to buffer and JSON-parse arbitrarily large payloads.\n\nFound during the 2026-10-20 full verification pass on main `dd83caf9`.\n\n## Evidence (verified live)\n\n- `harness/server.py:1303-1304` \u2014 `n = int(self.headers.get(\"Content-Length\") or 0)` followed by `body = json.loads(self.rfile.read(n) ...)`: the full declared body is read with **no maximum**.\n- Repro: `curl -X POST -H \"X-Harness-Auth: <token>\" --data-binary @<64MB JSON file> /api/chat` \u2192 the server read and parsed all 64MB in ~0.5s and rejected only on field validation (`\"'prompt' is required\"`, HTTP 400). A 6MB body behaved identically. Expected: reject oversized bodies with HTTP 413 **before** reading.\n- `harness/server.py:1856` \u2014 `UiServer` is a `ThreadingHTTPServer`, so concurrent oversized POSTs multiply the buffered memory.\n\nMitigating context (why this is low severity, not critical): the bind is loopback-only with a FATAL exit for non-loopback hosts (`harness/server.py:1905`), and the auth guard (`harness/server.py:1300`) runs **before** the body read, so an unauthenticated remote cannot reach it. Practical exposure: a token holder or a local process.\n\n## Desired end state\n\n- `do_POST` rejects any request whose declared `Content-Length` exceeds a sane cap"
+},
+{
+"number": 295,
+"title": "[burndown] TRACKER: full completion burndown \u2014 all remaining work, waved and ordered",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-11-03",
+"comments": 56,
+"body": "# TRACKER \u2014 Full completion burndown (opened 2026-10-20)\n\nOperator directive: every remaining piece of harness work is filed, ordered, and landed until the board is empty. Canon stays `docs/jev-roadmap.md` (the 2026-10-20 burndown section there mirrors this tracker). One PR at a time, green CI merges, no direct pushes to main.\n\n**State at open:** main `0c4210f3` (#274 merged), 0 open PRs, full suite 4,737 tests green, live keyed bench verified (9/9 tasks, $0.00 tracked, 1.56 mean verify rounds).\n\n## Wave 0 \u2014 unblock the measurement (do first, in order)\n- [ ] #276 fix(audit): D12 coverage vs merge-base; S5 disposition \u2014 *the manual baseline refresh recurs on every cross-merge PR until this lands; the 95% bar stays, fix the measurement*\n- [ ] #277 dogfood round 2, structured (filed report, GUI/MCP/website weighted) \u2014 *explicitly after #276*\n\n## Wave 1 \u2014 defects & quick wins (parallel-safe, one PR each)\n- [ ] #278 unified external-tool resolution + preflight (bare-`python` gate defect, HIGH)\n- [x] #279 `harness doctor` environment preflight\n- [ ] #287 CI cancel-in-progress + paths filters\n- [ ] #290 hermetic/audit triage runbook (docs)\n- [ ] #284 MCP tool-description lint\n- [ ] #286 MCP structured logging + additive-only versioning policy\n\n## Wave 2 \u2014 computer control (behind flag HARNESS_NL_CONTROL, default off)\n- [ ] #270 launch_app action *(no deps)*\n- [ ] #271 NL planner *(parallel with #270)*\n- [ ] #272 vision verification *(needs #270)*\n- [ ] #273 GUI wiring /driver/nl + c"
+},
+{
+"number": 294,
+"title": "[provider-onboarding] Completion: pane browser test, 50 live key validations, verifier sweep, final Jev gate",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## State\nAll four build phases are complete on local branch `feat/provider-onboarding-phase1` (63 tests green, all flags default OFF; canon row PROV-ONBOARD; plan of record `plan-v12`). No PR has been opened. What remains is the evidence work that the final gate needs \u2014 the gate has been attempted twice and failed honestly (0.58, then 0.28) purely on missing live/UI evidence.\n\n## Remaining steps\n- [ ] Browser test of the providers pane (`harness/ui/panes/providers.js`)\n- [ ] 50 live key validations \u2014 zero keys logged or persisted outside credential storage\n- [ ] Live verifier sweep against real provider pages\n- [ ] Final full-feature Jev gate at \u22650.90 with that evidence attached\n- [ ] Only then: PR for the branch, and the router flag flip \u2014 **the flag flip is an operator decision**, this issue does not authorize it\n\n## Acceptance criteria\nAll four steps evidenced; gate score recorded on this issue either way (a failed gate with evidence is a result, not a blocker to hide).\n\n## Estimate: evidence/execution task. Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-"
+},
+{
+"number": 292,
+"title": "[driver-core] Sync vendored driver_core v3.4.0 to standalone v3.5.0 + CI drift check",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-11-03",
+"comments": 2,
+"body": "## State (verified 2026-10-19)\nThe harness vendors `driver_core/` at **v3.4.0**. The standalone repo `Sovereign-Communication/driver-core` is at **v3.5.0** (2026-10-06: Jev audit infrastructure + semantic repairs \u2014 no new capabilities). The vendored copy will keep drifting silently without a check.\n\n## Acceptance criteria\n- [ ] Vendored copy synced to v3.5.0 with a diff summary on this issue (what actually changed)\n- [ ] Full hermetic suite green on the synced copy; driver audit passes\n- [ ] CI (or audit) check compares vendored version against the standalone release and fails on drift\n- [ ] The sync procedure is documented in one place (script or runbook section) so the next sync is mechanical\n\n## Estimate: ~50 LoC plus the synced delta. Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 292; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate is"
+},
+{
+"number": 291,
+"title": "[refine] Execute the Phase 0 pilot: 20 cycles (TIER 2 only, no auto-merge)",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## State (verified 2026-10-19)\nThe refine loop shipped in PR #240 and `harness refine --status` reports the Phase 0 pilot **ACTIVE with 0 of 20 cycles run**, 5 seed lessons, 8 task families. The scaffold is done; the pilot itself has never executed.\n\n## Scope\nRun the 20 pilot cycles under the Phase 0 rules already in code: TIER 2 changes only, Jev rubric gating, regression gate on held-out tasks, **no auto-merge, ever**. Record every outcome through the existing CLI.\n\n## Acceptance criteria\n- [ ] 20/20 cycles executed and recorded (`harness refine --status` shows the pilot complete)\n- [ ] Every cycle outcome recorded with its Jev rubric scores and gate results\n- [ ] Graduation criteria from the #239 plan evaluated against the results and the verdict written up (issue comment or docs receipt)\n- [ ] Zero auto-merges; any TIER 0/1 proposal surfaced for human approval, not applied\n\n## Estimate: execution task (LoC only if pilot fixes are needed, filed separately). Canon: REFINE-LOOP row, docs/jev-roadmap.md. Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-researc"
+},
+{
+"number": 290,
+"title": "[docs] Hermetic/audit triage runbook: environment failures vs real failures",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-31",
+"comments": 4,
+"body": "## Problem (root-caused 2026-10-19/20, currently tribal knowledge)\nLocal audit/test failures on a fresh machine are usually **environment**, not code \u2014 but they present identically to real failures: missing `python` alias on PATH (gates shell out to bare `python`), missing ruff for the system interpreter (S5), ambient keys leaking into a supposedly hermetic run. CI (setup-python + dev extras) is authoritative.\n\n## End state\nA runbook in the repo docs: symptom \u2192 likely environmental cause \u2192 the one check that distinguishes it \u2192 the fix. So the next operator triages in minutes instead of re-deriving it.\n\n## Acceptance criteria\n- [ ] Covers at minimum: bare-`python` gate failures, S5 ruff resolution, R13 hermetic-environment leaks, D12 baseline staleness (cross-ref #276)\n- [ ] Each entry names the distinguishing check and its expected output in both worlds (env-broken vs code-broken)\n- [ ] Linked from the audit/contributor docs where a triaging operator will actually look\n\n## Estimate: docs only. Related: #276 (D12 measurement), #278 (unified tool resolution). Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap."
+},
+{
+"number": 289,
+"title": "[build] Migrate dependency management to uv (old requirements stay until uv CI is green)",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Scope (triangulation batch item 8, approved 2026-10-19)\nMigrate the project's dependency workflow to `uv`.\n\n## Guardrails (from the approval)\n- Keep the old requirements files in place until the uv-based CI is green end to end\n- If uv CI goes red and cannot be made green within the PR, revert \u2014 the migration is worthless if it destabilizes the lane\n\n## Acceptance criteria\n- [ ] uv lockfile + pyproject-driven install path works locally and in CI\n- [ ] Full CI green on the uv path before old requirements files are removed\n- [ ] Hermetic suite results identical pre/post migration (same test count, same skips)\n- [ ] Rollback note in the PR: exactly how to revert if a later regression traces to the migration\n\n## Estimate: workflow PR (config/lockfile, minimal code). Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 289; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel p"
+},
+{
+"number": 286,
+"title": "[mcp] Structured file logging + additive-only tool versioning policy",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Scope (triangulation batch item 5, approved 2026-10-19)\nTwo parts:\n1. Structured logging for MCP tool calls \u2014 tool name, args (secret-scanned), success/failure \u2014 written to a **file**. stdio is the transport and must never carry log lines.\n2. Additive-only tool versioning policy: tool schemas may gain optional fields; removing/renaming/retyping requires a new tool name. Written down where MCP contributors will find it.\n\n## Acceptance criteria\n- [ ] Log records are structured (JSON lines), one per call, with outcome and duration\n- [ ] Args pass the existing secret scan before hitting disk; a planted secret in args does not appear in the log (test)\n- [ ] Nothing is written to stdout by the logging path (test asserts stdio purity)\n- [ ] Versioning policy documented in the MCP docs/module docstring\n\n## Estimate: ~30 LoC + policy text. Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 286; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependen"
+},
+{
+"number": 285,
+"title": "[mcp] Agent-eval layer: tool selection/chaining scored by pass-rate",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Scope (triangulation batch item 4, approved 2026-10-19)\nAn eval layer that exercises an agent against the MCP surface: given task prompts, does it select the right tool and chain multi-step calls correctly? Scored as a **pass rate against a threshold**, not a boolean \u2014 partial competence is information, not failure noise.\n\n## Acceptance criteria\n- [ ] Declared eval set (prompts + expected tool/chains) checked into the repo\n- [ ] Runner reports per-case and aggregate pass rate; threshold configurable, default recorded in the run output\n- [ ] Hermetic mode (recorded/fake transport) runs in CI; live mode is opt-in and reports model + cost\n- [ ] A deliberately wrong tool expectation fails its case (negative control)\n\n## Estimate: ~200 LoC. Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 285; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate is"
+},
+{
+"number": 284,
+"title": "[mcp] Tool-description lint: When/What-in/What-out formula, wired into driver_core audit",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Scope (triangulation batch item 3, approved 2026-10-19)\nEvery MCP tool description follows one formula \u2014 **When** to use it, **What** goes in, **What** comes out \u2014 enforced by a lint wired into `driver_core/audit.py` so a non-conforming description fails the audit instead of drifting silently.\n\n## Acceptance criteria\n- [ ] Lint checks every registered MCP tool description against the formula\n- [ ] Existing descriptions brought into conformance in the same PR\n- [ ] Audit fails on a deliberately non-conforming description (negative control test)\n- [ ] No tool behavior changes \u2014 descriptions and the lint only\n\n## Estimate: ~30 LoC. Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 284; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 283,
+"title": "[gui-tests] Jest tests for IPC handlers / main-process logic",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Scope (triangulation batch item 2, approved 2026-10-19)\nUnit-test the GUI's IPC handlers / main-process logic with Jest.\n\n## Dependency\nSequenced after the Playwright smoke issue's runtime-surface finding. If no Electron main process exists, rescope to the equivalent server-side handlers and record the disposition on this issue \u2014 do not invent an Electron layer to test.\n\n## Acceptance criteria\n- [ ] Handler inventory taken from the code (not assumed); each handler has at least one behavior test\n- [ ] Error/edge paths covered (malformed payload, unknown channel, handler throw)\n- [ ] Runs in CI hermetically alongside the existing suite\n\n## Estimate: ~100 LoC. Part of the 2026-10-20 completion burndown (tracker issue filed alongside; canon: docs/jev-roadmap.md).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 283; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 281,
+"title": "[bench] Published benchmark evidence via Proof Bench pipeline",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Problem\nThe harness claims quality (verification, calibration, gate discipline) but publishes no reproducible evidence. A bench suite exists (bench/tasks + bench/manifests/efficiency) and a fail-closed site-export pipeline exists (-> Proof Bench public site), but no scheduled bench run feeds it.\n\n## End state\nA scheduled bench run over the declared manifests produces a verified, sanitized results bundle (per-task completion, verify rounds, per-model calibration deltas, tracked cost) exported through the existing site-export path to the Proof Bench \u2014 quality claims become reproducible artifacts anyone can re-run.\n\n## Acceptance criteria\n- [ ] Bench runner emits a versioned results JSON (manifest hash, harness version, timestamp, per-task outcomes, cost)\n- [ ] site-export accepts the results bundle (consent + chain verify + secret scan unchanged)\n- [ ] A documented one-command local reproduction: same manifest -> comparable results\n- [ ] First published run covers bench/tasks (9 tasks) on the free tier with tracked cost reported\n\n## Estimate: ~180 LoC (mostly wiring; bench + export already exist).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d)"
+},
+{
+"number": 280,
+"title": "[efficiency] Calibration-driven first-rung selection + earlier rotation",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 3,
+"body": "## Problem (measured live, 2026-10-20)\nA trivial bench task (fizzbuzz) took mean 5.0 verify rounds; the first free model sampled succeeded 1/3 of the time (openrouter/free success_rate 0.333 over its samples) while the harness already records per-model calibration (success, structured-output quality, gate-wasted runs) that routing does not fully exploit. Rounds on the free tier cost latency and gate executions even at $0.\n\n## End state\nFirst-rung selection for a task class is driven by recorded calibration for that class (structured-output success weighted for apply tasks); a model that returns unusable/ill-structured output rotates out after 1 sample instead of a full round budget.\n\n## Acceptance criteria\n- [ ] Routing consults calibration history when it exists (falls back to the current ladder when it does not)\n- [ ] Structured-output failure rotates after 1 sample (configurable), recorded in the ledger as its own reason\n- [ ] Bench task set (bench/tasks, 9 tasks) mean verify rounds improves vs the 2026-10-20 baseline (5.0 for fizz) with no completion-rate regression\n- [ ] Calibration influence is visible in `route` output reasons (operator can see why a rung was picked)\n\n## Estimate: ~150 LoC. Baseline evidence: bench run 2026-10-20 (completions via rotation at $0.00 tracked cost).\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix "
+},
+{
+"number": 277,
+"title": "dogfood: structured round 2 - checklist pass with filed report (GUI/MCP/website weighted)",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-31",
+"comments": 3,
+"body": "## Problem\nThe owner-launched dogfood round on 2026-10-19 produced exactly one find - PR #274 (request continuation losing prompt/candidate/context after cancellation, now merged) - and stopped there. Verified gaps from that round:\n\n- No mission report exists anywhere (repo, issues, or lane thread). There is no surface-by-surface record of what was exercised.\n- The GUI click-through, MCP tool-by-tool exercise, and website verification in the mission scope have no evidence of being performed.\n- The open-ended dogfood-until-zero-issues form collapsed into its first find. That form is not to be relaunched.\n\n## End state\nOne structured round: a checklist-driven pass with a FILED report (issue comment or doc in audits/self/dogfood/) with one section per surface - CLI, GUI, MCP, website - each section listing what was exercised, what was found, and what was fixed or filed. Weight the pass toward GUI, MCP, and website, the surfaces round 1 never evidenced.\n\n## Checklist shape (per surface)\n- CLI: every command incl. help text, error paths, exit codes on bad input.\n- GUI: launch, every pane, every primary interaction; record any dead control or stale state.\n- MCP: every tool/resource exercised via a real MCP client; verify each tools description matches its actual behavior.\n- Website: every page loads; content matches current product reality (commands, flags, versions).\n\n## Acceptance criteria\n- The report exists and covers all four surfaces with per-surface findings (an explicit no-"
+},
+{
+"number": 275,
+"title": "Hourglass/HUL: integrate Freebuff mission-mode findings (full dossier)",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "Operator-commissioned dossier (Lucas, 2026-10-19): Freebuff's desktop mission mode reverse-engineered from the shipped app so Hourglass can absorb its lessons and match its capabilities. Full text below; also saved on the operator box at `~/workspace/freebuff-re/freebuff-mission-dossier.md`, evidence in `~/workspace/freebuff-re/desktop/` + `~/workspace/freebuff-re/modules/`.\n\n---\n\n# Dossier \u2014 Freebuff \"Mission\" Mode, Reverse-Engineered from the Shipped Product\n\n**Purpose:** give the harness lane everything verified about Freebuff's\nmission feature so Hourglass (harness's mission/driver system) can absorb\nits lessons and match its capabilities. Prepared 2026-10-19 by the\noperator's agent from primary sources, at Lucas's direction.\n\n**Provenance & confidence.** Everything in \u00a71\u2013\u00a73 is read from the shipped\nFreebuff Desktop build itself: Linux AppImage downloaded from\nfreebuff.com (`/api/desktop/download/linux-appimage`), desktop app\nv0.0.182 (Electron), agent runtime in `resources/orchestrator/orchestrator.js`\n(11 MB Bun bundle, module paths preserved). Key modules:\n`src/shared/mission-prompt.ts`, `src/shared/mission.ts`,\n`src/server/services/mission.ts`. The CLI was also analyzed (npm\n`freebuff` 0.2.30, binary checksum-verified against the package manifest):\n**the CLI has no mission mode at all** \u2014 the feature exists only in the\ndesktop GUI. Public documentation: none exists (official blog/docs/repos,\nReddit, X, Product Hunt, YouTube, changelog mirrors all searched \u2014\nnothing na"
+},
+{
+"number": 273,
+"title": "[driver] GUI wiring: /driver/nl endpoint + confirmation card",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-11-03",
+"comments": 2,
+"body": "## Problem\nGUI has driver event handlers but no text-input \u2192 driver path. No way to type a command and run it.\n\n## End state\nUser types command in GUI, confirms plan, watches execution.\n\n## Acceptance criteria\n- [ ] `POST /driver/nl` endpoint in `harness/server.py`\n- [ ] Auth: existing DRIVER_TOKEN (Bearer header); 401 without token\n- [ ] Two-step flow: POST without confirm returns plan; POST with `confirm:true` executes\n- [ ] Returns 400 without confirm flag (no auto-execution)\n- [ ] Confirmation card in GUI showing each step + params + class\n- [ ] Explicit [Run Plan] click required (no keyboard shortcut)\n- [ ] Live step status via existing `driver_step_*` events\n- [ ] [Cancel] anytime stops remaining steps\n- [ ] Card renders within 500ms of plan receipt\n- [ ] Tests: auth, confirm-required, event streaming\n- [ ] Feature flag: `HARNESS_NL_CONTROL` (default off); 404 when off\n\n## Depends on: #1, #2, #3\n## Estimate: ~250 LoC\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 273; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering "
+},
+{
+"number": 272,
+"title": "[driver] Vision verification for computer control",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-11-03",
+"comments": 2,
+"body": "## Problem\nAfter launching an app, nothing confirms it's actually visible. Vision tier exists but Jev integration is unconfirmed.\n\n## End state\nDriver verifies app visibility via screenshot + Jev before proceeding.\n\n## Acceptance criteria\n- [ ] After `launch_app`: capture via ScreenSource\n- [ ] Jev prompt: \"Is the application '{app_name}' visible and focused?\" (threshold 0.85)\n- [ ] Check at 2s, 5s; escalate to user on timeout\n- [ ] After `type_text`: Jev verifies text appears in screenshot\n- [ ] Screenshot capture within 2s, Jev verdict within 5s\n- [ ] Tests: mock Jev true/false, timeout escalation\n- [ ] Advisory only \u2014 driver works without vision when flag off\n\n## Depends on: #1 (launch_app)\n## Estimate: ~200 LoC\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 272; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 271,
+"title": "[driver] NL planner: natural language to action plan",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-10-28",
+"comments": 1,
+"body": "## Problem\nThe driver takes structured Targets, not English. Nothing decomposes \"open notepad and type hello world\" into executable actions.\n\n## End state\n`harness/nl_planner.py` converts natural language to validated action plans.\n\n## Acceptance criteria\n- [ ] `def plan(user_input: str) -> list[dict]` returns `[{\"action\": str, \"params\": dict}]`\n- [ ] Prompt template instructs LLM to output ONLY JSON array of valid actions\n- [ ] Validates every action against vocabulary; raises on undeclared action\n- [ ] Validates every param is declared for that action\n- [ ] LLM call timeout: 10s\n- [ ] Tests: valid plan for \"open notepad\", rejects invented action, handles empty input\n- [ ] Feature flag: `HARNESS_NL_CONTROL` (default off)\n\n## Depends on: #1 (launch_app) for full e2e, but can land in parallel\n## Estimate: ~150 LoC\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance contract for 271; keep its deliverable and issue-specific evidence here, and update the roadmap when a cross-issue dependency, ordering rule, or shared gate changes. Do not maintain a parallel plan or file a duplicate issue for the same finding.\r\n"
+},
+{
+"number": 270,
+"title": "[driver] Add launch_app action to vocabulary",
+"labels": [],
+"created": "2026-10-20",
+"updated": "2026-11-03",
+"comments": 2,
+"body": "## Problem\nThe driver_core vocabulary has no way to launch an application. `type_text`, `click`, `focus` exist, but nothing opens a program. This blocks \"control my computer\" scenarios.\n\n## End state\n`driver_core` can launch a declared application by name via a new `launch_app` action.\n\n## Acceptance criteria\n- [ ] `Action(\"launch_app\", MUTATING, \"launch_app\", (\"app_name\",), ...)` added to `_declare()` in `driver_core/actions.py`\n- [ ] `execute_launch_app(app_name: str)` in `driver_core/executor.py` with OS dispatch:\n  - Windows: `subprocess.Popen([\"cmd\", \"/c\", \"start\", \"\", app_exe])`\n  - macOS: `subprocess.Popen([\"open\", \"-a\", app_name])`\n  - Linux: `subprocess.Popen([\"xdg-open\", app_desktop])`\n- [ ] `APP_ALLOWLIST` in `driver_core/config.py` (code-declared, not user-editable)\n- [ ] Process spawn timeout: 3s or fail\n- [ ] Rejects unlisted apps with clear error\n- [ ] Tests: allowlist rejection, timeout, per-OS dispatch (mocked)\n- [ ] Feature flag: `HARNESS_NL_CONTROL` (default off)\n\n## No dependency on Harness\u00b2 code (pattern only)\n## Estimate: ~200 LoC\r\n\r\n---\r\n\r\n<!-- canonical-plan-sync:pr-431 -->\n### Canonical cross-issue plan (2026-10-28)\nThe shared execution order, dependencies, research/retrieval policy, and system-wide acceptance matrix are maintained in the [canonical roadmap PR #431](https://github.com/Sovereign-Communication/harness/pull/431) (docs/jev-roadmap.md, \u201cCanonical reconciliation and verified web-research plan\u201d). This issue remains the scoped acceptance cont"
+}
+]
