@@ -651,8 +651,12 @@ class CaptureHand:
         state = session_state(self._probe)
         if state == LOCKED:
             # The LOCK RULE: this branch returns before any reader runs.
-            # Nothing below this line touches pixels while locked.
-            return self._answer(rid, kind, state, None, None, LOCKED_DETAIL)
+            # Nothing below this line touches pixels while locked. The seat
+            # still travels with the answer: which identity was refused is
+            # part of the record even when the machine, not the asker, is the
+            # reason.
+            return self._answer(rid, kind, state, None, None, LOCKED_DETAIL,
+                                seat=seat, grant=grant_id)
         if kind == "describe":
             fields, detail = self._safe_describe()
             return self._answer(rid, kind, state, None, fields, detail,
@@ -676,7 +680,8 @@ class CaptureHand:
             return self._answer(
                 rid, kind, state, None, None,
                 f"the hand's clock returned {stamp!r}; the frame could not "
-                "be stamped, so no frame is offered")
+                "be stamped, so no frame is offered",
+                seat=seat, grant=grant_id)
         if path and self._require_grant:
             # Spent only now: the grant bought a frame, and a frame exists.
             consume_grant(self._root, grant_id, now=self._clock())

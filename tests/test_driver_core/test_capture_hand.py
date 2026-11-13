@@ -422,6 +422,16 @@ class HandStampTests(unittest.TestCase):
         self.assertIsNone(result[capture_hand.FRAME_FIELD])
         self.assertIsNone(result["path"])
 
+    def test_a_locked_answer_still_names_the_seat_that_asked(self):
+        # The machine is the reason for the refusal, but the record still
+        # says which identity was refused -- an audit of a lock should not
+        # lose the asker.
+        hand = self._hand(lambda: 500.0, state=LOCKED)
+        post_capture_request(self.root, "s6", "capture", seat="driver")
+        result = hand.poll_once()
+        self.assertIn("locked", result["detail"])
+        self.assertEqual(result["seat"], "driver")
+
     def test_an_undatable_clock_offers_no_frame(self):
         hand = self._hand(lambda: "soon")
         post_capture_request(self.root, "s4", "capture")
