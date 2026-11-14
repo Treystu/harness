@@ -111,11 +111,27 @@ request still carries consent for exactly `(focus, {"target": <title>})`, and
 The default window operations are bound per instance from `user32`; a machine
 that is not Windows refuses by name rather than failing at import.
 
-The backend does not click, type, press keys, scroll or submit: the declared
-parameters for those actions do not identify a sufficiently bounded target.
-Those actions continue to refuse until an embedding application supplies a
-backend that supports them. `DRIVER_SCREEN` remains a separate opt-in for
-screen capture and is not enabled by native input.
+The backend does not click, type, press keys, scroll or submit. Those
+actions continue to refuse until an embedding application supplies a backend
+that supports them, and the reason each of them refuses is that its declared
+parameters do not yet identify a sufficiently bounded target.
+
+`click` and `submit_irreversible` now have the target half of that cure
+(#481). A target is either an exact window title -- the legacy form, still
+accepted and still resolved to itself, reported as *unbounded* -- or a
+bounded record `{"window": <exact title>, "rect": [x, y, width, height]}` in
+the window's client coordinates, resolved by `driver_core/targeting.py` to
+one canonical `target@1` record. Normalisation happens before the consent
+check, so the operator consents to the exact window and the exact rectangle
+that will be used, and a consent for one rectangle does not authorise another.
+A malformed or out-of-bounds rectangle is refused by name rather than trimmed.
+Because no in-repo backend implements `click` or `submit_irreversible` yet,
+both actions still refuse at the backend gate after a target resolves.
+`type_text`, `press_key` and `scroll` remain unbounded: their text, key and
+direction models are not declared, so they have no bounded form to name.
+
+`DRIVER_SCREEN` remains a separate opt-in for screen capture and is not
+enabled by native input.
 
 Every permitted action still requires consent for its exact action and
 parameters. The service creates its native backend per driver, so one driver
