@@ -155,6 +155,11 @@ class ProviderClientBlockedTests(unittest.TestCase):
             429, {"error": {"message": "error code: 1010"}}))
         self.assertIsNone(edge_block_error(403, {"ok": True}))
 
+    def test_non_integer_status_is_not_a_block(self):
+        flagged = {"error": {"message": "error code: 1010"}}
+        self.assertIsNone(edge_block_error("blocked", flagged))
+        self.assertIsNone(edge_block_error(None, flagged))
+
 
 class SecretRedactionTests(unittest.TestCase):
     def test_redact_secrets_strips_api_keys(self):
