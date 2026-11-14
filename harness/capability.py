@@ -971,21 +971,33 @@ def cost_per_capability(profile, endpoints=None, *, benchmark_rows=None,
     # usage.cost fields (settled, summed here per canonical model) -- not
     # from stale catalog snapshots -- and billed-but-unusable responses
     # recorded at $0 surface as governor unknown liability, not ledger
-    # spend, so they cannot inflate this ratio.
+    # spend, so they cannot inflate this ratio. Successes sum across
+    # calibration rows sharing that canonical id (calibration is keyed
+    # by raw variant), so both sides describe the same observations.
     measured_spend = 0.0
     measured_successes = 0
     measured_usd_per_success = None
     if ledger is not None:
+        canonical = _canonical_model_id(model_id)
         measured_spend = round(
-            measured_spend_by_model(ledger).get(
-                _canonical_model_id(model_id), 0.0), 6)
-        cal_row = (report or {}).get("calibration", {}).get(model_id, {})
+            measured_spend_by_model(ledger).get(canonical, 0.0), 6)
         successes_key = ("structured_pass" if task == "structured"
                          else "success_pass")
-        try:
-            measured_successes = max(0, int(cal_row.get(successes_key) or 0))
-        except (TypeError, ValueError):
-            measured_successes = 0
+        # Calibration is keyed by raw variant model id while spend sums
+        # per canonical model: aggregate successes across every
+        # calibration row sharing this canonical id so both sides
+        # describe the same observations.
+        for cal_model, cal_row in (
+                (report or {}).get("calibration") or {}).items():
+            if not isinstance(cal_row, dict):
+                continue
+            if _canonical_model_id(cal_model) != canonical:
+                continue
+            try:
+                measured_successes += max(
+                    0, int(cal_row.get(successes_key) or 0))
+            except (TypeError, ValueError):
+                continue
         if measured_successes > 0 and measured_spend > 0.0:
             measured_usd_per_success = round(
                 measured_spend / measured_successes, 6)

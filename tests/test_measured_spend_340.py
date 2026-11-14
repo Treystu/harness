@@ -162,6 +162,92 @@ class SelectorMeasuredTests(unittest.TestCase):
         self.assertIsNone(res["measured_usd_per_success"])
 
 
+class CarriedEstimateProvenanceTests(unittest.TestCase):
+    def test_carried_cost_estimated_row_is_estimated_not_measured(self):
+        # Upstream synthesis (chat._ensure_accounted flags
+        # usage.cost_estimated; the fireworks probe carries cost_estimated
+        # onto the ledger row) arrives as a plain billable_cost value but
+        # is still an estimate, not provider-settled spend.
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = AutonomyLedger(os.path.join(tmp, "ledger.jsonl"))
+            ledger.append("offer", task_id="t1", model="paid/model-x")
+            ledger.append(
+                "model_result", task_id="t1", model="paid/model-x",
+                billable_cost=0.0012, cost=0.0009, cost_estimated=True)
+            ledger.append(
+                "model_result", task_id="t1", model="paid/other",
+                cost=0.0005)
+            ledger.append("complete", task_id="t1", model="paid/model-x")
+            rep = ledger.cost_report()
+            # Hand trace: billable_cost preferred over cost, so 0.0012
+            # lands in estimated_cost; 0.0005 settled stays measured;
+            # total stays all-in at 0.0017 and the success metric reads
+            # measured only (one verified lane from the complete row).
+            self.assertAlmostEqual(rep["total_cost"], 0.0017, places=6)
+            self.assertAlmostEqual(rep["measured_cost"], 0.0005, places=6)
+            self.assertAlmostEqual(rep["estimated_cost"], 0.0012, places=6)
+            self.assertEqual(rep["cost_estimated_calls"], 1)
+            self.assertAlmostEqual(
+                rep["total_cost"] - rep["measured_cost"],
+                rep["estimated_cost"], places=6)
+            self.assertEqual(rep["rolling"]["verified_lanes"], 1)
+            self.assertAlmostEqual(
+                rep["rolling"]["cost_per_verified_lane"], 0.0005, places=6)
+
+
+class CanonicalSuccessAggregationTests(unittest.TestCase):
+    def _entries(self):
+        return [
+            {"event": "model_result", "task_id": "t1",
+             "model": "paid/model-x", "cost": 0.001, "billable_cost": 0.001},
+            {"event": "model_result", "task_id": "t2",
+             "model": "paid/model-x:free", "cost": 0.0},
+            {"event": "model_result", "task_id": "t3",
+             "model": "paid/model-x", "cost": 0.003},
+        ]
+
+    def test_successes_sum_across_canonical_variants(self):
+        # Spend sums per canonical id (0.001 + 0.003 = 0.004) while
+        # calibration is keyed by raw variant: 2 + 1 = 3 successes.
+        # Hand trace: 0.004 / 3 = 0.001333... -> round 6.
+        report = {"calibration": {
+            "paid/model-x": {"success_pass": 2, "success_fail": 1},
+            "paid/model-x:free": {"success_pass": 1, "success_fail": 0},
+            "paid/model-x:nitro": None,
+            "paid/other": {"success_pass": 9, "success_fail": 0},
+        }}
+        res = cost_per_capability(
+            _profile(), None, report=report,
+            ledger=self._entries(), lane="apply")
+        self.assertAlmostEqual(res["measured_spend"], 0.004, places=6)
+        self.assertEqual(res["measured_successes"], 3)
+        self.assertAlmostEqual(
+            res["measured_usd_per_success"], 0.001333, places=6)
+
+    def test_structured_successes_sum_across_variants(self):
+        # Judge lane reads structured_pass under the same canonical sum.
+        report = {"calibration": {
+            "paid/model-x": {"structured_pass": 1, "structured_fail": 0},
+            "paid/model-x:floor": {
+                "structured_pass": 2, "structured_fail": 1},
+        }}
+        res = cost_per_capability(
+            _profile(), None, report=report,
+            ledger=self._entries(), lane="judge")
+        self.assertAlmostEqual(res["measured_spend"], 0.004, places=6)
+        self.assertEqual(res["measured_successes"], 3)
+        self.assertAlmostEqual(
+            res["measured_usd_per_success"], 0.001333, places=6)
+
+    def test_missing_report_yields_zero_successes(self):
+        res = cost_per_capability(
+            _profile(), None, report=None,
+            ledger=self._entries(), lane="apply")
+        self.assertAlmostEqual(res["measured_spend"], 0.004, places=6)
+        self.assertEqual(res["measured_successes"], 0)
+        self.assertIsNone(res["measured_usd_per_success"])
+
+
 class GovernedZeroCostLiabilityTests(unittest.TestCase):
     def _gov(self, preflight_outcome=(0.004, [])):
         gov = mock.Mock()
