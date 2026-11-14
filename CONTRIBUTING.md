@@ -265,6 +265,7 @@ cheap; losing either is not.
 | `harness/jev.py` | TypeSafe AI Jev / System One structural verification client with local AST and diff fallbacks |
 | `harness/jev_packs.py` | JEV-P3 utilization packs and pure helpers (route vocabulary, file-relevance/claim/completion nouls, context pack, artifact facts) — no second Jev client |
 | `harness/jev_policy.py` | shared Jev decision policy: bounded packs, spend preflight, ledger evidence, and structural envelopes |
+| `harness/adjudication.py` | #453 typed adjudication contract v1: per-claim REAL/NOT_REAL/DEFER verdicts from support/risk against decided thresholds, lexicographic 5-rule aggregation to final PASS/FAIL/DEFER, NON-JEV FALLBACK labeling, advisory inputs structurally unable to override |
 | `harness/simple_request.py` | #207 bounded simple-answer helpers: stable no-tool question boundary, relevant-history slice, prompt builder, and deterministic clock answers; generated answers receive Jev review through the agent |
 | `harness/jev_completion.py` | phase-completion dogfood gate: hard mechanical gates + Jev 0-100 semantic score; STATUS complete only when `can_mark_complete` and score ≥ 85 (`harness jev-phase`) |
 | `harness/jev_calibration.py` | Jev judgment calibration analysis: confidence distribution, per-disposition breakdown, destructive-flag count, and a documented threshold recommendation (measurement only, no active threshold is changed) |
