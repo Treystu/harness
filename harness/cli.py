@@ -2166,7 +2166,7 @@ def _cmd_overlay(opts, settings):
     command, a cwd outside the scratch -- raise HarnessError before anything
     runs, so a mistyped overlay cannot pass as a green suite.
     """
-    command = list(getattr(opts, "command", None) or [])
+    command = list(getattr(opts, "argv", None) or [])
     if command[:1] == ["--"]:
         command = command[1:]
     result = run_overlay(

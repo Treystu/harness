@@ -1549,6 +1549,36 @@ class PlanPausedAssistanceTests(unittest.TestCase):
                              "do the thing")
 
 
+class OverlayCliDispatchTests(unittest.TestCase):
+    """Regression for #521: the overlay subcommand never reached its handler."""
+
+    def test_overlay_parses_subcommand_name_and_its_own_argv(self):
+        from harness.cli_parser import build_parser
+        opts = build_parser().parse_args(
+            ["overlay", "--base", "B", "--overlay", "O", "--", "python", "-c", "print(1)"])
+        self.assertEqual(opts.command, "overlay")
+        self.assertEqual(opts.argv, ["--", "python", "-c", "print(1)"])
+
+    def test_overlay_dispatch_reaches_the_handler_with_the_trailing_argv(self):
+        from types import SimpleNamespace
+        captured = {}
+
+        def fake_run_overlay(base, overlay, command, cwd=None, timeout=None,
+                             keep_scratch=False):
+            captured.update(base=base, overlay=overlay, command=command)
+            return {"ok": True, "exit": 0}
+
+        with mock.patch.object(cli, "load_settings", return_value=SimpleNamespace()), \
+             mock.patch.object(cli, "run_overlay", fake_run_overlay), \
+             mock.patch.object(cli, "_emit", lambda *a, **k: None), \
+             self.assertRaises(SystemExit) as ctx:
+            cli.main(["overlay", "--base", "B", "--overlay", "O",
+                      "--", "python", "-c", "print(1)"])
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertEqual(captured["command"], ["python", "-c", "print(1)"])
+        self.assertEqual((captured["base"], captured["overlay"]), ("B", "O"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
