@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 
+from .consent import check_consent_staleness
 from .errors import HarnessError
 from .jev_packs import validate_restart_request
 from .mcp_log import scrub
@@ -195,3 +196,85 @@ class RestartStateStore:
             }),
         }
         return self._remember(state)
+
+
+# A paused round's own statuses. The orchestrator's consent handoff owns this
+# vocabulary (a consent decline/defer is a sovereign stop); the transition
+# below reuses it so completed evidence is everything the pause did not stop.
+_PAUSED_RESULT_STATUSES = ("consent_blocked", "deferred")
+
+
+def consume_restart_decision(decision, *, completed_results=None):
+    """Consume a produced ``judgment["restart"]`` decision into a transition.
+
+    This is the decision's first reader: the execution stage
+    (``harness/execution_stages.py``) produces the judgment, and this function
+    turns it into either a re-entry transition or a refusal to re-enter. It
+    never dispatches, writes files, or spends; it only classifies.
+
+    An allowed, non-terminal decision re-enters at its declared target with
+    the pause's completed evidence preserved. The re-entered assignment always
+    carries the restart target, which the staleness owner
+    (:func:`~harness.consent.check_consent_staleness`) classifies as
+    ``RESTART_TARGETED`` -- so a re-entry can never silently reuse the paused
+    round's consent; the next dispatch must re-derive it.
+
+    Anything else -- no decision, a refused decision, or a terminal state --
+    refuses re-entry with its reasons, and the caller keeps the pause.
+    """
+    preserved_stages = []
+    if isinstance(decision, dict):
+        preserved_stages = list(decision.get("preserved_stages") or [])
+    if not isinstance(decision, dict):
+        return {
+            "reenter": False,
+            "target": None,
+            "preserved_stages": [],
+            "preserved_evidence": {},
+            "consent_renewal_required": False,
+            "staleness_reason": None,
+            "reasons": ["no restart decision was produced"],
+        }
+    reasons = list(decision.get("reasons") or [])
+    terminal = decision.get("terminal_state")
+    if not decision.get("allowed"):
+        return {
+            "reenter": False,
+            "target": decision.get("target"),
+            "preserved_stages": preserved_stages,
+            "preserved_evidence": {},
+            "consent_renewal_required": bool(
+                decision.get("consent_renewal_required")),
+            "staleness_reason": None,
+            "reasons": reasons or ["the restart was not allowed"],
+        }
+    if isinstance(terminal, dict) and terminal.get("terminal"):
+        return {
+            "reenter": False,
+            "target": decision.get("target"),
+            "preserved_stages": preserved_stages,
+            "preserved_evidence": {},
+            "consent_renewal_required": bool(
+                decision.get("consent_renewal_required")),
+            "staleness_reason": None,
+            "reasons": reasons or [
+                "the restart state is terminal; do not repeat this transition"],
+        }
+    target = decision.get("target")
+    preserved = {}
+    results = completed_results if isinstance(completed_results, dict) else {}
+    for key, value in results.items():
+        if (isinstance(value, dict)
+                and value.get("status") not in _PAUSED_RESULT_STATUSES):
+            preserved[key] = value
+    stale, staleness = check_consent_staleness({}, {"restart_target": target})
+    return {
+        "reenter": True,
+        "target": target,
+        "preserved_stages": preserved_stages,
+        "preserved_evidence": preserved,
+        "consent_renewal_required": bool(
+            decision.get("consent_renewal_required")),
+        "staleness_reason": staleness.value if stale else None,
+        "reasons": reasons,
+    }

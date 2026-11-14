@@ -97,6 +97,32 @@ class CompletionNoulsTests(unittest.TestCase):
         self.assertEqual(result.verdict, "fail")
         self.assertEqual(len(transport.calls), 1)
 
+    def test_reader_agrees_with_artifact_truth_on_missing(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name)
+        (root / "pkg").mkdir()
+        (root / "pkg" / "types.py").write_text("class X: ...\n",
+                                               encoding="utf-8")
+        policy = policy_for(_unkeyed())
+        result, structural = policy.evaluate_completion_nouls(
+            "Create pkg/types.py and pkg/schema.py",
+            "- subtask t1 status=ok",
+            root_dir=root,
+            site="completion")
+        self.assertTrue(structural["cannot_complete"])
+        self.assertIn("pkg/schema.py", structural["missing_artifacts"])
+        # The content reader declares the same split: the absent file is
+        # missing (artifact truth owns it, never a content refusal) while
+        # the present file is supplied with exact counts.
+        ev = orch.deliverable_content_evidence(
+            ["pkg/types.py", "pkg/schema.py"], root)
+        self.assertEqual(ev["unavailable"], [])
+        by_path = {c["path"]: c for c in ev["chunks"]}
+        self.assertEqual(by_path["pkg/schema.py"]["status"], "missing")
+        self.assertEqual(by_path["pkg/types.py"]["status"], "included")
+        self.assertIn("class X", ev["text"])
+
     def test_keyed_nouls_pass_when_both_affirmed(self):
         td = tempfile.TemporaryDirectory()
         self.addCleanup(td.cleanup)
@@ -171,6 +197,80 @@ class OrchestratorCompletionSeamTests(unittest.TestCase):
             emit=lambda *args, **kwargs: None)
         self.assertFalse(driven["final_all_ok"])
         self.assertIn("did not complete", driven["remaining_scope"])
+
+    def test_drive_content_unavailable_with_policy_skips_generative_judge(self):
+        root_td = tempfile.TemporaryDirectory()
+        self.addCleanup(root_td.cleanup)
+        outside_td = tempfile.TemporaryDirectory()
+        self.addCleanup(outside_td.cleanup)
+        secret = Path(outside_td.name) / "secret.py"
+        secret.write_text("present = True\n", encoding="utf-8")
+        plan = {"total_nodes": 1, "total_cost_ceiling": 0.0,
+                "nodes": [{"node_id": "n1", "instruction": "edit",
+                           "target_files": [str(secret)]}],
+                "dag": {"nodes": [{"node_id": "n1"}]}}
+        judge_calls = []
+        policy = policy_for(_unkeyed())
+        driven = orch.drive(
+            goal="Ship the deliverable",
+            target_files=[str(secret)],
+            initial_plan=plan,
+            root_dir=Path(root_td.name),
+            plan_round=lambda goal: plan,
+            execute_plan=lambda current: {"n1": {"status": "ok"}},
+            completion_chat=lambda prompt: (
+                judge_calls.append(prompt) or '{"complete": true}'),
+            emit=lambda *args, **kwargs: None,
+            max_rounds=2,
+            jev_policy=policy)
+        self.assertFalse(driven["final_all_ok"])
+        self.assertEqual(judge_calls, [])
+        self.assertIn("deliverable content unavailable",
+                      driven["remaining_scope"])
+
+    def test_both_judges_receive_deliverable_contents(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name)
+        (root / "widget.py").write_text(
+            "def run():\n    pass  # off-by-one: skips last item\n",
+            encoding="utf-8")
+        plan = {"total_nodes": 1, "total_cost_ceiling": 0.0,
+                "nodes": [{"node_id": "n1", "instruction": "edit",
+                           "target_files": ["widget.py"]}],
+                "dag": {"nodes": [{"node_id": "n1"}]}}
+        inner = policy_for(_unkeyed())
+        summaries = []
+
+        class _RecordingPolicy:
+            def evaluate_completion_nouls(self, goal, state_summary, **kwargs):
+                summaries.append(state_summary)
+                return inner.evaluate_completion_nouls(
+                    goal, state_summary, **kwargs)
+
+        prompts = []
+        driven = orch.drive(
+            goal="Fix widget.py",
+            target_files=["widget.py"],
+            initial_plan=plan,
+            root_dir=root,
+            plan_round=lambda goal: plan,
+            execute_plan=lambda current: {"n1": {"status": "ok"}},
+            completion_chat=lambda prompt: (
+                prompts.append(prompt) or '{"complete": false, '
+                '"remaining": "fix the off-by-one in widget.py", '
+                '"reason": "file content shows a defect"}'),
+            emit=lambda *args, **kwargs: None,
+            max_rounds=1,
+            jev_policy=_RecordingPolicy())
+        self.assertFalse(driven["final_all_ok"])
+        self.assertIn("off-by-one", driven["remaining_scope"])
+        # Pre-judge nouls and the generative verdict both received the
+        # deliverable contents with the summary labeled navigation-only.
+        self.assertEqual(len(summaries), 1)
+        for evidence in list(summaries) + prompts:
+            self.assertIn("off-by-one", evidence)
+            self.assertIn("navigation-only", evidence)
 
 
 if __name__ == "__main__":
