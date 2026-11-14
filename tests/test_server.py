@@ -130,6 +130,130 @@ class SecurityGuardTests(ServerHarness):
             conn.close()
 
 
+class PostBodyCapTests(ServerHarness):
+    """#299: an over-cap POST is refused before its body is read.
+
+    The cap is decided from the announced Content-Length, so these cases
+    announce an oversized body and never send it: a server that read the body
+    first would sit on it until the handler timeout instead of refusing.
+    """
+
+    token = "s3cret-token"
+
+    def _announce_post(self, path, length, expect=None):
+        """Announce ``length`` bytes, send none, and time the response."""
+        conn = self._conn()
+        self.addCleanup(conn.close)
+        conn.putrequest("POST", path, skip_host=True,
+                        skip_accept_encoding=True)
+        conn.putheader("Host", f"127.0.0.1:{self.port}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(length))
+        conn.putheader("X-Harness-Auth", self.token)
+        if expect:
+            conn.putheader("Expect", expect)
+        conn.endheaders()
+        started = time.time()
+        resp = conn.getresponse()
+        resp.read()
+        return resp.status, time.time() - started
+
+    def test_over_cap_body_is_refused_without_reading_it(self):
+        status, elapsed = self._announce_post(
+            "/api/chat", ui_server.UiRequestHandler.MAX_POST_BODY + 1)
+        self.assertEqual(status, 413)
+        # Refused from the header alone: well inside the handler timeout.
+        self.assertLess(elapsed, 5.0)
+
+    def test_over_cap_body_is_refused_before_100_continue(self):
+        status, elapsed = self._announce_post(
+            "/api/chat", ui_server.UiRequestHandler.MAX_POST_BODY + 1,
+            expect="100-continue")
+        self.assertEqual(status, 413)
+        self.assertLess(elapsed, 5.0)
+
+    def test_over_cap_body_is_refused_on_the_driver_route(self):
+        status, _ = self._announce_post(
+            "/api/driver/nl", ui_server.UiRequestHandler.MAX_POST_BODY + 1)
+        self.assertEqual(status, 413)
+
+    def test_malformed_content_length_is_400(self):
+        conn = self._conn()
+        self.addCleanup(conn.close)
+        conn.putrequest("POST", "/api/chat", skip_host=True,
+                        skip_accept_encoding=True)
+        conn.putheader("Host", f"127.0.0.1:{self.port}")
+        conn.putheader("Content-Length", "not-a-length")
+        conn.putheader("X-Harness-Auth", self.token)
+        conn.endheaders()
+        resp = conn.getresponse()
+        resp.read()
+        self.assertEqual(resp.status, 400)
+
+    def test_under_cap_post_still_dispatches(self):
+        conn = self._conn()
+        try:
+            status, _ = _request(
+                conn, "POST", "/api/definitely-not-here",
+                body={"hello": "world"},
+                headers={"X-Harness-Auth": self.token})
+        finally:
+            conn.close()
+        self.assertEqual(status, 404)
+
+    def test_negative_content_length_is_400(self):
+        status, _ = self._announce_post("/api/chat", -5)
+        self.assertEqual(status, 400)
+
+    def test_empty_body_dispatches(self):
+        for extra in ({}, {"Content-Length": "0"}):
+            conn = self._conn()
+            self.addCleanup(conn.close)
+            conn.putrequest("POST", "/api/definitely-not-here",
+                            skip_host=True, skip_accept_encoding=True)
+            conn.putheader("Host", f"127.0.0.1:{self.port}")
+            conn.putheader("X-Harness-Auth", self.token)
+            for key, value in extra.items():
+                conn.putheader(key, value)
+            conn.endheaders()
+            resp = conn.getresponse()
+            resp.read()
+            self.assertEqual(resp.status, 404)
+
+    def test_invalid_json_body_is_400(self):
+        conn = self._conn()
+        self.addCleanup(conn.close)
+        payload = b"not-json"
+        conn.putrequest("POST", "/api/chat", skip_host=True,
+                        skip_accept_encoding=True)
+        conn.putheader("Host", f"127.0.0.1:{self.port}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(payload)))
+        conn.putheader("X-Harness-Auth", self.token)
+        conn.endheaders()
+        conn.send(payload)
+        resp = conn.getresponse()
+        resp.read()
+        self.assertEqual(resp.status, 400)
+
+    def test_under_cap_100_continue_dispatches(self):
+        conn = self._conn()
+        self.addCleanup(conn.close)
+        payload = b"{}"
+        conn.putrequest("POST", "/api/definitely-not-here", skip_host=True,
+                        skip_accept_encoding=True)
+        conn.putheader("Host", f"127.0.0.1:{self.port}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(payload)))
+        conn.putheader("Expect", "100-continue")
+        conn.putheader("X-Harness-Auth", self.token)
+        conn.endheaders()
+        conn.send(payload)
+        resp = conn.getresponse()
+        resp.read()
+        self.assertEqual(resp.status, 404)
+
+
 class TokenAuthTests(ServerHarness):
     token = "s3cret-token"
 
