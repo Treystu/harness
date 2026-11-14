@@ -581,16 +581,23 @@ OPENROUTER_BACKEND = "openrouter"
 def backend_for_model(model_id: str) -> str:
     """The provider a model id belongs to, by the id's own shape.
 
-    ``muse-`` ids are Meta's, confirmed Fireworks paths are Fireworks', and
-    everything else is OpenRouter -- the same precedence ``resolve_route``
-    applies, exposed as data so the table can report its coverage.
+    ``muse-`` ids are Meta's, ``groq/`` / ``cerebras/`` ids are their direct
+    backends', confirmed Fireworks paths are Fireworks', and everything else
+    is OpenRouter -- the same precedence ``resolve_route`` applies, exposed
+    as data so the table can report its coverage.
     """
-    from .config import (FIREWORKS_PROVIDER, META_PROVIDER,
-                         is_fireworks_model_path, is_meta_model_id)
+    from .config import (CEREBRAS_PROVIDER, FIREWORKS_PROVIDER,
+                         GROQ_PROVIDER, META_PROVIDER,
+                         is_cerebras_model_id, is_fireworks_model_path,
+                         is_groq_model_id, is_meta_model_id)
     if not isinstance(model_id, str) or not model_id.strip():
         raise ValueError("a model id is required to resolve a backend")
     if is_meta_model_id(model_id):
         return META_PROVIDER
+    if is_groq_model_id(model_id):
+        return GROQ_PROVIDER
+    if is_cerebras_model_id(model_id):
+        return CEREBRAS_PROVIDER
     if is_fireworks_model_path(model_id):
         return FIREWORKS_PROVIDER
     return OPENROUTER_BACKEND
@@ -602,9 +609,12 @@ def backend_registry() -> Dict[str, str]:
     One list, so adding a provider is a registry entry rather than another
     special case. The key text is a pointer for diagnostics, never a value.
     """
-    from .config import FIREWORKS_PROVIDER, META_PROVIDER
+    from .config import (CEREBRAS_PROVIDER, FIREWORKS_PROVIDER,
+                         GROQ_PROVIDER, META_PROVIDER)
     return {
         META_PROVIDER: "META_API_KEY/MUSE_API_KEY (~/.config/harness/meta.env)",
+        GROQ_PROVIDER: "GROQ_API_KEY (~/.config/harness/groq.env)",
+        CEREBRAS_PROVIDER: "CEREBRAS_API_KEY (~/.config/harness/cerebras.env)",
         FIREWORKS_PROVIDER: "FIREWORKS_API_KEY (~/.config/harness/fireworks.env)",
         OPENROUTER_BACKEND: "OPENROUTER_API_KEY",
     }
@@ -630,8 +640,19 @@ def route_for_model(model_id: str, *, settings: Any = None,
     raised "fireworks is disabled" even in a deployment whose settings (and
     env) enabled the provider.
     """
-    from .config import is_fireworks_model_path, is_meta_model_id
+    from .config import (is_direct_compat_id, is_fireworks_model_path,
+                         is_meta_model_id)
     from .fireworks import resolve_route
+    if is_direct_compat_id(model_id):
+        # W0.5 (#510): a namespaced direct id routes by identity, exactly
+        # like the Fireworks identity default below -- there is no enable
+        # toggle for these backends, the key is the gate and it is enforced
+        # at dispatch, not here. An uncommitted wire id fails closed in
+        # resolve_offer rather than falling back to another provider.
+        from . import direct_compat as _dc
+        from .fireworks import Route
+        return Route(_dc.provider_for(model_id), model_id,
+                     _dc.resolve_offer(model_id))
     if openrouter_enabled is None:
         openrouter_enabled = bool(
             getattr(settings, "openrouter_enabled", True))

@@ -16,17 +16,27 @@ import time
 import uuid
 
 from .config import (
+    CEREBRAS_PROVIDER,
     CONFIG_DIR,
     FIREWORKS_CHAT_URL,
     FIREWORKS_PROVIDER,
+    GROQ_PROVIDER,
     META_CHAT_URL,
     META_PROVIDER,
     OPENROUTER_CHAT_URL,
+    is_direct_compat_id,
     is_fireworks_model_path,
+    is_groq_model_id,
     is_meta_model_id,
+    resolve_cerebras_key,
     resolve_fireworks_key,
+    resolve_groq_key,
     resolve_meta_key,
 )
+from .direct_compat import cost_estimate as direct_cost_estimate
+from .direct_compat import resolve_offer as resolve_direct_offer
+from .direct_compat import wire_model as direct_wire_model
+from .direct_compat import chat_url_for as direct_chat_url_for
 from .errors import HarnessError, ProviderUsageUnknown, ToolCancelled
 from .events import emit, provider_request_context
 from .fireworks import cost_estimate, resolve_offer
@@ -448,7 +458,8 @@ def _may_lend_threaded_key(governor, api_key, backend_label="meta"):
 
 def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto",
          reasoning_token_budget=0.4, governor=None, enable_floor=True,
-         max_price=None, provider_sort="price", meta_key=None):
+         max_price=None, provider_sort="price", meta_key=None,
+         groq_key=None, cerebras_key=None):
     """One chat completion with the spend governor's payload guards.
 
     Provider dispatch happens at the head: Fireworks model paths and
@@ -507,6 +518,30 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
                                governor=governor,
                                reasoning_effort=reasoning_effort,
                                reasoning_token_budget=reasoning_token_budget)
+    if is_direct_compat_id(model):
+        # W0.5 (#510): a namespaced direct id names its own backend. The
+        # threaded api_key is the OpenRouter key (session.governor_for) and
+        # must never be posted to a direct backend -- only an explicit key
+        # for that backend or the configured key is used. No key at all
+        # refuses here rather than falling back to another provider.
+        if is_groq_model_id(model):
+            key = groq_key or resolve_groq_key()
+            missing_msg = (
+                "Groq key missing: set ~/.config/scmorc/groq.env, "
+                "$HARNESS_CONFIG_DIR/groq.env (default: "
+                "~/.config/harness/groq.env), GROQ_API_KEY, or "
+                "HARNESS_GROQ_KEY")
+        else:
+            key = cerebras_key or resolve_cerebras_key()
+            missing_msg = (
+                "Cerebras key missing: set ~/.config/scmorc/cerebras.env, "
+                "$HARNESS_CONFIG_DIR/cerebras.env (default: "
+                "~/.config/harness/cerebras.env), CEREBRAS_API_KEY, or "
+                "HARNESS_CEREBRAS_KEY")
+        if not key:
+            raise HarnessError(missing_msg)
+        return _chat_direct(transport, key, model, messages, max_tokens,
+                            governor=governor)
     canonical_model = strip_variant_suffix(model)
     if governor:
         governor.check_byok(canonical_model)
@@ -940,6 +975,55 @@ def _chat_fireworks(transport, api_key, model, messages, max_tokens,
     return status, resp
 
 
+def _ensure_direct_accounted(offer, usage):
+    """Estimate a missing direct-backend usage.cost from the committed rates.
+
+    The same fail-closed rule as the Fireworks path: with neither a cost nor
+    token counts the call is refused rather than booked as free.
+    """
+    prompt_tokens, completion_tokens = _usage_counts(usage)
+    if not prompt_tokens and not completion_tokens:
+        raise HarnessError(
+            f"direct backend omitted usage accounting (no cost, no token "
+            f"counts) for '{offer.model}'; refusing to bill blind")
+    usage["cost"] = direct_cost_estimate(offer, prompt_tokens,
+                                         completion_tokens)
+    usage["cost_estimated"] = True
+
+
+def _chat_direct(transport, api_key, model, messages, max_tokens,
+                 governor=None):
+    """One generic OpenAI-compatible chat completion (W0.5 #510).
+
+    The payload is the plain OpenAI shape -- ``model`` (the provider-native
+    wire id), ``messages``, ``max_tokens`` -- with no provider object, no
+    floor, and no reasoning parameter. The worst case is checked against the
+    governor's remaining budget before anything is sent.
+    """
+    offer = resolve_direct_offer(model)
+    payload = {"model": direct_wire_model(model), "messages": messages,
+               "max_tokens": max_tokens}
+    if governor is not None:
+        governor.check_byok(model)
+        governor.assert_no_tools(payload, model)
+        prompt_text = "\n".join(str(m.get("content", "")) for m in messages)
+        worst = direct_cost_estimate(
+            offer, estimate_prompt_tokens(prompt_text), max_tokens)
+        remaining = governor.remaining()
+        if worst > remaining:
+            raise HarnessError(
+                f"direct backend spend ${worst:.6f} would exceed the "
+                f"remaining budget ${remaining:.6f} for "
+                f"'{model}'; refusing to send")
+    status, resp = transport.post(direct_chat_url_for(model), api_key,
+                                  payload)
+    if governor is not None and status == 200 and isinstance(resp, dict):
+        usage = resp.get("usage")
+        if isinstance(usage, dict) and "cost" not in usage:
+            _ensure_direct_accounted(offer, usage)
+    return status, resp
+
+
 def _ensure_meta_accounted(offer, usage):
     """Estimate a missing Meta usage.cost from the committed Muse rates.
 
@@ -1039,12 +1123,14 @@ def _book_unknown_meta(governor, unknown, payload, model, offer, max_tokens):
 
 def chat_for_route(route, transport, openrouter_key, fireworks_key, messages,
                    max_tokens, governor=None, meta_key=None,
-                   reasoning_effort="auto", reasoning_token_budget=0.4):
+                   reasoning_effort="auto", reasoning_token_budget=0.4,
+                   groq_key=None, cerebras_key=None):
     """Dispatch one call to the provider a Route names.
 
     OpenRouter routes go through the unchanged chat() path, including the
-    reasoning options a lane may have set. Fireworks and Meta routes use
-    their plain direct payloads and never reach OpenRouter.
+    reasoning options a lane may have set. Fireworks, Meta, and generic
+    direct (Groq/Cerebras) routes use their plain direct payloads and never
+    reach OpenRouter.
     """
     if route.provider == META_PROVIDER:
         if not meta_key:
@@ -1054,6 +1140,31 @@ def chat_for_route(route, transport, openrouter_key, fireworks_key, messages,
                 "~/.config/harness/meta.env), META_API_KEY, or MUSE_API_KEY")
         return _chat_meta(transport, meta_key, route.wire_model,
                           messages, max_tokens, governor)
+    if route.provider in (GROQ_PROVIDER, CEREBRAS_PROVIDER):
+        # W0.5 (#510): the key surface follows the backend the route names,
+        # exactly as the Fireworks/Meta branches do. Without the
+        # configured-key fallback a settings-less lane would refuse even
+        # when a key is installed.
+        if route.provider == GROQ_PROVIDER:
+            groq_key = groq_key or resolve_groq_key()
+            if not groq_key:
+                raise HarnessError(
+                    "Groq key missing: set ~/.config/scmorc/groq.env, "
+                    "$HARNESS_CONFIG_DIR/groq.env (default: "
+                    "~/.config/harness/groq.env), GROQ_API_KEY, or "
+                    "HARNESS_GROQ_KEY")
+            direct_key = groq_key
+        else:
+            cerebras_key = cerebras_key or resolve_cerebras_key()
+            if not cerebras_key:
+                raise HarnessError(
+                    "Cerebras key missing: set ~/.config/scmorc/cerebras.env, "
+                    "$HARNESS_CONFIG_DIR/cerebras.env (default: "
+                    "~/.config/harness/cerebras.env), CEREBRAS_API_KEY, or "
+                    "HARNESS_CEREBRAS_KEY")
+            direct_key = cerebras_key
+        return _chat_direct(transport, direct_key, route.wire_model,
+                            messages, max_tokens, governor)
     if route.provider == FIREWORKS_PROVIDER:
         if not fireworks_key:
             raise HarnessError(
@@ -1071,7 +1182,7 @@ def chat_for_route(route, transport, openrouter_key, fireworks_key, messages,
 def chat_routed(transport, api_key, model, messages, max_tokens,
                 reasoning_effort="auto", reasoning_token_budget=0.4,
                 governor=None, *, settings=None, meta_key=None,
-                fireworks_key=None):
+                fireworks_key=None, groq_key=None, cerebras_key=None):
     """Resolve *model* to its backend and dispatch through that route.
 
     The single entry point for lanes that hold a model id -- panel seats, the
@@ -1109,11 +1220,21 @@ def chat_routed(transport, api_key, model, messages, max_tokens,
         fireworks_key = (fireworks_key
                          or getattr(settings, "fireworks_key", None)
                          or resolve_fireworks_key())
+    elif route.provider in (GROQ_PROVIDER, CEREBRAS_PROVIDER):
+        # W0.5 (#510): same key-surface rule for the generic direct
+        # backends -- the settings surface feeds the route's backend.
+        groq_key = (groq_key
+                    or getattr(settings, "groq_key", None)
+                    or resolve_groq_key())
+        cerebras_key = (cerebras_key
+                        or getattr(settings, "cerebras_key", None)
+                        or resolve_cerebras_key())
     return chat_for_route(
         route, transport, api_key, fireworks_key, messages, max_tokens,
         governor=governor, meta_key=meta_key,
         reasoning_effort=reasoning_effort,
-        reasoning_token_budget=reasoning_token_budget)
+        reasoning_token_budget=reasoning_token_budget,
+        groq_key=groq_key, cerebras_key=cerebras_key)
 
 
 def chat_ladder(settings) -> list:

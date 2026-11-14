@@ -101,5 +101,94 @@ class SlatePolicyTests(unittest.TestCase):
             self.assertIn(config.DEFAULT_APPLY_MODEL_PAID, s.apply_pool)
 
 
+class LocalPoolTests(unittest.TestCase):
+    """W0.5 (#510): the laptop-local pool assembles key-gated and
+    cheapest-capable-first alongside -- never inside -- the existing
+    use_free/paid saturation. Hermetic: temp HOME/CONFIG_DIR and a scrubbed
+    key environment, so ambient keys and key files cannot leak in."""
+
+    _KEY_ENV = ("GROQ_API_KEY", "HARNESS_GROQ_KEY", "CEREBRAS_API_KEY",
+                "HARNESS_CEREBRAS_KEY", "OPENROUTER_API_KEY",
+                "FIREWORKS_API_KEY", "HARNESS_FIREWORKS_KEY",
+                "META_API_KEY", "MUSE_API_KEY")
+
+    def _settings(self, env=None, **overrides):
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        home = Path(tmp.name)
+        saved = {k: os.environ.get(k) for k in self._KEY_ENV}
+        try:
+            for k in self._KEY_ENV:
+                os.environ.pop(k, None)
+            for k, v in (env or {}).items():
+                os.environ[k] = v
+            with mock.patch.dict(
+                    os.environ,
+                    {"HOME": str(home), "USERPROFILE": str(home)}), \
+                    mock.patch.object(config, "CONFIG_DIR",
+                                      str(home / ".config" / "harness")):
+                return config.load_settings(overrides=overrides or None)
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+    def test_no_keys_means_free_rungs_only(self):
+        s = self._settings()
+        self.assertEqual(s.groq_key, "")
+        self.assertEqual(s.cerebras_key, "")
+        self.assertEqual(s.local_pool, list(config.FREE_APPLY_POOL))
+
+    def test_groq_key_adds_groq_ids_cheapest_first_then_free(self):
+        s = self._settings(env={"GROQ_API_KEY": "gsk-test"})
+        self.assertEqual(
+            s.local_pool,
+            list(config.DEFAULT_GROQ_POOL) + list(config.FREE_APPLY_POOL))
+
+    def test_cerebras_and_meta_keys_order_by_blended_cost(self):
+        s = self._settings(env={"CEREBRAS_API_KEY": "c-test",
+                                "META_API_KEY": "m-test"})
+        rates = config._direct_offer_rates()
+        direct = [m for m in s.local_pool if config.is_direct_compat_id(m)
+                  or config.is_meta_model_id(m)]
+        self.assertTrue(direct)
+        blended = {m: 4000 * rates[m][0] + 1500 * rates[m][1] for m in direct}
+        self.assertEqual(direct, sorted(direct,
+                                        key=lambda m: (blended[m], m)))
+        self.assertEqual(s.local_pool[len(direct):],
+                         list(config.FREE_APPLY_POOL))
+
+    def test_existing_pool_order_semantics_are_untouched(self):
+        # #472 stays W3: keying a direct backend must not reorder or inject
+        # into the existing saturated pools.
+        plain = self._settings()
+        keyed = self._settings(env={"GROQ_API_KEY": "gsk-test",
+                                    "CEREBRAS_API_KEY": "c-test"})
+        for attr in ("panel", "panel_pool", "apply_pool",
+                     "escalation_pool", "specialist_pool"):
+            self.assertEqual(getattr(keyed, attr), getattr(plain, attr),
+                             attr)
+        for mid in keyed.local_pool:
+            if config.is_direct_compat_id(mid):
+                self.assertNotIn(mid, keyed.apply_pool)
+
+    def test_key_values_are_never_logged_at_load(self):
+        import io
+        from contextlib import redirect_stderr
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            self._settings(env={"GROQ_API_KEY": "gsk-test-secret",
+                                "CEREBRAS_API_KEY": "c-test-secret"})
+        logged = buf.getvalue()
+        self.assertNotIn("gsk-test-secret", logged)
+        self.assertNotIn("c-test-secret", logged)
+
+
 if __name__ == "__main__":
     unittest.main()
