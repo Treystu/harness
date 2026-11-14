@@ -11,12 +11,14 @@ fields, not stale catalog snapshots -- the gap is billed-but-unusable
 responses recorded at $0.
 """
 import os
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
 from harness.capability import (
     CapabilityProfile,
+    _canonical_model_id,
     cost_per_capability,
     measured_spend_by_model,
 )
@@ -229,6 +231,50 @@ class GovernedZeroCostLiabilityTests(unittest.TestCase):
                 governed_completion(
                     mock.Mock(), "k", gov, "paid/x", "question", 128)
         gov.record_actual.assert_not_called()
+
+
+class CanonicalModelIdFallbackTests(unittest.TestCase):
+    def test_missing_routing_table_falls_back_to_input(self):
+        with mock.patch.dict(sys.modules, {"harness.routing_table": None}):
+            self.assertEqual(_canonical_model_id("m/x"), "m/x")
+
+    def test_strip_failure_falls_back_to_input(self):
+        with mock.patch(
+                "harness.routing_table.strip_variant_suffix",
+                side_effect=RuntimeError("boom")):
+            self.assertEqual(_canonical_model_id("m/x"), "m/x")
+
+
+class MalformedSpendRowTests(unittest.TestCase):
+    def test_unreadable_ledger_yields_no_spend(self):
+        class ExplodingLedger:
+            def entries(self):
+                raise OSError("gone")
+        self.assertEqual(measured_spend_by_model(ExplodingLedger()), {})
+
+    def test_malformed_rows_are_skipped(self):
+        entries = [
+            {"event": "model_result", "task_id": "t1",
+             "model": "paid/a", "cost": "not-a-number"},
+            {"event": "model_result", "task_id": "t2",
+             "model": "paid/b", "cost": float("inf")},
+            {"event": "model_result", "task_id": "t3",
+             "model": "paid/c", "cost": -1.0},
+            {"event": "model_result", "task_id": "t4"},
+        ]
+        self.assertEqual(measured_spend_by_model(entries), {})
+
+    def test_malformed_calibration_counts_as_zero(self):
+        report = {"calibration": {"paid/model-x": {
+            "success_pass": "many",
+        }}}
+        res = cost_per_capability(
+            _profile(), None, report=report,
+            ledger=[{"event": "model_result", "task_id": "t1",
+                     "model": "paid/model-x", "cost": 0.001}],
+            lane="apply")
+        self.assertEqual(res["measured_successes"], 0)
+        self.assertIsNone(res["measured_usd_per_success"])
 
 
 if __name__ == "__main__":
