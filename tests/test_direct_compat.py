@@ -155,7 +155,6 @@ class NamespaceTests(unittest.TestCase):
         self.assertEqual(DEFAULT_GROQ_POOL, [
             "groq/openai/gpt-oss-20b",
             "groq/openai/gpt-oss-120b",
-            "groq/qwen/qwen3-32b",
         ])
         self.assertEqual(DEFAULT_CEREBRAS_POOL, [
             "cerebras/gpt-oss-120b",
@@ -164,6 +163,12 @@ class NamespaceTests(unittest.TestCase):
         for pool in (DEFAULT_GROQ_POOL, DEFAULT_CEREBRAS_POOL):
             for mid in pool:
                 resolve_offer(mid)
+
+    def test_removed_groq_rung_fails_closed(self):
+        # groq/qwen/qwen3-32b left the account's live model list (#523):
+        # no offer, no wire id, no pricing -- it must refuse, not misbill.
+        with self.assertRaises(HarnessError):
+            resolve_offer("groq/qwen/qwen3-32b")
 
     def test_backend_registry_names_the_key_surfaces(self):
         registry = backend_registry()

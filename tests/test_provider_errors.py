@@ -7,8 +7,10 @@ from unittest import mock
 
 from harness.ledger import AutonomyLedger
 from harness.provider_errors import (
+    ProviderClientBlocked,
     ProviderSpendLimitError,
     account_provider_spend_limit,
+    edge_block_error,
     provider_spend_limit_error,
     raise_for_provider_spend_limit,
     redact_secrets,
@@ -129,6 +131,56 @@ class ProviderSpendLimitClassificationTests(unittest.TestCase):
 
         # Should not raise on regular 429
         raise_for_provider_spend_limit(429, {"error": {"message": "Rate limit exceeded"}})
+
+
+class ProviderClientBlockedTests(unittest.TestCase):
+    """A 403 code-1010 edge block is not a spend limit or auth failure (#523)."""
+
+    def test_403_code_1010_body_raises_client_block(self):
+        with self.assertRaises(ProviderClientBlocked) as ctx:
+            raise_for_provider_spend_limit(
+                403, {"error": {"message": "error code: 1010"}})
+        self.assertEqual(ctx.exception.kind, "provider_client_blocked")
+        self.assertEqual(ctx.exception.http_status, 403)
+        self.assertIn("1010", str(ctx.exception))
+
+    def test_genuine_auth_403_is_untouched(self):
+        denied = {"error": {"message": "Incorrect API key provided",
+                            "code": "invalid_api_key"}}
+        self.assertIsNone(edge_block_error(403, denied))
+        raise_for_provider_spend_limit(403, denied)
+
+    def test_non_403_with_1010_text_is_untouched(self):
+        self.assertIsNone(edge_block_error(
+            429, {"error": {"message": "error code: 1010"}}))
+        self.assertIsNone(edge_block_error(403, {"ok": True}))
+
+    def test_non_integer_status_is_not_a_block(self):
+        flagged = {"error": {"message": "error code: 1010"}}
+        self.assertIsNone(edge_block_error("blocked", flagged))
+        self.assertIsNone(edge_block_error(None, flagged))
+
+    def test_edge_block_error_carries_known_cost(self):
+        err = edge_block_error(
+            403, {"error": {"message": "error code: 1010"}},
+            known_cost=0.003)
+        self.assertIsInstance(err, ProviderClientBlocked)
+        self.assertAlmostEqual(err.known_cost, 0.003)
+        self.assertFalse(err.cost_accounted)
+
+    def test_client_blocked_invalid_known_cost_is_zero(self):
+        err = ProviderClientBlocked("blocked", http_status=403,
+                                    known_cost="invalid")
+        self.assertEqual(err.known_cost, 0.0)
+        self.assertFalse(err.cost_accounted)
+
+    def test_raise_for_block_preserves_known_cost(self):
+        with self.assertRaises(ProviderClientBlocked) as ctx:
+            raise_for_provider_spend_limit(
+                403, {"error": {"message": "error code: 1010"}},
+                known_cost=0.005)
+        self.assertAlmostEqual(ctx.exception.known_cost, 0.005)
+        self.assertFalse(ctx.exception.cost_accounted)
 
 
 class SecretRedactionTests(unittest.TestCase):

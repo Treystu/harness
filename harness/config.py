@@ -525,7 +525,9 @@ DEFAULT_META_JUDGE_MODEL = "muse-wonder-1.0"
 DEFAULT_GROQ_POOL = [
     "groq/openai/gpt-oss-20b",
     "groq/openai/gpt-oss-120b",
-    "groq/qwen/qwen3-32b",
+    # groq/qwen/qwen3-32b removed (#523): absent from the live model list,
+    # so it 404s. Its served replacement qwen/qwen3.8-27b has no committed
+    # rate, so the pool stays at two ids until a rate is committed.
 ]
 DEFAULT_CEREBRAS_POOL = [
     "cerebras/gpt-oss-120b",
