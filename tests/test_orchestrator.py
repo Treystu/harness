@@ -350,24 +350,27 @@ class DeliverableContentEvidenceTests(unittest.TestCase):
         self.assertIn("per-file bound", ev["unavailable"][0]["reason"])
 
     def test_changed_during_read_is_refused(self):
+        # Genuine growth between the pre-read size check and the post-read
+        # size check: the file really grows mid-call (no stat-call counting,
+        # which breaks across interpreters - 3.11's Path.resolve() makes its
+        # own stat calls through the same attribute and shifts the sequence).
         _, root = self._tmp()
         target = root / "w.py"
         target.write_text("x = 1\n", encoding="utf-8")
-        real_stat = Path.stat
-        state = {"second": False}
+        real_open = open
+        grew = {"done": False}
 
-        def flapping(self):
-            result = real_stat(self)
-            if str(self) == str(target) and state["second"]:
-                grown = list(tuple(result))
-                grown[6] += 64
-                return os.stat_result(tuple(grown))
-            if str(self) == str(target):
-                state["second"] = True
-            return result
+        def growing_open(file, mode="r", *args, **kwargs):
+            if (not grew["done"] and "b" in str(mode)
+                    and str(Path(file)) == str(target)):
+                with real_open(file, "ab") as handle:
+                    handle.write(b"#" * 64)
+                grew["done"] = True
+            return real_open(file, mode, *args, **kwargs)
 
-        with mock.patch.object(Path, "stat", flapping):
+        with mock.patch("builtins.open", growing_open):
             ev = orch.deliverable_content_evidence(["w.py"], root)
+        self.assertTrue(grew["done"], "the read path must open the file")
         (chunk,) = ev["chunks"]
         self.assertEqual(chunk["status"], "changed-during-read")
         self.assertEqual(len(ev["unavailable"]), 1)
