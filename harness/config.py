@@ -689,6 +689,7 @@ _ENV_NAMES = {
     "fireworks_budget_usd": "HARNESS_FIREWORKS_BUDGET_USD",
     "groq_key": "GROQ_API_KEY",
     "cerebras_key": "CEREBRAS_API_KEY",
+    "use_local_pool": "HARNESS_USE_LOCAL_POOL",
     "meta_enabled": "HARNESS_META_ENABLED",
     "meta_budget_usd": "HARNESS_META_BUDGET_USD",
     "fetch_allowlist_enabled": "HARNESS_FETCH_ALLOWLIST_ENABLED",
@@ -938,7 +939,7 @@ class Settings:
                   fetch_allowlist_enabled=True, fetch_allowlist_hosts=None,
                   meta_enabled=False, use_meta=False, meta_key="",
                   meta_budget_usd=0.0, groq_key="", cerebras_key="",
-                  local_pool=None):
+                  local_pool=None, use_local_pool=False):
         self.use_free = use_free
         self.openrouter_enabled = bool(openrouter_enabled)
         self.fireworks_enabled = bool(fireworks_enabled or use_fireworks)
@@ -960,8 +961,9 @@ class Settings:
         self.groq_key = str(groq_key or "")
         self.cerebras_key = str(cerebras_key or "")
         # The laptop-local pool: keyed direct ids cheapest-capable-first,
-        # then the :free rungs. Computed by load_settings; informational on
-        # Settings (the sibling fallthrough lane consumes it).
+        # then the :free rungs. Computed by load_settings; the walk consumes
+        # it only when use_local_pool opts in, otherwise it stays inert.
+        self.use_local_pool = bool(use_local_pool)
         self.local_pool = list(local_pool or [])
         # Per-run reversible model trial override (#197) -- never persisted by update_config.
         self.trial_model = str(trial_model or "")
@@ -1229,6 +1231,10 @@ def load_settings(overrides=None):
     groq_key = str(get("groq_key", "") or "").strip() or resolve_groq_key()
     cerebras_key = (str(get("cerebras_key", "") or "").strip()
                     or resolve_cerebras_key())
+    # Explicit opt-in for the laptop-local pool (W0.5 wiring): composing the
+    # pool never changes dispatch by itself, following the use_meta /
+    # use_fireworks / use_free flag pattern.
+    use_local_pool = _as_bool(get("use_local_pool", False))
     if use_meta and not meta_key:
         raise HarnessError(
             "HARNESS_USE_META=true requires a Meta API key "
@@ -1347,8 +1353,8 @@ def load_settings(overrides=None):
 
     # The laptop-local pool assembles alongside (never inside) the existing
     # use_free/paid saturation above: existing pools keep their order and
-    # membership semantics exactly; this is a separate composition the
-    # fallthrough lane consumes.
+    # membership semantics exactly. The walk consumes this composition only
+    # when use_local_pool opts in; otherwise the panel_pool ladder is used.
     local_pool = laptop_local_pool(
         groq_key=groq_key or None, cerebras_key=cerebras_key or None,
         fireworks_key=fireworks_key or None, meta_key=meta_key or None)
@@ -1362,6 +1368,7 @@ def load_settings(overrides=None):
         groq_key=groq_key or "",
         cerebras_key=cerebras_key or "",
         local_pool=local_pool,
+        use_local_pool=use_local_pool,
         trial_model=trial_model,
         panel=panel,
         panel_pool=panel_pool,

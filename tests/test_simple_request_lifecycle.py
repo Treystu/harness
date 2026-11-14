@@ -745,6 +745,44 @@ class SimpleLifecycleTests(unittest.TestCase):
         self.assertEqual(kwargs["status"], "deferred")
         self.assertEqual(kwargs["generation_calls"], 2)
 
+    def test_local_pool_mode_on_walks_local_pool(self):
+        self.agent.settings.use_local_pool = True
+        self.agent.settings.local_pool = ["local-a", "local-b"]
+        answered = {
+            "content": "Local answer.", "model": "local-a",
+            "cost": 0.000003, "input_tokens": 21, "output_tokens": 9,
+            "cost_estimated": False,
+        }
+        result, _, generate, _ = self._run_ladder(
+            ["panel-a"], [answered], session_id="local-on")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["model"], "local-a")
+        self.assertEqual(generate.call_count, 1)
+        self.assertEqual(generate.call_args_list[0].args[3], "local-a")
+        _, kwargs = generate.call_args_list[0]
+        self.assertEqual(kwargs.get("groq_key"),
+                         self.agent.settings.groq_key)
+        self.assertEqual(kwargs.get("cerebras_key"),
+                         self.agent.settings.cerebras_key)
+
+    def test_local_pool_mode_off_ignores_local_pool(self):
+        self.agent.settings.use_local_pool = False
+        self.agent.settings.local_pool = ["local-a", "local-b"]
+        second = {
+            "content": "Second rung answer.", "model": "rung-b",
+            "cost": 0.000003, "input_tokens": 21, "output_tokens": 9,
+            "cost_estimated": False,
+        }
+        result, _, generate, _ = self._run_ladder(
+            ["rung-a", "rung-b"],
+            [ProviderSpendLimitError("upstream refused this model",
+                                     http_status=402), second],
+            session_id="local-off")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["model"], "rung-b")
+        self.assertEqual([call.args[3] for call in generate.call_args_list],
+                         ["rung-a", "rung-b"])
+
     def test_deadline_during_post_preserves_generated_candidate(self):
         policy = MagicMock()
         policy.evaluate_simple_strategy.return_value = _pre()

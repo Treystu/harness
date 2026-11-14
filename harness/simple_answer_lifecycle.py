@@ -312,9 +312,13 @@ class SimpleAnswerLifecycleMixin:
                 })
                 self._persist_chat_checkpoint(sid, checkpoint)
                 cancelled_or_late("answer generation")
-                ladder = list(getattr(self.settings, "panel_pool", ()) or [])
-                if not ladder:
-                    ladder = self._chat_ladder(self.settings)
+                if getattr(self.settings, "use_local_pool", False) and getattr(
+                        self.settings, "local_pool", None):
+                    ladder = list(self.settings.local_pool)
+                else:
+                    ladder = list(getattr(self.settings, "panel_pool", ()) or [])
+                    if not ladder:
+                        ladder = self._chat_ladder(self.settings)
                 if not ladder:
                     raise HarnessError("simple answer model pool is empty")
                 model = ladder[0]
@@ -352,7 +356,11 @@ class SimpleAnswerLifecycleMixin:
                                     generation_prompt, allocated,
                                     label="simple-answer",
                                     reasoning_effort=lane_effort,
-                                    preserve_billed_overrun=True),
+                                    preserve_billed_overrun=True,
+                                    groq_key=getattr(
+                                        self.settings, "groq_key", None),
+                                    cerebras_key=getattr(
+                                        self.settings, "cerebras_key", None)),
                                 cost=lambda value: float(
                                     value.get("cost") or 0.0),
                                 retry_unknown=True)

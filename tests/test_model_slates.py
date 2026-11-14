@@ -108,7 +108,8 @@ class LocalPoolTests(unittest.TestCase):
     key environment, so ambient keys and key files cannot leak in."""
 
     _KEY_ENV = ("GROQ_API_KEY", "HARNESS_GROQ_KEY", "CEREBRAS_API_KEY",
-                "HARNESS_CEREBRAS_KEY", "OPENROUTER_API_KEY",
+                "HARNESS_CEREBRAS_KEY", "HARNESS_USE_LOCAL_POOL",
+                "OPENROUTER_API_KEY",
                 "FIREWORKS_API_KEY", "HARNESS_FIREWORKS_KEY",
                 "META_API_KEY", "MUSE_API_KEY")
 
@@ -188,6 +189,18 @@ class LocalPoolTests(unittest.TestCase):
         logged = buf.getvalue()
         self.assertNotIn("gsk-test-secret", logged)
         self.assertNotIn("c-test-secret", logged)
+
+    def test_local_pool_consumption_is_opt_in_off_by_default(self):
+        s = self._settings()
+        self.assertFalse(s.use_local_pool)
+
+    def test_env_flag_opts_into_local_pool(self):
+        s = self._settings(env={"HARNESS_USE_LOCAL_POOL": "true"})
+        self.assertTrue(s.use_local_pool)
+
+    def test_override_opts_into_local_pool(self):
+        s = self._settings(use_local_pool=True)
+        self.assertTrue(s.use_local_pool)
 
 
 if __name__ == "__main__":

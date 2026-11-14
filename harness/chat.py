@@ -804,7 +804,8 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
 def governed_completion(transport, api_key, governor, model, prompt, max_tokens,
                         label="ask", reasoning_effort="auto",
                         reasoning_token_budget=0.4,
-                        preserve_billed_overrun=False):
+                        preserve_billed_overrun=False,
+                        groq_key=None, cerebras_key=None):
     """Single-shot governed call with provider-reported usage metadata.
 
     This is the sole preflight/chat/billing owner for direct text helpers.
@@ -835,11 +836,17 @@ def governed_completion(transport, api_key, governor, model, prompt, max_tokens,
             [{"role": "user", "content": prompt}], max_tokens,
             governor=governor)
     else:
+        # A namespaced direct id names its own backend inside chat(): the
+        # threaded key wins for that backend, then the configured key --
+        # exactly the explicit-then-configured surface of the Meta branch
+        # above, minus the lend. The threaded api_key is the OpenRouter key
+        # outside direct modes and is never posted to a direct backend.
         status, resp = chat(transport, api_key, model,
                             [{"role": "user", "content": prompt}],
                             max_tokens, reasoning_effort=reasoning_effort,
                             reasoning_token_budget=reasoning_token_budget,
-                            governor=governor)
+                            governor=governor,
+                            groq_key=groq_key, cerebras_key=cerebras_key)
     if status != 200:
         from .results import _http_error
         raise HarnessError(_http_error(status, resp))

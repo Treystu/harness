@@ -16,7 +16,8 @@ from pathlib import Path
 from unittest import mock
 
 from harness import config
-from harness.chat import chat, chat_for_route, chat_routed
+from harness.chat import (chat, chat_for_route, chat_routed,
+                            governed_completion)
 from harness.direct_compat import (provider_for, resolve_offer,
                                    wire_model)
 from harness.config import (CEREBRAS_PROVIDER, DEFAULT_CEREBRAS_POOL,
@@ -78,6 +79,16 @@ class _StubGovernor:
 
     def remaining(self):
         return self._remaining
+
+
+class _GovernedStub(_StubGovernor):
+    """The extra governor surface governed_completion touches."""
+
+    def preflight(self, prompt, calls):
+        return None
+
+    def record_actual(self, cost, model, lane=None):
+        return None
 
 
 class _IsolatedHome(unittest.TestCase):
@@ -283,6 +294,49 @@ class DispatchTests(_IsolatedHome):
             self.assertEqual(got_resp, body)
             self.assertEqual(_http_error(got_status, got_resp),
                              f"HTTP {status}: {message}")
+
+
+class GovernedKeyThreadingTests(_IsolatedHome):
+    """W0.5 wiring: governed_completion threads the settings direct keys.
+
+    Hermetic: the recording transport stands in for Groq/Cerebras, and the
+    isolated home means no real key file or environment key can leak in."""
+
+    def test_settings_keyed_groq_id_posts_settings_key_to_groq_url(self):
+        transport = RecordingTransport([(200, _resp(cost=0.001))])
+        completion = governed_completion(
+            transport, "or-key", _GovernedStub(), GROQ_ID, "hi", 64,
+            label="simple-answer", groq_key="g-settings-key",
+            cerebras_key="c-settings-key")
+        self.assertEqual(completion["model"], GROQ_ID)
+        (url, key, _), = transport.calls
+        self.assertEqual(url,
+                         "https://api.groq.com/openai/v1/chat/completions")
+        self.assertEqual(key, "g-settings-key")
+        self.assertNotEqual(key, "or-key")
+
+    def test_settings_keyed_cerebras_id_posts_settings_key(self):
+        transport = RecordingTransport([(200, _resp(cost=0.001))])
+        completion = governed_completion(
+            transport, "or-key", _GovernedStub(), CEREBRAS_ID, "hi", 64,
+            label="simple-answer", groq_key="g-settings-key",
+            cerebras_key="c-settings-key")
+        self.assertEqual(completion["model"], CEREBRAS_ID)
+        (url, key, _), = transport.calls
+        self.assertEqual(url, "https://api.cerebras.ai/v1/chat/completions")
+        self.assertEqual(key, "c-settings-key")
+        self.assertNotEqual(key, "or-key")
+
+    def test_missing_keys_refuse_before_dispatch(self):
+        transport = RecordingTransport([(200, _resp(cost=0.001))])
+        with self.assertRaisesRegex(HarnessError, "Groq key missing"):
+            governed_completion(transport, "or-key", _GovernedStub(),
+                                GROQ_ID, "hi", 64)
+        self.assertEqual(transport.calls, [])
+        with self.assertRaisesRegex(HarnessError, "Cerebras key missing"):
+            governed_completion(transport, "or-key", _GovernedStub(),
+                                CEREBRAS_ID, "hi", 64)
+        self.assertEqual(transport.calls, [])
 
 
 class AccountingTests(unittest.TestCase):
