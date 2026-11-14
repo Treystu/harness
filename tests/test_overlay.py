@@ -165,7 +165,7 @@ class CliSurfaceTests(_Trees):
              "--", "python", "-V"])
         self.assertEqual(opts.base, "b")
         self.assertEqual(opts.overlay, "o")
-        self.assertEqual(list(opts.command)[-2:], ["python", "-V"])
+        self.assertEqual(list(opts.argv)[-2:], ["python", "-V"])
 
     def test_the_handler_reports_the_payload_and_the_exit_status(self):
         from harness.cli import _cmd_overlay
