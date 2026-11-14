@@ -269,6 +269,56 @@ class TestPlanHttpServer(ServerHarness):
             finally:
                 conn.close()
 
+    @mock.patch("harness.server.governor_for")
+    @mock.patch("harness.waist.compose_plan")
+    def test_post_runs_plan_result_carries_nodes_and_verdict(
+            self, mock_compose, mock_gov):
+        # W1 #457 plan pane seam: the pane posts kind=plan through the /api/runs
+        # dispatch path with a stubbed planner returning a fixed dag; the run
+        # must complete and the result must carry the planned nodes + verdict.
+        mock_gov.return_value = ("fake-key", mock.MagicMock())
+        mock_compose.return_value = {
+            "status": "ok",
+            "verdict": "approve",
+            "goal": "Ship plan pane",
+            "dag": {"nodes": [
+                {"node_id": "n1", "instruction": "Add renderPlan",
+                 "target_files": ["harness/ui/panes.js"]},
+                {"node_id": "n2", "instruction": "Register Plan pane",
+                 "target_files": ["harness/ui/panes.js"]},
+            ]},
+        }
+
+        import http.client
+        with tempfile.TemporaryDirectory() as root:
+            conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+            try:
+                status, data = _request(conn, "POST", "/api/runs", {
+                    "kind": "plan",
+                    "args": {"root_dir": root, "goal": "Ship plan pane"},
+                })
+                self.assertEqual(status, 201)
+                run_id = data["id"]
+                self.assertEqual(data["kind"], "plan")
+
+                for _ in range(50):
+                    st, rdata = _request(conn, "GET", f"/api/runs/{run_id}/result")
+                    self.assertEqual(st, 200)
+                    if rdata["status"] != "running":
+                        break
+                    time.sleep(0.05)
+
+                self.assertEqual(rdata["status"], "ok")
+                result = rdata["result"]
+                self.assertEqual(result["goal"], "Ship plan pane")
+                self.assertEqual(result["verdict"], "approve")
+                nodes = result["dag"]["nodes"]
+                self.assertEqual([n["node_id"] for n in nodes], ["n1", "n2"])
+                self.assertEqual(
+                    nodes[0]["target_files"], ["harness/ui/panes.js"])
+            finally:
+                conn.close()
+
     def test_provision_plan_requires_explicit_workspace_root(self):
         conn = self._conn()
         try:
