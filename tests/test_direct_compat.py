@@ -375,6 +375,50 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(transport.calls, [])
 
 
+class SpendPricingTests(unittest.TestCase):
+    """W0.5 pricing cure (#510): the governor prices keyed direct ids from
+    the committed offers without consulting the OpenRouter catalog.
+
+    Hermetic. The recording transport refuses every GET, and fetch_models
+    is additionally mocked to raise, so a passing committed-id test proves
+    no catalog consult. No test touches the network or needs a provider key.
+    """
+
+    def _governor(self):
+        from harness.spend import SpendGovernor
+        transport = RecordingTransport([(200, _resp(cost=0.001))])
+        return SpendGovernor(transport, "or-key")
+
+    def _no_catalog(self, gov):
+        return mock.patch.object(
+            gov, "fetch_models",
+            side_effect=AssertionError("must not consult OpenRouter catalog"))
+
+    def test_committed_ids_price_from_committed_offers(self):
+        gov = self._governor()
+        with self._no_catalog(gov):
+            pricing = gov.fetch_pricing([GROQ_ID, CEREBRAS_ID])
+        for mid in (GROQ_ID, CEREBRAS_ID):
+            offer = resolve_offer(mid)
+            self.assertEqual(pricing[mid], (offer.prompt, offer.completion))
+
+    def test_committed_groq_rates_match_published_list(self):
+        # groq/openai/gpt-oss-20b: $0.075/$0.30 per 1M tokens.
+        gov = self._governor()
+        with self._no_catalog(gov):
+            pricing = gov.fetch_pricing(["groq/openai/gpt-oss-20b"])
+        prompt, completion = pricing["groq/openai/gpt-oss-20b"]
+        self.assertAlmostEqual(prompt, 0.075 / 1_000_000)
+        self.assertAlmostEqual(completion, 0.30 / 1_000_000)
+
+    def test_uncommitted_direct_ids_fail_closed(self):
+        for mid in ("groq/no-such-model", "cerebras/no-such-model"):
+            gov = self._governor()
+            with self._no_catalog(gov):
+                with self.assertRaises(HarnessError, msg=mid):
+                    gov.fetch_pricing([mid])
+
+
 class PoolTests(_IsolatedHome):
     def test_no_keys_means_no_direct_ids_only_free_rungs(self):
         self.assertEqual(direct_backend_pool(), [])
