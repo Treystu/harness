@@ -326,9 +326,39 @@ class LogJudgmentMcpTests(unittest.TestCase):
             router=mock.MagicMock(), engine=engine)
         result = server._invoke("log_judgment", {
             "log_text": LOG_TEXT, "pack": log_pack()})
-        self.assertEqual(result["status"], "ok")
+        # #334: an unkeyed run is all fallback -- nothing was live-judged, so
+        # the envelope cannot report native success.
+        self.assertEqual(result["status"], "no_live_judgments")
         self.assertEqual(result["coverage"]["total_items"], 5)
+        self.assertEqual(result["coverage"]["live_judged"], 0)
+        self.assertEqual(result["coverage"]["fallbacks"], 5)
         self.assertEqual(result["analysis"]["buckets"], {"ble": 2, "transport": 1})
+
+    def test_status_is_ok_only_when_an_item_was_live_judged(self):
+        from types import SimpleNamespace
+        from harness.mcp import McpServer
+
+        class LivePolicy:
+            """Stands in for a keyed policy: every item judged, no fallback."""
+
+            def evaluate_log_item(self, payload, pack, task_id=None):
+                return {"goal": "log"}, {}, {
+                    "bucket": "transport", "score": {"id": "sentiment",
+                    "level": "benign", "value": 0.1, "confidence": 0.9},
+                    "is_fallback": False, "path_id": "log/transport",
+                    "suggested_next_action": None,
+                }
+
+        engine = SimpleNamespace(jev_policy=LivePolicy(), settings=None)
+        server = McpServer(
+            transport=mock.MagicMock(), api_key="key",
+            governor=mock.MagicMock(), ledger=mock.MagicMock(),
+            router=mock.MagicMock(), engine=engine)
+        result = server._invoke("log_judgment", {
+            "log_text": LOG_TEXT, "pack": log_pack()})
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["coverage"]["live_judged"],
+                         result["coverage"]["total_items"])
 
     def test_mcp_requires_pack_and_policy(self):
         from types import SimpleNamespace

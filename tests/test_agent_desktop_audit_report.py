@@ -23,14 +23,17 @@ FIELDS = (
 
 # path:line references the report leans on, with the token that must appear on
 # that line. A rename or a shifted claim fails here instead of aging quietly.
+# Re-pointed after the bounded-target section grew in #481 (the native-input
+# section had already moved them once, in #477), so each anchor still lands on
+# the claim it names rather than merely on an existing line.
 ANCHORS = {
     ("driver_core/actions.py", 167): "focus",
     ("driver_core/actions.py", 169): "click",
-    ("driver_core/actions.py", 171): "type_text",
+    ("driver_core/actions.py", 172): "type_text",
     ("harness/perception_client.py", 183): "def health",
     ("pyproject.toml", 40): "harness-desktop",
-    ("docs/driver.md", 369): "Headless key provisioning",
-    ("docs/driver.md", 382): "Which surfaces are keyless",
+    ("docs/driver.md", 385): "Headless key provisioning",
+    ("docs/driver.md", 398): "Which surfaces are keyless",
 }
 
 PLACEHOLDERS = ("TBD", "TODO", "FIXME", "unconfirmed", "to be written")

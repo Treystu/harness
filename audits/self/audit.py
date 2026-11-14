@@ -152,6 +152,28 @@ def _pass(cond, ok_ev, fail_ev):
     return (1.0, ok_ev) if cond else (0.0, fail_ev)
 
 
+#: The house wording for an environment failure (#454, and osal's own
+#: "platform gap, not a configuration one"). A check that could not run here
+#: must say which environment fact was missing, so nobody reads the FAIL line
+#: as a verdict on the code.
+PLATFORM_GAP = "platform gap, not a code verdict"
+
+
+def platform_gap(fact, detail=""):
+    """A failed check whose cause is the machine, stated as such.
+
+    ``fact`` is the missing environment fact (an interpreter, a tool, a git
+    object, a traced interpreter); ``detail`` is what was observed. The score
+    is still 0.0, because an unmeasured check is not a pass -- only the
+    evidence changes, so the FAIL line names the machine instead of implying
+    the code is wrong.
+    """
+    line = f"[{PLATFORM_GAP}] needs {fact}"
+    if detail:
+        line += f": {detail}"
+    return 0.0, line
+
+
 def _status(score, evidence):
     """One status vocabulary for text and JSON.
 
@@ -1030,8 +1052,9 @@ def sm_lint():
         # failure with a named fix, not an opaque "No module named ruff"
         # red check on an unrelated PR. The shared resolver owns the search
         # order (HARNESS_RUFF, PATH, then `<interpreter> -m ruff`).
-        return _pass(False, "ruff check harness tests: clean via the shared resolver",
-                     f"S5 ruff unresolved: {exc}")
+        return platform_gap(
+            "a resolvable ruff (HARNESS_RUFF, PATH, or `python -m ruff`)",
+            f"S5 ruff unresolved: {exc}")
     r = subprocess.run(argv, cwd=str(ROOT), capture_output=True, text=True,
                        timeout=120)
     ok = r.returncode == 0
@@ -1383,7 +1406,7 @@ def d12_unreachable(ref, *, in_ci):
 def d12_no_base(reason, *, in_ci):
     """No merge-base means no changed-line measurement (not a vacuous pass)."""
     message = (f"D12 cannot resolve a merge-base ({reason}); changed-line "
-               f"coverage was not measured")
+               f"coverage was not measured [{PLATFORM_GAP}]")
     if in_ci:
         _audible(f"[FATAL] D12: {message} -- failing closed")
         return 0.0, f"FAIL: {message}"
@@ -1394,7 +1417,7 @@ def d12_no_base(reason, *, in_ci):
 def d12_coverage_unavailable(reason, *, in_ci):
     """Current-tree coverage is required; absence is never a silent pass."""
     message = (f"D12 cannot obtain current-tree coverage ({reason}); "
-               f"changed-line coverage was not measured")
+               f"changed-line coverage was not measured [{PLATFORM_GAP}]")
     if in_ci:
         _audible(f"[FATAL] D12: {message} -- failing closed")
         return 0.0, f"FAIL: {message}"

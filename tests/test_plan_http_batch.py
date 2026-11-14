@@ -201,6 +201,33 @@ class TestPlanTaskRunner(unittest.TestCase):
         self.assertIn("execution", res)
         self.assertEqual(res["execution"]["nodes_completed"], 1)
 
+    @mock.patch("harness.executor.PlanExecutor")
+    @mock.patch("harness.server.apply_session")
+    @mock.patch("harness.waist.compose_plan")
+    def test_run_plan_task_execute_takes_run_gate_from_local_gate_node(self, mock_compose, mock_session, mock_executor_cls):
+        # #445: the first node carrying local_gate becomes the executor's
+        # run_gate. Covers the gate-pick lines D12 measures.
+        mock_engine = mock.MagicMock()
+        mock_engine.governor = mock.MagicMock()
+        mock_engine.transport = mock.MagicMock()
+        mock_engine.api_key = "fake-key"
+        mock_session.return_value = mock_engine
+
+        mock_compose.return_value = {
+            "status": "ok",
+            "goal": "Run gated tasks",
+            "nodes": [{"node_id": "n1", "instruction": "edit code", "target_files": ["a.py"], "local_gate": "pytest tests/test_a.py"}],
+            "dag": {"nodes": [{"node_id": "n1", "instruction": "edit code", "target_files": ["a.py"]}]},
+        }
+        mock_executor = mock.MagicMock()
+        mock_executor.execute.return_value = {"status": "ok", "nodes_completed": 1}
+        mock_executor_cls.return_value = mock_executor
+
+        with tempfile.TemporaryDirectory() as root:
+            res = run_plan_task("task-p4", {"root_dir": root, "goal": "Run gated tasks", "execute": True}, cancel_check=None)
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(mock_executor_cls.call_args.kwargs["run_gate"], "pytest tests/test_a.py")
+
 
 class TestPlanHttpServer(ServerHarness):
     """Test HTTP dispatch of plan runs over loopback."""
