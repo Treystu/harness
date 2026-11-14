@@ -2265,6 +2265,11 @@ def _flushes_fallbacks(fn):
 @_flushes_fallbacks
 def main(argv=None):
     args = argv if argv is not None else sys.argv[1:]
+    # ``harness version`` asks the same question as ``harness --version`` (#328).
+    # Normalised onto the parser's own version action instead of a duplicate
+    # handler, so the answer has one def site and needs no settings load.
+    if args[:1] == ["version"]:
+        args = ["--version"] + args[1:]
     # The UI faces exit before settings/ledger setup: they run their own
     # servers and manage their own state (serve needs no key until a
     # dispatch happens; each runner loads settings itself).
