@@ -14,6 +14,7 @@ from harness.errors import (
     ToolCancelled,
 )
 from harness.jev_policy import policy_for
+from harness.provider_errors import ProviderSpendLimitError
 from harness.simple_request import (
     answer_clock,
     is_current_information_request,
@@ -644,6 +645,105 @@ class SimpleLifecycleTests(unittest.TestCase):
         self.assertEqual(result["status"], "deferred")
         self.assertEqual(generate.call_count, 1)
         self.assertIn("provider unavailable", result["defer_reason"])
+
+    def _run_ladder(self, ladder, effects, *, session_id,
+                    prompt="How do I make a peanut butter and jelly sandwich?"):
+        self.agent.settings.panel_pool = list(ladder)
+        policy = MagicMock()
+        policy.evaluate_simple_strategy.return_value = _pre()
+        policy.evaluate_answer.return_value = _post()
+        with (
+            patch("harness.simple_answer_lifecycle.governor_for", return_value=("key", self.gov)),
+            patch("harness.simple_answer_lifecycle.policy_for", return_value=policy),
+            patch("harness.simple_answer_lifecycle.ledger_for", return_value=self.ledger),
+            patch("harness.simple_answer_lifecycle.governed_completion",
+                  side_effect=list(effects)) as generate,
+            patch("harness.simple_answer_lifecycle.emit") as emit_mock,
+            patch("harness.simple_answer_lifecycle.load_chat_history",
+                  return_value=[]),
+            patch("harness.hourglass_lifecycle.enumerate_repo_files",
+                  side_effect=AssertionError("no repo intake")),
+            patch("harness.request_router.discover_target_files",
+                  side_effect=AssertionError("no AST intake")),
+            patch("harness.orchestrator.assess_completion",
+                  side_effect=AssertionError("no model judge")),
+        ):
+            result = self.agent.run_simple_request(
+                prompt, session_id=session_id)
+        return result, policy, generate, emit_mock
+
+    @staticmethod
+    def _rotations(emit_mock):
+        return [call for call in emit_mock.call_args_list
+                if call.args and call.args[0] == "rotation"]
+
+    def test_multi_rung_advance_serves_from_second_rung(self):
+        second = {
+            "content": "Second rung answer.", "model": "rung-b",
+            "cost": 0.000003, "input_tokens": 21, "output_tokens": 9,
+            "cost_estimated": False,
+        }
+        result, _, generate, emit_mock = self._run_ladder(
+            ["rung-a", "rung-b"],
+            [ProviderSpendLimitError("upstream refused this model",
+                                     http_status=402), second],
+            session_id="ladder-advance")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["response"], "Second rung answer.")
+        self.assertEqual(result["model"], "rung-b")
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(generate.call_args_list[0].args[3], "rung-a")
+        self.assertEqual(generate.call_args_list[1].args[3], "rung-b")
+        rotations = self._rotations(emit_mock)
+        self.assertEqual(len(rotations), 1)
+        self.assertEqual(rotations[0].kwargs["model"], "rung-a")
+        state = self.agent.lifecycle.load("ladder-advance")
+        rung_ids = [call_id for call_id in state["usage"]["provider_calls"]
+                    if ":simple-answer:rung" in call_id]
+        self.assertEqual(len(rung_ids), 2)
+        _, kwargs = self.ledger.append.call_args_list[-1]
+        self.assertEqual(kwargs["status"], "ok")
+
+    def test_second_rung_dispatches_after_spend_limit_latch(self):
+        from harness import events
+        second = {
+            "content": "Second rung answer.", "model": "rung-b",
+            "cost": 0.000003, "input_tokens": 21, "output_tokens": 9,
+            "cost_estimated": False,
+        }
+        with events.task_context("latch-test"):
+            with patch(
+                "harness.simple_answer_lifecycle.reset_provider_spend_limit_latch",
+                wraps=events.reset_provider_spend_limit_latch) as reset_mock:
+                result, _, generate, _ = self._run_ladder(
+                    ["rung-a", "rung-b"],
+                    [ProviderSpendLimitError("exhausted", http_status=402),
+                     second],
+                    session_id="latch-clear")
+            self.assertEqual(result["status"], "ok")
+            self.assertEqual(generate.call_count, 2)
+            self.assertEqual(generate.call_args_list[1].args[3], "rung-b")
+            self.assertTrue(reset_mock.called)
+            events.raise_if_provider_spend_limited()
+
+    def test_all_rungs_fail_defers_with_attempts_per_rung(self):
+        result, _, generate, emit_mock = self._run_ladder(
+            ["rung-a", "rung-b"],
+            [HarnessError("provider unavailable"),
+             HarnessError("provider unavailable")],
+            session_id="ladder-exhausted")
+        self.assertEqual(result["status"], "deferred")
+        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(result["simple_request"]["generation_calls"], 2)
+        self.assertIn("provider unavailable", result["defer_reason"])
+        self.assertEqual(
+            result["response"],
+            "I could not complete the bounded answer call. "
+            "No repository or write action was attempted.")
+        self.assertEqual(len(self._rotations(emit_mock)), 2)
+        _, kwargs = self.ledger.append.call_args_list[-1]
+        self.assertEqual(kwargs["status"], "deferred")
+        self.assertEqual(kwargs["generation_calls"], 2)
 
     def test_deadline_during_post_preserves_generated_candidate(self):
         policy = MagicMock()
