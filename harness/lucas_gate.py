@@ -3,6 +3,13 @@
 The calling agent owns the semantic judgment against the private operator
 profile. This module validates the required scorecard and applies the
 published category, rounding, and bias bars without calling Jev or a model.
+
+Private-profile handling (operator-owned, never in this repo): the profile
+is supplied out-of-band by the calling operator. It is never committed to
+the repository, never pasted into GitHub text, and never printed in logs or
+filings. This module never loads, stores, or transmits profile content --
+the calling agent performs the semantic read privately and passes only the
+scorecard (category scores, bias checks, overall average) inward.
 """
 
 from decimal import Decimal, InvalidOperation
