@@ -19,6 +19,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 import time
+from typing import Any, Dict
 
 from .config import (
     OPENROUTER_KEY_URL, OPENROUTER_MODELS_URL,
@@ -225,7 +226,13 @@ class SpendGovernor:
         }
         return self.key_info
 
-    def key_status(self):
+    def key_status(self) -> Dict[str, Any]:
+        """The key identity plus this session's spend, as one JSON-ready map.
+
+        Explicitly ``Any``-valued: callers add their own nested blocks (the UI
+        spend route attaches ``session``), so a narrower value type would make
+        an honest payload a type error.
+        """
         if not self.key_info:
             self.verify_key()
         out = dict(self.key_info or {}, session_spent=self.spent)
