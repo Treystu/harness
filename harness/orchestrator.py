@@ -7,11 +7,13 @@ PlanExecutor stays the single owner of reservations, workers, isolation, and
 gates.
 """
 import re
+import stat
 from pathlib import Path
 from typing import Callable, Dict, List
 
 from .chat import _extract_json
 from .errors import HarnessError, ToolCancelled
+from .restart_policy import consume_restart_decision
 
 MAX_TRIAGE_FILES = 15
 MAX_ORCH_ROUNDS = 3
@@ -224,17 +226,214 @@ def build_state_summary(node_results, extra_notes=(), max_chars=8000):
     return "\n".join(lines)[:max_chars]
 
 
+# Direct-reference completion (#459): the per-subtask status lines are
+# navigation-only. The evidence is the deliverable contents plus the real
+# verification output, supplied by code. This label travels inside the
+# summary so BOTH judges (pre-judge nouls and the generative verdict)
+# receive contents with the summary marked navigation-only.
+_SUMMARY_NAVIGATION_ONLY_NOTE = (
+    "completion evidence note: per-subtask status lines above are "
+    "navigation-only; the completion evidence is the deliverable contents "
+    "and verification output below, supplied by code rather than condensed "
+    "by a generative step")
+
+# Bounded deliverable reader: a single file larger than this is not read --
+# its content is declared unavailable (chunking honesty) rather than
+# silently truncated into the evidence.
+_DELIVERABLE_CONTENT_MAX_BYTES = 32 * 1024
+# Fair-share pool across deliverable files, in characters: the pool is split
+# evenly so one large deliverable cannot crowd out the rest. Each file is
+# additionally capped so a lone deliverable stays bounded.
+_DELIVERABLE_CONTENT_TOTAL_CHARS = 6000
+_DELIVERABLE_CONTENT_PER_FILE_CHARS = 2000
+
+
+def _safe_content_path(root_dir, rel):
+    """Resolve a deliverable name inside ``root_dir``, or None when unsafe.
+
+    Same normalization as ``note_artifact`` (slash folding, quote/space
+    stripping, ``..`` refusal), plus absolute-path refusal and symlink
+    containment: a name that resolves outside the deliverable root is never
+    read, even when the OS would serve it.
+    """
+    text = str(rel).replace("\\", "/").strip("`'\" .")
+    if not text or ".." in text:
+        return None
+    if text.startswith(("/", "~")):
+        return None
+    if len(text) > 2 and text[1] == ":":
+        return None
+    try:
+        root = Path(root_dir).resolve()
+        resolved = (root / text).resolve()
+    except OSError:
+        return None
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return None
+    return resolved
+
+
+def deliverable_content_evidence(paths, root_dir):
+    """Read deliverable files for the completion judges.
+
+    Bounded, traversal/symlink-safe reader: names are contained in
+    ``root_dir`` per :func:`_safe_content_path`, each file is preflighted
+    against ``_DELIVERABLE_CONTENT_MAX_BYTES``, and the pre-read size is
+    compared against the post-read size so a file that grows mid-read is
+    refused rather than excerpted inconsistently. Text is decoded with
+    ``errors="replace"``, mirroring ``note_artifact``.
+
+    Fair-share chunking: the char pool is split evenly across the named
+    files (each file capped), so one large deliverable cannot crowd out the
+    rest. Returns text PLUS declared counts/chunk descriptors -- what was
+    excerpted is declared: every file gets a chunk entry, and files whose
+    content code could not supply get an ``unavailable`` entry with the
+    reason. A merely absent file is declared ``missing`` (artifact truth
+    owns missing files) and does not count as unavailable.
+    """
+    names: List[str] = []
+    seen = set()
+    for raw in paths or []:
+        # Traversal intent is rejected before normalization strips the dots:
+        # ``note_artifact`` owns such names as MISSING artifact truth, and
+        # this reader must never be coaxed into resolving them.
+        if ".." in str(raw):
+            continue
+        rel = str(raw).replace("\\", "/").strip("`'\" .")
+        if not rel or rel in seen or ".." in rel:
+            continue
+        seen.add(rel)
+        names.append(rel)
+    per_file = _DELIVERABLE_CONTENT_PER_FILE_CHARS
+    if names:
+        per_file = min(per_file,
+                       _DELIVERABLE_CONTENT_TOTAL_CHARS // len(names))
+    chunks: List[Dict] = []
+    unavailable: List[Dict] = []
+    notes: List[str] = []
+    for rel in names:
+        safe = _safe_content_path(root_dir, rel)
+        if safe is None:
+            chunks.append({"path": rel, "status": "unsafe",
+                           "excerpt_start": 0, "excerpt_chars": 0,
+                           "truncated": False})
+            unavailable.append({"path": rel, "reason":
+                                "unsafe path: outside the deliverable root"})
+            notes.append(f"content: {rel} UNAVAILABLE "
+                         "(unsafe path: outside the deliverable root)")
+            continue
+        try:
+            pre = safe.stat()
+        except OSError:
+            chunks.append({"path": rel, "status": "missing",
+                           "excerpt_start": 0, "excerpt_chars": 0,
+                           "truncated": False})
+            notes.append(f"content: {rel} UNAVAILABLE (missing on disk; "
+                         "artifact truth owns missing files)")
+            continue
+        pre_size = pre.st_size
+        if not stat.S_ISREG(pre.st_mode):
+            chunks.append({"path": rel, "status": "not-regular",
+                           "excerpt_start": 0, "excerpt_chars": 0,
+                           "truncated": False})
+            unavailable.append({"path": rel,
+                                "reason": "not a regular file"})
+            notes.append(f"content: {rel} UNAVAILABLE (not a regular file)")
+            continue
+        if pre_size > _DELIVERABLE_CONTENT_MAX_BYTES:
+            chunks.append({"path": rel, "status": "too-large",
+                           "size_bytes": pre_size,
+                           "excerpt_start": 0, "excerpt_chars": 0,
+                           "truncated": False})
+            unavailable.append({
+                "path": rel,
+                "reason": (f"exceeds per-file bound ({pre_size} bytes > "
+                           f"{_DELIVERABLE_CONTENT_MAX_BYTES})")})
+            notes.append(f"content: {rel} UNAVAILABLE (exceeds per-file "
+                         f"bound: {pre_size} bytes > "
+                         f"{_DELIVERABLE_CONTENT_MAX_BYTES})")
+            continue
+        try:
+            with open(safe, "rb") as handle:
+                data = handle.read()
+            post_size = safe.stat().st_size
+        except OSError as exc:
+            chunks.append({"path": rel, "status": "unreadable",
+                           "excerpt_start": 0, "excerpt_chars": 0,
+                           "truncated": False})
+            unavailable.append({"path": rel,
+                                "reason": f"unreadable: {exc}"})
+            notes.append(f"content: {rel} UNAVAILABLE (unreadable: {exc})")
+            continue
+        if post_size != pre_size:
+            chunks.append({"path": rel, "status": "changed-during-read",
+                           "size_bytes": pre_size,
+                           "excerpt_start": 0, "excerpt_chars": 0,
+                           "truncated": False})
+            unavailable.append({
+                "path": rel,
+                "reason": (f"changed during read ({pre_size} -> "
+                           f"{post_size} bytes); refusing excerpt")})
+            notes.append(f"content: {rel} UNAVAILABLE (changed during read: "
+                         f"{pre_size} -> {post_size} bytes; refusing excerpt)")
+            continue
+        if b"\x00" in data:
+            chunks.append({"path": rel, "status": "binary",
+                           "size_bytes": pre_size,
+                           "excerpt_start": 0, "excerpt_chars": 0,
+                           "truncated": False})
+            unavailable.append({"path": rel, "reason":
+                                "binary content: not supplied as text"})
+            notes.append(f"content: {rel} UNAVAILABLE "
+                         "(binary content: not supplied as text)")
+            continue
+        full = data.decode("utf-8", errors="replace")
+        excerpt = full[:per_file]
+        truncated = len(full) > per_file
+        shown_lines = excerpt.count("\n") + (1 if excerpt else 0)
+        chunks.append({"path": rel, "status": "included",
+                       "size_bytes": pre_size,
+                       "chars_total": len(full),
+                       "excerpt_start": 0, "excerpt_chars": len(excerpt),
+                       "lines_shown": shown_lines, "truncated": truncated})
+        if truncated:
+            notes.append(
+                f"content: {rel} ({pre_size} bytes on disk; excerpt chars "
+                f"0:{len(excerpt)} of {len(full)}, {shown_lines} lines "
+                f"shown, TRUNCATED -- remainder not supplied to the judges):\n"
+                f"{excerpt}")
+        else:
+            notes.append(
+                f"content: {rel} ({pre_size} bytes on disk, {len(full)} "
+                f"chars, {shown_lines} lines, complete):\n{excerpt}")
+    return {"text": "\n".join(notes), "chunks": chunks,
+            "unavailable": unavailable}
+
+
 def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
           root_dir, plan_round: Callable[[str], Dict],
           execute_plan: Callable[[Dict], Dict],
           completion_chat: Callable[[str], str], emit: Callable[..., None],
           cancel_check=None, refused=None, max_rounds=MAX_ORCH_ROUNDS,
-          jev_policy=None, jev_completion_threshold=None):
+          jev_policy=None, jev_completion_threshold=None,
+          preflight_budget=None, renew_consent=None):
     """Run plan -> execute -> judge until complete or the round budget ends.
 
     ``execute_plan`` is the only execution seam: the caller supplies the
     already-composed PlanExecutor invocation, while this function owns round
     state, re-planning, artifact truth, and completion semantics.
+
+    ``preflight_budget`` and ``renew_consent`` are the restart-transition
+    seams, both optional. When a paused round carries an allowed
+    ``judgment["restart"]`` decision (read from the round plan's
+    ``stage_judgments``), the transition re-enters at the declared target
+    with completed evidence preserved: ``preflight_budget`` is called so the
+    re-entered round re-preflights before any dispatch, and ``renew_consent``
+    is called so the re-entered assignment renews consent rather than reusing
+    the paused round's. Both receive the transition dict; their returns are
+    not interpreted (a failure raises loudly instead of re-entering quietly).
     """
     all_results: Dict[str, Dict] = {}
     total_cost = 0.0
@@ -294,6 +493,57 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
                         if isinstance(result, dict) and result.get("status")
                         in {"consent_blocked", "deferred"}), None)
         if blocked is not None:
+            # Slice-2 restart controller (#459): the paused round re-enters
+            # when (and only when) its plan carries an allowed
+            # ``judgment["restart"]`` decision. The reader is
+            # ``consume_restart_decision``; a refused, blocked, terminal, or
+            # absent decision keeps the pause below exactly as before.
+            restart_decision = ((
+                plan.get("stage_judgments") or {}).get("execution") or {}
+            ).get("restart") if isinstance(plan, dict) else None
+            if restart_decision is not None:
+                transition = consume_restart_decision(
+                    restart_decision, completed_results=all_results)
+                rounds_history[-1]["restart"] = {
+                    "reentered": bool(transition["reenter"]),
+                    "target": transition["target"],
+                    "preserved_stages": transition["preserved_stages"],
+                    "preserved_nodes": sorted(
+                        transition["preserved_evidence"]),
+                    "consent_renewal_required": transition[
+                        "consent_renewal_required"],
+                    "staleness_reason": transition["staleness_reason"],
+                }
+                if transition["reenter"]:
+                    if preflight_budget is not None:
+                        preflight_budget(transition)
+                    if renew_consent is not None:
+                        renew_consent(transition)
+                    preserved_ids = sorted(
+                        transition["preserved_evidence"])
+                    emit("orchestration_note",
+                         note=("restart to {0}: re-entering with {1} "
+                               "completed node(s) preserved ({2}); budgets "
+                               "re-preflighted; consent stale ({3}), "
+                               "renewal forced".format(
+                                   transition["target"],
+                                   len(preserved_ids),
+                                   ", ".join(preserved_ids)
+                                   if preserved_ids else "none",
+                                   transition["staleness_reason"])))
+                    remaining_scope = (
+                        "restart to {0}: {1}; preserved evidence: {2}".format(
+                            transition["target"],
+                            str(blocked.get("reason") or
+                                "execution consent deferred"),
+                            ", ".join(preserved_ids)
+                            if preserved_ids else "none"))
+                    current_goal = remaining_scope or goal
+                    continue
+                emit("orchestration_note",
+                     note=("restart refused or blocked ({0}); keeping the "
+                           "pause".format("; ".join(
+                               transition["reasons"]) or "no reason given")))
             remaining_scope = str(blocked.get("reason") or
                                   "execution consent deferred")
             consent_handoff = {
@@ -334,10 +584,30 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
                 goal):
             note_artifact(match.group(0))
 
+        # Direct-reference completion (#459): the judges read the
+        # deliverable contents (bounded, chunked, declared) plus the real
+        # verification output, supplied by code. Absent files stay with
+        # artifact truth (``missing``); files whose content code could not
+        # supply are the code-owned refusal below.
+        content = deliverable_content_evidence(list(seen_paths), root_dir)
+        content_unavailable = list(content["unavailable"])
+        verification_notes = []
+        final_gate = round_results.get("final_gate")
+        if isinstance(final_gate, dict):
+            verification_notes.append(
+                "verification final_gate status="
+                f"{final_gate.get('status', '?')} returncode="
+                f"{final_gate.get('returncode', '?')} gate="
+                f"{str(final_gate.get('gate') or '')[:200]} output="
+                f"{str(final_gate.get('output') or '')[-1000:]}")
+
         summary = build_state_summary(
             list(round_results.values()),
             extra_notes=[f"orchestrator round {round_no} of {max_rounds}"]
-            + artifact_notes)
+            + artifact_notes
+            + [_SUMMARY_NAVIGATION_ONLY_NOTE]
+            + ([content["text"]] if content["text"] else [])
+            + verification_notes)
         # JEV-P3-completion: when a policy owner is attached, run artifact/goal
         # nouls BEFORE the generative judge. Without policy, keep the existing
         # judge-then-artifact-override contract (unchanged hermetic tests).
@@ -355,15 +625,28 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
                 "fallback_reason": getattr(
                     pre_judge.get("result"), "fallback_reason", None),
             }
-            if pre_judge["cannot_complete"]:
+            if pre_judge["cannot_complete"] or content_unavailable:
+                content_note = (
+                    "; deliverable content unavailable: "
+                    + ", ".join(item["path"] for item in content_unavailable)
+                    if content_unavailable else "")
                 emit("orchestration_note",
                      note=f"completion nouls refuse complete: {pre_judge['reason']}"
                           + (f" ({len(pre_judge['missing_artifacts'])} missing)"
-                             if pre_judge["missing_artifacts"] else ""))
-                if pre_judge["missing_artifacts"]:
+                             if pre_judge["missing_artifacts"] else "")
+                          + content_note)
+                if pre_judge["missing_artifacts"] or content_unavailable:
                     final_all_ok = False
-                    remaining_scope = (pre_judge["remaining"]
-                                       or pre_judge["reason"])
+                    content_remaining = (
+                        "deliverable content unavailable: "
+                        + "; ".join(f"{item['path']} ({item['reason']})"
+                                    for item in content_unavailable)
+                        if content_unavailable else "")
+                    remaining_scope = "; ".join(part for part in
+                                                [(pre_judge["remaining"]
+                                                  or pre_judge["reason"]),
+                                                 content_remaining]
+                                                if part)
                     current_goal = remaining_scope or goal
                     # Code-owned fail: do not spend the generative judge.
                     continue
@@ -407,6 +690,16 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
             verdict = {"complete": False,
                        "remaining": "; ".join(missing),
                        "reason": "named artifacts missing despite verdict"}
+        if verdict["complete"] and content_unavailable:
+            emit("orchestration_note",
+                 note="judge said complete but deliverable content for "
+                      f"{len(content_unavailable)} file(s) was unavailable; "
+                      "overriding to incomplete")
+            verdict = {"complete": False,
+                       "remaining": "; ".join(
+                           f"{item['path']} ({item['reason']})"
+                           for item in content_unavailable),
+                       "reason": "deliverable content unavailable despite verdict"}
         if verdict["complete"]:
             final_all_ok = True
             break
