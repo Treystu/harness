@@ -59,6 +59,40 @@ META_KEY_FILE = os.path.join(CONFIG_DIR, "meta.env")
 def is_meta_model_id(label):
     """True when a model id or spend label names a direct Meta Muse model."""
     return isinstance(label, str) and label.startswith(META_MODEL_PREFIX)
+
+
+# Groq + Cerebras direct provider lanes (W0.5, issue #510): generic
+# OpenAI-compatible backends. The Harness id is "<provider>/<wire>" where
+# <wire> is the provider-native model id (which may itself contain "/",
+# e.g. "groq/openai/gpt-oss-120b"); only the first segment is the namespace.
+# Neither prefix collides with an OpenRouter author slug in the shipped-id
+# enumeration (pinned by the namespace test in tests/test_direct_compat.py),
+# so a direct id can never be mistaken for an OpenRouter id.
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+CEREBRAS_BASE_URL = "https://api.cerebras.ai/v1"
+GROQ_PROVIDER = "groq"
+CEREBRAS_PROVIDER = "cerebras"
+GROQ_MODEL_PREFIX = "groq/"
+CEREBRAS_MODEL_PREFIX = "cerebras/"
+GROQ_KEY_ENV = "GROQ_API_KEY"
+GROQ_KEY_FILE = os.path.join(CONFIG_DIR, "groq.env")
+CEREBRAS_KEY_ENV = "CEREBRAS_API_KEY"
+CEREBRAS_KEY_FILE = os.path.join(CONFIG_DIR, "cerebras.env")
+
+
+def is_groq_model_id(label):
+    """True when a model id or spend label names the direct Groq backend."""
+    return isinstance(label, str) and label.startswith(GROQ_MODEL_PREFIX)
+
+
+def is_cerebras_model_id(label):
+    """True when a model id or spend label names the direct Cerebras backend."""
+    return isinstance(label, str) and label.startswith(CEREBRAS_MODEL_PREFIX)
+
+
+def is_direct_compat_id(label):
+    """True when a model id names any generic OpenAI-compatible backend."""
+    return is_groq_model_id(label) or is_cerebras_model_id(label)
 # Daily usage rankings (model_permaslug + total_tokens per day). The
 # evidence source for pool-candidate refresh (see harness/rankings.py).
 OPENROUTER_RANKINGS_URL = "https://openrouter.ai/api/v1/datasets/rankings-daily"
@@ -481,6 +515,23 @@ DEFAULT_META_ESCALATION_POOL = [
 ]
 DEFAULT_META_JUDGE_MODEL = "muse-wonder-1.0"
 
+# ---- Groq / Cerebras direct lanes (W0.5, issue #510) ----
+# Every id is "<provider>/<provider-native id>"; the committed offers live in
+# harness/direct_compat.py. Each pool is cheapest-first by the committed
+# per-token list rates (apply workload: 4000 in / 1500 out). A missing key
+# excludes the whole pool (see direct_backend_pool); the pools below never
+# enter shipped_model_ids because they are not OpenRouter ids and the
+# shipped catalog check only validates OpenRouter ids.
+DEFAULT_GROQ_POOL = [
+    "groq/openai/gpt-oss-20b",
+    "groq/openai/gpt-oss-120b",
+    "groq/qwen/qwen3-32b",
+]
+DEFAULT_CEREBRAS_POOL = [
+    "cerebras/gpt-oss-120b",
+    "cerebras/qwen-3-32b",
+]
+
 
 def shipped_model_ids():
     """Every default lane model id this install ships with, across both tier
@@ -495,6 +546,90 @@ def shipped_model_ids():
             | set(DEFAULT_APPLY_POOL_PAID) | set(SPECIALIST_POOL_PAID)
             | set(ESCALATION_POOL_FREE) | set(ESCALATION_POOL_PAID)
             | {DEFAULT_JUDGE_PAID_TOP})
+
+
+#: Apply-workload shape used to order the laptop-local direct pool
+#: cheapest-capable-first (input, output tokens; mirrors the apply lane).
+DIRECT_POOL_WORKLOAD = (4000, 1500)
+
+
+def _direct_offer_rates():
+    """Per-token rates for every committed direct-backend id.
+
+    Fireworks rates come from the committed endpoints pack (the existing
+    price data), Meta/Groq/Cerebras rates from their committed offers. A
+    pack that cannot be read excludes the Fireworks ids loudly (a warning,
+    never a silent drop and never a load failure): every other backend still
+    assembles.
+    """
+    from . import direct_compat as _dc
+    from .meta import META_OFFERS
+    rates = {}
+    for mid, offer in list(_dc.GROQ_OFFERS.items()) + list(
+            _dc.CEREBRAS_OFFERS.items()):
+        rates[mid] = (offer.prompt, offer.completion)
+    for mid, offer in META_OFFERS.items():
+        rates[mid] = (offer.prompt, offer.completion)
+    try:
+        from .endpoint_pricing import load_fireworks_endpoints
+        for path, price in load_fireworks_endpoints()["endpoints"].items():
+            rates[path] = (price.prompt, price.completion)
+    except HarnessError as exc:
+        eprint(f"[warn] direct pool: Fireworks pack unreadable ({exc}); "
+               "Fireworks ids excluded from the laptop-local pool.")
+    return rates
+
+
+def direct_backend_pool(*, groq_key=None, cerebras_key=None,
+                        fireworks_key=None, meta_key=None):
+    """Key-available direct-backend ids, cheapest-capable-first (W0.5 #510).
+
+    Candidates are the committed Fireworks paths, Muse ids, and groq/* /
+    cerebras/* ids; a missing key excludes that backend's ids, and an id
+    with no committed offer is excluded rather than priced on a guess.
+    Ordering is by blended apply-workload cost from existing price data
+    (cheapest first, id tiebreak), so the cheapest capable rung is tried
+    first. Keys are presence only here -- their values are never logged.
+    """
+    in_tok, out_tok = DIRECT_POOL_WORKLOAD
+    rates = _direct_offer_rates()
+    keyed = []
+    if groq_key:
+        keyed.extend(DEFAULT_GROQ_POOL)
+    if cerebras_key:
+        keyed.extend(DEFAULT_CEREBRAS_POOL)
+    if fireworks_key:
+        keyed.extend(_dedup(list(DEFAULT_FIREWORKS_APPLY_POOL)
+                             + list(DEFAULT_FIREWORKS_PANEL_POOL)
+                             + [DEFAULT_FIREWORKS_JUDGE_MODEL]))
+    if meta_key:
+        keyed.extend(_dedup(list(DEFAULT_META_APPLY_POOL)
+                             + list(DEFAULT_META_PANEL_POOL)
+                             + [DEFAULT_META_JUDGE_MODEL]))
+    priced = []
+    for mid in _dedup(keyed):
+        rate = rates.get(mid)
+        if rate is None:
+            continue
+        prompt, completion = rate
+        priced.append((in_tok * prompt + out_tok * completion, mid))
+    priced.sort(key=lambda row: (row[0], row[1]))
+    return [mid for _, mid in priced]
+
+
+def laptop_local_pool(*, groq_key=None, cerebras_key=None,
+                      fireworks_key=None, meta_key=None, free_pool=None):
+    """The laptop-local pool (W0.5 #510): keyed direct ids, then :free rungs.
+
+    ``free_pool`` defaults to ``FREE_APPLY_POOL``; callers serving another
+    lane pass that lane's free pool. Existing pool order semantics are
+    untouched -- both halves keep their own order, the direct half sorted
+    cheapest-capable-first and the free half exactly as shipped.
+    """
+    return (direct_backend_pool(
+        groq_key=groq_key, cerebras_key=cerebras_key,
+        fireworks_key=fireworks_key, meta_key=meta_key)
+        + list(free_pool if free_pool is not None else FREE_APPLY_POOL))
 
 _ENV_NAMES = {
     "use_free": "HARNESS_USE_FREE",
@@ -552,6 +687,9 @@ _ENV_NAMES = {
     "openrouter_enabled": "HARNESS_OPENROUTER_ENABLED",
     "fireworks_enabled": "HARNESS_FIREWORKS_ENABLED",
     "fireworks_budget_usd": "HARNESS_FIREWORKS_BUDGET_USD",
+    "groq_key": "GROQ_API_KEY",
+    "cerebras_key": "CEREBRAS_API_KEY",
+    "use_local_pool": "HARNESS_USE_LOCAL_POOL",
     "meta_enabled": "HARNESS_META_ENABLED",
     "meta_budget_usd": "HARNESS_META_BUDGET_USD",
     "fetch_allowlist_enabled": "HARNESS_FETCH_ALLOWLIST_ENABLED",
@@ -711,6 +849,53 @@ def resolve_meta_key(key_file=None):
     return key or None
 
 
+def resolve_groq_key(key_file=None):
+    """Resolve the Groq key: scmorc file, harness file, then the env var.
+
+    Only presence is ever logged; the value is returned to the caller and
+    never echoed. Groq offers trial credits on new accounts (console.groq.com),
+    so a missing key also means the operator has not onboarded yet.
+    """
+    candidates = ([key_file] if key_file else [
+        os.path.join(os.path.expanduser("~/.config/scmorc"), "groq.env"),
+        os.path.join(CONFIG_DIR, "groq.env"),
+    ])
+    for p in candidates:
+        k = _read_key_file(p, "GROQ_API_KEY") or _read_key_file(p, "HARNESS_GROQ_KEY")
+        if k:
+            _warn_insecure_keyfile(p)
+            return k
+    key = os.environ.get("GROQ_API_KEY") or os.environ.get("HARNESS_GROQ_KEY")
+    if key:
+        eprint("[warn] using GROQ_API_KEY from the process environment; "
+               "prefer a 0600 key file for interactive use.")
+    return key or None
+
+
+def resolve_cerebras_key(key_file=None):
+    """Resolve the Cerebras key: scmorc file, harness file, then the env var.
+
+    Only presence is ever logged; the value is returned to the caller and
+    never echoed. Cerebras grants $5 in trial credits to new accounts
+    (cloud.cerebras.ai), so a missing key also means the operator has not
+    onboarded yet.
+    """
+    candidates = ([key_file] if key_file else [
+        os.path.join(os.path.expanduser("~/.config/scmorc"), "cerebras.env"),
+        os.path.join(CONFIG_DIR, "cerebras.env"),
+    ])
+    for p in candidates:
+        k = _read_key_file(p, "CEREBRAS_API_KEY") or _read_key_file(p, "HARNESS_CEREBRAS_KEY")
+        if k:
+            _warn_insecure_keyfile(p)
+            return k
+    key = os.environ.get("CEREBRAS_API_KEY") or os.environ.get("HARNESS_CEREBRAS_KEY")
+    if key:
+        eprint("[warn] using CEREBRAS_API_KEY from the process environment; "
+               "prefer a 0600 key file for interactive use.")
+    return key or None
+
+
 def _as_bool(value):
     if isinstance(value, bool):
         return value
@@ -753,7 +938,8 @@ class Settings:
                   use_fireworks=False, fireworks_key="", trial_model="",
                   fetch_allowlist_enabled=True, fetch_allowlist_hosts=None,
                   meta_enabled=False, use_meta=False, meta_key="",
-                  meta_budget_usd=0.0):
+                  meta_budget_usd=0.0, groq_key="", cerebras_key="",
+                  local_pool=None, use_local_pool=False):
         self.use_free = use_free
         self.openrouter_enabled = bool(openrouter_enabled)
         self.fireworks_enabled = bool(fireworks_enabled or use_fireworks)
@@ -770,6 +956,15 @@ class Settings:
         self.fireworks_key = str(fireworks_key or "")
         self.use_meta = self.meta_enabled
         self.meta_key = str(meta_key or "")
+        # Direct OpenAI-compatible backends (W0.5 #510): keys only gate pool
+        # membership (see direct_backend_pool); there is no enable toggle.
+        self.groq_key = str(groq_key or "")
+        self.cerebras_key = str(cerebras_key or "")
+        # The laptop-local pool: keyed direct ids cheapest-capable-first,
+        # then the :free rungs. Computed by load_settings; the walk consumes
+        # it only when use_local_pool opts in, otherwise it stays inert.
+        self.use_local_pool = bool(use_local_pool)
+        self.local_pool = list(local_pool or [])
         # Per-run reversible model trial override (#197) -- never persisted by update_config.
         self.trial_model = str(trial_model or "")
         self.panel = list(panel)
@@ -1030,6 +1225,16 @@ def load_settings(overrides=None):
             f"unknown model_preset '{model_preset}' (only 'muse' is defined)")
     use_meta = _as_bool(get("use_meta", False)) or model_preset == "muse"
     meta_key = str(get("meta_key", "") or "").strip() or resolve_meta_key()
+    # Direct-backend keys (W0.5 #510) resolve the same way but never raise:
+    # a missing key only excludes that backend's ids from the laptop-local
+    # pool (key-gated, presence-only). No network is touched here.
+    groq_key = str(get("groq_key", "") or "").strip() or resolve_groq_key()
+    cerebras_key = (str(get("cerebras_key", "") or "").strip()
+                    or resolve_cerebras_key())
+    # Explicit opt-in for the laptop-local pool (W0.5 wiring): composing the
+    # pool never changes dispatch by itself, following the use_meta /
+    # use_fireworks / use_free flag pattern.
+    use_local_pool = _as_bool(get("use_local_pool", False))
     if use_meta and not meta_key:
         raise HarnessError(
             "HARNESS_USE_META=true requires a Meta API key "
@@ -1146,12 +1351,24 @@ def load_settings(overrides=None):
     else:
         jev_api_key = get("jev_api_key", None) or resolve_jev_key()
 
+    # The laptop-local pool assembles alongside (never inside) the existing
+    # use_free/paid saturation above: existing pools keep their order and
+    # membership semantics exactly. The walk consumes this composition only
+    # when use_local_pool opts in; otherwise the panel_pool ladder is used.
+    local_pool = laptop_local_pool(
+        groq_key=groq_key or None, cerebras_key=cerebras_key or None,
+        fireworks_key=fireworks_key or None, meta_key=meta_key or None)
+
     settings = Settings(
         use_free=use_free,
         use_fireworks=use_fireworks,
         fireworks_key=fireworks_key or "",
         use_meta=use_meta,
         meta_key=meta_key or "",
+        groq_key=groq_key or "",
+        cerebras_key=cerebras_key or "",
+        local_pool=local_pool,
+        use_local_pool=use_local_pool,
         trial_model=trial_model,
         panel=panel,
         panel_pool=panel_pool,

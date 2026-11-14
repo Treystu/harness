@@ -24,8 +24,8 @@ from typing import Any, Dict
 from .config import (
     OPENROUTER_KEY_URL, OPENROUTER_MODELS_URL,
     BYOK_DENYLIST_PREFIXES, BYOK_PREFIXES_PATH, load_byok_prefixes,
-    save_byok_prefixes, DEFAULT_MAX_COST, is_fireworks_model_path,
-    is_meta_model_id,
+    save_byok_prefixes, DEFAULT_MAX_COST, is_direct_compat_id,
+    is_fireworks_model_path, is_meta_model_id,
 )
 from .errors import HarnessError, ToolCancelled
 from .provider_errors import ProviderSpendLimitError
@@ -395,9 +395,11 @@ class SpendGovernor:
             from .fireworks import is_fireworks_model_path
             fw_missing = [m_ for m_ in missing if is_fireworks_model_path(m_)]
             meta_missing = [m_ for m_ in missing if is_meta_model_id(m_)]
+            direct_missing = [m_ for m_ in missing if is_direct_compat_id(m_)]
             or_missing = [m_ for m_ in missing
                           if not is_fireworks_model_path(m_)
-                          and not is_meta_model_id(m_)]
+                          and not is_meta_model_id(m_)
+                          and not is_direct_compat_id(m_)]
             if fw_missing:
                 from .endpoint_pricing import load_fireworks_endpoints
                 fw_pack = load_fireworks_endpoints()
@@ -416,6 +418,15 @@ class SpendGovernor:
                 from .meta import resolve_offer as _meta_offer
                 for mid in meta_missing:
                     offer = _meta_offer(mid)
+                    self._pricing_cache[mid] = (offer.prompt, offer.completion)
+            if direct_missing:
+                # Groq/Cerebras ids are priced from the committed offers, never
+                # the OpenRouter catalog: the direct lane must stay priced (and
+                # usable) exactly when OpenRouter is unavailable or unusable.
+                # An uncommitted groq-/cerebras- id raises here, fail closed.
+                from .direct_compat import resolve_offer as _direct_offer
+                for mid in direct_missing:
+                    offer = _direct_offer(mid)
                     self._pricing_cache[mid] = (offer.prompt, offer.completion)
             if or_missing:
                 models = self.fetch_models(refresh=True)

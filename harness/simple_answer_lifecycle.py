@@ -12,8 +12,12 @@ from .conversation_context import (
     facts_block,
     load_memory,
 )
-from .errors import HarnessError, ToolCancelled
-from .events import cancellation_context, emit
+from .errors import HarnessError, ProviderUsageUnknown, ToolCancelled
+from .events import (
+    cancellation_context,
+    emit,
+    reset_provider_spend_limit_latch,
+)
 from .history import ChatResumePayload, load_chat_history, save_chat_turn
 from .jev_identity import jev_identity_block, jev_mentioned
 from .lifecycle import review_probability
@@ -308,9 +312,13 @@ class SimpleAnswerLifecycleMixin:
                 })
                 self._persist_chat_checkpoint(sid, checkpoint)
                 cancelled_or_late("answer generation")
-                ladder = list(getattr(self.settings, "panel_pool", ()) or [])
-                if not ladder:
-                    ladder = self._chat_ladder(self.settings)
+                if getattr(self.settings, "use_local_pool", False) and getattr(
+                        self.settings, "local_pool", None):
+                    ladder = list(self.settings.local_pool)
+                else:
+                    ladder = list(getattr(self.settings, "panel_pool", ()) or [])
+                    if not ladder:
+                        ladder = self._chat_ladder(self.settings)
                 if not ladder:
                     raise HarnessError("simple answer model pool is empty")
                 model = ladder[0]
@@ -326,22 +334,58 @@ class SimpleAnswerLifecycleMixin:
                     token_budget=token_budget)
                 if allocated < 1:
                     raise HarnessError("shared budget leaves no answer tokens")
-                generation_attempts = max(1, generation_attempts + 1)
-                with cancellation_context(combined_cancel):
-                    completion = self.lifecycle.provider_call(
-                        lifecycle_state,
-                        lifecycle_state["request_id"] + ":simple-answer",
-                        lambda: governed_completion(
-                            self.transport, api_key, gov, model,
-                            generation_prompt, allocated,
-                            label="simple-answer",
-                            reasoning_effort=lane_effort,
-                            preserve_billed_overrun=True),
-                        cost=lambda value: float(value.get("cost") or 0.0),
-                        retry_unknown=True)
-                answer = str(completion["content"]).strip()
-                generation_cost = float(completion.get("cost") or 0.0)
-                known_cost_total += generation_cost
+                # One governed attempt per ladder rung: a different
+                # provider/key is a different budget, so a rung failure
+                # rotates to the next rung (with a rotation event) instead
+                # of ending the request. Each rung gets its own
+                # provider_call id so receipts attribute to the model that
+                # served them. A one-model ladder behaves exactly as
+                # before: one attempt, then the existing deferred path.
+                rung_error = None
+                for rung, rung_model in enumerate(ladder):
+                    model = rung_model
+                    generation_attempts += 1
+                    with cancellation_context(combined_cancel):
+                        try:
+                            completion = self.lifecycle.provider_call(
+                                lifecycle_state,
+                                lifecycle_state["request_id"] + (
+                                    f":simple-answer:rung{rung}"),
+                                lambda m=rung_model: governed_completion(
+                                    self.transport, api_key, gov, m,
+                                    generation_prompt, allocated,
+                                    label="simple-answer",
+                                    reasoning_effort=lane_effort,
+                                    preserve_billed_overrun=True,
+                                    groq_key=getattr(
+                                        self.settings, "groq_key", None),
+                                    cerebras_key=getattr(
+                                        self.settings, "cerebras_key", None)),
+                                cost=lambda value: float(
+                                    value.get("cost") or 0.0),
+                                retry_unknown=True)
+                        except ProviderUsageUnknown:
+                            raise
+                        except HarnessError as exc:
+                            if "unknown completion" in str(exc):
+                                raise
+                            # governed_completion already raises
+                            # HarnessError for terminal non-200 and
+                            # empty-body outcomes, so this one handler
+                            # covers every rung failure.
+                            rung_error = exc
+                            emit("rotation", model=rung_model,
+                                 reason="simple_answer_ladder_advance",
+                                 note=str(exc))
+                            reset_provider_spend_limit_latch()
+                            continue
+                    answer = str(completion["content"]).strip()
+                    generation_cost = float(completion.get("cost") or 0.0)
+                    known_cost_total += generation_cost
+                    rung_error = None
+                    break
+                if rung_error is not None:
+                    raise rung_error
                 checkpoint.update({
                     "stage": "answer_review", "answer": answer,
                     "answer_model": model, "answer_cost": generation_cost,
