@@ -1438,6 +1438,8 @@ def _cmd_plan(opts, settings):
                 "resumed": True,
                 "composed_worst_case": plan_result.get("composed_worst_case"),
             }
+            if isinstance(pending_state.get("intake_register"), dict):
+                output["intake_register"] = pending_state["intake_register"]
             _emit_by_status(output, opts.out)
             return
     else:
@@ -1495,6 +1497,21 @@ def _cmd_plan(opts, settings):
 
     # HG-pyramid-resume: persist after every execute so a later --resume can
     # skip completed ok nodes.
+    # Assistance breakpoint (#460): the intake the plan was composed from
+    # rides the persisted state as one meta key -- no second store -- so a
+    # resume can prove what the plan was composed from. A stored register
+    # survives the resume verbatim; only a fresh run derives a new one.
+    stored_register = (pending_state or {}).get("intake_register")
+    if isinstance(stored_register, dict):
+        intake_register = stored_register
+    else:
+        composition = plan_result.get("composition")
+        intake_register = {
+            "goal": plan_result.get("goal") or opts.goal,
+            "brief": plan_result.get("brief"),
+            "stages": (composition.get("stages")
+                       if isinstance(composition, dict) else None),
+        }
     if resume_path or getattr(opts, "persist_state", None):
         state_path = resume_path or getattr(opts, "persist_state", None)
         assert state_path  # the branch condition already required one
@@ -1510,7 +1527,8 @@ def _cmd_plan(opts, settings):
             node_results=merged,
             spent=float(summary.get("total_cost") or 0.0)
             + float((pending_state or {}).get("spent") or 0.0),
-            plan_nodes=plan_result.get("nodes"))
+            plan_nodes=plan_result.get("nodes"),
+            intake_register=intake_register)
 
     output = {
         "status": "ok" if summary["all_ok"] else "failed",
@@ -1531,12 +1549,40 @@ def _cmd_plan(opts, settings):
         output["skipped_completed"] = sorted(
             nid for nid, res in ((pending_state.get("node_results") or {}).items())
             if isinstance(res, dict) and res.get("status") in ("ok", "success"))
+    output["intake_register"] = intake_register
     structural = aggregate_structural(list(all_results.values()), site="cli")
     if structural is None and isinstance(plan_result.get("structural"), dict):
         structural = dict(plan_result["structural"])
         structural["site"] = "cli"
     if structural is not None:
         output["structural"] = structural
+    # Assistance breakpoint (#460): a consent/deferred node result is a
+    # sovereign stop, not a failure -- the run pauses in a named deferred
+    # state with the register already persisted above. Exit code 3 comes
+    # from the ONE policy (terminal_exit_code); only the resume hint here
+    # is plan-specific.
+    paused = next(
+        (res for key, res in all_results.items()
+         if key != "final_gate" and isinstance(res, dict)
+         and res.get("status") in ("consent_blocked", "deferred")),
+        None)
+    if paused is not None:
+        output["status"] = "deferred"
+        output["pause"] = {
+            "status": paused.get("status"),
+            "node_id": paused.get("node_id"),
+            "reason": paused.get("reason") or "execution consent deferred",
+        }
+        state_path = resume_path or getattr(opts, "persist_state", None)
+        if state_path:
+            hint = ("[plan] run paused at an assistance breakpoint; resume "
+                    f"with: harness plan --resume {state_path} --execute")
+        else:
+            hint = ("[plan] run paused at an assistance breakpoint; "
+                    "re-run with --persist-state <path> --execute to make "
+                    "the pause resumable")
+        _emit_by_status(output, opts.out, deferred_message=hint)
+        return
     _emit_by_status(output, opts.out)
 
 

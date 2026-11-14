@@ -660,6 +660,7 @@ _ENV_NAMES = {
     "reasoning_token_budget": "HARNESS_REASONING_TOKEN_BUDGET",
     "max_panelists": "HARNESS_MAX_PANELISTS",
     "max_rotations": "HARNESS_MAX_ROTATIONS",
+    "max_orch_rounds": "HARNESS_MAX_ORCH_ROUNDS",
     "renew_consent": "HARNESS_RENEW_CONSENT",
     "ledger_path": "HARNESS_LEDGER",
     "expect_key_label": "HARNESS_EXPECT_KEY_LABEL",
@@ -939,7 +940,8 @@ class Settings:
                   fetch_allowlist_enabled=True, fetch_allowlist_hosts=None,
                   meta_enabled=False, use_meta=False, meta_key="",
                   meta_budget_usd=0.0, groq_key="", cerebras_key="",
-                  local_pool=None, use_local_pool=False):
+                  local_pool=None, use_local_pool=False,
+                  max_orch_rounds=3):
         self.use_free = use_free
         self.openrouter_enabled = bool(openrouter_enabled)
         self.fireworks_enabled = bool(fireworks_enabled or use_fireworks)
@@ -992,6 +994,7 @@ class Settings:
         self.reasoning_token_budget = reasoning_token_budget
         self.max_panelists = max_panelists
         self.max_rotations = max_rotations
+        self.max_orch_rounds = max_orch_rounds
         self.renew_consent = renew_consent
         self.ledger_path = ledger_path
         self.expect_key_label = expect_key_label
@@ -1049,7 +1052,8 @@ class Settings:
             "apply_model", "apply_pool", "escalation_pool", "escalation_model", "max_cost",
             "task_max_cost", "max_tokens", "apply_max_tokens",
             "reasoning_effort", "reasoning_token_budget", "max_panelists",
-            "max_rotations", "renew_consent", "ledger_path", "expect_key_label",
+            "max_rotations", "max_orch_rounds",
+            "renew_consent", "ledger_path", "expect_key_label",
             "default_require_consent", "allow_escalation", "mcp_allow_write",
             "mcp_allow_verify", "mcp_allowed_roots", "mcp_tool_timeout",
             "mcp_auth_token", "frontier_model", "hourglass_confirm",
@@ -1324,6 +1328,7 @@ def load_settings(overrides=None):
     reasoning_token_budget = _num("reasoning_token_budget", float, 0.05, 1, 0.4)
     max_panelists = _num("max_panelists", int, 1, 10, 3)
     max_rotations = _num("max_rotations", int, 0, 20, 3)
+    max_orch_rounds = _num("max_orch_rounds", int, 1, 20, 3)
     # Per-tool deadline for the MCP server: cooperative (trips cancel_check,
     # same path as notifications/cancelled), so an uncancelled-but-overdue
     # run still stops at the next poll point instead of holding a lane.
@@ -1390,6 +1395,7 @@ def load_settings(overrides=None):
         reasoning_token_budget=reasoning_token_budget,
         max_panelists=max_panelists,
         max_rotations=max_rotations,
+        max_orch_rounds=max_orch_rounds,
         renew_consent=_as_bool(get("renew_consent", True)),
         ledger_path=str(get("ledger_path", os.path.join(CONFIG_DIR, "ledger.jsonl"))),
         expect_key_label=get("expect_key_label", os.environ.get("FUSIONLITE_EXPECT_KEY_LABEL")),

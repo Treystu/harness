@@ -61,11 +61,13 @@ class LedgerAnalytics:
             "offer", "consent_accept", "consent_decline", "consent_defer",
             "consent_redirect", "consent_renew_accept", "consent_renew_defer",
             "dispatch_start", "verify_round", "defer_midtask", "complete",
-            "abort", "escalate",
+            "abort", "escalate", "assistance_requested", "assistance_served",
         ], 0)
         trust_gates = 0
         trust_hostile = 0
         offers_required = 0
+        serviced_cure_artifacts = set()
+        cure_repeat_escalations = 0
         model_stats = {}
         per_caller = {}
         rounds_per_task = {}
@@ -134,6 +136,22 @@ class LedgerAnalytics:
             elif ev == "consent_redirect":
                 m_ = ms(e.get("model"))
                 m_["redirects"] = m_.get("redirects", 0) + 1
+            elif ev == "assistance_requested":
+                # Assistance breakpoint (#460): mirror the consent_defer
+                # counting block -- per-model requests plus the repeat-cure
+                # escalation (a cure for an artifact that was already
+                # serviced is a named escalation, not another loop turn).
+                m_ = ms(e.get("model"))
+                m_["assistance_requests"] = m_.get(
+                    "assistance_requests", 0) + 1
+                if (e.get("kind") == "cure" and e.get("artifact")
+                        and e.get("artifact") in serviced_cure_artifacts):
+                    cure_repeat_escalations += 1
+            elif ev == "assistance_served":
+                m_ = ms(e.get("model"))
+                m_["assistance_served"] = m_.get("assistance_served", 0) + 1
+                if e.get("kind") == "cure" and e.get("artifact"):
+                    serviced_cure_artifacts.add(e.get("artifact"))
             elif ev == "consent_rotate":
                 # Consent-unusable evidence: this model emitted an HTTP 200
                 # answer the consent parser could not use (empty, reasoning-
@@ -201,6 +219,9 @@ class LedgerAnalytics:
             "aborts": counts["abort"],
             "deferred_midtask": counts["defer_midtask"],
             "escalations": counts["escalate"],
+            "assistance_requested": counts["assistance_requested"],
+            "assistance_served": counts["assistance_served"],
+            "assistance_cure_repeats": cure_repeat_escalations,
             "accept_rate": rate(accepts, offers),
             "decline_rate": rate(counts["consent_decline"], offers),
             "defer_rate": rate(counts["consent_defer"], offers),

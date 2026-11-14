@@ -11,12 +11,14 @@ from pathlib import Path
 from unittest import mock
 
 from harness import orchestrator as orch
+from harness.config import load_settings
 from harness.errors import HarnessError
 from harness.jev import JevEvaluationResult
 from harness.jev_packs import validate_restart_request
 from harness.restart_policy import (
     RestartStateStore,
     consume_restart_decision,
+    produce_assistance_request,
 )
 
 
@@ -807,6 +809,391 @@ class DriveRestartTransitionTests(unittest.TestCase):
             decision, completed_results={"r1/n1": {"status": "ok"}})
         self.assertFalse(transition["reenter"])
         self.assertEqual(transition["preserved_evidence"], {})
+
+
+class AssistanceProducerTests(unittest.TestCase):
+    """Issue #460 seam 1: the classify-only assistance producer.
+
+    Hermetic: the producer never touches the network, the ledger, or the
+    filesystem -- every case below is a pure function call.
+    """
+
+    def _detail(self, **overrides):
+        detail = {"aspect": "missing error text",
+                  "need": "failing assertion output",
+                  "unblock_effect": "the judge can name the fix",
+                  "requested_artifact": "verify.log"}
+        detail.update(overrides)
+        return detail
+
+    def _blocked(self, assistance):
+        return {"status": "deferred", "node_id": "n1",
+                "reason": "execution consent deferred",
+                "assistance": assistance}
+
+    def test_carried_request_binds_kind_and_quadruple(self):
+        produced = produce_assistance_request(
+            self._blocked({"kind": "cure", "detail": self._detail()}))
+        self.assertTrue(produced["requested"])
+        self.assertEqual(produced["kind"], "cure")
+        self.assertEqual(produced["detail"], self._detail())
+        self.assertEqual(produced["reasons"], [])
+
+    def test_explicit_arguments_override_the_carried_need(self):
+        produced = produce_assistance_request(
+            self._blocked({"kind": "cure", "detail": self._detail()}),
+            kind="context", detail=self._detail(aspect="which file"))
+        self.assertTrue(produced["requested"])
+        self.assertEqual(produced["kind"], "context")
+        self.assertEqual(produced["detail"]["aspect"], "which file")
+
+    def test_malformed_source_fails_closed(self):
+        for source in (None, "paused", 42, {},
+                       {"status": "deferred"}):
+            produced = produce_assistance_request(source)
+            self.assertFalse(produced["requested"], source)
+            self.assertTrue(produced["reasons"], source)
+
+    def test_unknown_kind_fails_closed(self):
+        produced = produce_assistance_request(
+            self._blocked({"kind": "escalate", "detail": self._detail()}))
+        self.assertFalse(produced["requested"])
+        self.assertTrue(any("menu" in reason
+                            for reason in produced["reasons"]))
+
+    def test_quadruple_gaps_fail_closed(self):
+        for detail in (None, "cure it", 42,
+                       {"aspect": "x", "need": "y"},
+                       self._detail(need="  "),
+                       self._detail(requested_artifact="")):
+            produced = produce_assistance_request(
+                self._blocked({"kind": "cure", "detail": detail}))
+            self.assertFalse(produced["requested"], detail)
+            self.assertTrue(produced["reasons"], detail)
+
+
+class DriveAssistanceBreakpointTests(unittest.TestCase):
+    """Issue #460 seam 1: the one emit/call site in drive()'s paused branch.
+
+    Hermetic: plan/execute/judge/emit are injected fakes. Pins that a paused
+    result carrying an assistance need emits exactly one
+    ``assistance_requested`` event and pins the need on the round history
+    and the handoff -- and that a pause without a well-formed need keeps
+    the pre-#460 pause exactly (no event, no handoff key).
+    """
+
+    def _drive_paused(self, blocked):
+        root = Path(tempfile.mkdtemp())
+        (root / "a.py").write_text("x = 1\n", encoding="utf-8")
+        self.addCleanup(lambda: __import__("shutil").rmtree(root,
+                                                            ignore_errors=True))
+        plan = {"total_nodes": 1, "total_cost_ceiling": 0.0,
+                "nodes": [{"node_id": "n1", "instruction": "edit",
+                           "target_files": ["a.py"]}],
+                "dag": {"nodes": [{"node_id": "n1"}]}}
+        events = []
+
+        def execute_plan(_current):
+            return {"n1": dict(blocked)}
+
+        driven = orch.drive(
+            goal="Write a.py", target_files=["a.py"], initial_plan=plan,
+            root_dir=root, plan_round=lambda goal: plan,
+            execute_plan=execute_plan,
+            completion_chat=lambda prompt: '{"complete": true}',
+            emit=lambda *args, **kwargs: events.append((args, kwargs)),
+            max_rounds=2)
+        return driven, events
+
+    def test_pause_with_need_emits_and_pins_the_request(self):
+        detail = {"aspect": "missing error text",
+                  "need": "failing assertion output",
+                  "unblock_effect": "the judge can name the fix",
+                  "requested_artifact": "verify.log"}
+        blocked = {"status": "deferred", "node_id": "n1",
+                   "reason": "consent deferred at checkpoint",
+                   "assistance": {"kind": "cure", "detail": detail}}
+        driven, events = self._drive_paused(blocked)
+        self.assertEqual(driven["status"], "deferred")
+        assistance_events = [kw for args, kw in events
+                             if args and args[0] == "assistance_requested"]
+        self.assertEqual(len(assistance_events), 1)
+        self.assertEqual(assistance_events[0]["kind"], "cure")
+        self.assertEqual(assistance_events[0]["artifact"], "verify.log")
+        self.assertEqual(assistance_events[0]["detail"], detail)
+        self.assertEqual(driven["rounds_history"][0]["assistance"],
+                         {"requested": True, "kind": "cure",
+                          "detail": detail})
+        self.assertEqual(driven["handoff"]["assistance"],
+                         {"kind": "cure", "detail": detail})
+
+    def test_pause_without_need_keeps_the_pause_unchanged(self):
+        for blocked in ({"status": "deferred", "node_id": "n1",
+                         "reason": "consent deferred at checkpoint"},
+                        {"status": "deferred", "node_id": "n1",
+                         "reason": "consent deferred at checkpoint",
+                         "assistance": {"kind": "escalate"}}):
+            driven, events = self._drive_paused(blocked)
+            self.assertEqual(driven["status"], "deferred", blocked)
+            self.assertFalse(any(args and args[0] == "assistance_requested"
+                                 for args, _kw in events), blocked)
+            self.assertNotIn("assistance",
+                             driven["rounds_history"][0], blocked)
+            self.assertNotIn("assistance", driven["handoff"], blocked)
+
+
+class MaxOrchRoundsSettingTests(unittest.TestCase):
+    """Issue #460 seam 2: the orchestrator round cap is a bounded setting."""
+
+    def test_default_keeps_current_behavior(self):
+        settings = load_settings()
+        self.assertEqual(settings.max_orch_rounds, 3)
+        self.assertIn("max_orch_rounds", settings.to_dict())
+        self.assertEqual(orch.MAX_ORCH_ROUNDS, 3)
+
+    def test_env_and_overrides_set_the_cap(self):
+        with mock.patch.dict(os.environ,
+                             {"HARNESS_MAX_ORCH_ROUNDS": "5"}):
+            self.assertEqual(load_settings().max_orch_rounds, 5)
+        self.assertEqual(
+            load_settings({"max_orch_rounds": 7}).max_orch_rounds, 7)
+
+    def test_nonsense_cap_fails_closed(self):
+        for bad in ("many", "0", "-1", "21"):
+            with self.assertRaises(HarnessError, msg=bad):
+                load_settings({"max_orch_rounds": bad})
+
+
+class LedgerAssistanceCountsTests(unittest.TestCase):
+    """Issue #460 seam 4: the assistance meter mirrors consent_defer."""
+
+    def _report(self, entries):
+        from harness.ledger_analytics import LedgerAnalytics
+        return LedgerAnalytics(entries=entries).participation_report()
+
+    def test_requested_and_served_are_counted_per_model(self):
+        report = self._report([
+            {"event": "assistance_requested", "model": "m1",
+             "kind": "context", "artifact": "brief"},
+            {"event": "assistance_requested", "model": "m1",
+             "kind": "decision", "artifact": "plan"},
+            {"event": "assistance_served", "model": "m1",
+             "kind": "context", "artifact": "brief"},
+        ])
+        self.assertEqual(report["assistance_requested"], 2)
+        self.assertEqual(report["assistance_served"], 1)
+        self.assertEqual(report["assistance_cure_repeats"], 0)
+        self.assertEqual(
+            report["per_model"]["m1"]["assistance_requests"], 2)
+        self.assertEqual(
+            report["per_model"]["m1"]["assistance_served"], 1)
+
+    def test_repeat_cure_after_service_is_a_named_repeat(self):
+        report = self._report([
+            {"event": "assistance_requested", "model": "m1",
+             "kind": "cure", "artifact": "verify.log"},
+            {"event": "assistance_served", "model": "m1",
+             "kind": "cure", "artifact": "verify.log"},
+            {"event": "assistance_requested", "model": "m1",
+             "kind": "cure", "artifact": "verify.log"},
+            {"event": "assistance_requested", "model": "m1",
+             "kind": "cure", "artifact": "other.log"},
+        ])
+        self.assertEqual(report["assistance_requested"], 3)
+        self.assertEqual(report["assistance_served"], 1)
+        self.assertEqual(report["assistance_cure_repeats"], 1)
+
+
+class PyramidAssistanceRegisterTests(unittest.TestCase):
+    """Issue #460 seam 5: the assistance-service register in meta."""
+
+    def _detail(self, artifact="verify.log"):
+        return {"aspect": "missing error text",
+                "need": "failing assertion output",
+                "unblock_effect": "the judge can name the fix",
+                "requested_artifact": artifact}
+
+    def test_record_service_and_resume_wholesale(self):
+        from harness.pyramid_state import (
+            assistance_register,
+            load_state,
+            persist_state,
+            record_assistance,
+            service_assistance,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "state.json")
+            state = {"goal": "g", "dag": {"nodes": []}}
+            recorded = record_assistance(
+                state, kind="cure", detail=self._detail(),
+                request_id="r1", node_id="n1")
+            self.assertEqual(recorded["status"], "requested")
+            self.assertFalse(recorded["deduplicated"])
+            served = service_assistance(
+                state, event_key=recorded["event_key"],
+                evidence={"injection": "the failing assertion output"})
+            self.assertEqual(served["status"], "serviced")
+            self.assertEqual(served["evidence"],
+                             [{"injection": "the failing assertion output"}])
+            # The relaunch imports the register wholesale -- no clean
+            # restarts that forget what was asked and what was served.
+            persist_state(path, goal="g", dag={"nodes": []},
+                          node_results={},
+                          assistance_register=state["assistance_register"],
+                          intake_register={"goal": "g", "brief": {"x": 1},
+                                           "stages": ["execution"]})
+            reloaded = load_state(path)
+            self.assertEqual(assistance_register(reloaded),
+                             state["assistance_register"])
+            self.assertEqual(reloaded["intake_register"]["goal"], "g")
+
+    def test_repeat_cure_after_service_is_a_named_escalation(self):
+        from harness.pyramid_state import record_assistance, service_assistance
+        state = {"goal": "g", "dag": {"nodes": []}}
+        first = record_assistance(state, kind="cure",
+                                  detail=self._detail(),
+                                  request_id="r1")
+        service_assistance(state, event_key=first["event_key"],
+                           evidence={"injection": "served once"})
+        # A later round asks for a cure of the same artifact again: a new
+        # request identity, so not a dedupe -- and the serviced history
+        # turns it into a named escalation instead of another loop turn.
+        second = record_assistance(state, kind="cure",
+                                   detail=self._detail(),
+                                   request_id="r2")
+        self.assertEqual(second["status"], "escalated")
+        self.assertEqual(second["escalation"], "cure-repeat:verify.log")
+
+    def test_idempotent_rerecord_and_cap(self):
+        from harness.pyramid_state import (
+            ASSISTANCE_REGISTER_CAP,
+            record_assistance,
+        )
+        state = {"goal": "g", "dag": {"nodes": []}}
+        _first = record_assistance(state, kind="context",
+                                   detail=self._detail("a0"))
+        again = record_assistance(state, kind="context",
+                                  detail=self._detail("a0"))
+        self.assertTrue(again["deduplicated"])
+        self.assertEqual(len(state["assistance_register"]), 1)
+        for index in range(ASSISTANCE_REGISTER_CAP + 3):
+            record_assistance(state, kind="context",
+                              detail=self._detail(f"a{index}"))
+        self.assertEqual(len(state["assistance_register"]),
+                         ASSISTANCE_REGISTER_CAP)
+        self.assertEqual(
+            state["assistance_register"][-1]["detail"]
+            ["requested_artifact"],
+            f"a{ASSISTANCE_REGISTER_CAP + 2}")
+
+    def test_malformed_store_and_request_fail_closed(self):
+        from harness.errors import HarnessError
+        from harness.pyramid_state import (
+            assistance_register,
+            record_assistance,
+            service_assistance,
+        )
+        with self.assertRaises(HarnessError):
+            assistance_register({"assistance_register": "not-a-list"})
+        with self.assertRaises(HarnessError):
+            record_assistance({"assistance_register": [42]},
+                              kind="context",
+                              detail=self._detail("a"))
+        with self.assertRaises(HarnessError):
+            record_assistance({}, kind="escalate",
+                              detail=self._detail("a"))
+        with self.assertRaises(HarnessError):
+            service_assistance({}, event_key="missing",
+                               evidence={"injection": "x"})
+        state = {"goal": "g", "dag": {"nodes": []}}
+        recorded = record_assistance(state, kind="context",
+                                     detail=self._detail("a"))
+        with self.assertRaises(HarnessError):
+            service_assistance(state, event_key=recorded["event_key"],
+                               evidence="not-a-mapping")
+
+
+class AgentPausedPresentationTests(unittest.TestCase):
+    """Issue #460 seam 7: the agent lane renders a paused drive honestly.
+
+    Hermetic: the plan comes from the scripted decomposition seam (the same
+    shape ``TestOrchestratorDrive`` scripts), the drive itself is stubbed to
+    return a paused envelope, and the engine/governor/ledger never leave
+    the process. Pins that a paused drive reaches the consent-boundary
+    presentation (status deferred, handoff retained, resumable finish) and
+    that the configured round cap reaches the drive kwargs.
+    """
+
+    _DAG_JSON = ('{"nodes": [{"node_id": "n1", "instruction": "do the '
+                 'chunk", "target_files": ["util.py"], '
+                 '"dependencies": []}]}')
+
+    def _settings(self, root):
+        from harness.config import DEFAULT_MAX_COST
+        settings = load_settings()
+        settings.ledger_path = str(root / "ledger.jsonl")
+        settings.max_cost = DEFAULT_MAX_COST
+        settings.jev_api_key = None
+        settings.hourglass_confirm = False
+        settings.hourglass_isolate = False
+        settings.hourglass_parallel = False
+        settings.hourglass_require_attestation = False
+        settings.hourglass_stages = ["context", "execution", "verification"]
+        settings.max_orch_rounds = 5
+        return settings
+
+    def _chat_seam(self):
+        def fake_chat_fn(_gov):
+            def chat_fn(_prompt_text):
+                return self._DAG_JSON
+            return chat_fn
+        from harness.agent import AutonomousAgent
+        return mock.patch.object(AutonomousAgent, "_orchestrator_chat_fn",
+                                 side_effect=fake_chat_fn)
+
+    def test_paused_drive_renders_deferred_handoff(self):
+        from harness.agent import AutonomousAgent
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "util.py").write_text("x = 1\n", encoding="utf-8")
+            agent = AutonomousAgent(settings=self._settings(root),
+                                    root_dir=root, history_dir=root)
+            handoff = {"schema": "jev-work-package-handoff-v1",
+                       "status": "deferred", "node_id": "n1",
+                       "reason": "consent deferred at checkpoint",
+                       "completed_results": {}}
+
+            def paused_drive(**kwargs):
+                return {"status": "deferred", "handoff": dict(handoff),
+                        "all_results": {"r1/n1": {"status": "deferred",
+                                                  "node_id": "n1",
+                                                  "reason": handoff["reason"]}},
+                        "total_cost": 0.0,
+                        "rounds_history": [{"round": 1}],
+                        "final_all_ok": False,
+                        "remaining_scope": handoff["reason"],
+                        "plan": kwargs["initial_plan"]}
+
+            engine = mock.MagicMock()
+            engine.governor.snapshot.return_value = {}
+            with mock.patch.object(AutonomousAgent, "_triage_scope",
+                                   return_value=["util.py"]), \
+                mock.patch("harness.edit_lifecycle.drive",
+                           side_effect=paused_drive) as mock_drive, \
+                mock.patch("harness.edit_lifecycle.apply_session",
+                           return_value=engine), \
+                mock.patch("harness.edit_lifecycle.governor_for",
+                           return_value=(None, mock.MagicMock())), \
+                self._chat_seam():
+                res = agent._handle_edit("Update util.py", "paused-seam",
+                                         True)
+            self.assertEqual(res["status"], "deferred")
+            self.assertEqual(res["handoff"]["reason"], handoff["reason"])
+            self.assertIn("consent boundary", res["response"])
+            self.assertEqual(res["remaining_scope"], handoff["reason"])
+            mock_drive.assert_called_once()
+            self.assertEqual(
+                mock_drive.call_args.kwargs["max_rounds"], 5)
 
 
 if __name__ == "__main__":

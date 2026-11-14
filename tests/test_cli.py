@@ -1464,6 +1464,91 @@ class ScriptCommandTests(unittest.TestCase):
         pol.assert_called_once()
 
 
+class PlanPausedAssistanceTests(unittest.TestCase):
+    """Issue #460 seam 3: a plan-lane pause exits deferred, not failed.
+
+    Hermetic: composition, the engine session, and the executor are
+    stubbed; the state file lands in a temp dir. Pins that a
+    consent/deferred node result flips the plan output to the named
+    deferred status with a plan-specific resume hint (exit 3 comes from
+    the ONE policy, ``terminal_exit_code``), and that the intake the
+    plan was composed from rides the output and the persisted state as
+    one meta key.
+    """
+
+    class _PausedExec:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def execute(self, _dag):
+            return {"n1": {"status": "deferred", "node_id": "n1",
+                           "reason": "consent deferred at checkpoint"}}
+
+        @staticmethod
+        def summarize(_results):
+            return {"all_ok": False, "completed": 0, "total_cost": 0.01}
+
+    def _opts(self, state_path):
+        from types import SimpleNamespace
+        return SimpleNamespace(
+            file=None, frontier_model=None, execute=True,
+            stage_gate=None, resume=None, persist_state=state_path,
+            task_max_cost=None, max_cost=None, max_workers=1,
+            keep_going=False, model=None, max_tokens=None,
+            reasoning_effort=None, allow_escalation=False,
+            max_rotations=3, final_gate=None, goal="do the thing",
+            out=None, brief=None, stages=None,
+            token_budget_input=None, token_budget_output=None,
+            allow_heuristic_preview=False, plan_consensus=False)
+
+    def test_deferred_node_pauses_with_resume_hint(self):
+        from types import SimpleNamespace
+        node = {"node_id": "n1", "instruction": "do it",
+                "target_files": ["a.py"], "dependencies": []}
+        plan = {"status": "ok", "goal": "do the thing",
+                "dag": {"nodes": [dict(node)]}, "nodes": [dict(node)],
+                "total_nodes": 1, "total_cost_ceiling": 0.0,
+                "composed_worst_case": {},
+                "brief": {"goal": "do the thing"},
+                "composition": {"stages": [{"stage": "execution"}]}}
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = os.path.join(tmp, "state.json")
+            engine = SimpleNamespace(governor=object(),
+                                     transport=object(), api_key="k")
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with mock.patch.object(
+                    cli, "_resolve_hourglass",
+                    return_value={"confirm": False, "parallel": False,
+                                  "isolate": False, "decompose": False,
+                                  "require_diff_authorization": False}), \
+                mock.patch.object(cli, "_session",
+                                  return_value=engine), \
+                mock.patch.object(cli, "_plan_compose",
+                                  return_value=plan), \
+                mock.patch.object(cli, "PlanExecutor",
+                                  self._PausedExec), \
+                mock.patch.object(cli, "aggregate_structural",
+                                  return_value=None), \
+                contextlib.redirect_stdout(stdout), \
+                contextlib.redirect_stderr(stderr), \
+                self.assertRaises(SystemExit) as ctx:
+                cli._cmd_plan(self._opts(state_path),
+                              SimpleNamespace(frontier_model=None))
+            self.assertEqual(ctx.exception.code, 3)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["status"], "deferred")
+            self.assertEqual(payload["pause"]["status"], "deferred")
+            self.assertEqual(payload["pause"]["reason"],
+                             "consent deferred at checkpoint")
+            self.assertEqual(payload["intake_register"]["goal"],
+                             "do the thing")
+            self.assertIn("harness plan --resume", stderr.getvalue())
+            with open(state_path, encoding="utf-8") as handle:
+                persisted = json.load(handle)
+            self.assertEqual(persisted["intake_register"]["goal"],
+                             "do the thing")
+
+
 if __name__ == "__main__":
     unittest.main()
 
