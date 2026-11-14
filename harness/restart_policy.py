@@ -201,6 +201,22 @@ class RestartStateStore:
 # A paused round's own statuses. The orchestrator's consent handoff owns this
 # vocabulary (a consent decline/defer is a sovereign stop); the transition
 # below reuses it so completed evidence is everything the pause did not stop.
+# Event names for the plan-lane assistance breakpoint (issue #460). The
+# producer below and the paused-branch emit in ``harness/orchestrator.py``
+# speak exactly these; ``harness/ledger_analytics.py`` counts exactly these.
+ASSISTANCE_REQUESTED_EVENT = "assistance_requested"
+ASSISTANCE_SERVED_EVENT = "assistance_served"
+
+# The declared menu of assistance stop kinds: context (the judge needs more
+# evidence), decision (the judge needs an operator/LLM call), cure (the judge
+# names a fix for a declared artifact). Anything else is malformed.
+ASSISTANCE_KINDS = ("context", "decision", "cure")
+
+# The detail quadruple every request carries: which aspect is stuck, the need
+# class, what unblocking looks like, and the requested artifact.
+ASSISTANCE_DETAIL_FIELDS = ("aspect", "need", "unblock_effect",
+                            "requested_artifact")
+
 _PAUSED_RESULT_STATUSES = ("consent_blocked", "deferred")
 
 
@@ -278,3 +294,47 @@ def consume_restart_decision(decision, *, completed_results=None):
         "staleness_reason": staleness.value if stale else None,
         "reasons": reasons,
     }
+
+
+def produce_assistance_request(source, *, kind=None, detail=None):
+    """Classify one paused round's assistance need into a bound request.
+
+    This is the assistance stop's producer, mirroring the shape of
+    :func:`consume_restart_decision`: it classifies, binds, and never
+    dispatches, spends, or writes. The paused node result may carry an
+    ``assistance`` mapping with a ``kind`` from the declared menu and the
+    detail quadruple; explicit ``kind``/``detail`` arguments override it.
+
+    Anything malformed -- a non-dict source, a kind outside the menu, a
+    detail that is not four non-empty strings -- fails closed to
+    ``requested: False`` with the reasons, so the caller keeps the pause
+    exactly as before instead of emitting help for a need nothing stated.
+    """
+    carried = source.get("assistance") if isinstance(source, dict) else None
+    if not isinstance(carried, dict):
+        carried = {}
+    kind = kind if kind is not None else carried.get("kind")
+    detail = detail if detail is not None else carried.get("detail")
+    if not isinstance(source, dict):
+        return {"requested": False, "kind": None, "detail": {},
+                "reasons": ["no paused result carried an assistance need"]}
+    if kind not in ASSISTANCE_KINDS:
+        return {"requested": False, "kind": None, "detail": {},
+                "reasons": ["assistance kind is not on the declared menu: "
+                            f"{kind!r} (want one of "
+                            f"{', '.join(ASSISTANCE_KINDS)})"]}
+    if not isinstance(detail, dict):
+        return {"requested": False, "kind": None, "detail": {},
+                "reasons": ["assistance detail must be the declared "
+                            "quadruple, not "
+                            f"{type(detail).__name__}"]}
+    bound = {}
+    for field in ASSISTANCE_DETAIL_FIELDS:
+        value = detail.get(field)
+        if not isinstance(value, str) or not value.strip():
+            return {"requested": False, "kind": None, "detail": {},
+                    "reasons": [f"assistance detail field {field!r} "
+                                "must be a non-empty string"]}
+        bound[field] = value.strip()
+    return {"requested": True, "kind": kind, "detail": bound,
+            "reasons": []}

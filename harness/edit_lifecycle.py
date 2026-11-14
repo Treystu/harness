@@ -22,7 +22,7 @@ from .executor import PlanExecutor
 from .history import load_chat_history, save_chat_turn
 from .jev_policy import JevPolicy, aggregate_structural, policy_for
 from .lifecycle import adapter_for, review_probability
-from .orchestrator import drive
+from .orchestrator import MAX_ORCH_ROUNDS, drive
 from .prompts import MAX_FILE_LINES
 from .repo_scope import discover_verification_gate, enumerate_repo_files
 from .results import SUCCESS_STATUSES, model_envelope
@@ -663,7 +663,10 @@ class AutoEditLifecycleMixin:
 
         drive_kwargs = dict(
             goal=prompt, target_files=target_files, initial_plan=plan,
-            root_dir=root_dir, plan_round=lambda next_goal: self._plan_round(
+            root_dir=root_dir,
+            max_rounds=getattr(self.settings, "max_orch_rounds",
+                               MAX_ORCH_ROUNDS),
+            plan_round=lambda next_goal: self._plan_round(
                 next_goal, target_files, gov, confirm=hourglass["confirm"],
                 token_budget=run_token_budget),
             execute_plan=execute_plan,

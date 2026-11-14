@@ -13,7 +13,11 @@ from typing import Callable, Dict, List
 
 from .chat import _extract_json
 from .errors import HarnessError, ToolCancelled
-from .restart_policy import consume_restart_decision
+from .restart_policy import (
+    ASSISTANCE_REQUESTED_EVENT,
+    consume_restart_decision,
+    produce_assistance_request,
+)
 
 MAX_TRIAGE_FILES = 15
 MAX_ORCH_ROUNDS = 3
@@ -493,6 +497,26 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
                         if isinstance(result, dict) and result.get("status")
                         in {"consent_blocked", "deferred"}), None)
         if blocked is not None:
+            # Assistance breakpoint (#460): when the paused result names the
+            # help it needs (kind + detail quadruple), say so on the event
+            # stream and pin it to this round's history. A malformed or
+            # absent need fails closed to no request -- the pause below is
+            # unchanged, and the completion judge is still never consulted
+            # for a sovereign stop.
+            assistance = produce_assistance_request(blocked)
+            if assistance["requested"]:
+                emit(ASSISTANCE_REQUESTED_EVENT,
+                     kind=assistance["kind"],
+                     artifact=assistance["detail"]["requested_artifact"],
+                     detail=assistance["detail"],
+                     node_id=blocked.get("node_id"),
+                     reason=str(blocked.get("reason") or
+                               "execution consent deferred"))
+                rounds_history[-1]["assistance"] = {
+                    "requested": True,
+                    "kind": assistance["kind"],
+                    "detail": assistance["detail"],
+                }
             # Slice-2 restart controller (#459): the paused round re-enters
             # when (and only when) its plan carries an allowed
             # ``judgment["restart"]`` decision. The reader is
@@ -555,6 +579,11 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
                 "completed_results": dict(all_results),
                 "reason": remaining_scope,
             }
+            if assistance["requested"]:
+                consent_handoff["assistance"] = {
+                    "kind": assistance["kind"],
+                    "detail": assistance["detail"],
+                }
             break
 
         artifact_notes = []

@@ -7,12 +7,14 @@ node is never spent on twice.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from typing import Any, Dict, List, Optional, Set
 
 from .dag import DAGNode, TaskDAG
 from .errors import HarnessError
+from .restart_policy import produce_assistance_request
 from .results import SUCCESS_STATUSES
 
 STATE_VERSION = 1
@@ -110,6 +112,112 @@ def dag_for_pending(state: Dict[str, Any]) -> TaskDAG:
             backend=backend if backend in ("harness", "morph", "diff") else None,
         )
     return TaskDAG(nodes=nodes)
+
+
+ASSISTANCE_REGISTER_KEY = "assistance_register"
+
+# The register is bounded: the newest entries are the ones a resume needs,
+# so the oldest drop off past this size.
+ASSISTANCE_REGISTER_CAP = 8
+
+
+def _assistance_register_list(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The live assistance register, failing closed on a malformed store."""
+    if not isinstance(state, dict):
+        raise HarnessError("pyramid state must be an object")
+    register = state.get(ASSISTANCE_REGISTER_KEY, [])
+    if not isinstance(register, list) or any(
+            not isinstance(entry, dict) for entry in register):
+        raise HarnessError("pyramid assistance register is malformed: "
+                           "expected a list of entries")
+    return register
+
+
+def assistance_register(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """A read copy of the state's assistance register (service history).
+
+    The envelope ``load_state`` returns already carries this register, so a
+    relaunch imports it wholesale -- there are no clean restarts that forget
+    what was asked and what was served.
+    """
+    return [dict(entry) for entry in _assistance_register_list(state)]
+
+
+def _assistance_event_key(*, kind, detail, request_id, node_id):
+    canonical = json.dumps({"kind": kind, "detail": detail,
+                            "request_id": request_id, "node_id": node_id},
+                           sort_keys=True, separators=(",", ":"),
+                           default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def record_assistance(state: Dict[str, Any], *, kind, detail,
+                      request_id=None, node_id=None) -> Dict[str, Any]:
+    """Record one assistance request in the register, idempotently.
+
+    The request is classified through the same producer the orchestrator's
+    paused branch uses, so a malformed kind/quadruple fails closed here too
+    -- nothing is recorded. A repeat of an already-recorded request returns
+    the stored entry marked deduplicated (the ``RestartStateStore._remember``
+    contract). A cure for an artifact whose earlier cure was already
+    serviced is a named escalation, not another loop turn. Past the cap the
+    oldest entries drop off; the newest -- the ones a resume needs -- stay.
+    """
+    produced = produce_assistance_request(
+        {"assistance": {"kind": kind, "detail": detail}})
+    if not produced["requested"]:
+        raise HarnessError("assistance request malformed: " +
+                           "; ".join(produced["reasons"]))
+    register = _assistance_register_list(state)
+    event_key = _assistance_event_key(
+        kind=produced["kind"], detail=produced["detail"],
+        request_id=request_id, node_id=node_id)
+    for entry in register:
+        if entry.get("event_key") == event_key:
+            return {**entry, "deduplicated": True, "event_emitted": False}
+    artifact = produced["detail"]["requested_artifact"]
+    escalated = (
+        produced["kind"] == "cure"
+        and any(entry.get("kind") == "cure"
+                and entry.get("status") == "serviced"
+                and entry.get("detail", {}).get("requested_artifact")
+                == artifact
+                for entry in register))
+    entry = {
+        "kind": produced["kind"],
+        "detail": produced["detail"],
+        "status": "escalated" if escalated else "requested",
+        "request_id": None if request_id is None else str(request_id),
+        "node_id": node_id,
+        "evidence": [],
+        "event_key": event_key,
+    }
+    if escalated:
+        entry["escalation"] = f"cure-repeat:{artifact}"
+    register.append(entry)
+    del register[:-ASSISTANCE_REGISTER_CAP]
+    state[ASSISTANCE_REGISTER_KEY] = register
+    return {**entry, "deduplicated": False, "event_emitted": False}
+
+
+def service_assistance(state: Dict[str, Any], *, event_key,
+                       evidence) -> Dict[str, Any]:
+    """Service one registered request by appending an evidence injection.
+
+    Servicing marks the entry so a later identical cure records as a named
+    escalation; the evidence rides the same register the resume imports
+    wholesale. An unknown key or a non-mapping injection fails closed.
+    """
+    register = _assistance_register_list(state)
+    if not isinstance(evidence, dict):
+        raise HarnessError("assistance evidence must be a mapping")
+    for entry in register:
+        if entry.get("event_key") == event_key:
+            entry.setdefault("evidence", []).append(evidence)
+            if entry.get("status") == "requested":
+                entry["status"] = "serviced"
+            return dict(entry)
+    raise HarnessError("no assistance request matches that event key")
 
 
 def node_routes_for_pending(state: Dict[str, Any],
