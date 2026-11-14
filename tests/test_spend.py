@@ -401,5 +401,129 @@ class ReservationTests(unittest.TestCase):
         self.assertLessEqual(gov.spent, 0.01)
 
 
+class PerRequestAttributionTests(unittest.TestCase):
+    """Issue #345: each request's own actual/outstanding/unknown liability
+    is enforced independently of unrelated concurrent session spending.
+
+    Synthetic dollars only; no network, keys, or real spend. Each test
+    builds its own governor, so there is no shared global state and no
+    ordering dependence between tests.
+    """
+
+    def _gov(self, max_cost=1.00):
+        return _gov(FakeTransport(models=[m("cheap/x")]), max_cost=max_cost)
+
+    def test_case3_b_spend_keeps_a_allowance_while_shared_cap_refuses(self):
+        """Case 3 verbatim: $1.00 session, A opens task_scope($0.10) at
+        $0.00, independent worker B records $0.20, A spends nothing. A's
+        own allowance must stay $0.10 while the shared session capacity
+        drops to $0.80 -- and the shared cap must still refuse."""
+        gov = self._gov()
+        with gov.task_scope(0.50, label="B") as scope_b:
+            with gov.task_scope(0.10, label="A"):
+                self.assertAlmostEqual(gov.remaining(), 0.10, places=6)
+                gov.record_actual(0.20, "b-model", scope=scope_b)
+                # A spent nothing: its individual allowance is untouched.
+                self.assertAlmostEqual(
+                    gov.remaining(), 0.10, places=6,
+                    msg="B's spend must not exhaust A's allowance")
+                # ...while the shared session capacity absorbed B's spend.
+                self.assertAlmostEqual(gov.spent, 0.20, places=6)
+                self.assertAlmostEqual(scope_b.spent, 0.20, places=6)
+        # Both scopes closed: only the shared session ceiling remains.
+        self.assertAlmostEqual(gov.remaining(), 0.80, places=6)
+        with self.assertRaises(HarnessError):
+            gov.reserve(0.81, "over-shared-cap")
+        token = gov.reserve(0.80, "fits-shared-cap")
+        gov.reconcile(token, 0.80)
+        self.assertAlmostEqual(gov.spent, 1.00, places=6)
+
+    def test_concurrent_scope_spend_is_not_charged_to_sibling(self):
+        """Overlapping scopes isolate: B's reserve/reconcile against its own
+        scope token never lands on A's ledger, even while A is open."""
+        gov = self._gov()
+        with gov.task_scope(0.30, label="B") as scope_b:
+            with gov.task_scope(0.10, label="A") as scope_a:
+                token = gov.reserve(0.06, "b-work", scope=scope_b)
+                self.assertAlmostEqual(scope_b.outstanding, 0.06, places=6)
+                self.assertAlmostEqual(scope_a.outstanding, 0.0, places=6)
+                gov.reconcile(token, 0.06, scope=scope_b)
+                self.assertAlmostEqual(scope_b.spent, 0.06, places=6)
+                self.assertAlmostEqual(scope_a.spent, 0.0, places=6)
+                self.assertAlmostEqual(gov.spent, 0.06, places=6)
+                # A's own allowance is intact; shared capacity dropped.
+                self.assertAlmostEqual(gov.remaining(), 0.10, places=6)
+
+    def test_nested_scopes_enforce_min_over_stack(self):
+        """Default attribution settles on the innermost scope and every
+        scope outside it, so each nested bound holds and remaining is the
+        minimum over the stack."""
+        gov = self._gov()
+        with gov.task_scope(0.05, label="outer") as outer:
+            with gov.task_scope(0.02, label="inner"):
+                self.assertAlmostEqual(gov.remaining(), 0.02, places=6)
+                token = gov.reserve(0.015, "work")
+                gov.reconcile(token, 0.015)
+                self.assertAlmostEqual(gov.remaining(), 0.005, places=6)
+                # The inner bound refuses even though the outer has room.
+                with self.assertRaises(HarnessError):
+                    gov.reserve(0.01, "over-inner")
+            # The outer ledger saw the inner spend: 0.015 + 0.04 > 0.05.
+            with self.assertRaises(HarnessError):
+                gov.reserve(0.04, "over-outer")
+            token = gov.reserve(0.035, "fits-outer")
+            gov.reconcile(token, 0.035)
+            self.assertAlmostEqual(outer.spent, 0.05, places=6)
+            self.assertAlmostEqual(gov.spent, 0.05, places=6)
+
+    def test_settle_on_exit_keeps_one_governor_truth(self):
+        """Spend settled inside a scope lands on the ONE governor; exiting
+        releases the narrowing, keeps the scope's own counters, and a late
+        token still settles against its scope."""
+        gov = self._gov()
+        with gov.task_scope(0.10, label="A") as scope_a:
+            token = gov.reserve(0.04, "work")
+            self.assertAlmostEqual(gov.remaining(), 0.06, places=6)
+        # Exit with the reservation in flight: the narrowing is gone...
+        self.assertAlmostEqual(gov.remaining(), 0.96, places=6)
+        # ...but the late settlement still lands on both truths.
+        gov.reconcile(token, 0.04)
+        self.assertAlmostEqual(gov.spent, 0.04, places=6)
+        self.assertAlmostEqual(gov.outstanding, 0.0, places=6)
+        self.assertAlmostEqual(scope_a.spent, 0.04, places=6)
+        self.assertAlmostEqual(scope_a.outstanding, 0.0, places=6)
+        self.assertAlmostEqual(gov.remaining(), 0.96, places=6)
+
+    def test_unknown_liability_attributes_to_own_scope(self):
+        """retain_unknown charges the bound scope's own unknown ledger
+        without touching a sibling scope; an inner scope's spend still
+        settles on the scope enclosing it."""
+        gov = self._gov()
+        with gov.task_scope(0.30, label="B") as scope_b:
+            with gov.task_scope(0.10, label="A") as scope_a:
+                gov.retain_unknown(0.05, "b-model", scope=scope_b)
+                self.assertAlmostEqual(scope_b.unknown, 0.05, places=6)
+                self.assertAlmostEqual(scope_b.outstanding, 0.05, places=6)
+                self.assertAlmostEqual(scope_a.unknown, 0.0, places=6)
+                self.assertAlmostEqual(scope_a.outstanding, 0.0, places=6)
+                token = gov.reserve(0.02, "a-work")
+                gov.reconcile(token, 0.02)
+                self.assertAlmostEqual(scope_a.spent, 0.02, places=6)
+                self.assertAlmostEqual(scope_b.spent, 0.02, places=6)
+                self.assertAlmostEqual(gov.spent, 0.02, places=6)
+
+    def test_explicit_scope_must_be_a_task_scope(self):
+        """A non-scope attribution token fails closed instead of
+        attributing nowhere."""
+        gov = self._gov()
+        with self.assertRaises(HarnessError):
+            gov.reserve(0.01, "work", scope="not-a-scope")
+        with self.assertRaises(HarnessError):
+            gov.record_actual(0.01, "work", scope="not-a-scope")
+        token = gov.reserve(0.01, "work")
+        with self.assertRaises(HarnessError):
+            gov.reconcile(token, 0.0, scope="not-a-scope")
+
+
 if __name__ == "__main__":
     unittest.main()
