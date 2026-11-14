@@ -514,13 +514,22 @@ def load_fireworks_endpoints(pack_path=None):
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     by_fw = {}
     for offer in offers:
-        key = offer.path or offer.model
-        by_fw[key] = offer.price
+        # Only a real dispatch path is an endpoint (#522). A priced row with no
+        # path used to be keyed by its DISPLAY NAME, which made a priced model
+        # report as "not found in fireworks endpoints pack" and pushed display
+        # names into the direct pool's rate table. A pathless row is still
+        # priced and still reported -- as pathless, not as absent.
+        if offer.path:
+            by_fw[offer.path] = offer.price
+    pathless = {row["slug"]: row["name"]
+                for row in raw.get("models", [])
+                if not row.get("path") and row.get("slug")}
     return {
         "schema": raw.get("schema", 1),
         "source": raw.get("source", "fireworks"),
         "captured": raw.get("captured", ""),
         "endpoints": by_fw,
+        "pathless": pathless,
         "offers": offers,
         "models": raw.get("models", []),
     }
