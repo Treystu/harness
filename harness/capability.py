@@ -362,6 +362,54 @@ def observed_samples(ledger, model_id):
                and e.get("json_expected"))
 
 
+def _canonical_model_id(model_id):
+    """Canonical model id for spend joins (strips :free/:floor variants)."""
+    try:
+        from .routing_table import strip_variant_suffix
+    except Exception:
+        return model_id
+    try:
+        return strip_variant_suffix(model_id)
+    except Exception:
+        return model_id
+
+
+def measured_spend_by_model(ledger_or_entries):
+    """Measured (provider-settled) spend per canonical model. (#340)
+
+    Sums the carried provider usage cost (``billable_cost`` falling back to
+    ``cost``) on ``model_result`` rows -- the spend the governor actually
+    settled. Rows with no carried cost contribute nothing: catalog-
+    synthesized estimates are not spend evidence, and the #340 zero-cost
+    recordings for billed-but-unusable responses surface as unknown
+    liability on the governor, not as ledger spend. Takes either a ledger
+    (``entries()``) or a plain entry list, like ``seat_share_report``.
+    """
+    if hasattr(ledger_or_entries, "entries"):
+        try:
+            entries = list(ledger_or_entries.entries())
+        except Exception:
+            entries = []
+    else:
+        entries = list(ledger_or_entries or [])
+    spend = {}
+    for e in entries:
+        if not isinstance(e, dict) or e.get("event") != "model_result":
+            continue
+        model = e.get("model")
+        if not model:
+            continue
+        try:
+            amount = float(e.get("billable_cost", e.get("cost")) or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if not (math.isfinite(amount) and amount >= 0.0):
+            continue
+        key = _canonical_model_id(model)
+        spend[key] = spend.get(key, 0.0) + amount
+    return spend
+
+
 def _shrink_weight(n):
     return n / (n + _SHRINK)
 
@@ -892,6 +940,9 @@ def cost_per_capability(profile, endpoints=None, *, benchmark_rows=None,
       observed samples grow so benchmarks never outrank observed ledger data),
     * per-endpoint effective price (via :func:`~harness.endpoint_pricing.effective_price`,
       which enforces the EV-0 discount gate and never mixes providers).
+    * measured provider-settled spend per observed success (#340, additive
+      evidence for #318 selection; the catalog-price ranking inputs below
+      are unchanged).
     """
     from .endpoint_pricing import LANE_WORKLOAD_SHAPES, effective_price
 
@@ -911,6 +962,33 @@ def cost_per_capability(profile, endpoints=None, *, benchmark_rows=None,
     # Shrink benchmark prior margin as observed samples accumulate.
     effective_margin = bench_margin * (1.0 - shrink)
     effective_cap = _clamp01(info["reliability"] + effective_margin)
+
+    # #340: measured-spend cost-per-success for #318 selection. ADDITIVE:
+    # the catalog-price ranking inputs (effective_usd, usd_per_capability,
+    # value_ratio) are computed exactly as before; this is the observed-
+    # success denominator the selector must use instead of reported
+    # estimates. Recon correction: reported costs arrive in the provider
+    # usage.cost fields (settled, summed here per canonical model) -- not
+    # from stale catalog snapshots -- and billed-but-unusable responses
+    # recorded at $0 surface as governor unknown liability, not ledger
+    # spend, so they cannot inflate this ratio.
+    measured_spend = 0.0
+    measured_successes = 0
+    measured_usd_per_success = None
+    if ledger is not None:
+        measured_spend = round(
+            measured_spend_by_model(ledger).get(
+                _canonical_model_id(model_id), 0.0), 6)
+        cal_row = (report or {}).get("calibration", {}).get(model_id, {})
+        successes_key = ("structured_pass" if task == "structured"
+                         else "success_pass")
+        try:
+            measured_successes = max(0, int(cal_row.get(successes_key) or 0))
+        except (TypeError, ValueError):
+            measured_successes = 0
+        if measured_successes > 0 and measured_spend > 0.0:
+            measured_usd_per_success = round(
+                measured_spend / measured_successes, 6)
 
     ep_choice = None
     if endpoints is not None:
@@ -944,6 +1022,9 @@ def cost_per_capability(profile, endpoints=None, *, benchmark_rows=None,
         "usd_per_capability": usd_per_cap,
         "value_ratio": value_ratio,
         "samples": samples,
+        "measured_spend": measured_spend,
+        "measured_successes": measured_successes,
+        "measured_usd_per_success": measured_usd_per_success,
         "endpoint": ep_choice.to_dict() if ep_choice is not None else None,
     }
 
