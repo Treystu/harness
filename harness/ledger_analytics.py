@@ -663,6 +663,12 @@ class LedgerAnalytics:
             else:
                 raw_cost = e.get("billable_cost", e.get("cost"))
                 has_cost = raw_cost is not None
+                # Carried provenance: a cost synthesized upstream (chat
+                # _ensure_accounted flags usage.cost_estimated; the
+                # fireworks probe carries cost_estimated onto the ledger
+                # row) arrives as a plain billable_cost/cost value but is
+                # still an estimate, not provider-settled spend.
+                estimated = bool(e.get("cost_estimated"))
                 try:
                     cost_val = float(raw_cost or 0.0)
                 except (ValueError, TypeError):
@@ -685,7 +691,6 @@ class LedgerAnalytics:
                     if est > 0.0:
                         cost_val = est
                         estimated = True
-                        cost_estimated_calls += weight
                 elif not has_cost and tier != "T0":
                     unpriced_calls += weight
 
@@ -693,11 +698,14 @@ class LedgerAnalytics:
             # was carried on the row (provider usage.cost settled through
             # the governor, or a Jev row repriced at the fixed Jev rate)
             # are measured spend; rows priced here from the snapshot price
-            # table are catalog estimates, not spend evidence. total_cost
+            # table, or carried with cost_estimated=True after upstream
+            # synthesis (chat._ensure_accounted, fireworks probe), are
+            # estimates, not spend evidence. total_cost
             # still sums both (all-in view preserved byte-for-byte); the
             # success metric below reads measured_cost only.
             if estimated:
                 estimated_cost += cost_val
+                cost_estimated_calls += weight
             else:
                 measured_cost += cost_val
 
