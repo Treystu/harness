@@ -532,6 +532,50 @@ class PerRequestAttributionTests(unittest.TestCase):
             self.assertAlmostEqual(gov.spent, 0.03, places=6)
             self.assertAlmostEqual(gov.outstanding, 0.0, places=6)
 
+    def test_reclassify_unknown_replays_reservation_snapshot(self):
+        """A reclassified in-flight token lands its unknown liability on
+        the reservation snapshot scopes, so an exited scope keeps seeing
+        it and an unrelated open scope stays untouched."""
+        gov = self._gov()
+        with gov.task_scope(0.10, label="A") as scope_a:
+            token = gov.reserve(0.04, "a-work")
+        with gov.task_scope(0.10, label="B") as scope_b:
+            gov.reclassify_unknown(token)
+            self.assertAlmostEqual(scope_a.unknown, 0.04, places=6)
+            self.assertAlmostEqual(scope_a.outstanding, 0.04, places=6)
+            self.assertAlmostEqual(scope_b.unknown, 0.0, places=6)
+            self.assertAlmostEqual(scope_b.outstanding, 0.0, places=6)
+            self.assertAlmostEqual(
+                gov.snapshot()["unknown_liability"], 0.04, places=6)
+
+    def test_reclassify_unknown_legacy_short_tuple_falls_back(self):
+        """A snapshot-less legacy 3-tuple reclassifies onto the live-stack
+        reconstruction and is rewritten as a 3-tuple unknown token."""
+        gov = self._gov()
+        with gov.task_scope(0.10, label="B") as scope_b:
+            legacy = ("legacy-work", 0.02, scope_b)
+            gov._reservations.append(legacy)
+            gov._outstanding += 0.02
+            gov.reclassify_unknown(legacy)
+            self.assertAlmostEqual(scope_b.unknown, 0.02, places=6)
+            self.assertEqual(
+                gov._reservations[0],
+                ("legacy-work (usage unknown)", 0.02, scope_b))
+
+    def test_reconcile_legacy_hand_built_tuple_uses_live_stack(self):
+        """A snapshot-less hand-built 2-tuple reconciles against the live
+        stack: the origin falls back to the innermost open scope."""
+        gov = self._gov()
+        with gov.task_scope(0.10, label="B") as scope_b:
+            legacy = ("legacy-work", 0.02)
+            gov._reservations.append(legacy)
+            gov._outstanding += 0.02
+            gov.reconcile(legacy, 0.02)
+            self.assertAlmostEqual(scope_b.spent, 0.02, places=6)
+            self.assertAlmostEqual(scope_b.outstanding, 0.0, places=6)
+            self.assertAlmostEqual(gov.spent, 0.02, places=6)
+            self.assertAlmostEqual(gov.outstanding, 0.0, places=6)
+
     def test_unknown_liability_attributes_to_own_scope(self):
         """retain_unknown charges the bound scope's own unknown ledger
         without touching a sibling scope; an inner scope's spend still
