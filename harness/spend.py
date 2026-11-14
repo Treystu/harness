@@ -158,7 +158,8 @@ class SpendGovernor:
             raise HarnessError(
                 "terminal_reserve must not exceed max_cost")
         self._phase = PHASE_ATTEMPT
-        # Nested per-task scopes; the innermost one narrows _phase_ceiling.
+        # Nested per-task scopes; each carries its own spent/outstanding/
+        # unknown ledger, and the stack narrows enforcement min-over-stack.
         self._task_scopes = []
         self.spent = 0.0
         self.overruns = 0  # billed calls booked past the ceiling
@@ -269,24 +270,102 @@ class SpendGovernor:
                 self.terminal_reserve)
 
     def _phase_ceiling(self):
-        """Dollar ceiling the current phase may spend up to.
+        """Dollar ceiling the current phase may spend up to (session line).
 
-        A task scope (see :meth:`task_scope`) narrows this without forking the
-        governor: the effective ceiling is the lower of the phase ceiling and
-        the task's own allowance measured from where the task started, so a
-        per-task cap holds no matter how much the session spent before it.
-        Every accessor that bounds spend already funnels through here, so one
-        change makes preflight, reserve, remaining and reconcile agree.
+        Per-request scopes no longer narrow this number: each scope carries
+        its own spent/outstanding/unknown ledger (see :meth:`task_scope`),
+        and every entry point that commits spend enforces the scope ledgers
+        ANDed with this session ceiling. Unrelated concurrent spending then
+        consumes shared capacity without being charged against another
+        request's individual allowance.
         """
         with self._spend_lock:
             if self._phase == PHASE_TERMINAL:
-                ceiling = float(self.max_cost)
-            else:
-                ceiling = max(0.0, float(self.max_cost) - float(self.terminal_reserve))
-            scope = self._task_scopes[-1] if self._task_scopes else None
-            if scope is not None:
-                ceiling = min(ceiling, scope.baseline + scope.max_cost)
-            return ceiling
+                return float(self.max_cost)
+            return max(0.0, float(self.max_cost) - float(self.terminal_reserve))
+
+    def _resolve_scope(self, scope):
+        """Bound a spend to one request's own ledger.
+
+        An explicit scope wins; otherwise the innermost open scope, if any.
+        No-lock helper: call with ``_spend_lock`` held. Anything else is a
+        caller bug, so it fails closed instead of attributing nowhere.
+        """
+        if scope is None:
+            if not self._task_scopes:
+                return None
+            return self._task_scopes[-1]
+        if not isinstance(scope, _TaskScope):
+            raise HarnessError(
+                f"scope must be a task scope, got {scope!r}. Refusing.")
+        return scope
+
+    def _scope_targets(self, bound):
+        """Scopes whose own ledgers share a spend against ``bound``.
+
+        No-lock helper: call with ``_spend_lock`` held. The bound scope plus
+        every open scope outside it: spend happening now happens inside all
+        of them, so each one's own allowance must cover it and nested bounds
+        hold min-over-stack. A bound scope that already exited is still
+        settled (plus every still-open scope, fail-closed) so in-flight
+        liability is never silently dropped when its scope closes first.
+        """
+        if bound is None:
+            return []
+        position = None
+        for index, open_scope in enumerate(self._task_scopes):
+            if open_scope is bound:
+                position = index
+                break
+        if position is None:
+            enclosing = list(self._task_scopes)
+        else:
+            enclosing = self._task_scopes[:position]
+        targets = [bound]
+        seen = {id(bound)}
+        for open_scope in enclosing:
+            if id(open_scope) not in seen:
+                seen.add(id(open_scope))
+                targets.append(open_scope)
+        return targets
+
+    def _refuse_over_scope(self, targets, amount, what,
+                           *, count_outstanding=True, ending="Refusing."):
+        """Fail-closed scope leg: every target ledger must fit ``amount``.
+
+        No-lock helper: call with ``_spend_lock`` held. Mirrors the global
+        ``spent + outstanding + amount > ceiling`` shape against each
+        scope's own allowance. Reconcile passes ``count_outstanding=False``
+        because its liability was already released, exactly like the global
+        reconcile check.
+        """
+        for target in targets:
+            committed = target.spent
+            if count_outstanding:
+                committed += target.outstanding
+            if committed + amount > target.max_cost:
+                raise HarnessError(
+                    f"{what} ${amount:.6f} would exceed task-scope "
+                    f"'{target.label}' allowance ${target.max_cost:.6f} "
+                    f"(scope spent=${target.spent:.6f}, "
+                    f"outstanding=${target.outstanding:.6f}). {ending}")
+
+    @staticmethod
+    def _scope_settle(targets, *, spent=0.0, outstanding=0.0, unknown=0.0):
+        """Ledger-only settle onto scope ledgers: no checks, no refusal.
+
+        The checks already ran fail-closed in the caller; this only moves
+        the numbers. ``_TaskScope`` is frozen, so this writes via the same
+        ``object.__setattr__`` idiom as its ``__post_init__``.
+        """
+        for target in targets:
+            if spent:
+                object.__setattr__(target, "spent", target.spent + spent)
+            if outstanding:
+                object.__setattr__(target, "outstanding",
+                                   max(0.0, target.outstanding + outstanding))
+            if unknown:
+                object.__setattr__(target, "unknown", target.unknown + unknown)
 
     @contextmanager
     def task_scope(self, task_max_cost, label="task"):
@@ -296,6 +375,14 @@ class SpendGovernor:
         a per-task cap is a scope on the SAME governor rather than a second
         class: session accounting, ``cost_by_model``, the envelope and the
         chain all keep reading one truth, and the cap simply refuses earlier.
+
+        The yielded scope is the request's OWN ledger and its attribution
+        token: spend inside the block attributes to the innermost open scope
+        (pass the scope as ``scope=`` to attribute elsewhere), and every
+        commit enforces each enclosing scope's allowance ANDed with the
+        shared session ceiling. Exiting removes the scope from the stack so
+        later work is unaffected; the scope object keeps its settled
+        counters, and in-flight tokens still settle against it.
         """
         cap = finite_number(task_max_cost, "task_max_cost", 0.0)
         if cap <= 0.0:
@@ -513,6 +600,9 @@ class SpendGovernor:
                     f"Jev worst-case ${worst:.6f} for {label} exceeds remaining "
                     f"budget ${self.remaining():.6f} "
                     f"(phase={self._phase}, ceiling=${ceiling:.6f}); refusing.")
+            self._refuse_over_scope(
+                self._scope_targets(self._resolve_scope(None)), worst,
+                f"Jev worst-case for {label}")
         return worst
 
     def preflight(self, prompt_text, calls):
@@ -554,10 +644,13 @@ class SpendGovernor:
                     f"exceeds remaining ceiling ${ceiling:.6f} "
                     f"(outstanding reservations: ${self._outstanding:.6f}; "
                     f"phase={self._phase}). Refusing.")
+            self._refuse_over_scope(
+                self._scope_targets(self._resolve_scope(None)), total,
+                "worst-case estimate")
         return total, breakdown
 
     # 4b
-    def reserve(self, amount, label):
+    def reserve(self, amount, label, scope=None):
         """Atomically reserve worst-case spend for an in-flight call.
 
         Parallel dispatch (the DAG executor) cannot rely on per-call
@@ -567,6 +660,14 @@ class SpendGovernor:
         outstanding + new`` must stay under the ceiling or the reserve is
         refused, and every preflight sees outstanding reservations.
         Returns a reservation token for :meth:`reconcile`.
+
+        ``scope`` attributes the reservation to one request's own ledger:
+        an explicit scope wins, otherwise the innermost open scope. The
+        reservation must fit BOTH the shared session ceiling AND every
+        attributed scope's own ``max_cost`` allowance, so unrelated
+        concurrent spending consumes shared capacity without being charged
+        against another request's individual allowance. Existing callers
+        pass nothing and keep innermost attribution.
         """
         amount = finite_number(amount or 0.0, "reservation", 0.0)
         with self._spend_lock:
@@ -585,18 +686,26 @@ class SpendGovernor:
                     f"${ceiling:.6f} "
                     f"(${self.remaining():.6f} still unreserved; "
                     f"phase={self._phase}). Refusing.")
+            bound = self._resolve_scope(scope)
+            targets = self._scope_targets(bound)
+            self._refuse_over_scope(targets, amount, f"reservation ({label})")
             self._outstanding += amount
-            token = (label, amount)
+            self._scope_settle(targets, outstanding=amount)
+            token = (label, amount, bound)
             self._reservations.append(token)
             return token
 
-    def retain_unknown(self, amount, label):
+    def retain_unknown(self, amount, label, scope=None):
         """Keep conservative liability after dispatch loses its usage reply.
 
         A provider may have accepted and billed the request. This cannot be a
         normal ceiling-checked reservation because dispatch already happened;
         retain the amount even if it puts the run over budget so every later
         preflight sees the unresolved liability and refuses further spend.
+
+        ``scope`` attributes the liability to one request's own ledger
+        (explicit scope, else innermost); the session-wide liability is
+        always retained too. There is no ceiling check -- dispatch happened.
         """
         amount = finite_number(amount or 0.0, "unknown liability", 0.0)
         if amount <= 0.0:
@@ -606,7 +715,10 @@ class SpendGovernor:
             self._unknown_liability += amount
             if is_meta_model_id(label):
                 self._meta_unknown_liability += amount
-            self._reservations.append((f"{label} (usage unknown)", amount))
+            bound = self._resolve_scope(scope)
+            targets = self._scope_targets(bound)
+            self._scope_settle(targets, outstanding=amount, unknown=amount)
+            self._reservations.append((f"{label} (usage unknown)", amount, bound))
         return amount
 
     def reclassify_unknown(self, token):
@@ -615,6 +727,8 @@ class SpendGovernor:
         This is the atomic form for callers that reserved before dispatch. The
         amount stays outstanding, but it is surfaced separately so snapshots
         and later budget decisions can identify unresolved provider usage.
+        The token's own scope ledger surfaces it too, so the request that
+        reserved the liability keeps seeing it.
         """
         with self._spend_lock:
             try:
@@ -623,15 +737,24 @@ class SpendGovernor:
                 raise HarnessError(
                     "reclassify of an unknown reservation token") from None
             amount = token[1]
+            label = token[0]
+            bound = (token[2] if isinstance(token, tuple) and len(token) > 2
+                     else None)
             self._reservations[index] = (
-                f"{token[0]} (usage unknown)", amount)
+                f"{label} (usage unknown)", amount, bound)
             self._unknown_liability += amount
+            self._scope_settle(self._scope_targets(bound), unknown=amount)
             return amount
 
-    def reconcile(self, token, actual, lane="apply"):
+    def reconcile(self, token, actual, lane="apply", scope=None):
         """Settle a reservation: release the worst-case liability, record
         the billed actual. The reservation is released even when ``actual``
-        would fail the ceiling check (the liability was already counted)."""
+        would fail the ceiling check (the liability was already counted).
+
+        ``scope`` overrides token-bound attribution; otherwise the spend
+        settles on the token's own scope (explicit scope at reserve time,
+        else the innermost open scope then) plus every scope outside it.
+        """
         with self._spend_lock:
             try:
                 self._reservations.remove(token)
@@ -639,6 +762,14 @@ class SpendGovernor:
                 raise HarnessError(
                     "reconcile of an unknown reservation token") from None
             self._outstanding = max(0.0, self._outstanding - token[1])
+            if scope is not None:
+                bound = self._resolve_scope(scope)
+            elif isinstance(token, tuple) and len(token) > 2:
+                bound = token[2]
+            else:
+                bound = self._resolve_scope(None)
+            targets = self._scope_targets(bound)
+            self._scope_settle(targets, outstanding=-token[1])
         label = token[0]
         try:
             actual_f = finite_number(actual or 0.0, "reported cost", 0.0)
@@ -658,7 +789,13 @@ class SpendGovernor:
                 raise HarnessError(
                     f"actual running cost ${self.spent + actual_f:.6f} would exceed ceiling "
                     f"${ceiling:.6f} (after '{label}'; phase={self._phase}). Aborting.")
+            if actual_f > 0.0:
+                self._refuse_over_scope(targets, actual_f,
+                                        f"actual running cost (after '{label}')",
+                                        count_outstanding=False,
+                                        ending="Aborting.")
             self.spent += actual_f
+            self._scope_settle(targets, spent=actual_f)
             self._cost_by_model[label] = (self._cost_by_model.get(label, 0.0) + actual_f)
             lane_key = str(lane or "apply")
             self._cost_by_lane[lane_key] = (
@@ -676,6 +813,8 @@ class SpendGovernor:
         with self._spend_lock:
             self.spent += actual
             self.overruns += 1
+            self._scope_settle(
+                self._scope_targets(self._resolve_scope(None)), spent=actual)
             self._cost_by_model[label] = (
                 self._cost_by_model.get(label, 0.0) + actual)
             lane_key = str(lane or "apply")
@@ -696,11 +835,19 @@ class SpendGovernor:
         the reserve. This is the ONE accessor for "what can this run still
         afford", so a lane that bounds a dispatch by the remaining budget
         (the DAG reserver) does not re-derive the arithmetic from three
-        public fields.
+        public fields. Open scopes narrow it further: the answer is the
+        minimum of the session line and every open scope's own headroom
+        (min-over-stack), so one request's spending never reads as another
+        request's remaining allowance.
         """
         with self._spend_lock:
             ceiling = self._phase_ceiling()
-            return max(0.0, ceiling - (self.spent + self._outstanding))
+            headroom = ceiling - (self.spent + self._outstanding)
+            for scope in self._task_scopes:
+                scope_room = scope.max_cost - scope.spent - scope.outstanding
+                if scope_room < headroom:
+                    headroom = scope_room
+            return max(0.0, headroom)
 
     def fireworks_spent(self):
         """Recorded spend on Fireworks labels (see is_fireworks_model_path)."""
@@ -753,9 +900,14 @@ class SpendGovernor:
                 f"for '{label}'; refusing to send.")
 
     # 5
-    def record_actual(self, cost, label, lane="apply"):
+    def record_actual(self, cost, label, lane="apply", scope=None):
         """Record a billable response without ever moving ``spent`` over the
-        phase ceiling (attempt ceiling excludes terminal_reserve)."""
+        phase ceiling (attempt ceiling excludes terminal_reserve).
+
+        ``scope`` attributes the spend to one request's own ledger
+        (explicit scope, else innermost): the actual must fit BOTH the
+        shared session ceiling AND every attributed scope's own allowance.
+        """
         try:
             actual = finite_number(cost or 0.0, "reported cost", 0.0)
         except HarnessError:
@@ -789,7 +941,14 @@ class SpendGovernor:
                     f"would exceed ceiling ${ceiling:.6f} "
                     f"(outstanding reservations: ${self._outstanding:.6f}; "
                     f"after '{label}'; phase={self._phase}). Aborting.")
+            bound = self._resolve_scope(scope)
+            targets = self._scope_targets(bound)
+            if actual > 0.0:
+                self._refuse_over_scope(targets, actual,
+                                        f"actual running cost (after '{label}')",
+                                        ending="Aborting.")
             self.spent += actual
+            self._scope_settle(targets, spent=actual)
             self._cost_by_model[label] = (self._cost_by_model.get(label, 0.0) + actual)
             lane_key = str(lane or "apply")
             self._cost_by_lane[lane_key] = (
@@ -802,10 +961,13 @@ class SpendGovernor:
 class _TaskScope:
     """The record a :meth:`SpendGovernor.task_scope` block carries.
 
-    Deliberately NOT a governor: it holds no ledger, no transport and no
-    spend of its own. It only remembers where the task started and what it is
-    allowed to spend, so ``_phase_ceiling`` can narrow the ONE governor for
-    the duration of the block.
+    Deliberately NOT a governor: it holds no transport and no pricing of
+    its own. It remembers where the task started, what it is allowed to
+    spend, and -- per-request attribution (#345) -- its OWN ledger:
+    ``spent``/``outstanding``/``unknown`` count only what was attributed to
+    this scope (explicitly or as the innermost open scope), so unrelated
+    concurrent spending consumes shared capacity without being charged
+    against this scope's individual allowance.
     """
 
     governor: "SpendGovernor"
@@ -814,6 +976,10 @@ class _TaskScope:
     # Where the session stood when this task began: the task's allowance is
     # independent of what the session already spent before it.
     baseline: float = dataclass_field(default=0.0)
+    # This request's own ledger (attributed spend only; see above).
+    spent: float = dataclass_field(default=0.0)
+    outstanding: float = dataclass_field(default=0.0)
+    unknown: float = dataclass_field(default=0.0)
 
     def __post_init__(self):
         if self.baseline == 0.0 and self.governor is not None:
