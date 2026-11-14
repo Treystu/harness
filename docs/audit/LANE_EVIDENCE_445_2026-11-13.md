@@ -78,7 +78,7 @@ No threshold, gate, verdict, canon row, or other module's behavior changed.
 
 | Suite | Result |
 | --- | --- |
-| `tests.test_server tests.test_plan_http_batch tests.test_agent tests.test_jev_ledger_spend` | Ran 255 tests, OK |
+| `tests.test_server tests.test_plan_http_batch tests.test_agent tests.test_jev_ledger_spend` | Ran 265 tests, OK (includes the `run_gate`-from-`local_gate` D12-cure test) |
 | `tests.test_server_driver tests.test_site_server tests.test_intake tests.test_agent_run_limits tests.test_agent_desktop_audit_report` | Ran 122 tests, OK |
 | `ruff check harness/server.py harness/agent.py harness/spend.py` | All checks passed |
 | `pyright --pythonversion 3.9` on the four modules | 0 errors |
