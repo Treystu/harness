@@ -452,6 +452,25 @@ class PoolTests(_IsolatedHome):
         self.assertEqual(direct, direct_backend_pool(groq_key="g",
                                                     cerebras_key="c"))
 
+    def test_shipped_fireworks_pools_resolve_against_the_committed_pack(self):
+        # #512: an id the pack does not carry (no dispatch path, no committed
+        # rate) is dropped from the pool, so a stale shipped list makes the
+        # whole Fireworks half inert without any error. The two must agree.
+        from harness.endpoint_pricing import load_fireworks_endpoints
+
+        endpoints = load_fireworks_endpoints()["endpoints"]
+        shipped = (list(config.DEFAULT_FIREWORKS_APPLY_POOL)
+                   + list(config.DEFAULT_FIREWORKS_PANEL_POOL)
+                   + [config.DEFAULT_FIREWORKS_JUDGE_MODEL])
+        for mid in shipped:
+            self.assertIn(mid, endpoints, mid)
+
+    def test_a_fireworks_key_assembles_a_non_inert_pool(self):
+        pool = direct_backend_pool(fireworks_key="f")
+        self.assertTrue(
+            [mid for mid in pool if mid.startswith("accounts/fireworks/")],
+            pool)
+
     def test_unroutable_fireworks_ids_never_leak_into_the_pool(self):
         pool = direct_backend_pool(fireworks_key="f", meta_key="m")
         from harness.fireworks import resolve_offer as _fw_offer
