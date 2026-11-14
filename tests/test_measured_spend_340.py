@@ -44,6 +44,21 @@ def _profile(model_id="paid/model-x"):
     )
 
 
+class _ListLedger:
+    """Minimal ledger façade over an entry list (exposes ``entries()``).
+
+    Structured lanes route through ``json_reliable`` →
+    ``observed_json_reliability``, which calls ``ledger.entries()``; a raw
+    list has no such method, so judge-lane tests wrap their entries here.
+    """
+
+    def __init__(self, entries):
+        self._entries = entries
+
+    def entries(self):
+        return list(self._entries)
+
+
 def _chat_resp(content, cost):
     return {"choices": [{"message": {"content": content},
                          "finish_reason": "stop"}],
@@ -233,7 +248,7 @@ class CanonicalSuccessAggregationTests(unittest.TestCase):
         }}
         res = cost_per_capability(
             _profile(), None, report=report,
-            ledger=self._entries(), lane="judge")
+            ledger=_ListLedger(self._entries()), lane="judge")
         self.assertAlmostEqual(res["measured_spend"], 0.004, places=6)
         self.assertEqual(res["measured_successes"], 3)
         self.assertAlmostEqual(
