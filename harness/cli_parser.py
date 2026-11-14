@@ -175,7 +175,11 @@ def build_parser():
     pover.add_argument("--keep-scratch", action="store_true",
                        help="keep the composed tree and report its path")
     _add_output_flags(pover)
-    pover.add_argument("command", nargs=argparse.REMAINDER,
+    # The dest must NOT be "command": add_subparsers(dest="command") stores
+    # the subcommand name there, and a REMAINDER positional with the same
+    # dest overwrote it with a list, so dispatch raised before the handler
+    # ever ran (#521).
+    pover.add_argument("argv", nargs=argparse.REMAINDER,
                        help="argv list to run in the composed tree, after --")
 
     # Structured so --help lists the UI faces alongside the data commands.
