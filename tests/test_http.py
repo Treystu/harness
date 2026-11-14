@@ -7,7 +7,7 @@ from unittest import mock
 
 from harness._http import (HttpTransport, default_user_agent,
                            provider_headers)
-from harness.provider_errors import ProviderSpendLimitError
+from harness.provider_errors import ProviderClientBlocked, ProviderSpendLimitError
 
 
 def _ok(body):
@@ -101,6 +101,21 @@ class RetryCostTests(unittest.TestCase):
                 _http_error(429, {"usage": {"cost": 0.001}}), capped]), \
              mock.patch("time.sleep"):
             with self.assertRaises(ProviderSpendLimitError) as ctx:
+                HttpTransport().post(
+                    "https://openrouter.ai/api/v1/chat/completions", "k",
+                    {"model": "m"})
+        self.assertAlmostEqual(ctx.exception.known_cost, 0.003)
+        self.assertFalse(ctx.exception.cost_accounted)
+
+    def test_blocked_preserves_billed_attempts(self):
+        blocked = _http_error(403, {
+            "error": {"message": "error code: 1010"},
+            "usage": {"cost": 0.002},
+        })
+        with mock.patch("urllib.request.urlopen", side_effect=[
+                _http_error(429, {"usage": {"cost": 0.001}}), blocked]), \
+             mock.patch("time.sleep"):
+            with self.assertRaises(ProviderClientBlocked) as ctx:
                 HttpTransport().post(
                     "https://openrouter.ai/api/v1/chat/completions", "k",
                     {"model": "m"})

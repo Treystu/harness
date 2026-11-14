@@ -160,6 +160,28 @@ class ProviderClientBlockedTests(unittest.TestCase):
         self.assertIsNone(edge_block_error("blocked", flagged))
         self.assertIsNone(edge_block_error(None, flagged))
 
+    def test_edge_block_error_carries_known_cost(self):
+        err = edge_block_error(
+            403, {"error": {"message": "error code: 1010"}},
+            known_cost=0.003)
+        self.assertIsInstance(err, ProviderClientBlocked)
+        self.assertAlmostEqual(err.known_cost, 0.003)
+        self.assertFalse(err.cost_accounted)
+
+    def test_client_blocked_invalid_known_cost_is_zero(self):
+        err = ProviderClientBlocked("blocked", http_status=403,
+                                    known_cost="invalid")
+        self.assertEqual(err.known_cost, 0.0)
+        self.assertFalse(err.cost_accounted)
+
+    def test_raise_for_block_preserves_known_cost(self):
+        with self.assertRaises(ProviderClientBlocked) as ctx:
+            raise_for_provider_spend_limit(
+                403, {"error": {"message": "error code: 1010"}},
+                known_cost=0.005)
+        self.assertAlmostEqual(ctx.exception.known_cost, 0.005)
+        self.assertFalse(ctx.exception.cost_accounted)
+
 
 class SecretRedactionTests(unittest.TestCase):
     def test_redact_secrets_strips_api_keys(self):

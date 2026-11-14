@@ -102,9 +102,14 @@ class ProviderClientBlocked(HarnessError):
     next_step = ("send a non-default User-Agent on every request; the harness "
                  "transport does this since #523")
 
-    def __init__(self, detail, *, http_status=None):
+    def __init__(self, detail, *, http_status=None, known_cost=0.0):
         super().__init__(detail)
         self.http_status = http_status
+        try:
+            self.known_cost = max(0.0, float(known_cost or 0.0))
+        except (TypeError, ValueError):
+            self.known_cost = 0.0
+        self.cost_accounted = False
 
 
 _SPEND_CODES = frozenset({
@@ -227,7 +232,7 @@ def provider_spend_limit_error(status: Any, response: Any, *, known_cost: float 
     return None
 
 
-def edge_block_error(status: Any, response: Any):
+def edge_block_error(status: Any, response: Any, *, known_cost: float = 0.0):
     """The ProviderClientBlocked for this response, or None."""
     try:
         code = int(status)
@@ -241,12 +246,12 @@ def edge_block_error(status: Any, response: Any):
     return ProviderClientBlocked(
         "HTTP 403 (code 1010): %s -- this is a client block (no non-default "
         "User-Agent), not a key or quota failure." % (str(detail)[:200],),
-        http_status=403)
+        http_status=403, known_cost=known_cost)
 
 
 def raise_for_provider_spend_limit(status: Any, response: Any, *,
                                    known_cost: float = 0.0) -> None:
-    blocked = edge_block_error(status, response)
+    blocked = edge_block_error(status, response, known_cost=known_cost)
     if blocked is not None:
         raise blocked
     error = provider_spend_limit_error(status, response, known_cost=known_cost)
