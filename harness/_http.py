@@ -20,7 +20,7 @@ from .errors import ProviderUsageUnknown, ToolCancelled
 def default_user_agent():
     """The User-Agent every provider request carries (#523)."""
     from . import __version__
-    return "harness/%s" % (__version__,)
+    return f"harness/{__version__}"
 
 
 def provider_headers(api_key, *, json_body=False):

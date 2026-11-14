@@ -244,8 +244,8 @@ def edge_block_error(status: Any, response: Any, *, known_cost: float = 0.0):
     if "1010" not in (str(detail) + " " + str(code_text)):
         return None
     return ProviderClientBlocked(
-        "HTTP 403 (code 1010): %s -- this is a client block (no non-default "
-        "User-Agent), not a key or quota failure." % (str(detail)[:200],),
+        f"HTTP 403 (code 1010): {str(detail)[:200]} -- this is a client block "
+        "(no non-default User-Agent), not a key or quota failure.",
         http_status=403, known_cost=known_cost)
 
 
