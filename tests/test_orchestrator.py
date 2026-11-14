@@ -376,6 +376,81 @@ class DeliverableContentEvidenceTests(unittest.TestCase):
         self.assertEqual(len(ev["unavailable"]), 1)
         self.assertIn("refusing excerpt", ev["unavailable"][0]["reason"])
 
+    def test_empty_home_and_posix_absolute_names_are_unsafe(self):
+        # Blank names never reach the reader (skipped in the names loop);
+        # home/posix roots reach _safe_content_path and refuse there.
+        _, root = self._tmp()
+        ev = orch.deliverable_content_evidence(["", "~/x.py", "/abs/x.py"], root)
+        self.assertEqual(
+            [c["status"] for c in ev["chunks"]], ["unsafe", "unsafe"])
+        self.assertEqual(len(ev["unavailable"]), 2)
+        self.assertTrue(all("outside the deliverable root" in u["reason"]
+                            for u in ev["unavailable"]))
+        # Blank and traversal names refuse inside _safe_content_path itself.
+        self.assertIsNone(orch._safe_content_path(root, ""))
+        self.assertIsNone(orch._safe_content_path(root, ".."))
+        self.assertIsNone(orch._safe_content_path(root, "../x.py"))
+
+    def test_unresolvable_root_is_unsafe(self):
+        # A root that cannot be resolved fails closed (D12: resolve OSError).
+        _, root = self._tmp()
+        (root / "ok.py").write_text("x = 1\n", encoding="utf-8")
+        with mock.patch.object(Path, "resolve", side_effect=OSError("gone")):
+            ev = orch.deliverable_content_evidence(["ok.py"], root)
+        (chunk,) = ev["chunks"]
+        self.assertEqual(chunk["status"], "unsafe")
+        self.assertEqual(len(ev["unavailable"]), 1)
+
+    def test_containment_failure_is_unsafe(self):
+        # A name that resolves outside the deliverable root fails closed
+        # (D12: relative_to ValueError; exercised without symlinks so the
+        # guarantee holds on platforms without them).
+        _, root = self._tmp()
+        (root / "ok.py").write_text("x = 1\n", encoding="utf-8")
+        real_relative_to = Path.relative_to
+
+        def outside(self, *args):
+            if str(self).endswith("ok.py"):
+                raise ValueError("outside")
+            return real_relative_to(self, *args)
+
+        with mock.patch.object(Path, "relative_to", outside):
+            ev = orch.deliverable_content_evidence(["ok.py"], root)
+        (chunk,) = ev["chunks"]
+        self.assertEqual(chunk["status"], "unsafe")
+        self.assertEqual(len(ev["unavailable"]), 1)
+        self.assertIn("outside the deliverable root",
+                      ev["unavailable"][0]["reason"])
+
+    def test_directory_is_not_supplied_as_text(self):
+        # Directories are not regular files (D12: not-regular branch).
+        _, root = self._tmp()
+        (root / "pkg").mkdir()
+        ev = orch.deliverable_content_evidence(["pkg"], root)
+        (chunk,) = ev["chunks"]
+        self.assertEqual(chunk["status"], "not-regular")
+        self.assertEqual(len(ev["unavailable"]), 1)
+        self.assertIn("not a regular file", ev["unavailable"][0]["reason"])
+
+    def test_unreadable_file_is_declared_not_supplied(self):
+        # An unreadable file is declared, not silently skipped (D12).
+        _, root = self._tmp()
+        target = root / "locked.py"
+        target.write_text("x = 1\n", encoding="utf-8")
+        real_open = open
+
+        def failing_open(file, *args, **kwargs):
+            if str(Path(file)) == str(target):
+                raise OSError("denied")
+            return real_open(file, *args, **kwargs)
+
+        with mock.patch("builtins.open", failing_open):
+            ev = orch.deliverable_content_evidence(["locked.py"], root)
+        (chunk,) = ev["chunks"]
+        self.assertEqual(chunk["status"], "unreadable")
+        self.assertEqual(len(ev["unavailable"]), 1)
+        self.assertIn("unreadable", ev["unavailable"][0]["reason"])
+
     def test_binary_is_not_supplied_as_text(self):
         _, root = self._tmp()
         (root / "img.py").write_bytes(b"\x89PNG\r\n\x00bindata")
