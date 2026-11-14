@@ -117,6 +117,14 @@ def build_parser():
         prog="harness", formatter_class=_FixedWidthHelpFormatter,
         description="Cost-bounded multi-model verification & coding harness with AI sovereignty.")
     sub = ap.add_subparsers(dest="command", required=True)
+    # "Which harness is this?" answered by the command itself (#328, #529).
+    # Registered after the subparsers action so the top-level action order the
+    # CLI's own wiring tests index stays as it was; imported here, not at
+    # module scope, so this module stays importable with nothing but argparse.
+    from . import __version__ as _version
+    ap.add_argument("-v", "--version", action="version",
+                    version=f"harness {_version}",
+                    help="print the harness version and exit")
     # argparse does not propagate formatter_class from the parent parser
     # to subparsers (nor does it accept it as an add_parser default);
     # wrap add_parser so every subcommand renders its help at the same

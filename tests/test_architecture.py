@@ -18,7 +18,10 @@ import unittest
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PKG = os.path.join(HERE, "harness")
-INTERFACES = {"cli", "mcp"}
+# ``__main__`` is the package's executable entry point, the same interface as
+# ``cli`` (``python -m harness`` runs it and it owns no policy of its own); it
+# is imported by nothing, so listing it here widens no layer's reach (#529).
+INTERFACES = {"cli", "mcp", "__main__"}
 
 
 def _module_names():
