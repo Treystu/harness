@@ -985,11 +985,12 @@ def sm_layering():
     """No module beneath the interfaces imports an interface."""
     bad = []
     for m in modules():
-        if m in ("cli", "mcp"):
+        # __main__ is the package entry interface, not a layer beneath cli.
+        if m in ("cli", "mcp", "__main__"):
             continue
         for node in ast.walk(tree(m)):
             if isinstance(node, ast.ImportFrom) and node.level >= 1 and node.module:
-                if node.module.split(".")[0] in ("cli", "mcp"):
+                if node.module.split(".")[0] in ("cli", "mcp", "__main__"):
                     bad.append(f"{m} -> {node.module}")
     return _pass(not bad, "import direction clean (0 upward edges)",
                  f"violations: {bad}")
