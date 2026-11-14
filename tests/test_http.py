@@ -5,7 +5,8 @@ import unittest
 import urllib.error
 from unittest import mock
 
-from harness._http import HttpTransport
+from harness._http import (HttpTransport, default_user_agent,
+                           provider_headers)
 from harness.provider_errors import ProviderSpendLimitError
 
 
@@ -139,6 +140,64 @@ class RetryCostTests(unittest.TestCase):
                     "https://api.typesafe.ai/v1/evaluations", "k",
                     {"model": "jev-1.13.0"})
         self.assertAlmostEqual(ctx.exception.known_cost, 0.0000042)
+
+
+class ProviderUserAgentTests(unittest.TestCase):
+    """Every provider request carries a non-default User-Agent (#523)."""
+
+    @staticmethod
+    def _headers_of(req):
+        return {str(key).lower(): value
+                for key, value in req.header_items()}
+
+    def test_provider_headers_carry_auth_and_harness_ua(self):
+        headers = provider_headers("k")
+        self.assertEqual(headers["Authorization"], "Bearer k")
+        self.assertEqual(headers["User-Agent"], default_user_agent())
+        self.assertTrue(default_user_agent().startswith("harness/"))
+        self.assertNotIn("Content-Type", headers)
+        json_headers = provider_headers("k", json_body=True)
+        self.assertEqual(json_headers["Content-Type"], "application/json")
+        self.assertEqual(json_headers["User-Agent"], default_user_agent())
+
+    def test_get_sends_default_ua_without_json_content_type(self):
+        body = {"models": []}
+        seen = []
+
+        def fake(req, timeout=None):
+            seen.append(req)
+            return _ok(body)
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake):
+            parsed = HttpTransport().get(
+                "https://api.groq.com/openai/v1/models", "k")
+        self.assertEqual(parsed, body)
+        (req,) = seen
+        headers = self._headers_of(req)
+        self.assertEqual(headers["authorization"], "Bearer k")
+        self.assertEqual(headers["user-agent"], default_user_agent())
+        self.assertNotIn("content-type", headers)
+
+    def test_post_sends_default_ua_with_json_content_type(self):
+        body = {"choices": [{"message": {"content": "ok"},
+                             "finish_reason": "stop"}]}
+        seen = []
+
+        def fake(req, timeout=None):
+            seen.append(req)
+            return _ok(body)
+
+        with mock.patch("urllib.request.urlopen", side_effect=fake):
+            status, parsed = HttpTransport().post(
+                "https://api.groq.com/openai/v1/chat/completions", "k",
+                {"model": "m"})
+        self.assertEqual(status, 200)
+        self.assertEqual(parsed, body)
+        (req,) = seen
+        headers = self._headers_of(req)
+        self.assertEqual(headers["authorization"], "Bearer k")
+        self.assertEqual(headers["user-agent"], default_user_agent())
+        self.assertEqual(headers["content-type"], "application/json")
 
 
 if __name__ == "__main__":

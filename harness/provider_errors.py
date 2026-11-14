@@ -95,6 +95,18 @@ class ProviderSpendLimitError(HarnessError):
         super().__init__(message)
 
 
+class ProviderClientBlocked(HarnessError):
+    """The provider's edge refused this client, not this key (#523)."""
+
+    kind = "provider_client_blocked"
+    next_step = ("send a non-default User-Agent on every request; the harness "
+                 "transport does this since #523")
+
+    def __init__(self, detail, *, http_status=None):
+        super().__init__(detail)
+        self.http_status = http_status
+
+
 _SPEND_CODES = frozenset({
     "billing_hard_limit_reached",
     "billing_not_active",
@@ -215,8 +227,28 @@ def provider_spend_limit_error(status: Any, response: Any, *, known_cost: float 
     return None
 
 
+def edge_block_error(status: Any, response: Any):
+    """The ProviderClientBlocked for this response, or None."""
+    try:
+        code = int(status)
+    except (TypeError, ValueError):
+        return None
+    if code != 403:
+        return None
+    detail, code_text = _error_fields(response)
+    if "1010" not in (str(detail) + " " + str(code_text)):
+        return None
+    return ProviderClientBlocked(
+        "HTTP 403 (code 1010): %s -- this is a client block (no non-default "
+        "User-Agent), not a key or quota failure." % (str(detail)[:200],),
+        http_status=403)
+
+
 def raise_for_provider_spend_limit(status: Any, response: Any, *,
                                    known_cost: float = 0.0) -> None:
+    blocked = edge_block_error(status, response)
+    if blocked is not None:
+        raise blocked
     error = provider_spend_limit_error(status, response, known_cost=known_cost)
     if error is not None:
         raise error

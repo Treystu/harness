@@ -7,8 +7,10 @@ from unittest import mock
 
 from harness.ledger import AutonomyLedger
 from harness.provider_errors import (
+    ProviderClientBlocked,
     ProviderSpendLimitError,
     account_provider_spend_limit,
+    edge_block_error,
     provider_spend_limit_error,
     raise_for_provider_spend_limit,
     redact_secrets,
@@ -129,6 +131,29 @@ class ProviderSpendLimitClassificationTests(unittest.TestCase):
 
         # Should not raise on regular 429
         raise_for_provider_spend_limit(429, {"error": {"message": "Rate limit exceeded"}})
+
+
+class ProviderClientBlockedTests(unittest.TestCase):
+    """A 403 code-1010 edge block is not a spend limit or auth failure (#523)."""
+
+    def test_403_code_1010_body_raises_client_block(self):
+        with self.assertRaises(ProviderClientBlocked) as ctx:
+            raise_for_provider_spend_limit(
+                403, {"error": {"message": "error code: 1010"}})
+        self.assertEqual(ctx.exception.kind, "provider_client_blocked")
+        self.assertEqual(ctx.exception.http_status, 403)
+        self.assertIn("1010", str(ctx.exception))
+
+    def test_genuine_auth_403_is_untouched(self):
+        denied = {"error": {"message": "Incorrect API key provided",
+                            "code": "invalid_api_key"}}
+        self.assertIsNone(edge_block_error(403, denied))
+        raise_for_provider_spend_limit(403, denied)
+
+    def test_non_403_with_1010_text_is_untouched(self):
+        self.assertIsNone(edge_block_error(
+            429, {"error": {"message": "error code: 1010"}}))
+        self.assertIsNone(edge_block_error(403, {"ok": True}))
 
 
 class SecretRedactionTests(unittest.TestCase):

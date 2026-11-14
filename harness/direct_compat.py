@@ -9,9 +9,9 @@ offer fails closed: the prefix claims the direct lane, and an unpriced model
 must never be routed on a guess or booked as free.
 
 Prices are the providers' published per-token list rates (Nov 2026: Groq
-``openai/gpt-oss-20b`` $0.075/$0.30, ``openai/gpt-oss-120b`` $0.15/$0.60,
-``qwen/qwen3-32b`` $0.29/$0.59 per 1M input/output; Cerebras ``gpt-oss-120b``
-$0.35/$0.75, ``qwen-3-32b`` $0.40/$0.80 per 1M). The provider-reported
+``openai/gpt-oss-20b`` $0.075/$0.30, ``openai/gpt-oss-120b`` $0.15/$0.60
+per 1M input/output; Cerebras ``gpt-oss-120b`` $0.35/$0.75, ``qwen-3-32b``
+$0.40/$0.80 per 1M). The provider-reported
 ``usage.cost`` always wins; the committed rates only price a response that
 carries token counts but no cost (exactly the Fireworks lane's rule), and a
 response with neither is refused rather than booked as free.
@@ -57,6 +57,11 @@ def _offer(model, wire, provider, input_per_mtok, output_per_mtok):
 
 
 #: Committed Groq offers, cheapest first (provider list rates, Nov 2026).
+#: ``groq/qwen/qwen3-32b`` was removed (#523): it is absent from the
+#: account's live model list, so it 404s. Its served replacement
+#: (``qwen/qwen3.8-27b``) has no committed list rate, and an id without a
+#: committed offer is excluded, never priced on a guess -- it rejoins the
+#: pool only with a committed rate.
 GROQ_OFFERS = {
     "groq/openai/gpt-oss-20b": _offer(
         "groq/openai/gpt-oss-20b", "openai/gpt-oss-20b", GROQ_PROVIDER,
@@ -64,9 +69,6 @@ GROQ_OFFERS = {
     "groq/openai/gpt-oss-120b": _offer(
         "groq/openai/gpt-oss-120b", "openai/gpt-oss-120b", GROQ_PROVIDER,
         0.15, 0.60),
-    "groq/qwen/qwen3-32b": _offer(
-        "groq/qwen/qwen3-32b", "qwen/qwen3-32b", GROQ_PROVIDER,
-        0.29, 0.59),
 }
 
 #: Committed Cerebras offers, cheapest first (provider list rates, Nov 2026).
