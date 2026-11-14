@@ -17,6 +17,21 @@ from . import osal
 from .errors import ProviderUsageUnknown, ToolCancelled
 
 
+def default_user_agent():
+    """The User-Agent every provider request carries (#523)."""
+    from . import __version__
+    return "harness/%s" % (__version__,)
+
+
+def provider_headers(api_key, *, json_body=False):
+    """Headers for one provider call: auth, UA, and JSON content type."""
+    headers = {"Authorization": "Bearer " + api_key,
+               "User-Agent": default_user_agent()}
+    if json_body:
+        headers["Content-Type"] = "application/json"
+    return headers
+
+
 def interruptible_sleep(delay, cancel_check):
     """Wait for ``delay`` seconds, checking a run's cancellation signal."""
     if cancel_check is None:
@@ -98,7 +113,9 @@ def cancellable_request(method, url, *, headers=None, data=None, timeout=15,
     request = {
         "method": method,
         "url": url,
-        "headers": headers or {},
+        # The killable child carries whatever the caller built, but a caller
+        # that forgets the UA must not silently inherit the blocked default.
+        "headers": {**{"User-Agent": default_user_agent()}, **(headers or {})},
         "data_b64": base64.b64encode(data).decode("ascii") if data is not None else None,
         "timeout": timeout,
         "max_bytes": max_bytes,
@@ -265,7 +282,7 @@ class HttpTransport(Transport):
                 from .errors import ToolCancelled
                 raise ToolCancelled("Prompt execution was cancelled by user")
             req = urllib.request.Request(
-                url, headers={"Authorization": f"Bearer {api_key}"})
+                url, headers=provider_headers(api_key))
             try:
                 if cancel_check:
                     status, body, retry_after = self._request_once_cancellable(
@@ -368,9 +385,7 @@ class HttpTransport(Transport):
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
         status, body, retry_after, _ = cancellable_request(
             method, url,
-            headers={"Authorization": f"Bearer {api_key}",
-                     **({"Content-Type": "application/json"}
-                        if data is not None else {})},
+            headers=provider_headers(api_key, json_body=data is not None),
             data=data, timeout=timeout, cancel_check=cancel_check,
             no_redirect=no_redirect)
         return status, body.decode("utf-8", errors="replace"), retry_after
@@ -408,7 +423,7 @@ class HttpTransport(Transport):
                 raise ToolCancelled(known_cost=dropped)
             req = urllib.request.Request(
                 url, data=data,
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                headers=provider_headers(api_key, json_body=True),
                 method="POST",
             )
             request_started = time.monotonic()
@@ -534,8 +549,7 @@ class HttpTransport(Transport):
             else:
                 req = urllib.request.Request(
                     url, data=json.dumps(payload).encode("utf-8"),
-                    headers={"Authorization": f"Bearer {api_key}",
-                             "Content-Type": "application/json"},
+                    headers=provider_headers(api_key, json_body=True),
                     method="POST",
                 )
                 try:

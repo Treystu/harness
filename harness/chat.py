@@ -44,6 +44,7 @@ from .meta import cost_estimate as meta_cost_estimate
 from .meta import resolve_offer as resolve_meta_offer
 from .output import eprint
 from .provider_errors import (
+    ProviderClientBlocked,
     ProviderSpendLimitError,
     account_provider_spend_limit,
     raise_for_provider_spend_limit,
@@ -695,6 +696,14 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
             emit("model_request_end", model=model, attempt=attempt,
                  request_id=request_id, outcome="error",
                  error_kind="provider_spend_limit",
+                 duration_s=round(time.monotonic() - started, 2))
+            raise
+        except ProviderClientBlocked as exc:
+            if governor is not None:
+                account_provider_spend_limit(exc, governor, canonical_model)
+            emit("model_request_end", model=model, attempt=attempt,
+                 request_id=request_id, outcome="error",
+                 error_kind="provider_client_blocked",
                  duration_s=round(time.monotonic() - started, 2))
             raise
         except (ToolCancelled, ProviderUsageUnknown) as exc:

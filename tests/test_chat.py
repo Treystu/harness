@@ -196,6 +196,47 @@ class CostAccountingTests(unittest.TestCase):
         self.assertAlmostEqual(ctx.exception.known_cost, 0.003)
         self.assertAlmostEqual(gov.spent, 0.003)
 
+    def test_client_blocked_settles_governor_and_emits_blocked_kind(self):
+        from harness.provider_errors import ProviderClientBlocked
+        fake = FakeTransport(posts=[(
+            403, {"error": {"message": "error code: 1010"},
+                  "usage": {"cost": 0.003}},
+        )])
+        gov = self._gov(fake)
+        with mock.patch("harness.chat.emit") as emitted:
+            with self.assertRaises(ProviderClientBlocked) as ctx:
+                chat(fake, "k", "paid/x",
+                     [{"role": "user", "content": "hi"}], 64,
+                     governor=gov)
+        self.assertAlmostEqual(ctx.exception.known_cost, 0.003)
+        self.assertAlmostEqual(gov.spent, 0.003)
+        self.assertEqual(len(fake.chat_posts()), 1)
+        ends = [c for c in emitted.call_args_list
+                if c.args and c.args[0] == "model_request_end"]
+        self.assertTrue(any(
+            c.kwargs.get("outcome") == "error"
+            and c.kwargs.get("error_kind") == "provider_client_blocked"
+            for c in ends))
+
+    def test_client_blocked_without_governor_still_raises_with_cost(self):
+        from harness.provider_errors import ProviderClientBlocked
+        fake = FakeTransport(posts=[(
+            403, {"error": {"message": "error code: 1010"},
+                  "usage": {"cost": 0.002}},
+        )])
+        with mock.patch("harness.chat.emit") as emitted:
+            with self.assertRaises(ProviderClientBlocked) as ctx:
+                chat(fake, "k", "paid/x",
+                     [{"role": "user", "content": "hi"}], 64)
+        self.assertAlmostEqual(ctx.exception.known_cost, 0.002)
+        self.assertEqual(len(fake.chat_posts()), 1)
+        ends = [c for c in emitted.call_args_list
+                if c.args and c.args[0] == "model_request_end"]
+        self.assertTrue(any(
+            c.kwargs.get("outcome") == "error"
+            and c.kwargs.get("error_kind") == "provider_client_blocked"
+            for c in ends))
+
     def test_spend_limit_known_usage_is_persisted_for_cost_reports(self):
         import os
         import tempfile
