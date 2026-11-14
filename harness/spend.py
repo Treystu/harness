@@ -277,7 +277,10 @@ class SpendGovernor:
         and every entry point that commits spend enforces the scope ledgers
         ANDed with this session ceiling. Unrelated concurrent spending then
         consumes shared capacity without being charged against another
-        request's individual allowance.
+        request's individual allowance. A scope that already exited never
+        widens or narrows this number: its in-flight tokens still settle
+        against their reservation snapshot (see :meth:`reserve`), not
+        against whatever scopes happen to be open at settle time.
         """
         with self._spend_lock:
             if self._phase == PHASE_TERMINAL:
@@ -301,14 +304,22 @@ class SpendGovernor:
         return scope
 
     def _scope_targets(self, bound):
-        """Scopes whose own ledgers share a spend against ``bound``.
+        """Scopes whose own ledgers share a spend attributed to ``bound``.
 
         No-lock helper: call with ``_spend_lock`` held. The bound scope plus
         every open scope outside it: spend happening now happens inside all
         of them, so each one's own allowance must cover it and nested bounds
-        hold min-over-stack. A bound scope that already exited is still
-        settled (plus every still-open scope, fail-closed) so in-flight
-        liability is never silently dropped when its scope closes first.
+        hold min-over-stack.
+
+        This reconstructs from the CURRENT stack, so it is only correct for
+        fresh attribution (a scope that is open now). Settling an in-flight
+        token must instead use :meth:`_token_targets`, which replays the
+        snapshot taken at :meth:`reserve` time: when the bound scope already
+        exited, reconstructing here would charge the actual to whatever
+        unrelated scopes happen to be open now (and subtract the released
+        liability from them too). The snapshot keeps the exited scope's own
+        ledger true and leaves unrelated scopes alone; this reconstruction
+        survives only as the fallback for tokens that predate snapshots.
         """
         if bound is None:
             return []
@@ -328,6 +339,21 @@ class SpendGovernor:
                 seen.add(id(open_scope))
                 targets.append(open_scope)
         return targets
+
+    @staticmethod
+    def _token_targets(token, current):
+        """Ledger targets that must release/settle one in-flight token.
+
+        ``current`` is the fresh-stack reconstruction
+        (``_scope_targets(bound)``); the token's own snapshot wins whenever
+        it carries one, so an exited scope's late settlement replays the
+        scopes charged at :meth:`reserve` time instead of whatever is open
+        now. Tokens built by hand (2- or 3-tuples) carry no snapshot and
+        fall back to the reconstruction.
+        """
+        if isinstance(token, tuple) and len(token) > 3 and token[3]:
+            return list(token[3])
+        return current
 
     def _refuse_over_scope(self, targets, amount, what,
                            *, count_outstanding=True, ending="Refusing."):
@@ -668,6 +694,13 @@ class SpendGovernor:
         concurrent spending consumes shared capacity without being charged
         against another request's individual allowance. Existing callers
         pass nothing and keep innermost attribution.
+
+        The returned token snapshots the attributed target scopes, so a
+        later :meth:`reconcile` (or :meth:`reclassify_unknown`) settles the
+        liability against the scopes charged here even when the bound scope
+        already exited. The token stays a plain tuple ``(label, amount,
+        bound, targets)``; readers must tolerate 2- and 3-tuples built by
+        hand (no snapshot) via :meth:`_token_targets`.
         """
         amount = finite_number(amount or 0.0, "reservation", 0.0)
         with self._spend_lock:
@@ -691,7 +724,7 @@ class SpendGovernor:
             self._refuse_over_scope(targets, amount, f"reservation ({label})")
             self._outstanding += amount
             self._scope_settle(targets, outstanding=amount)
-            token = (label, amount, bound)
+            token = (label, amount, bound, tuple(targets))
             self._reservations.append(token)
             return token
 
@@ -718,7 +751,8 @@ class SpendGovernor:
             bound = self._resolve_scope(scope)
             targets = self._scope_targets(bound)
             self._scope_settle(targets, outstanding=amount, unknown=amount)
-            self._reservations.append((f"{label} (usage unknown)", amount, bound))
+            self._reservations.append(
+                (f"{label} (usage unknown)", amount, bound, tuple(targets)))
         return amount
 
     def reclassify_unknown(self, token):
@@ -728,7 +762,9 @@ class SpendGovernor:
         amount stays outstanding, but it is surfaced separately so snapshots
         and later budget decisions can identify unresolved provider usage.
         The token's own scope ledger surfaces it too, so the request that
-        reserved the liability keeps seeing it.
+        reserved the liability keeps seeing it. The unknown lands on the
+        reservation's snapshot scopes (see :meth:`reserve`), never on
+        whatever scopes happen to be open now.
         """
         with self._spend_lock:
             try:
@@ -740,10 +776,15 @@ class SpendGovernor:
             label = token[0]
             bound = (token[2] if isinstance(token, tuple) and len(token) > 2
                      else None)
+            targets = self._token_targets(
+                token, self._scope_targets(bound))
             self._reservations[index] = (
-                f"{label} (usage unknown)", amount, bound)
+                (f"{label} (usage unknown)", amount, bound,
+                 tuple(targets))
+                if isinstance(token, tuple) and len(token) > 3
+                else (f"{label} (usage unknown)", amount, bound))
             self._unknown_liability += amount
-            self._scope_settle(self._scope_targets(bound), unknown=amount)
+            self._scope_settle(targets, unknown=amount)
             return amount
 
     def reconcile(self, token, actual, lane="apply", scope=None):
@@ -751,9 +792,13 @@ class SpendGovernor:
         the billed actual. The reservation is released even when ``actual``
         would fail the ceiling check (the liability was already counted).
 
-        ``scope`` overrides token-bound attribution; otherwise the spend
-        settles on the token's own scope (explicit scope at reserve time,
-        else the innermost open scope then) plus every scope outside it.
+        The release always replays the token's own reservation snapshot
+        (the scopes charged at :meth:`reserve` time), so an exited scope's
+        own ledger is cleared and unrelated open scopes are never touched.
+        ``scope`` overrides only where the billed actual lands; otherwise
+        the spend settles on the token's own scope (explicit scope at
+        reserve time, else the innermost open scope then) plus every scope
+        outside it.
         """
         with self._spend_lock:
             try:
@@ -762,14 +807,19 @@ class SpendGovernor:
                 raise HarnessError(
                     "reconcile of an unknown reservation token") from None
             self._outstanding = max(0.0, self._outstanding - token[1])
-            if scope is not None:
-                bound = self._resolve_scope(scope)
-            elif isinstance(token, tuple) and len(token) > 2:
-                bound = token[2]
+            if isinstance(token, tuple) and len(token) > 2:
+                origin = token[2]
             else:
-                bound = self._resolve_scope(None)
-            targets = self._scope_targets(bound)
-            self._scope_settle(targets, outstanding=-token[1])
+                origin = self._resolve_scope(None)
+            release_targets = self._token_targets(
+                token, self._scope_targets(origin))
+            self._scope_settle(release_targets, outstanding=-token[1])
+            if scope is not None:
+                spend_targets = self._scope_targets(
+                    self._resolve_scope(scope))
+            else:
+                spend_targets = release_targets
+            targets = spend_targets
         label = token[0]
         try:
             actual_f = finite_number(actual or 0.0, "reported cost", 0.0)
