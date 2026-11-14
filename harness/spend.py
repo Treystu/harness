@@ -519,6 +519,18 @@ class SpendGovernor:
                 fw_eps = fw_pack["endpoints"]
                 for mid in fw_missing:
                     if mid not in fw_eps:
+                        slug = mid.rsplit("/", 1)[-1]
+                        priced_but_pathless = (fw_pack.get("pathless") or {})
+                        if slug in priced_but_pathless:
+                            raise HarnessError(
+                                f"model '{mid}' is priced in the fireworks "
+                                f"endpoints pack as "
+                                f"{priced_but_pathless[slug]!r} but the pack "
+                                f"carries no confirmed dispatch path for it; "
+                                f"confirm slug '{slug}' in "
+                                f"audits/self/dogfood/fireworks-price-snapshot.md "
+                                f"(a 'confirmed:' path cell) and regenerate the "
+                                f"pack, or select a model that has a path.")
                         raise HarnessError(
                             f"model '{mid}' not found in fireworks endpoints pack.")
                     ep = fw_eps[mid]
