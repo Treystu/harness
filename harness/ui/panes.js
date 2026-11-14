@@ -1387,10 +1387,104 @@ async function renderIntake(root) {
     out);
 }
 
+// ---- Plan (model-driven task decomposition) ------------------------------
+
+// DF-equivalent form over the SAME POST /api/runs -> GET
+// /api/runs/{id}/result contract the chat tab uses -- no new server logic.
+// Posts {kind: "plan", args: {goal, root_dir, files?}} (validate_dispatch
+// accepts goal + root_dir + optional files/file list) and renders the
+// planned nodes, the verdict, and the execution status when execute ran.
+async function renderPlan(root) {
+  root.append(
+    $("h2", {}, "Plan — Model-Driven Task Decomposition"),
+    $("p", { class: "muted" },
+      "Describe the goal and optionally scope candidate files. The waist planner decomposes the goal into a node DAG; the pane renders the nodes, the verdict, and the execution status.")
+  );
+
+  const goal = $("textarea", { class: "pane-input", id: "plan-goal", rows: "3",
+    placeholder: "Goal, e.g. add retry handling to the upload path" });
+  const files = $("input", { class: "pane-input", id: "plan-files",
+    placeholder: "Candidate files, comma-separated (optional)",
+    autocomplete: "off", spellcheck: "false" });
+  const runBtn = $("button", { type: "button", class: "btn-primary", id: "plan-run" }, "Run plan");
+  const out = $("div", { class: "pane-output", id: "plan-output" });
+
+  function renderResult(result) {
+    out.replaceChildren();
+    if (!result) {
+      out.append($("div", { class: "pane-row error" }, "Empty plan result."));
+      return;
+    }
+    if (result.status === "refused") {
+      out.append($("div", { class: "pane-row error" },
+        $("strong", {}, `Refused: ${result.reason || "planner declined"}`),
+        result.evidence ? $("span", { class: "muted" }, ` — ${result.evidence}`) : ""));
+      return;
+    }
+    const nodes = (result.dag && result.dag.nodes)
+      || result.nodes || (result.plan && result.plan.dag && result.plan.dag.nodes) || [];
+    out.append($("div", { class: "pane-row" },
+      $("strong", {}, `Verdict: ${result.verdict || result.status || "ok"}`),
+      $("span", { class: "muted" }, `  goal ${result.goal || ""}`)));
+    if (result.execution) {
+      out.append($("div", { class: "pane-row muted small" },
+        `execution ${result.execution.status || "unknown"} — ${result.execution.nodes_completed ?? "?"} node(s) completed`));
+    }
+    if (!nodes.length) {
+      out.append($("div", { class: "pane-row muted small" }, "No plan nodes returned."));
+      return;
+    }
+    out.append($("table", { class: "pane-table" },
+      $("thead", {}, $("tr", {}, $("th", {}, "Node"), $("th", {}, "Instruction"), $("th", {}, "Target files"))),
+      $("tbody", {}, nodes.map((node) => $("tr", {},
+        $("td", {}, node.node_id || node.id || "?"),
+        $("td", {}, node.instruction || node.label || ""),
+        $("td", {}, $("code", {}, (node.target_files || []).join(", "))))))));
+  }
+
+  runBtn.addEventListener("click", async () => {
+    const workspace = window.getHarnessWorkspace ? window.getHarnessWorkspace() : "";
+    if (!workspace) {
+      out.replaceChildren($("div", { class: "pane-row error" },
+        "Select a workspace folder before running a plan."));
+      return;
+    }
+    const goalText = goal.value.trim();
+    if (!goalText) {
+      out.replaceChildren($("div", { class: "pane-row error" }, "A goal is required."));
+      return;
+    }
+    runBtn.disabled = true;
+    out.replaceChildren($("div", { class: "muted" }, "Planning the goal..."));
+    try {
+      const args = { goal: goalText, root_dir: workspace };
+      const fileList = files.value.split(",").map((s) => s.trim()).filter(Boolean);
+      if (fileList.length) args.files = fileList;
+      const run = await postJson("/api/runs", { kind: "plan", args });
+      const final = await pollRunResult(run.id);
+      renderResult(final.result || final);
+    } catch (err) {
+      out.replaceChildren($("div", { class: "pane-row error" }, String(err.message || err)));
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
+
+  root.append(
+    $("div", { class: "pane-form" },
+      $("label", { for: "plan-goal" }, "Goal"),
+      goal,
+      $("label", { for: "plan-files" }, "Candidate files"),
+      files,
+      runBtn),
+    out);
+}
+
 // ---- Tab wiring ----------------------------------------------------------
 
 const PANES = [
   ["intake", "Intake", renderIntake],
+  ["plan", "Plan", renderPlan],
   ["proof", "Proof", renderProof],
   ["insights", "Insights", renderInsights],
   ["driver", "Driver", renderDriver],

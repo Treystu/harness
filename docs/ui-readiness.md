@@ -85,8 +85,7 @@ admits the folder and the prompt under the operator's mode and runs the
 project's setup and test gate through `harness.project_run`. The pane renders
 the plan it ran, each step's command, the verdict and the register path.
 
-The model-driven `plan` task kind still has no pane of its own: its runner
-needs a live planner, so a hermetic CI pane test could only assert a double.
+The model-driven `plan` task kind now has a Plan pane (`renderPlan` posts kind `plan` through `/api/runs`); the hermetic CI run test covers it with a stubbed planner double.
 That wiring is the open part of #457; the intake pane below is the built part,
 and it is the path the acceptance test exercises end to end.
 
