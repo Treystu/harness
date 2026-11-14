@@ -602,6 +602,8 @@ class LedgerAnalytics:
         jev_input_tokens = 0
         jev_output_tokens = 0
         jev_total_cost = 0.0
+        measured_cost = 0.0
+        estimated_cost = 0.0
 
         # Account-level Jev spend: full ledger, current UTC month only. Cost is
         # always recomputed from input tokens via jev_cost, so legacy entries
@@ -687,6 +689,18 @@ class LedgerAnalytics:
                 elif not has_cost and tier != "T0":
                     unpriced_calls += weight
 
+            # #340 measured-vs-estimated provenance split. Rows whose cost
+            # was carried on the row (provider usage.cost settled through
+            # the governor, or a Jev row repriced at the fixed Jev rate)
+            # are measured spend; rows priced here from the snapshot price
+            # table are catalog estimates, not spend evidence. total_cost
+            # still sums both (all-in view preserved byte-for-byte); the
+            # success metric below reads measured_cost only.
+            if estimated:
+                estimated_cost += cost_val
+            else:
+                measured_cost += cost_val
+
             if cost_val > 0.0:
                 billable_calls += 1
             elif model:
@@ -732,6 +746,8 @@ class LedgerAnalytics:
                 ms["calls"] += weight
 
         total_cost = round(total_cost, 6)
+        measured_cost = round(measured_cost, 6)
+        estimated_cost = round(estimated_cost, 6)
         baseline_cost = round(baseline_cost, 6)
         net_savings = round(max(0.0, baseline_cost - total_cost), 6)
         savings_percent = round((net_savings / baseline_cost * 100.0), 2) if baseline_cost > 0 else 0.0
@@ -739,6 +755,8 @@ class LedgerAnalytics:
 
         report = {
             "total_cost": total_cost,
+            "measured_cost": measured_cost,
+            "estimated_cost": estimated_cost,
             "events_count": events_count,
             "billable_calls": billable_calls,
             "free_calls": free_calls,
@@ -770,8 +788,17 @@ class LedgerAnalytics:
             }
             report["rolling"] = {
                 "verified_lanes": verified_count,
+                # #340: cost-per-success reads MEASURED spend, not reported
+                # estimates. Recon correction: reported costs arrive in the
+                # provider usage.cost fields (settled here via billable_cost
+                # / cost) -- not from stale catalog snapshots -- and the
+                # key-billing gap is billed-but-unusable responses recorded
+                # at $0 (now retained as unknown liability instead of $0).
+                # Catalog-synthesized estimates still pad total_cost above;
+                # they are reported separately as estimated_cost so the
+                # drift stays visible instead of inflating this metric.
                 "cost_per_verified_lane": (
-                    round(total_cost / verified_count, 6) if verified_count else None
+                    round(measured_cost / verified_count, 6) if verified_count else None
                 ),
             }
             report["cost_estimated_calls"] = cost_estimated_calls

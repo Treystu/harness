@@ -801,6 +801,44 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
     return _account(status, resp, build(want_reasoning))
 
 
+def _retain_billed_but_unusable(governor, model, preflight_outcome, cost):
+    """Retain unknown liability for a billed call with no usable output. (#340)
+
+    Recon correction for #340: reported costs arrive in the provider
+    ``usage.cost`` fields (settled through the governor) -- not from stale
+    catalog snapshots -- and the key-billing gap is billed-but-unusable
+    responses recorded at $0. An HTTP 200 dispatch is presumed billed, so
+    when it yields no usable content and no reported cost, the pre-approved
+    preflight worst case is retained as unknown liability (``retain_unknown``
+    in :mod:`harness.spend`) instead of recording $0. A free-tier worst case
+    is $0, so retention no-ops there without a free-model check; governors
+    without ``retain_unknown`` (minimal test doubles) are skipped; nothing
+    here may mask the caller's empty-body failure.
+    """
+    if cost or governor is None:
+        return 0.0
+    retain = getattr(governor, "retain_unknown", None)
+    if not callable(retain):
+        return 0.0
+    try:
+        worst = None
+        if (isinstance(preflight_outcome, (tuple, list))
+                and len(preflight_outcome) >= 1):
+            worst = float(preflight_outcome[0])
+    except (TypeError, ValueError):
+        worst = None
+    if worst is None or not (math.isfinite(worst) and worst > 0.0):
+        return 0.0
+    try:
+        retained = float(retain(float(worst), model) or 0.0)
+    except Exception:
+        return 0.0
+    emit("provider_usage_unknown", model=model, known_cost=0.0,
+         reserved_cost=retained, phase="governed_completion",
+         reason="billed_but_unusable_zero_cost")
+    return retained
+
+
 def governed_completion(transport, api_key, governor, model, prompt, max_tokens,
                         label="ask", reasoning_effort="auto",
                         reasoning_token_budget=0.4,
@@ -817,7 +855,7 @@ def governed_completion(transport, api_key, governor, model, prompt, max_tokens,
         raise HarnessError("governed_text requires a SpendGovernor")
     from .errors import HarnessError
     governor.check_byok(model)
-    governor.preflight(prompt, [(label, model, max_tokens, 0)])
+    preflight_outcome = governor.preflight(prompt, [(label, model, max_tokens, 0)])
     if is_meta_model_id(model):
         # Direct Meta lane: resolve the Meta key for this route (#449
         # P2). The threaded api_key is trusted only when the governor
@@ -872,6 +910,7 @@ def governed_completion(transport, api_key, governor, model, prompt, max_tokens,
                 raise
             budget_overrun = str(exc)
     if not content or not content.strip():
+        _retain_billed_but_unusable(governor, model, preflight_outcome, cost)
         raise HarnessError(f"empty response body from {model}")
     usage = resp.get("usage") if isinstance(resp, dict) else None
     usage = usage if isinstance(usage, dict) else {}

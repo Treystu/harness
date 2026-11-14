@@ -179,7 +179,13 @@ class PerLaneMeteringTests(unittest.TestCase):
             self.assertEqual(rep["tokens"]["input_tokens"], 3000)
             self.assertEqual(rep["tokens"]["output_tokens"], 1200)
             self.assertEqual(rep["rolling"]["verified_lanes"], 1)
-            self.assertAlmostEqual(rep["rolling"]["cost_per_verified_lane"], 0.0011, places=6)
+            # #340: cost-per-success reads measured spend only (0.0005
+            # carried on the row), not the catalog-synthesized 0.0006
+            # estimate, which is still reported separately as
+            # estimated_cost (total_cost stays all-in at 0.0011).
+            self.assertAlmostEqual(rep["rolling"]["cost_per_verified_lane"], 0.0005, places=6)
+            self.assertAlmostEqual(rep["measured_cost"], 0.0005, places=6)
+            self.assertAlmostEqual(rep["estimated_cost"], 0.0006, places=6)
 
     def test_governor_tracks_cost_by_lane(self):
         gov = SpendGovernor(transport=None, api_key="k", max_cost=1.0)
