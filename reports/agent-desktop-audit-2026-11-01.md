@@ -124,10 +124,12 @@ target file exists on this tip and is checked by the B6 test.
 
 - Executable guard: `python -m unittest tests.test_agent_desktop_audit_report`.
 - Repository references used above, re-verified at write time:
-  `driver_core/actions.py:168` (`focus`), `driver_core/actions.py:170` (`click`),
+  `driver_core/actions.py:167` (`focus`), `driver_core/actions.py:169` (`click`),
   `driver_core/actions.py:172` (`type_text`), `harness/perception_client.py:183`
   (driver `health` client), `pyproject.toml:40` (`harness-desktop` entry point),
   `docs/driver.md:385` (headless key provisioning), `docs/driver.md:398` (keyless vs
   keyed table; re-pointed after the native-input section grew in #477 and again
   after the bounded-target section grew in #481, so each citation still lands on
-  the claim it names).
+  the claim it names; corrected 2026-11-13: `focus`/`click` were off by one).
+  Note (2026-11-13): `launch_app` has since landed (#442), so the Part C "no
+  `launch_app` yet" sentence describes the 2026-11-01 finding date.
