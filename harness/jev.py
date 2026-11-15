@@ -858,9 +858,12 @@ class JevEvaluator:
                     else:
                         known_cost = max(reported, retry_cost)
                     if known_cost > 0.0:
+                        # A billed failure is not a local judgment: the ledger
+                        # has to say who was paid, so the provider identity
+                        # comes back with the cost (Codex 536 P2).
                         fallback = replace(
                             fallback, cost=known_cost, input_tokens=tokens,
-                            input_tokens_observed=tokens > 0,
+                            input_tokens_observed=tokens > 0, model=self.model,
                             usage_observed=(tokens > 0 or retry_cost > 0.0
                                             or reported is not None))
                 return fallback

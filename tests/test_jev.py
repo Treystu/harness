@@ -192,6 +192,31 @@ class JevP0Tests(unittest.TestCase):
         self.assertTrue(http.is_fallback)
         self.assertEqual(http.fallback_reason, "http_fallback")
 
+    def test_a_billed_http_fallback_keeps_the_provider_identity(self):
+        # #332 (Codex 536 P2): a call the provider billed is not a local
+        # judgment. The ledger has to say who was paid, so the provider model
+        # comes back with the cost; only genuinely unbilled fallbacks carry the
+        # local label.
+        from harness.jev import LOCAL_HEURISTIC_MODEL
+
+        state = {"code": "x = 1"}
+        billed = JevEvaluator(
+            api_key="key",
+            transport=FakeTransport(
+                status=503,
+                response={"usage": {"input_tokens": 100, "retry_cost": 0.001}}),
+        ).evaluate(state)
+        self.assertTrue(billed.is_fallback)
+        self.assertEqual(billed.fallback_reason, "http_fallback")
+        self.assertGreater(billed.cost, 0.0)
+        self.assertEqual(billed.model, "jev-latest")
+        self.assertNotEqual(billed.model, LOCAL_HEURISTIC_MODEL)
+
+        unbilled = JevEvaluator(
+            api_key="key", transport=FakeTransport(status=503)).evaluate(state)
+        self.assertEqual(unbilled.cost, 0.0)
+        self.assertEqual(unbilled.model, LOCAL_HEURISTIC_MODEL)
+
     def test_local_diff_rejects_noop_and_empty_hunks(self):
         evaluator = JevEvaluator()
         for diff in (
