@@ -569,7 +569,21 @@ def _parse_json_object(response_text: str, what: str) -> Dict[str, Any]:
         except Exception:
             pass
 
-        # 4. Truncated JSON repair (e.g. cut off at max token boundary)
+        # 4. Single-quoted payload (#541): a model that emits Python-style
+        # quoting throughout fails JSON at the first key, which is the
+        # "Expecting property name enclosed in double quotes: line 1 column 3"
+        # shape seen in the Studio transcript. Only applied when the candidate
+        # contains no double quote at all, so apostrophes in prose and
+        # correctly-quoted payloads are never rewritten.
+        if '"' not in cleaned and "'" in cleaned:
+            try:
+                data = json.loads(cleaned.replace("'", '"'))
+                if isinstance(data, dict):
+                    return data
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+
+        # 5. Truncated JSON repair (e.g. cut off at max token boundary)
         repaired = _repair_truncated_json(candidate)
         if repaired is not None:
             return repaired
@@ -579,10 +593,56 @@ def _parse_json_object(response_text: str, what: str) -> Dict[str, Any]:
 
 
 
+class DecompositionParseError(HarnessError):
+    """A decomposition that could not be parsed, with its raw output attached.
+
+    #541: the raw model output is the only record of what went wrong, and it
+    was being discarded - two full-price calls spent, nothing kept for
+    diagnosis. The caller records ``raw`` alongside the failure.
+    """
+
+    def __init__(self, message: str, raw: str):
+        super().__init__(message)
+        self.raw = raw or ""
+
+
 def parse_decomposition_response(response_text: str) -> TaskDAG:
     """Extract and parse a TaskDAG from an LLM's response text."""
-    data = _parse_json_object(response_text, "task decomposition")
-    return TaskDAG.from_dict(data)
+    try:
+        data = _parse_json_object(response_text, "task decomposition")
+        return TaskDAG.from_dict(data)
+    except HarnessError as exc:
+        raise DecompositionParseError(str(exc), response_text) from exc
+
+
+_DECOMPOSITION_RAW_EXCERPT_CHARS = 1200
+
+
+def record_decomposition_parse_failure(ledger, goal: str, exc: Exception,
+                                     ) -> Optional[str]:
+    """Preserve a failed decomposition's raw output; return a short reference.
+
+    #541: the malformed output is the only evidence of what the model actually
+    emitted, so it goes into the run record (excerpt inline, full digest as the
+    stable identity) instead of being thrown away with the exception.
+    """
+    raw = getattr(exc, "raw", "") or ""
+    if not raw:
+        return None
+    digest = hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:16]
+    if ledger is not None:
+        try:
+            ledger.append(
+                "decomposition_parse_failure",
+                goal=(goal or "")[:200],
+                reason=str(exc)[:300],
+                raw_sha256=digest,
+                raw_chars=len(raw),
+                raw_excerpt=raw[:_DECOMPOSITION_RAW_EXCERPT_CHARS],
+            )
+        except Exception as exc2:  # recording must never mask the failure
+            eprint(f"[plan] could not record decomposition raw output: {exc2}")
+    return f"raw output preserved: sha256:{digest} ({len(raw)} chars)"
 
 
 
@@ -1666,6 +1726,7 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
 
         # DF-HG-3: one strict retry on LLM decomposition failure, then loud heuristic fallback in preview too
         last_exc = None
+        preserved_ref = None
         for attempt in (1, 2):
             active_model = scout[min(attempt - 1, len(scout) - 1)] if scout else decompose_model
             try:
@@ -1691,6 +1752,11 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
                 break
             except HarnessError as exc:
                 last_exc = exc
+                preserved = record_decomposition_parse_failure(
+                    ledger, plan_goal, exc)
+                if preserved:
+                    preserved_ref = preserved
+                    eprint(f"[plan] decomposition {preserved}")
                 if attempt == 1:
                     eprint(f"[plan] LLM decomposition attempt 1 failed ({exc}); retrying")
         if last_exc is not None:
@@ -1708,10 +1774,11 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
                     "to opt into a loud heuristic fallback, or rerun with "
                     "--execute.") from last_exc
             from . import events as _events
-            _events.emit(
-                "orchestration_note",
-                note=f"LLM decomposition failed ({last_exc}); loud heuristic fallback")
-            eprint(f"[plan] LLM decomposition failed ({last_exc}); loud heuristic fallback")
+            _note = f"LLM decomposition failed ({last_exc}); loud heuristic fallback"
+            if preserved_ref:
+                _note += f"; {preserved_ref}"
+            _events.emit("orchestration_note", note=_note)
+            eprint(f"[plan] {_note}")
             decomposition = "heuristic"
             decomposed = None
             if not execute:
