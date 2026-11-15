@@ -145,6 +145,31 @@ class SiteCheckClassifierTests(unittest.TestCase):
             "https://freeoffgridcalculator.com")
         self.assertIsNone(extract_site_target("what is up today?"))
 
+    def test_a_prompt_target_keeps_a_scheme_the_probe_cannot_fetch(self):
+        # #303: the bare-host pattern used to rewrite ftp://example.com to
+        # https://example.com, so the scheme gate never saw the scheme the
+        # prompt named and the refusal came from an unrelated later guard.
+        for prompt, expected in (
+                ("is ftp://example.com up?", "ftp://example.com"),
+                ("check file://files.example.com/report up?",
+                 "file://files.example.com/report"),
+                ("probe gopher://example.com:70/x please",
+                 "gopher://example.com:70/x")):
+            with self.subTest(prompt=prompt):
+                self.assertEqual(extract_site_target(prompt), expected)
+
+    def test_a_scheme_the_probe_cannot_fetch_is_refused_by_name(self):
+        target = extract_site_target("is ftp://example.com up?")
+        with self.assertRaises(HarnessError) as ctx:
+            preflight_public_site(target)
+        self.assertIn("only https:// URLs are probed", str(ctx.exception))
+
+    def test_https_and_bare_host_targets_are_unchanged(self):
+        self.assertEqual(extract_site_target("is https://example.com/a up?"),
+                         "https://example.com/a")
+        self.assertEqual(extract_site_target("is example.com up?"),
+                         "https://example.com")
+
 
 class LiteralGreetingFastPathTests(unittest.TestCase):
     def test_recognizes_only_standalone_greeting_commands(self):
