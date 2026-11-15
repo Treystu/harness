@@ -204,10 +204,11 @@ class HourglassLifecycleMixin:
                             "note": ("site drive unavailable: "
                                      f"{type(exc).__name__}: {exc}"),
                         })
-            if web_sources and not any(
-                    source.get("ok")
-                    and str(source.get("text") or "").strip()
-                    for source in web_sources):
+            if (any(source.get("ok") for source in web_sources)
+                    and not any(
+                        source.get("ok")
+                        and str(source.get("text") or "").strip()
+                        for source in web_sources)):
                 # #542: no usable text means the detour bought nothing. Abort
                 # it in the record instead of continuing the plan around it.
                 emit("research_detour_aborted", lane="hourglass",
