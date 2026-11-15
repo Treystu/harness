@@ -1,6 +1,7 @@
 """Unit tests for task decomposition and dependency DAG engine (harness/dag.py)."""
 import json
 import unittest
+from unittest.mock import MagicMock
 
 from harness.dag import (
     DAGNode,
@@ -9,6 +10,10 @@ from harness.dag import (
     parse_decomposition_response,
 )
 from harness.errors import HarnessError
+from harness.waist import (
+    DecompositionParseError,
+    record_decomposition_parse_failure,
+)
 
 
 class DAGNodeTests(unittest.TestCase):
@@ -238,3 +243,44 @@ class DecompositionPromptAndParserTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DecompositionRepairTests(unittest.TestCase):
+    """#541: a malformed decomposition keeps its evidence and gets repaired.
+
+    The Studio transcript spent two full-price decomposition calls on output
+    that failed JSON parsing at the first key, then degraded to the heuristic
+    with the malformed output discarded -- nothing left to diagnose from.
+    """
+
+    def test_single_quoted_payload_is_repaired_without_a_second_call(self):
+        # The observed failure shape: Python-style quoting throughout, which
+        # fails JSON at "line 1 column 3 (char 2)". Deterministic salvage
+        # costs nothing, so it is strictly cheaper than a second full call.
+        raw = ("{'nodes': [{'node_id': 't1', 'instruction': 'Add models', "
+               "'target_files': ['models.py'], 'dependencies': []}]}")
+        dag = parse_decomposition_response(raw)
+        self.assertEqual(len(dag.nodes), 1)
+        self.assertEqual(dag.nodes["t1"].target_files, ("models.py",))
+
+    def test_unparseable_payload_raises_with_the_raw_output_attached(self):
+        with self.assertRaises(DecompositionParseError) as ctx:
+            parse_decomposition_response("Expecting property name {oops")
+        self.assertIn("oops", ctx.exception.raw)
+
+    def test_parse_failure_is_recorded_with_its_raw_output(self):
+        ledger = MagicMock()
+        exc = DecompositionParseError("bad json", "{oops")
+        ref = record_decomposition_parse_failure(ledger, "a goal", exc)
+        self.assertIn("sha256:", ref)
+        args, kwargs = ledger.append.call_args
+        self.assertEqual(args[0], "decomposition_parse_failure")
+        self.assertEqual(kwargs["raw_excerpt"], "{oops")
+        self.assertEqual(kwargs["raw_chars"], len("{oops"))
+
+    def test_recording_failure_never_masks_the_original_error(self):
+        ledger = MagicMock()
+        ledger.append.side_effect = RuntimeError("ledger offline")
+        exc = DecompositionParseError("bad json", "{oops")
+        ref = record_decomposition_parse_failure(ledger, "a goal", exc)
+        self.assertIn("sha256:", ref)
