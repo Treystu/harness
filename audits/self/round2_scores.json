@@ -20,8 +20,9 @@
         "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
         "score": 10.0,
         "bar_met": true,
-        "confidence": 0.96,
-        "evaluated": true
+        "confidence": 1.0,
+        "evaluated": true,
+        "source": "live"
       },
       "R": {
         "name": "Reliability",
@@ -29,8 +30,9 @@
         "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
         "score": 10.0,
         "bar_met": true,
-        "confidence": 0.99,
-        "evaluated": true
+        "confidence": 1.0,
+        "evaluated": true,
+        "source": "live"
       },
       "SM": {
         "name": "Structural hygiene & maintainability",
@@ -38,8 +40,9 @@
         "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
         "score": 10.0,
         "bar_met": true,
-        "confidence": 0.99,
-        "evaluated": true
+        "confidence": 0.97,
+        "evaluated": true,
+        "source": "live"
       },
       "SD": {
         "name": "Documentation & release integrity",
@@ -48,7 +51,8 @@
         "score": 10.0,
         "bar_met": true,
         "confidence": 0.91,
-        "evaluated": true
+        "evaluated": true,
+        "source": "live"
       }
     },
     "scores": {
@@ -70,7 +74,9 @@
     "A": [],
     "R": [],
     "SM": [],
-    "SD": []
+    "SD": [
+      "D12"
+    ]
   },
   "checks": {
     "A": [
@@ -79,7 +85,7 @@
         "label": "no-tools payload guard at the one chat seam",
         "score": 1.0,
         "status": "pass",
-        "evidence": "spend.assert_no_tools exists; chat() guards every payload; all 4 billable lanes (apply/panel/consent/capability/convergence) dispatch through chat()"
+        "evidence": "spend.assert_no_tools exists; chat() guards every payload; all 0 billable lanes (apply/panel/consent/capability/convergence) dispatch through chat()"
       },
       {
         "id": "A2",
@@ -163,7 +169,7 @@
         "label": "hard config ceilings + fail-clean load",
         "score": 1.0,
         "status": "pass",
-        "evidence": "12 numeric settings range-validated; hard ceilings enforced in load_settings; unknown keys warned; load inside CLI try"
+        "evidence": "14 numeric settings range-validated; hard ceilings enforced in load_settings; unknown keys warned; load inside CLI try"
       }
     ],
     "R": [
@@ -242,7 +248,7 @@
         "label": "config validation ranges + unknown-key warning",
         "score": 1.0,
         "status": "pass",
-        "evidence": "range-validated: ['apply_max_tokens', 'fireworks_budget_usd', 'max_cost', 'max_panelists', 'max_rotations', 'max_tokens', 'mcp_tool_timeout', 'min_confidence', 'reasoning_token_budget', 'task_max_cost', 'token_budget_input', 'token_budget_output']; unknown-key warning present"
+        "evidence": "range-validated: ['apply_max_tokens', 'fireworks_budget_usd', 'max_cost', 'max_orch_rounds', 'max_panelists', 'max_rotations', 'max_tokens', 'mcp_tool_timeout', 'meta_budget_usd', 'min_confidence', 'reasoning_token_budget', 'task_max_cost', 'token_budget_input', 'token_budget_output']; unknown-key warning present"
       },
       {
         "id": "R12",
@@ -256,7 +262,7 @@
         "label": "full suite green hermetically",
         "score": 1.0,
         "status": "pass",
-        "evidence": "unittest: Ran 5297 tests in 380.946s\n\nOK (env clean; empty home)"
+        "evidence": "unittest: Ran 6455 tests in 499.447s\n\nOK (env clean; empty home)"
       },
       {
         "id": "R14",
@@ -300,14 +306,14 @@
         "label": "ruff clean",
         "score": 1.0,
         "status": "pass",
-        "evidence": "ruff check harness tests: clean via shared resolver `C:\\Users\\SCM\\Documents\\GitHub\\Harness\\.venv\\Scripts\\python.exe -m ruff check harness tests`"
+        "evidence": "ruff check harness tests: clean via shared resolver `C:\\Python314\\python.exe -m ruff check harness tests`"
       },
       {
         "id": "S6",
         "label": "test tree mirrors product tree",
         "score": 1.0,
         "status": "pass",
-        "evidence": "116/116 modules imported by tests"
+        "evidence": "131/131 modules imported by tests"
       },
       {
         "id": "S7",
@@ -330,7 +336,7 @@
         "label": "MCP tool parity with README",
         "score": 1.0,
         "status": "pass",
-        "evidence": "README documents all 32 MCP tools, no stale names"
+        "evidence": "README documents all 33 MCP tools, no stale names"
       },
       {
         "id": "D2",
@@ -351,7 +357,7 @@
         "label": "config table keys real",
         "score": 1.0,
         "status": "pass",
-        "evidence": "24 README config keys all resolve to real settings (52 configurable)"
+        "evidence": "24 README config keys all resolve to real settings (59 configurable)"
       },
       {
         "id": "D5",
@@ -372,7 +378,7 @@
         "label": "docs reference only real modules",
         "score": 1.0,
         "status": "pass",
-        "evidence": "all module references across 33 docs resolve to real files"
+        "evidence": "all module references across 34 docs resolve to real files"
       },
       {
         "id": "D8",
@@ -405,9 +411,16 @@
       {
         "id": "D12",
         "label": "changed lines suite-executed (coverage)",
+        "score": null,
+        "status": "skip",
+        "evidence": "SKIP (fail-open): D12 cannot obtain current-tree coverage (traced battery exited 1: OFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\ntraced harness origin: C:\\Users\\SCM\\Documents\\GitHub\\Harness\\harness\\__init__.py\nERROR: harness/__init__.py:11 was not executed; recorded lines: []); changed-line coverage was not measured [platform gap, not a code verdict]"
+      },
+      {
+        "id": "D13",
+        "label": "flush-loop canary suite passes as a gate",
         "score": 1.0,
         "status": "pass",
-        "evidence": "changed harness lines are suite-executed (changed-line coverage 1037/1090 = 95% (bar 95%) vs merge-base 0780ea7473 (origin/main; traced battery at merge-base 0780ea7473); untested: osal.py:206,208,215,216,218,221,222,223...; source_audit.py:163,179,184,214,223,369,371,423...)"
+        "evidence": "shipped canary suite passes as a gate; score 1.00 on 3 held-out case(s)"
       }
     ]
   }
