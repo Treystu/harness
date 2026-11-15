@@ -144,16 +144,13 @@ class OutcomeClassificationTests(unittest.TestCase):
 
         return AutonomousAgent._refusal_reason(text)
 
-    def test_completed_answer_with_a_caveat_is_a_response(self):
-        answer = (
-            "I can't generate an actual image, but here is the logarithmic "
-            "scale you asked for, with the guidance you need.\n\n"
-            "- 1 is the quietest audible reference level\n"
-            "- 10 is ten times that pressure\n"
-            "- 100 is conversational speech\n"
-            "- 1000 is a loud concert\n\n"
-            "Run the script with the two arguments and it writes the PNG.")
-        self.assertIsNone(self._reason(answer))
+    # The "completed answer carrying a capability caveat" shape is owned by
+    # the merged #543 cure in tests/test_agent.py
+    # (test_completed_answer_with_a_capability_caveat_stays_ok), which pins the
+    # shipped rule: the caveat is a deferral only below
+    # _REFUSAL_SUBSTANCE_WORDS of body around it. Asserting a second, different
+    # floor here would make the bundle the second owner of one classification
+    # rule, which is the drift #543 already closed.
 
     def test_genuine_non_completion_still_defers(self):
         self.assertIsNotNone(self._reason(
