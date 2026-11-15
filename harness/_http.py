@@ -409,6 +409,10 @@ class HttpTransport(Transport):
         if not model and isinstance(payload, dict):
             model = payload.get("model")
         model = model if isinstance(model, str) and len(model) <= 120 else "provider"
+        # #538: the refusal is raised HERE, before any lane-level handler, so
+        # the backend identity must be attached at this seam or the latch and
+        # the availability ledger cannot tell which backend refused.
+        backend = model if model != "provider" else None
 
         def progress(phase, attempt, **fields):
             emit("provider_http_attempt", request_id=request_id, model=model,
@@ -418,7 +422,7 @@ class HttpTransport(Transport):
 
         for attempt in range(self.MAX_RETRIES + 1):
             from .events import raise_if_provider_spend_limited
-            raise_if_provider_spend_limited(known_cost=dropped)
+            raise_if_provider_spend_limited(known_cost=dropped, model=backend)
             if cancel_check and cancel_check():
                 raise ToolCancelled(known_cost=dropped)
             req = urllib.request.Request(
@@ -458,7 +462,8 @@ class HttpTransport(Transport):
                 from .provider_errors import raise_for_provider_spend_limit
                 raise_for_provider_spend_limit(
                     status, parsed,
-                    known_cost=dropped + self._retry_cost_of(parsed))
+                    known_cost=dropped + self._retry_cost_of(parsed),
+                    model=backend)
                 if self._transient(status) and attempt < self.MAX_RETRIES:
                     dropped += self._retry_cost_of(parsed)
                     delay = self._retry_delay(attempt, retry_after)
@@ -481,7 +486,8 @@ class HttpTransport(Transport):
                 from .provider_errors import raise_for_provider_spend_limit
                 raise_for_provider_spend_limit(
                     e.code, parsed,
-                    known_cost=dropped + self._retry_cost_of(parsed))
+                    known_cost=dropped + self._retry_cost_of(parsed),
+                    model=backend)
                 if self._transient(e.code) and attempt < self.MAX_RETRIES:
                     dropped += self._retry_cost_of(parsed)
                     delay = self._retry_delay(
@@ -531,6 +537,7 @@ class HttpTransport(Transport):
         model = context.get("model") or (
             payload.get("model") if isinstance(payload, dict) else None)
         model = model if isinstance(model, str) and len(model) <= 120 else "provider"
+        backend = model if model != "provider" else None  # #538
 
         def progress(phase, **fields):
             emit("provider_http_attempt", request_id=request_id, model=model,
@@ -538,7 +545,7 @@ class HttpTransport(Transport):
                  wire_attempt=1, max_wire_attempts=1, **fields)
 
         from .events import raise_if_provider_spend_limited
-        raise_if_provider_spend_limited()
+        raise_if_provider_spend_limited(model=backend)
         request_started = time.monotonic()
         progress("start")
         try:
@@ -567,7 +574,8 @@ class HttpTransport(Transport):
                 parsed = {"error": {"message": body}}
             from .provider_errors import raise_for_provider_spend_limit
             raise_for_provider_spend_limit(
-                status, parsed, known_cost=self._retry_cost_of(parsed))
+                status, parsed, known_cost=self._retry_cost_of(parsed),
+                model=backend)
         except ToolCancelled as exc:
             progress("cancelled", usage_unknown=exc.usage_unknown,
                      duration_s=round(time.monotonic() - request_started, 2))

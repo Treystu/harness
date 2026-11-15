@@ -147,6 +147,10 @@ def raise_if_provider_spend_limited(*, known_cost=0.0, model=None):
             http_status=state["error"].get("http_status"),
             known_cost=known_cost,
             model=state["error"].get("model"),
+            # Forward the latched cause: reconstructing a restriction as the
+            # default account-funding cause would widen it to every paid model
+            # on the provider in the availability ledger.
+            cause=state["error"].get("cause") or "unknown",
         )
 
 

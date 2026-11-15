@@ -411,7 +411,13 @@ class LifecycleCoordinator:
         previous = calls.get(latest_retry or call_id)
         if previous is not None and previous.get("status") == "refused":
             # Availability refusal: the provider returned no completion, so
-            # replaying is safe (and is the whole point of #538).
+            # replaying is safe (and is the whole point of #538). When the
+            # refused receipt belongs to a retry, the original call may still
+            # be `unknown`; the replay must take a NEW receipt id or
+            # provider_started below would refuse it.
+            if latest_retry is not None:
+                call_id = (f"{retry_prefix}"
+                           f"{int(latest_retry[len(retry_prefix):]) + 1}")
             previous = None
         if previous is not None and previous.get("status") != "unknown":
             raise HarnessError(

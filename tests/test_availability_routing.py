@@ -6,6 +6,7 @@ configured backend, a pair already known to be unservable is not dispatched
 again, and the ordinary-answer ladder is ordered by live availability with
 the documented free-first posture.
 """
+import json
 import os
 import tempfile
 import unittest
@@ -201,6 +202,61 @@ class SpendLatchTests(unittest.TestCase):
                 model="deepseek/deepseek-v4-flash")
 
 
+class TransportBackendIdentityTests(unittest.TestCase):
+    """Codex P1: the refusal is raised inside the transport, not the lane."""
+
+    @staticmethod
+    def _http_error(code, body):
+        import io
+        import urllib.error
+
+        payload = json.dumps(body).encode("utf-8")
+        return urllib.error.HTTPError(
+            "https://example.invalid", code, "err", {}, io.BytesIO(payload))
+
+    def test_transport_402_names_the_refusing_backend(self):
+        from harness._http import HttpTransport
+
+        capped = self._http_error(402, {
+            "error": {"code": "payment_required",
+                      "message": "add credits"}})
+        with patch("urllib.request.urlopen", side_effect=[capped]):
+            with self.assertRaises(ProviderSpendLimitError) as ctx:
+                HttpTransport().post(
+                    "https://openrouter.ai/api/v1/chat/completions", "k",
+                    {"model": "deepseek/deepseek-v4-flash"})
+        self.assertEqual(ctx.exception.model, "deepseek/deepseek-v4-flash")
+        self.assertEqual(ctx.exception.cause, ACCOUNT_FUNDING)
+
+    def test_transport_refusal_does_not_latch_another_provider(self):
+        from harness._http import HttpTransport
+
+        capped = self._http_error(402, {
+            "error": {"code": "payment_required",
+                      "message": "add credits"}})
+        with task_context("transport-latch"):
+            with patch("urllib.request.urlopen", side_effect=[capped]):
+                with self.assertRaises(ProviderSpendLimitError):
+                    HttpTransport().post(
+                        "https://openrouter.ai/api/v1/chat/completions", "k",
+                        {"model": "deepseek/deepseek-v4-flash"})
+            raise_if_provider_spend_limited(
+                model="accounts/fireworks/models/deepseek-v3p2")
+            with self.assertRaises(ProviderSpendLimitError):
+                raise_if_provider_spend_limited(
+                    model="deepseek/deepseek-v4-flash")
+
+    def test_latched_error_preserves_a_restriction_cause(self):
+        with task_context("latch-cause"):
+            restricted = ProviderSpendLimitError(
+                "model not available", http_status=402,
+                cause=ROUTE_OR_MODEL_RESTRICTION, model="m-a")
+            mark_provider_spend_limit(restricted)
+            with self.assertRaises(ProviderSpendLimitError) as ctx:
+                raise_if_provider_spend_limited(model="m-a")
+        self.assertEqual(ctx.exception.cause, ROUTE_OR_MODEL_RESTRICTION)
+
+
 class LifecycleReplayTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -224,6 +280,33 @@ class LifecycleReplayTests(unittest.TestCase):
         result = self.coord.provider_call(self.state, "c1", invoke)
         self.assertEqual(result, {"ok": True})
         self.assertEqual(len(attempts), 2)
+
+    def test_refused_retry_allocates_a_new_receipt(self):
+        # Codex P2: an original unknown call plus a refused retry must still
+        # be able to reach the next backend.
+        def unknown():
+            raise ProviderUsageUnknown("lost", known_cost=0.0)
+
+        with self.assertRaises(ProviderUsageUnknown):
+            self.coord.provider_call(self.state, "c4", unknown)
+        attempts = []
+
+        def refused_then_ok():
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise _funding("deepseek/deepseek-v4-flash")
+            return {"ok": True}
+
+        with self.assertRaises(ProviderSpendLimitError):
+            self.coord.provider_call(self.state, "c4", refused_then_ok,
+                                     retry_unknown=True)
+        self.assertEqual(
+            self.state["usage"]["provider_calls"]["c4:retry:1"]["status"],
+            "refused")
+        replayed = self.coord.provider_call(
+            self.state, "c4", refused_then_ok, retry_unknown=True)
+        self.assertEqual(replayed, {"ok": True})
+        self.assertIn("c4:retry:2", self.state["usage"]["provider_calls"])
 
     def test_unknown_completion_is_still_not_replayed(self):
         def invoke():
