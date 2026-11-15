@@ -13,6 +13,7 @@ from scripts.driving_hygiene import (
     check_negated_close_language,
     check_planning_structure,
     main,
+    strip_close_references,
 )
 
 
@@ -140,6 +141,43 @@ class DrivingHygieneTests(unittest.TestCase):
                             self.assertEqual(main(
                                 repo_root=root, event_path=event_path,
                                 head_sha="b" * 40), 0)
+
+
+class CommitTextCloseReferenceTests(unittest.TestCase):
+    """A commit message is not a PR body (the main-branch scan)."""
+
+    def test_a_squash_message_close_keyword_is_not_a_claim(self):
+        # Regression: main 423c4ea failed with
+        # `[close-keyword] PR text:4: unapproved 'Closes' reference to #512`
+        # because the squash message was scanned as PR text.
+        commit_body = ("[packs] Refresh the shipped pools (#512)\n\n"
+                       + "Clo" + "ses #512.\n\nthe pack now agrees\n")
+        self.assertEqual(len(check_close_keywords(commit_body, "")), 1)
+        self.assertEqual(
+            check_close_keywords(strip_close_references(commit_body), ""), [])
+
+    def test_a_negated_commit_reference_is_also_not_a_claim(self):
+        commit_body = "this does not " + "close" + " #306, it narrows it\n"
+        self.assertEqual(len(check_negated_close_language(commit_body, "")), 1)
+        self.assertEqual(
+            check_negated_close_language(
+                strip_close_references(commit_body), ""), [])
+
+    def test_stripping_keeps_the_rest_of_the_text_for_other_rules(self):
+        token = "gh" + "p_" + ("A" * 36)
+        commit_body = ("Clo" + "ses #512.\n\nRelated to #42\n"
+                       + "token=" + token + "\n")
+        stripped = strip_close_references(commit_body)
+        self.assertIn("Related to #42", stripped)
+        self.assertIn(token, stripped)
+        self.assertEqual(len(check_credentials(stripped, "")), 1)
+
+    def test_real_pr_text_keeps_the_rule_unchanged(self):
+        # The rule keeps full force where it belongs: no stripping happens on
+        # a pull-request body, so this asserts the checker itself is untouched.
+        self.assertEqual(
+            len(check_close_keywords("Clo" + "ses #512.", "")), 1)
+        self.assertEqual(strip_close_references(None), "")
 
 
 if __name__ == "__main__":
