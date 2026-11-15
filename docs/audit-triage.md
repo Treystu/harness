@@ -128,10 +128,12 @@ delisted model id) that has nothing to do with this tree.
 
 **Distinguishing check:** the row self-verifies its classifier (R14), so a
 failing R13 with a passing R14 means the child's output was classified
-correctly and the suite really is not hermetic on this machine.
+correctly and the suite really is not hermetic on this machine. `--dim` takes
+only the registered dimensions (`A`, `R`, `SD`, `SM`); R13 and R14 both live
+under `R`.
 
 ```bash
-python audits/self/audit.py --dim R13
+python audits/self/audit.py --dim R
 ```
 
 - **Environment-sensitive:** `Ran N tests` / `OK` with a leak signature in the
