@@ -686,12 +686,13 @@ def chat(transport, api_key, model, messages, max_tokens, reasoning_effort="auto
              request_id=request_id)
         try:
             from .events import raise_if_provider_spend_limited
-            raise_if_provider_spend_limited(known_cost=prior_cost)
+            raise_if_provider_spend_limited(known_cost=prior_cost, model=model)
             with provider_request_context(request_id, model, attempt):
                 status, resp = transport.post(
                     OPENROUTER_CHAT_URL, api_key, payload)
             raise_for_provider_spend_limit(
-                status, resp, known_cost=_reported_cost(resp) + prior_cost)
+                status, resp, known_cost=_reported_cost(resp) + prior_cost,
+                model=model)
         except ProviderSpendLimitError:
             emit("model_request_end", model=model, attempt=attempt,
                  request_id=request_id, outcome="error",

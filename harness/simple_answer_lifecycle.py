@@ -67,6 +67,7 @@ class SimpleAnswerLifecycleMixin:
         answer = None
         model = None
         completion = None
+        live_backends = []
         checkpoint = dict(resume_state or {})
         resuming = bool(resume_state)
         known_cost_total = max(
@@ -314,13 +315,27 @@ class SimpleAnswerLifecycleMixin:
                 cancelled_or_late("answer generation")
                 if getattr(self.settings, "use_local_pool", False) and getattr(
                         self.settings, "local_pool", None):
-                    ladder = list(self.settings.local_pool)
+                    configured_ladder = list(self.settings.local_pool)
                 else:
-                    ladder = list(getattr(self.settings, "panel_pool", ()) or [])
-                    if not ladder:
-                        ladder = self._chat_ladder(self.settings)
-                if not ladder:
+                    configured_ladder = list(getattr(
+                        self.settings, "panel_pool", ()) or [])
+                    if not configured_ladder:
+                        configured_ladder = self._chat_ladder(self.settings)
+                if not configured_ladder:
                     raise HarnessError("simple answer model pool is empty")
+                # #540: the answer model is selected by live availability, not
+                # by a static pool head. Known-unservable pairs are dropped and
+                # the documented free-first posture applies when the lane is
+                # configured for free routing.
+                from .availability import default_ledger as _availability
+
+                _ledger = _availability()
+                ladder = _ledger.order(
+                    configured_ladder,
+                    prefer_free=bool(getattr(self.settings, "use_free", False)))
+                live_backends = _ledger.live_backends(configured_ladder)
+                emit("availability_selection", lane="simple-answer",
+                     ladder=list(ladder), backends=live_backends)
                 model = ladder[0]
                 target_tokens, lane_effort = effective_lane_policy(
                     "answer", max_tokens=max_tokens,
@@ -374,6 +389,17 @@ class SimpleAnswerLifecycleMixin:
                             # empty-body outcomes, so this one handler
                             # covers every rung failure.
                             rung_error = exc
+                            from .availability import record_error
+                            from .lifecycle_guards import (
+                                classify_harness_error,
+                                is_availability_failure,
+                            )
+
+                            _kind = classify_harness_error(str(exc))
+                            if is_availability_failure(_kind):
+                                # #538/#540: remember the pair and fall through
+                                # to the next servable rung.
+                                record_error(rung_model, exc, kind=_kind)
                             emit("rotation", model=rung_model,
                                  reason="simple_answer_ladder_advance",
                                  note=str(exc))
@@ -382,6 +408,9 @@ class SimpleAnswerLifecycleMixin:
                     answer = str(completion["content"]).strip()
                     generation_cost = float(completion.get("cost") or 0.0)
                     known_cost_total += generation_cost
+                    from .availability import default_ledger as _availability
+
+                    _availability().record_success(rung_model)
                     rung_error = None
                     break
                 if rung_error is not None:
@@ -469,6 +498,7 @@ class SimpleAnswerLifecycleMixin:
                     "post_review_available": review_available,
                     "post_review_passed": review_passed,
                     "generation_calls": 1,
+                    "backends": live_backends,
                     "history_turns": sum(
                         1 for turn in turns if turn.get("role") == "user"),
                     "deadline_seconds": float(max_wall_seconds),

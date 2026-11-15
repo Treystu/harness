@@ -11,6 +11,7 @@ from typing import Any, Dict, Literal, Optional
 
 from .errors import HarnessError, ProviderUsageUnknown, ToolCancelled
 from .events import emit
+from .provider_errors import ProviderSpendLimitError
 from .osal import atomic_write_text
 from .lifecycle_types import (
     Lane, LifecycleState, ReviewRound, ReviewTransition, _LANES, _MAX_CHECKPOINT_BYTES,
@@ -361,6 +362,12 @@ class LifecycleCoordinator:
                          reserved_cost: float = 0.0) -> bool:
         calls = state["usage"]["provider_calls"]
         previous = calls.get(call_id)
+        if previous is not None and previous.get("status") == "refused":
+            # A provider that refused before dispatch left no usable result
+            # and no unknown usage; the same step may be re-derived on the
+            # next available backend (#538).
+            calls.pop(call_id, None)
+            previous = None
         if previous is not None:
             return False
         calls[call_id] = {"status": "dispatched",
@@ -402,6 +409,10 @@ class LifecycleCoordinator:
         if completed_id is not None:
             return calls[completed_id].get("result")
         previous = calls.get(latest_retry or call_id)
+        if previous is not None and previous.get("status") == "refused":
+            # Availability refusal: the provider returned no completion, so
+            # replaying is safe (and is the whole point of #538).
+            previous = None
         if previous is not None and previous.get("status") != "unknown":
             raise HarnessError(
                 "a prior provider call has unknown completion; it was not replayed")
@@ -420,6 +431,18 @@ class LifecycleCoordinator:
             result = invoke()
         except (ToolCancelled, ProviderUsageUnknown) as exc:
             self.interrupt(state, exc, call_id=call_id)
+            raise
+        except ProviderSpendLimitError as exc:
+            # Provider availability, not an unknown outcome: mark the dispatch
+            # so a later attempt (new backend, or a resumed run) can re-derive
+            # it instead of reporting "cannot be safely replayed" (#538).
+            call = calls.get(call_id)
+            if call is not None:
+                call["status"] = "refused"
+                call["actual_cost"] = max(
+                    0.0, float(getattr(exc, "known_cost", 0.0) or 0.0))
+                call["refused_model"] = getattr(exc, "model", None)
+                self.save(state)
             raise
         self.provider_completed(state, call_id, result, float(cost(result) or 0.0))
         return result

@@ -1791,12 +1791,18 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
         ladder = resolve_waist_ladder(
             use_free=use_free, custom_frontier=frontier_model,
             allow_escalation=allow_escalation)
+        # #539: a rung known to be unservable is not dispatched again; the
+        # ledger's verdicts (this run and earlier ones) order the ladder.
+        from .availability import order_models, record_error
+
+        ladder = order_models(ladder, prefer_free=bool(use_free))
         # #204: one circuit per run -- throttled models stay skipped and
         # the wait ceiling stops a storm with an honest rate-limited error.
         from .lifecycle_guards import (
             RATE_LIMITED,
             RateCircuit,
             classify_harness_error,
+            is_availability_failure,
             is_terminal_failure,
         )
         _rate_circuit = RateCircuit()
@@ -1823,9 +1829,12 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
                 last_exc = exc
                 _kind = classify_harness_error(str(exc))
                 if is_terminal_failure(_kind):
-                    # #204/#199: spend-cap exhaustion (or Harness budget
-                    # refusal) stops with no retry and no model rotation.
+                    # Only this run's own budget cap stops the ladder (#538).
                     raise
+                if is_availability_failure(_kind):
+                    # Provider verdict: rotate to the next configured rung,
+                    # and remember the pair for the next run.
+                    record_error(candidate_model, exc, kind=_kind)
                 if _kind == RATE_LIMITED:
                     _rate_circuit.note_rate_limited(candidate_model)
                 from . import events as _events
@@ -1900,6 +1909,9 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
                                 _re_kind = classify_harness_error(str(_re_exc))
                                 if is_terminal_failure(_re_kind):
                                     raise
+                                if is_availability_failure(_re_kind):
+                                    record_error(candidate_model, _re_exc,
+                                                 kind=_re_kind)
                                 if _re_kind == RATE_LIMITED:
                                     _rate_circuit.note_rate_limited(candidate_model)
                                 continue

@@ -216,7 +216,15 @@ class AutoEditLifecycleMixin:
             plan_structural = plan.get("structural")
         else:
             def provider_once(call_id, invoke, *, result_cost=None):
-                previous = state["usage"]["provider_calls"].get(call_id)
+                from .provider_errors import ProviderSpendLimitError
+
+                calls = state["usage"]["provider_calls"]
+                previous = calls.get(call_id)
+                if previous is not None and previous.get("status") == "refused":
+                    # #538: an availability refusal returned no completion, so
+                    # the step is replayable on the next available backend.
+                    calls.pop(call_id, None)
+                    previous = None
                 if previous is not None:
                     if previous.get("status") == "completed":
                         return previous.get("result")
@@ -227,6 +235,15 @@ class AutoEditLifecycleMixin:
                     value = invoke()
                 except (ToolCancelled, ProviderUsageUnknown) as exc:
                     self.lifecycle.interrupt(state, exc, call_id=call_id)
+                    raise
+                except ProviderSpendLimitError as exc:
+                    call = calls.get(call_id)
+                    if call is not None:
+                        call["status"] = "refused"
+                        call["actual_cost"] = max(
+                            0.0, float(getattr(exc, "known_cost", 0.0) or 0.0))
+                        call["refused_model"] = getattr(exc, "model", None)
+                        self.lifecycle.save(state)
                     raise
                 cost = float(result_cost(value) if result_cost else 0.0)
                 self.lifecycle.provider_completed(state, call_id, value, cost)
@@ -301,10 +318,43 @@ class AutoEditLifecycleMixin:
                             plan_prompt, target_files, gov,
                             confirm=hourglass["confirm"])
 
-                plan = provider_once(
-                    state["request_id"] + ":edit-initial-plan", make_plan,
-                    result_cost=lambda value: float(value.get("cost") or 0.0)
-                    if isinstance(value, dict) else 0.0)
+                # #538: a provider-availability outcome is not an un-replayable
+                # planning result. The plan is re-derived on the next
+                # available backend (bounded), instead of stopping the request
+                # while a funded backend is still unprobed.
+                plan_attempts = 0
+                while True:
+                    try:
+                        plan = provider_once(
+                            state["request_id"] + ":edit-initial-plan",
+                            make_plan,
+                            result_cost=lambda value: float(
+                                value.get("cost") or 0.0)
+                            if isinstance(value, dict) else 0.0)
+                        break
+                    except ToolCancelled:
+                        raise
+                    except HarnessError as exc:
+                        from .availability import record_error
+                        from .lifecycle_guards import (
+                            classify_harness_error,
+                            is_availability_failure,
+                        )
+
+                        kind = classify_harness_error(str(exc))
+                        if not is_availability_failure(kind):
+                            raise
+                        record_error(
+                            str(getattr(exc, "model", "") or "plan-lane"),
+                            exc, kind=kind)
+                        plan_attempts += 1
+                        emit("rotation", model=getattr(exc, "model", None),
+                             reason="edit_plan_availability_retry",
+                             note=(f"plan re-derived on the next available "
+                                   f"backend (attempt {plan_attempts}) "
+                                   f"after: {exc}"))
+                        if plan_attempts >= 2:
+                            raise
                 if not isinstance(plan, dict):
                     raise HarnessError("saved edit plan is invalid")
                 if isinstance(plan_structural, dict):
@@ -349,12 +399,27 @@ class AutoEditLifecycleMixin:
                     self.lifecycle.interrupt(state, exc)
                 if isinstance(exc, ToolCancelled):
                     raise
+                from .lifecycle_guards import (
+                    classify_harness_error,
+                    is_availability_failure,
+                )
+
+                availability_stop = is_availability_failure(
+                    classify_harness_error(str(exc)))
                 result = {
                     "status": "deferred", "intent": "edit",
                     "prompt": prompt,
-                    "response": "Edit planning stopped because an earlier provider outcome cannot be safely replayed.",
+                    "response": (
+                        "Edit planning stopped after every configured "
+                        "backend refused to serve. "
+                        if availability_stop else
+                        "Edit planning stopped because an earlier provider "
+                        "outcome cannot be safely replayed."
+                    ),
                     "cost": state["usage"]["known_cost"],
                     "defer_reason": str(exc),
+                    **({"unservable_backends": True}
+                       if availability_stop else {}),
                 }
                 if state["status"] == "interrupted":
                     self.lifecycle.finish(state, "deferred", result=result,

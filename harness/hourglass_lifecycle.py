@@ -310,8 +310,17 @@ class HourglassLifecycleMixin:
                     transport=self.transport, api_key=api_key, model=model,
                     messages=messages, max_tokens=allocated_tokens,
                     reasoning_effort=lane_effort, governor=gov)
-            except ProviderSpendLimitError:
-                raise
+            except ProviderSpendLimitError as exc:
+                # #538: provider exhaustion is an availability outcome for THIS
+                # backend. Record it and rotate; stopping here deferred the
+                # request while other configured backends were unprobed.
+                from .availability import record_error
+
+                record_error(model, exc, kind="spend_exhausted")
+                attempts.append(f"{model}: {exc}")
+                emit("rotation", model=model, reason="answer_ladder_advance",
+                     note=str(exc))
+                continue
             except HarnessError as exc:
                 attempts.append(f"{model}: {exc}")
                 if "429" in str(exc) or "rate limit" in str(exc).lower():

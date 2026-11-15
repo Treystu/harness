@@ -2698,13 +2698,18 @@ class TestDynamicTokenAllocation(unittest.TestCase):
                 res = agent._handle_conversation("explain code", "test_sess")
                 self.assertEqual(res["status"], "ok")
 
-    def test_provider_spend_limit_propagates_out_of_agent_run(self):
+    def test_provider_spend_limit_walks_the_whole_ladder_before_stopping(self):
+        # #538: a provider 402/429 is an availability outcome. Every configured
+        # rung is attempted, then the run stops honestly -- it no longer aborts
+        # on the first refusal while other backends are unprobed.
         with tempfile.TemporaryDirectory() as tmp:
             agent = AutonomousAgent(settings=_lane_settings(), history_dir=Path(tmp))
-            with patch("harness.hourglass_lifecycle.chat_routed", side_effect=ProviderSpendLimitError("cap", http_status=429)), \
+            with patch("harness.hourglass_lifecycle.chat_routed", side_effect=ProviderSpendLimitError("cap", http_status=429)) as routed, \
                  patch("harness.hourglass_lifecycle.governor_for", return_value=(None, MagicMock())):
-                with self.assertRaises(ProviderSpendLimitError):
+                with self.assertRaisesRegex(
+                        HarnessError, "answer failed on every ladder model"):
                     agent._hourglass_answer_once("explain", "")
+            self.assertGreater(routed.call_count, 1)
 
 
 if __name__ == "__main__":

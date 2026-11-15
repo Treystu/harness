@@ -163,9 +163,7 @@ class JevPrimaryModePanelTests(unittest.TestCase):
 
     def test_mode_on_propagates_cancellation_and_unknown_usage(self):
         for error in (ToolCancelled("cancelled"),
-                      ProviderUsageUnknown("usage unavailable"),
-                      ProviderSpendLimitError(
-                          "provider spend cap reached", http_status=429)):
+                      ProviderUsageUnknown("usage unavailable")):
             with self.subTest(error=type(error).__name__):
                 policy = StubPolicy(error=error)
                 fake = FakeTransport(
@@ -180,6 +178,25 @@ class JevPrimaryModePanelTests(unittest.TestCase):
                         jev_policy=policy, jev_primary_mode=True)
                 self.assertIs(raised.exception, error)
                 self.assertEqual(fake.chat_posts(), [])
+
+    def test_provider_spend_limit_degrades_the_advisory_seat(self):
+        # #538: claim-support is advisory. A dry provider is a named skip; the
+        # panel's real votes still run instead of aborting on the refusal.
+        error = ProviderSpendLimitError("provider spend cap reached",
+                                        http_status=429)
+        policy = StubPolicy(error=error)
+        fake = FakeTransport(
+            models=[m(P1), m(P2), m(JUDGE)],
+            posts=[comp("take one"), comp("take two"), comp("verdict: agree")])
+        gov = _gov(fake)
+        result = panel_judge(
+            transport=fake, api_key="k", governor=gov,
+            prompt="Q?", panel=[P1, P2], judge=JUDGE,
+            jev_policy=policy, jev_primary_mode=True)
+        self.assertEqual(result["judgment_route"], "llm_fallback")
+        self.assertTrue(result["claim_support"]["skipped"])
+        self.assertTrue(
+            result["claim_support"]["provider_unavailable"])
 
 
 if __name__ == "__main__":

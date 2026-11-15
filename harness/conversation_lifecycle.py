@@ -165,7 +165,15 @@ class ConversationLifecycleMixin:
         # Longest cut-off body seen while every rung was failing: the raw
         # material for the honest truncation deferral.
         best_truncated: Optional[tuple] = None
-        for model in self._chat_ladder(self.settings):
+        # #539: do not dispatch to a backend already known to be unservable;
+        # #540 keeps the documented free-first posture on the answer ladder.
+        from .availability import default_ledger as _availability
+
+        _ledger = _availability()
+        configured_ladder = self._chat_ladder(self.settings)
+        for model in _ledger.order(
+                configured_ladder,
+                prefer_free=bool(getattr(self.settings, "use_free", False))):
             if cancel_check and cancel_check():
                 raise ToolCancelled("Prompt execution was cancelled by user")
             note = None
@@ -189,6 +197,16 @@ class ConversationLifecycleMixin:
                 )
             except HarnessError as e:
                 note = str(e)
+                from .lifecycle_guards import (
+                    classify_harness_error,
+                    is_availability_failure,
+                )
+
+                _kind = classify_harness_error(note)
+                if is_availability_failure(_kind):
+                    from .availability import record_error
+
+                    record_error(model, e, kind=_kind)
             else:
                 if status != 200:
                     note = _http_error(status, resp)
@@ -223,6 +241,7 @@ class ConversationLifecycleMixin:
                                 best_truncated = (model, content, cost)
             if note is None:
                 answered = (model, content or "", cost)
+                _ledger.record_success(model)
                 break
             attempts.append(f"{model}: {note}")
             emit("rotation", model=model, reason="chat_ladder_advance", note=note)

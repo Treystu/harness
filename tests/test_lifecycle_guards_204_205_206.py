@@ -99,8 +99,10 @@ class ClassifyProviderFailureTests(unittest.TestCase):
         self.assertEqual(classify_harness_error("HTTP 402: credit exhausted"),
                          SPEND_EXHAUSTED)
 
-    def test_spend_and_budget_are_terminal_but_429_is_not(self):
-        self.assertTrue(is_terminal_failure(SPEND_EXHAUSTED))
+    def test_only_the_run_budget_cap_is_terminal(self):
+        # #538: provider exhaustion rotates to a servable backend; only the
+        # run's own budget cap ends the request.
+        self.assertFalse(is_terminal_failure(SPEND_EXHAUSTED))
         self.assertTrue(is_terminal_failure(BUDGET_REFUSED))
         self.assertFalse(is_terminal_failure(RATE_LIMITED))
         self.assertFalse(is_terminal_failure(AUTH_FAILED))
@@ -312,7 +314,9 @@ class WaistBreakerWiringTests(unittest.TestCase):
         kwargs.update(overrides)
         return compose_plan(**kwargs)
 
-    def test_spend_exhaustion_stops_with_no_rotation(self):
+    def test_spend_exhaustion_rotates_across_every_rung(self):
+        # #538: a dry backend is an availability outcome, not a terminal one.
+        # The ladder is walked in full before the request stops.
         calls = []
 
         def confirm(**kwargs):
@@ -323,7 +327,7 @@ class WaistBreakerWiringTests(unittest.TestCase):
              patch("harness.waist.confirm_plan", side_effect=confirm):
             with self.assertRaisesRegex(HarnessError, "credit exhausted"):
                 self._compose()
-        self.assertEqual(calls, ["m1"])
+        self.assertEqual(calls, ["m1", "m2"])
 
     def test_ordinary_429_rotates_to_the_next_rung(self):
         calls = []
@@ -364,7 +368,7 @@ class WaistBreakerWiringTests(unittest.TestCase):
         self.assertEqual(calls, ["m1", "m2", "m2"])
         self.assertEqual(plan["status"], "refused")
 
-    def test_replan_pass_propagates_spend_exhaustion(self):
+    def test_replan_pass_keeps_the_refusal_when_a_rung_is_dry(self):
         from harness.dag import TaskDAG
         calls = []
         refused = {"status": "refused", "dag": {"nodes": []},
@@ -383,13 +387,13 @@ class WaistBreakerWiringTests(unittest.TestCase):
              patch("harness.waist.decompose_via_llm",
                    return_value=TaskDAG(nodes={})), \
              patch("harness.waist._decompose_repo_context", return_value="ctx"):
-            with self.assertRaisesRegex(HarnessError, "credit exhausted"):
-                self._compose(decompose_llm=True, execute=True,
-                              chat_fn=lambda prompt: ("{}", 0.0))
+            plan = self._compose(decompose_llm=True, execute=True,
+                                 chat_fn=lambda prompt: ("{}", 0.0))
         # First pass m1 (refused) enters re-plan; the re-plan retries m1
-        # (refused), then m2's spend failure propagates instead of rotating
-        # or being laundered into the retained coarse-plan refusal.
+        # (refused), then m2's spend failure rotates out instead of aborting.
+        # The coarse-plan refusal is retained, never laundered into a pass.
         self.assertEqual(calls, ["m1", "m1", "m2"])
+        self.assertEqual(plan["status"], "refused")
 
     def test_missing_tool_refusal_never_replans(self):
         from harness.dag import TaskDAG

@@ -310,7 +310,11 @@ def validate_lifecycle_state(value: Any) -> LifecycleState:
     for call_id, call in usage["provider_calls"].items():
         if (not isinstance(call_id, str) or not call_id.strip()
                 or not isinstance(call, dict)
-                or call.get("status") not in {"dispatched", "completed", "unknown"}
+                # "refused": a provider-availability refusal before dispatch
+                # (#538). It carries no usable completion, so the step stays
+                # replayable on the next available backend.
+                or call.get("status") not in {"dispatched", "completed",
+                                              "unknown", "refused"}
                 or not finite_number(call.get("reserved_cost"))
                 or not finite_number(call.get("actual_cost"))):
             raise HarnessError("request lifecycle provider call is invalid")

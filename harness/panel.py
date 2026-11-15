@@ -101,10 +101,24 @@ def _run_judge_attempt(*, transport, api_key, governor, judge_prompt, model,
     if cancel_check and cancel_check():
         from .errors import ToolCancelled
         raise ToolCancelled()
-    status, resp = chat_routed(transport, api_key, model,
-                               [{"role": "user", "content": judge_prompt}],
-                               judge_reserve_tokens, reasoning_effort,
-                               reasoning_token_budget, governor)
+    try:
+        status, resp = chat_routed(transport, api_key, model,
+                                   [{"role": "user", "content": judge_prompt}],
+                                   judge_reserve_tokens, reasoning_effort,
+                                   reasoning_token_budget, governor)
+    except ProviderSpendLimitError as exc:
+        # #538: another judge seat may still serve. Return a named status so
+        # the existing fallback rotation runs instead of aborting the panel.
+        from .availability import record_error
+
+        record_error(model, exc, kind="spend_exhausted")
+        _events.emit("rotation", task_id=task_id, model=model,
+                     reason="judge_provider_unavailable", note=str(exc))
+        if ledger and task_id:
+            ledger.append("model_result", task_id=task_id, event_note="judge",
+                          model=model, task_type=task_type, json_expected=True,
+                          json_ok=False, status="error", error=str(exc))
+        return "provider_unavailable", None, 0.0
     cost = _reported_cost(resp)
     err = (resp.get("error", {}).get("message", str(resp))
            if isinstance(resp, dict) else str(resp))
@@ -196,8 +210,18 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                 claim_texts if claim_texts is not None else [],
                 claim_evidence if claim_evidence is not None else prompt,
                 enabled=True, site="claims", task_id=task_id)
-        except (ToolCancelled, ProviderUsageUnknown, ProviderSpendLimitError):
+        except (ToolCancelled, ProviderUsageUnknown):
             raise
+        except ProviderSpendLimitError as exc:
+            # #538: the claim-support seat is advisory. A dry backend must not
+            # take the whole panel (and its real votes) down with it; record
+            # the named skip and let the panel rotate.
+            from .availability import record_error
+
+            record_error(str(getattr(exc, "model", "") or "jev-claim-support"),
+                         exc, kind="spend_exhausted")
+            claim_support = {"skipped": True, "error": str(exc),
+                             "claim_flags": [], "provider_unavailable": True}
         except Exception as exc:  # advisory only — never break panel dispatch
             claim_support = {"skipped": True, "error": str(exc), "claim_flags": []}
 
@@ -330,10 +354,35 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
         response_cost = 0.0
         response_cost_recorded = False
         while True:
-            status, resp = chat_routed(transport, api_key, model,
-                                       [{"role": "user", "content": prompt}],
-                                       policy.vote.tokens, policy.vote.effort,
-                                       reasoning_token_budget, governor)
+            try:
+                status, resp = chat_routed(
+                    transport, api_key, model,
+                    [{"role": "user", "content": prompt}],
+                    policy.vote.tokens, policy.vote.effort,
+                    reasoning_token_budget, governor)
+            except ProviderSpendLimitError as exc:
+                # #538: a refusal on this seat is an availability outcome, not
+                # the end of the panel. Record it and let the caller rotate in
+                # the next pool member.
+                from .availability import record_error
+
+                record_error(model, exc, kind="spend_exhausted")
+                if ledger and task_id:
+                    ledger.append("model_result", task_id=task_id,
+                                  event_note="panel", model=model,
+                                  task_type=("structured" if run_convergence
+                                             else "panel"),
+                                  json_expected=run_convergence,
+                                  json_ok=False, status="error",
+                                  error=str(exc))
+                panel_failures.append({
+                    "model": model, "reason": str(exc),
+                    "status": "provider_unavailable", "cost": 0.0,
+                    "retries": retry_count})
+                eprint(f"[panel] {model} unavailable ({exc}) -- rotating.")
+                _events.emit("rotation", task_id=task_id, model=model,
+                             reason="provider_unavailable", note=str(exc))
+                return None
             response_cost = _reported_cost(resp)
             if cancel_check and cancel_check():
                 from .errors import ToolCancelled
