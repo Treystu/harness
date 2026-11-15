@@ -1,0 +1,23 @@
+Independent read-only review packet — SCMessenger PR #372
+
+Repository state:
+- base main: d1c4a173835e7a90e117e2ad69e23953c323b8d5
+- head: a76d7d66d3c29bde722931847fceb4c5311b68d4
+- PR title: fix(transport): close the four CONN-CAP review blockers on #361
+- PR reports 33/33 checks green, but its own body says it carries all 31 commits from the older PR and that the actual blocker fix is one commit e7466639.
+- The current main-to-head diff is 87 paths: 16 code/config/test paths plus many unrelated HANDOFF, runbook, AGENTS, and vendored-crate paths. The four blocker commit itself changes only four files: the Android JVM test, dial_policy.rs, per_peer_cap.rs, and swarm.rs.
+- The older PR #361 is still open with a failed Android JVM check and explicitly records a stale-activity leak and native/WASM retained-bound mismatch.
+
+Four claimed fixes in e7466639:
+1. Android tests assert Context startForegroundService/startService entry points instead of stubbed Intent.action.
+2. Both native close arms release per-path activity and the final peer entry.
+3. The wasm32 loop calls the same per_peer_cap activity/trim helper as native and stamps supported liveness events.
+4. Relay tracking and ladder selection are bounded/newest-first; admission is 8, matching the measured synthesized ladder and twice the retained bound of 4.
+
+Review questions, read-only and one bounded verdict:
+1. Is PR #372 safe to merge as-is from a change-scope and active-lane hygiene perspective? Distinguish code correctness from PR hygiene.
+2. Does the four-file fix depend on the older D1/D9 history, and what is the smallest clean split from current main? Identify any dependency that prevents a standalone four-file patch.
+3. Identify any concrete security/privacy or transport regression risk visible from the stated changes. Do not invent line-level findings without evidence; label hypotheses.
+4. State whether an independent Rule-8 sign-off is present. It is not expected from this packet; do not self-sign.
+
+Return compact sections: verdict, scope, dependencies, risks, required_next. Stop after one review. Do not edit files, push, merge, or run a second live call.

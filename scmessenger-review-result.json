@@ -1,0 +1,48 @@
+{
+  "panel_results": [
+    {
+      "model": "inclusionai/ling-3.0-flash",
+      "content": "**Verdict:** Conditional pass on the four-file fix; do not merge the full PR #372 as-is. The blocker fix (e7466639) is scoped cleanly and addresses the four CONN-CAP review blockers, but the PR carries 31 stale commits and 71 unrelated paths (HANDOFF, runbook, AGENTS, vendored-crate noise) that violate active-lane hygiene. Merge only a clean four-file cherry-pick from current main after the split in Q2.\n\n**Scope:** The actual transport fix modifies exactly four files: Android JVM test (asserts real service entry points), dial_policy.rs (per-path activity release), per_peer_cap.rs (peer entry release + wasm32 helper stamp), and swarm.rs (relay tracking/ladder bounds). The remaining 83 paths in the diff are unrelated to the CONN-CAP blockers and include the older PR #361's failed Android JVM check and the retained-bound mismatch.\n\n**Dependencies:** The four-file fix does not depend on D1/D9 history or any of the older PR #361 commits. The smallest clean split from current main is the four-file patch from e7466639 applied directly to d1c4a173835e7a90e117e2ad69e23953c323b8d5. No dependency prevents a standalone patch; the older PR's open state and stale checks are orthogonal.\n\n**Risks:** No concrete security/privacy or transport regression risk is visible from the stated changes without line-level evidence. The relay admission bound (8) matching the synthesized ladder and being twice the retained bound (4) is a sizing hypothesis, not a confirmed regression. The Android test change from stubbed Intent.action to real entry-point assertions is a correctness improvement but should be validated against the actual device test matrix.\n\n**Required_next:** 1) Cherry-pick only the four-file fix (e7466639) onto current main. 2) Run the Android JVM check on the clean four-file patch to confirm the stale-activity leak and native/WASM mismatch are resolved. 3) Close PR #372 as superseded or rebased; do not merge the full PR with the 31 stale commits. 4) Rule-8 sign-off is not present and is not expected from this packet.",
+      "finish_reason": "stop",
+      "cost": 4.461534e-05,
+      "truncated": false
+    }
+  ],
+  "trimmed_for_judge": [],
+  "panel_failures": [],
+  "required_panelists": 1,
+  "panel_tried": 1,
+  "judge_model": "inclusionai/ling-3.0-flash",
+  "judge_synthesis": "{\"verdict\": \"Conditional pass on the four-file fix; do not merge the full PR #372 as-is. Merge only a clean four-file cherry-pick from current main after the Q2 split.\", \"agreement\": \"high\", \"confidence\": 0.88, \"disagreements\": [], \"defer\": false}",
+  "judge_synthesis_status": "parseable",
+  "verdict": "Conditional pass on the four-file fix; do not merge the full PR #372 as-is. Merge only a clean four-file cherry-pick from current main after the Q2 split.",
+  "consensus": {
+    "agreement": "high",
+    "confidence": 0.88,
+    "disagreements": [],
+    "defer": false
+  },
+  "estimated_worst_case_cost": 0.003500595,
+  "actual_cost": 6.309765e-05,
+  "max_cost_ceiling": 0.01,
+  "cost_by_model": {
+    "inclusionai/ling-3.0-flash": 6.309765e-05
+  },
+  "meta": {
+    "use_free": false,
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "openai/gpt-4o-mini",
+      "openai/gpt-5-mini",
+      "openai/gpt-5.6-luna",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "z-ai/glm-5.3-flash",
+    "apply_model": "deepseek/deepseek-v4.1-flash",
+    "reasoning_effort": "auto",
+    "max_cost_ceiling": 0.01,
+    "key_label_present": false
+  }
+}

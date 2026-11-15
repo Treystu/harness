@@ -1,0 +1,241 @@
+{
+  "attention": {
+    "by_level": {
+      "background: omit from a tight brief": 0,
+      "central: in any repo-wide waist brief": 2,
+      "notable: include when goal touches it": 1,
+      "unmatched": 0
+    },
+    "mean_value": 0.493333
+  },
+  "axes": {
+    "brief_treatment": {
+      "cited_window": 0,
+      "exclude_raw": 3,
+      "failure_evidence": 0,
+      "grounded_claim": 0,
+      "signature": 0,
+      "unmatched": 0
+    },
+    "handling": {
+      "code_owned": 0,
+      "frontier": 0,
+      "scout": 3,
+      "standard": 0,
+      "unmatched": 0
+    },
+    "stage": {
+      "adjudicate": 1,
+      "condense": 0,
+      "cross_cutting": 2,
+      "dispatch": 0,
+      "prep": 0,
+      "unmatched": 0,
+      "waist": 0
+    }
+  },
+  "coverage": {
+    "ambiguous": 3,
+    "candidates": 3,
+    "fallbacks": 0,
+    "files_listed": 3,
+    "judged": 3,
+    "judged_files": 3,
+    "judged_symbols": 0,
+    "judged_this_run": 3,
+    "live_judged": 3,
+    "live_this_run": 3,
+    "pending": 0,
+    "pending_sample": [],
+    "prior_rows": 0,
+    "stop_reason": "complete"
+  },
+  "declared": {
+    "axes": {
+      "brief_treatment": [
+        "signature",
+        "cited_window",
+        "failure_evidence",
+        "grounded_claim",
+        "exclude_raw"
+      ],
+      "handling": [
+        "code_owned",
+        "scout",
+        "standard",
+        "frontier"
+      ],
+      "stage": [
+        "prep",
+        "condense",
+        "waist",
+        "dispatch",
+        "adjudicate",
+        "cross_cutting"
+      ]
+    },
+    "nouls": [
+      "waist_relevant",
+      "parallel_safe"
+    ],
+    "score": {
+      "id": "attention",
+      "levels": [
+        "background: omit from a tight brief",
+        "notable: include when goal touches it",
+        "central: in any repo-wide waist brief"
+      ]
+    }
+  },
+  "elements": [
+    {
+      "ambiguous": true,
+      "attention": {
+        "confidence": 0.0,
+        "level": "central: in any repo-wide waist brief",
+        "value": 0.52
+      },
+      "axes": {
+        "brief_treatment": "exclude_raw",
+        "handling": "scout",
+        "stage": "cross_cutting"
+      },
+      "axis_confidence": {
+        "brief_treatment": 0.67,
+        "handling": 0.43,
+        "stage": 0.56
+      },
+      "cost": 3.9564e-06,
+      "element_kind": "file",
+      "est_tokens": 2804,
+      "id": "file:.agents/rules/follow-all-rules.md",
+      "input_tokens": 942,
+      "is_fallback": false,
+      "kind": "doc",
+      "loc": 120,
+      "model": "jev-1.13.0",
+      "nouls": {
+        "parallel_safe": 0.31,
+        "waist_relevant": 0.31
+      },
+      "output_tokens": 228,
+      "pack_id": "harness-repo-summary-v1",
+      "path": ".agents/rules/follow-all-rules.md",
+      "site": "repo_summary"
+    },
+    {
+      "ambiguous": true,
+      "attention": {
+        "confidence": 0.26,
+        "level": "notable: include when goal touches it",
+        "value": 0.5
+      },
+      "axes": {
+        "brief_treatment": "exclude_raw",
+        "handling": "scout",
+        "stage": "cross_cutting"
+      },
+      "axis_confidence": {
+        "brief_treatment": 0.71,
+        "handling": 0.21,
+        "stage": 0.25
+      },
+      "cost": 3.8514e-06,
+      "element_kind": "file",
+      "est_tokens": 795,
+      "id": "file:.agents/skills/bod/SKILL.md",
+      "input_tokens": 917,
+      "is_fallback": false,
+      "kind": "doc",
+      "loc": 76,
+      "model": "jev-1.13.0",
+      "nouls": {
+        "parallel_safe": 0.35,
+        "waist_relevant": 0.35
+      },
+      "output_tokens": 228,
+      "pack_id": "harness-repo-summary-v1",
+      "path": ".agents/skills/bod/SKILL.md",
+      "site": "repo_summary"
+    },
+    {
+      "ambiguous": true,
+      "attention": {
+        "confidence": 0.04,
+        "level": "central: in any repo-wide waist brief",
+        "value": 0.46
+      },
+      "axes": {
+        "brief_treatment": "exclude_raw",
+        "handling": "scout",
+        "stage": "adjudicate"
+      },
+      "axis_confidence": {
+        "brief_treatment": 0.5,
+        "handling": 0.42,
+        "stage": 0.96
+      },
+      "cost": 3.7548e-06,
+      "element_kind": "file",
+      "est_tokens": 318,
+      "id": "file:.agents/skills/build-verify/SKILL.md",
+      "input_tokens": 894,
+      "is_fallback": false,
+      "kind": "doc",
+      "loc": 24,
+      "model": "jev-1.13.0",
+      "nouls": {
+        "parallel_safe": 0.27,
+        "waist_relevant": 0.27
+      },
+      "output_tokens": 228,
+      "pack_id": "harness-repo-summary-v1",
+      "path": ".agents/skills/build-verify/SKILL.md",
+      "site": "repo_summary"
+    }
+  ],
+  "generated_at": "2026-09-25T16:44:10Z",
+  "mechanical": {
+    "by_kind": {
+      "doc": 3
+    },
+    "totals": {
+      "bytes": 15674,
+      "est_tokens": 3917,
+      "files": 3,
+      "loc": 220,
+      "symbols": 0
+    }
+  },
+  "nouls": {
+    "parallel_safe": {
+      "false": 3,
+      "true": 0,
+      "unanswered": 0
+    },
+    "waist_relevant": {
+      "false": 3,
+      "true": 0,
+      "unanswered": 0
+    }
+  },
+  "pack_id": "harness-repo-summary-v1",
+  "schema": "repo-summary-v1",
+  "spend": {
+    "calls": 3,
+    "cost_usd": 1.2e-05,
+    "input_tokens": 2753,
+    "ledger_site": "repo_summary",
+    "output_tokens": 684,
+    "run_budget": 0.05
+  },
+  "structural": {
+    "cost": 1.2e-05,
+    "input_tokens": 2753,
+    "is_fallback": false,
+    "model": "jev-1.13.0",
+    "site": "repo_summary",
+    "verdict": "pass"
+  },
+  "symbols": []
+}

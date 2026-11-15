@@ -1,0 +1,59 @@
+{
+  "status": "unassessed",
+  "pack_id": "harness-hourglass-vision-assessment-v1",
+  "pack_version": "1.0.0",
+  "confidence_threshold": 0.8,
+  "model": "jev-1.13.0",
+  "model_observed": true,
+  "fallback_state": "not_used",
+  "usage_source": "actual",
+  "input_tokens": 14397,
+  "output_tokens": 154,
+  "estimated_input_tokens": 15096,
+  "estimated_state_longest_question_tokens": 13625,
+  "payload_utf8_bytes": 60380,
+  "request_margin_tokens": 48904,
+  "state_longest_question_margin_tokens": 18375,
+  "cost_usd": 6.0467399999999996e-05,
+  "cost_source": "actual_input",
+  "perfect": false,
+  "categories": {
+    "modularity": null,
+    "token_shape": null,
+    "grounding": null,
+    "planning": null,
+    "execution_boundary": null,
+    "jev_coverage": null,
+    "sovereignty": null,
+    "observability": null,
+    "verification_alignment": null,
+    "cost_bounds": null
+  },
+  "payload_outline": {
+    "state_keys": [
+      "assessment_scope",
+      "current_status",
+      "sources"
+    ],
+    "source_refs": [
+      "docs/hourglass-vision.md",
+      "docs/jev-roadmap.md#hourglass-vision-realization"
+    ],
+    "question_ids": [
+      "modularity",
+      "token_shape",
+      "grounding",
+      "planning",
+      "execution_boundary",
+      "jev_coverage",
+      "sovereignty",
+      "observability",
+      "verification_alignment",
+      "cost_bounds"
+    ],
+    "question_count": 10
+  },
+  "reasons": [
+    "assessment response is invalid: assessment Score differs from its probability distribution: modularity"
+  ]
+}

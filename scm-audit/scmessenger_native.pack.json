@@ -1,0 +1,83 @@
+{
+  "id": "scmessenger-native-audit-v1",
+  "axes": {
+    "component": {
+      "instructions": "Which SCMessenger product surface does this file belong to? Declared keys only.",
+      "criteria": {
+        "core_rust": "Rust core: transport, storage, crypto, policy, peer state",
+        "bindings_ffi": "Swift/Kotlin/WASM bindings or generated FFI glue",
+        "android_app": "Android app: UI, ViewModels, foreground service",
+        "ios_app": "iOS app: Swift sources, views, controllers",
+        "cli_desktop_headless": "CLI, headless, desktop bridge, dev tooling",
+        "build_ci_infra": "Build scripts, Gradle, Cargo, Docker, CI workflows, infra",
+        "docs_and_handoff": "Documentation, handoffs, audits, agent instructions, scratch"
+      }
+    },
+    "change_risk": {
+      "instructions": "How risky is it to change this file? Declared keys only.",
+      "criteria": {
+        "isolated_local": "Self-contained; no cross-surface or shared contract",
+        "single_surface": "One product surface; its own tests can cover the change",
+        "cross_surface_contract": "Crosses a contract: FFI boundary, wire format, generated code",
+        "concurrency_or_transport": "Touches concurrency, transport, or connection state",
+        "build_or_vendor_locked": "Locked by build config, lockfile, or vendored dependencies"
+      }
+    },
+    "proof": {
+      "instructions": "What automatically proves a change to this file is correct? Declared keys only.",
+      "criteria": {
+        "unit_test": "A unit test suite covers it directly",
+        "android_jvm_gate": "Covered by the Android JVM unit test gate",
+        "ci_workflow_gate": "Covered by a CI workflow job or static analysis gate",
+        "build_or_typecheck_only": "Only a build, typecheck, or lint proves it",
+        "no_automated_proof": "No automated proof exists"
+      }
+    }
+  },
+  "score": {
+    "id": "audit_priority",
+    "instructions": "How high should this file rank in a defect and risk audit of SCMessenger?",
+    "levels": [
+      "p0: gates a merge or currently fails a build or gate",
+      "p1: central to correctness, transport, or the FFI and wire contract",
+      "p2: incidental; documentation, scratch, or vendored third-party code"
+    ]
+  },
+  "nouls": {
+    "isolated_change_safe": {
+      "instructions": "Can this be changed on a branch that touches no other actively developed file?",
+      "true": "Low-conflict; a dedicated branch can carry it safely.",
+      "false": "Interacts with other active work; coordinate before changing it."
+    },
+    "generated_artifact": {
+      "instructions": "Is this file generated or mechanically derived from another source of truth?",
+      "true": "Regenerate it; do not hand-edit.",
+      "false": "Hand-edited source of truth."
+    }
+  },
+  "keywords": {
+    "component": {
+      "core_rust": ["/core/", ".rs", "transport", "swarm", "store", "crypto"],
+      "bindings_ffi": ["/wasm/", "bindings", "uniffi", "ffi", ".udl", "generated"],
+      "android_app": ["/android/", ".kt", "MeshService", "ViewModel", "gradle"],
+      "ios_app": ["/iOS/", ".swift", "ViewController", "xcode"],
+      "cli_desktop_headless": ["/cli/", "/headless/", "/desktop_bridge/"],
+      "build_ci_infra": [".github", "Dockerfile", "docker", "build.gradle", "Cargo.toml", "/infra/"],
+      "docs_and_handoff": ["HANDOFF", ".md", "docs/", "scratch", "audit"]
+    },
+    "change_risk": {
+      "isolated_local": ["readme", "doc", "notes"],
+      "single_surface": ["viewmodel", "screen", "controller"],
+      "cross_surface_contract": ["uniffi", "wire", "protocol", "generated", "schema", "bindings"],
+      "concurrency_or_transport": ["mutex", "lock", "spawn", "async", "dial", "peer", "swarm", "race"],
+      "build_or_vendor_locked": ["Cargo.lock", "vendor", "patch.crates-io", "gradle", "lockfile"]
+    },
+    "proof": {
+      "unit_test": ["test", "spec", "assert", "fixture"],
+      "android_jvm_gate": ["MeshServiceViewModelTest", "testDebugUnitTest"],
+      "ci_workflow_gate": ["workflow", "clippy", "analyze", "codeql", "action"],
+      "build_or_typecheck_only": ["build", "lint", "typecheck", "format"],
+      "no_automated_proof": ["scratch", "notes", "draft"]
+    }
+  }
+}
