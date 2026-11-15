@@ -950,6 +950,36 @@ class TestChatDeferral(unittest.TestCase):
         self.assertIn("reframe within this lane", res["next_step"])
         fake_ledger.append.assert_called_once()
 
+    def test_completed_answer_with_a_capability_caveat_stays_ok(self):
+        # #543: the transcript delivered the full logarithmic scale plus
+        # guidance after saying it could not generate an image, and the run
+        # still closed as Deferred. A caveat inside delivered content is a
+        # caveat, not a non-completion.
+        caveat = {"choices": [{"message": {"content":
+            "I can't generate an actual image, but here is the logarithmic "
+            "scale you asked for. Each decade is evenly spaced, with 1 at the "
+            "bottom, 10 one step up, 100 the next, and 1000 above that. Mark "
+            "the midpoint between 1 and 10 at about 3.16, then between 10 and "
+            "100 at about 31.6, and keep going up the chart so every step "
+            "covers the same visual distance and stays readable."}}],
+            "usage": {"cost": 0.0}}
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = AutonomousAgent(settings=_lane_settings(),
+                                    history_dir=Path(tmp))
+            fake_ledger = MagicMock()
+            with patch("harness.conversation_lifecycle.chat_routed", return_value=(200, caveat)), \
+                 patch("harness.conversation_lifecycle.governor_for",
+                       return_value=(None, MagicMock())), \
+                 patch("harness.conversation_lifecycle.ledger_for", return_value=fake_ledger), \
+                 patch.object(AutonomousAgent, "_auto_escalation_armed",
+                              return_value=False):
+                res = agent.run_prompt("make a log scale", session_id="d5",
+                                       force_conversation=True)
+        self.assertEqual(res["status"], "ok")
+        self.assertNotIn("defer_reason", res)
+        self.assertIn("logarithmic scale", res["response"])
+        fake_ledger.append.assert_not_called()
+
     def test_refusal_caveat_inside_successful_web_turn_stays_ok(self):
         # A turn that DID retrieve evidence is not a deferral even when its
         # prose contains a limitation caveat.
