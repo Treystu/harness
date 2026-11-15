@@ -1,0 +1,1957 @@
+"""Command-line interface.
+
+Subcommands (flags are back-compatible with SCMessenger's fusion_lite.py and
+morph_lite.py, plus delegate_task.py's --verify/--max-rounds):
+
+  harness verify   panel + judge verification (with model rotation + consensus)
+  harness apply    scoped code edit + verify loop + consent continuation
+  harness offer    ask a model for consent on a work item
+  harness defer    record a mid-task deferral / consent revocation
+  harness continue continue a deferred/incomplete apply task
+   harness ledger   autonomy ledger: tail | verify | report
+   harness models   list live free OpenRouter models
+   harness spend    key identity & spend status
+   harness trust    trust & correctness standing (read-only)
+  harness bench    run a manifest of known-answer tasks through the free tier
+
+Free tier is the default: `--free`/HARNESS_USE_FREE routes everything through
+the best current free models, rotating and deferring instead of failing.
+
+Logs go to stderr; the JSON result goes to stdout (or --out <file>).
+Exit codes: 0 success, 1 fatal refusal/error, 2 verification failed,
+3 deferred (capability/consent) -- safe to continue.
+"""
+import functools
+import json
+import os
+import tempfile
+import time
+from pathlib import Path
+from . import jev_calibration as _jcal
+from . import provision as _pv
+from . import refine as _refine
+from . import repo_cards as _rc
+from .agent import AutonomousAgent, is_site_check_prompt
+from .consent import probe_consent
+from .config import (
+    DEFAULT_MAX_COST,
+    DISCOUNT_IS_MULTIPLIER,
+    DISCOUNT_LISTED_IS_EFFECTIVE,
+    HARD_MAX_COST,
+    apply_pool_rotation,
+    freeze_jev_settings,
+    load_vision_preflight_settings,
+    resolve_fireworks_key,
+    resolve_hourglass,
+)
+from .endpoint_pricing import load_fireworks_endpoints
+from .errors import HarnessError
+from .fireworks import compare_fireworks_vs_openrouter
+from .fireworks_probe import run_fireworks_probe
+from .routing_table import (
+    SNAPSHOT_PRICE_TABLE,
+    TIER_MODELS,
+    check_tier_snapshot_freshness,
+    unlisted_tier_fallbacks,
+)
+from .spend import discover_free_models
+from .filesafety import VERIFY_TIMEOUT, validate_target_file, validate_verify_command
+from .gate_runner import (GATES, GATE_ORDER, STAGE_GATE_TIMEOUT, gate_help,
+                          run_gate)
+from . import osal
+from .output import eprint
+from .session import (apply_session as _session, governor_for as _governor,
+                      jev_face_governor,
+                      ledger_for as _ledger,
+                      run_meta as _session_run_meta)
+from .service import prepare_verify as _prepare_verify
+from .service import run_verify as _service_verify
+from .service import read_text_file as _service_read_text
+from .service import run_dogfood as _service_run_dogfood
+from .rankings import build_rankings_report as _rankings_report
+from .discount_gate import record_discount_semantics as _record_discount_semantics
+from .discount_probe import run_discount_probe as _run_discount_probe
+from .route_pack import validate_route_pack
+from .site_export import export_bundle as _site_export_bundle
+from .site_export import write_bundle as _site_export_write
+from .waist import compose_arguments
+from .waist import compose_plan as _compose_plan
+from .jev import jev_cost
+from .jev_policy import (JEV_MAX_INPUT_TOKENS, aggregate_structural,
+                         flush_all_fallbacks, policy_for)
+from .jev_completion import dogfood_phase, score_all_phases
+from .jev_packs import (
+    VISION_ASSESSMENT_PACK_ID,
+    VISION_ASSESSMENT_PACK_VERSION,
+    build_vision_assessment_state,
+    validate_log_pack,
+    validate_operator_pack,
+    validate_repo_summary_pack,
+    vision_assessment_preflight,
+)
+from .repo_summary import analyze_repo as _repo_analyze
+from .repo_summary import render_repo_map as _repo_render_map
+from .repo_summary import write_envelope as _repo_write_envelope
+from .repo_summary import write_map as _repo_write_map
+from .log_analysis import analyze_log as _log_analyze, load_log_text as _log_load_text, write_analysis as _log_write_analysis
+from .mission_driver import pack_probe_attempt as _mission_pack_probe
+from .mission_driver import run_mission as _mission_run
+from .capability import (
+    capabilities_payload as _capability_payload_owner,
+    evaluate_pool_rotation,
+    seat_share_report,
+)
+from .brief import build_brief, freshness_report, render_brief, validate_brief
+from .dag import TaskDAG, node_apply_kwargs
+from .executor import DEFAULT_PLAN_WORKERS, PlanExecutor
+from .pyramid_state import (
+    dag_for_pending, load_state, node_routes_for_pending, persist_state)
+from .results import terminal_exit_code, verify_terminal_status
+from .saturation import advise
+from .validation import finite_number
+import sys
+import uuid
+
+from ._http import HttpTransport
+from .apply import validate_continuation
+from .batch import BatchOptions
+try:
+    from .bench import load_manifest, run_bench
+except Exception as _bench_import_exc:
+    # Self-hosting resilience: a deferred self-edit may leave
+    # harness/bench.py unimportable (SyntaxError included -- hence the
+    # broad catch), and that must not break unrelated commands, notably
+    # `continue`, which resumes exactly such states. Only `bench` itself
+    # may fail, at use time, as a clean HarnessError (see _cmd_bench).
+    # (Bound under a different name: `except ... as e` deletes e on exit.)
+    load_manifest = run_bench = None
+    _bench_import_error = _bench_import_exc
+else:
+    _bench_import_error = None
+from .claims import (
+    build_claims_prompt, curate_claims_from_ledger, load_claims_manifest,
+    load_definitions_file,
+)
+from .claims import parse_claims
+from .config import load_settings, shipped_model_ids
+from .cli_parser import build_parser
+from .cli_report import _emit, _emit_by_status, _print_capabilities_table, _print_cost_table
+
+
+def _split_opt_list(value):
+    """Parse a comma-separated CLI list into a clean list of model ids."""
+    return [x.strip() for x in (value or "").split(",") if x.strip()]
+
+
+def _read_text(path, what):
+    """CLI alias for the ONE BOM-tolerant reader (service.read_text_file).
+    utf-8-sig: Windows tooling (PowerShell ``>`` redirects) emits BOM'd text;
+    a leading U+FEFF would corrupt --prompt-file/--source-file input and make
+    handoff JSON files fail to parse. Kept as a named seam so existing tests
+    and callers keep their patch point."""
+    return _service_read_text(path, what)
+
+
+def _read_json(path, what):
+    """Read a JSON file, presenting missing files and parse errors cleanly."""
+    text = _read_text(path, what)
+    try:
+        return json.loads(text)
+    except ValueError as e:
+        raise HarnessError(f"{what} is not valid JSON: {path} ({e})") from e
+
+
+# Composition lives in harness/session.py (the ONE owner); the aliases below
+# keep the historical cli seams for commands and tests that patch them.
+
+
+def _run_claims_verify(settings, *, prompt, task_id=None, max_tokens=None,
+                       reasoning_effort=None, converge=False, judge=None,
+                       convergence_model=None, specialist_pool=None,
+                       reassurance_claims="", panel=None, max_cost=None):
+    """Claims-verify execution via the canonical service layer. Kept as a
+    named seam because `dogfood` composes it and tests patch it; the
+    assembly itself (governor, ledger, pre-run look-ahead, panel_judge
+    kwargs, cancelled envelope, cost/meta) has ONE owner: service.run_verify.
+    Interfaces only prepare inputs and present results. Panel ordering
+    (catalog seed, capability sort, degrade-to-given-order) is the panel
+    lane's own job."""
+    return _service_verify(
+        settings, prompt=prompt, task_id=task_id,
+        max_cost=max_cost, judge=judge, reasoning_effort=reasoning_effort,
+        max_tokens=max_tokens, panel=panel, converge=converge,
+        convergence_model=convergence_model,
+        specialist_pool=specialist_pool,
+        reassurance_claims=reassurance_claims)
+
+
+def _run_meta(settings, gov):
+    """CLI seam for session.run_meta (the ONE owner); kept so existing
+    tests and callers keep their patch point."""
+    return _session_run_meta(settings, gov)
+
+
+def _cmd_verify(opts, settings):
+    # P0 structured-claims mode: lint + auto-expand BEFORE any network call, so
+    # ONE owner for prompt assembly (the canonical service layer): file
+    # reading, manifest parsing, grounding, and convergence/polarity
+    # derivation all live in service.prepare_verify. The CLI keeps only
+    # presentation -- lint printing, the rejected exit, and the reassurance
+    # banner. Error wording is preserved verbatim at the CLI boundary.
+    if not (opts.claims_file or opts.prompt_file or opts.prompt):
+        raise HarnessError(
+            "verify requires --prompt-file/--prompt or --claims-file.")
+    if opts.claims_file and not opts.source_file:
+        raise HarnessError("verify --claims-file requires --source-file "
+                           "(the verbatim code window the panel will review).")
+    if opts.prompt is not None and not opts.prompt.strip():
+        raise HarnessError("prompt is empty.")
+    prepared = _prepare_verify(
+        prompt=opts.prompt, prompt_file=opts.prompt_file,
+        claims_file=opts.claims_file, source_file=opts.source_file,
+        definitions_file=opts.definitions_file,
+        claim_context=opts.claim_context)
+    prompt = prepared["prompt"]
+    claims_lint = prepared["claims_lint"]
+    if claims_lint is not None:
+        if not claims_lint["ok"]:
+            for issue in claims_lint["issues"]:
+                eprint(f"[claims-lint] {issue['severity'].upper()} "
+                       f"{issue['code']}: {issue['message']}")
+            _emit({"status": "rejected", "lint": claims_lint}, opts.out)
+            sys.exit(2)
+        # structured-claims mode always runs the convergence gate (deterministic
+        # tally) and derives the polarity map from the manifest kinds.
+        opts.converge = prepared["converge"]
+        opts.reassurance_claims = prepared["reassurance_claims"]
+    result = _run_claims_verify(
+        settings, prompt=prompt, task_id=opts.task_id,
+        max_tokens=opts.max_tokens, reasoning_effort=opts.reasoning_effort,
+        converge=opts.converge, judge=opts.judge,
+        convergence_model=opts.convergence_model,
+        panel=(_split_opt_list(opts.panel) if opts.panel else None),
+        specialist_pool=(_split_opt_list(opts.specialist_pool)
+                         if opts.specialist_pool else None),
+        reassurance_claims=opts.reassurance_claims, max_cost=opts.max_cost)
+    if claims_lint is not None:
+        result["claims_grounding"] = {
+            "ok": claims_lint["ok"],
+            "issues": claims_lint["issues"],
+            "expansions": claims_lint["expansions"],
+        }
+    # Terminal honesty: a fail-closed run on a saturated tier says so plainly
+    # (one policy owner, harness/saturation.py).
+    advise(panel_failures=result.get("panel_failures"))
+    result["status"] = verify_terminal_status(result)
+    _emit_by_status(
+        result, opts.out,
+        deferred_message=("[verify] review deferred/inconclusive; inspect the "
+                          "report before treating it as reviewed."))
+
+
+def _cmd_dogfood(opts, settings):
+    """Self-hosting loop as one command: audit the harness with the harness.
+
+    Three fail-closed phases, each reusing its existing lane:
+      1. GROUND  -- hermetic claims lint of the fixture vs its source window
+                    (no network; an ungrounded claim never reaches a model).
+      2. VERIFY  -- live panel + convergence tally; the defect must be
+                    panel-confirmed (`converged` = every required slot voted)
+                    before any edit is attempted.
+      3. APPLY   -- self-edit via ApplyEngine, the operator's verify command
+                    as the gate; a failed run leaves the tree untouched.
+    Any phase that cannot prove its precondition stops the run with the
+    phase's own evidence. Exit 0 only if every phase proved its claim.
+    """
+    if opts.from_ledger:
+        if opts.claims_file:
+            raise HarnessError(
+                "--from-ledger curates the claims manifest from the ledger; "
+                "it cannot be combined with --claims-file")
+        # Curation reads the ledger, not the live key. The curated manifest is
+        # always persisted via --claims-out: the dry run is step one of the
+        # chain (curate -> inspect -> dogfood --claims-file <that file>).
+        if not opts.claims_out:
+            raise HarnessError("--from-ledger requires --claims-out: the curated "
+                               "manifest must be persisted for the next run")
+        seed_ledger = _ledger(settings)
+        manifest, evidence = curate_claims_from_ledger(
+            seed_ledger.entries(), window=opts.evidence_window,
+            max_claims=opts.max_claims)
+        if not manifest["claims"]:
+            _emit({"status": "nothing_to_audit", "evidence": evidence}, opts.out)
+            eprint("[dogfood] the ledger evidence is not curation-worthy "
+                   "(no repeated model failures). Nothing to audit.")
+            sys.exit(0)
+        fixture = json.dumps(manifest, indent=2)
+        seed_ledger.append("dogfood_curate", task_id=opts.task_id or "dogfood-curate",
+                           claims=len(manifest["claims"]),
+                           evidence=evidence)
+        # The verbatim source window the panel reviews IS the evidence file:
+        # the manifest's provenance and rule ranking stay in scope.
+        source_text = json.dumps(evidence, indent=2)
+        source_path = os.path.join(
+            tempfile.mkdtemp(prefix="harness-dogfood-"), "evidence.json")
+        with open(source_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(source_text)
+        eprint(f"[dogfood] curated {len(manifest['claims'])} claim(s) from the "
+               f"ledger; evidence window written to {source_path}")
+        manifest_ctx, claims = parse_claims(manifest)
+        quoted = source_text
+        claims_arg = claims
+        source_text_arg = quoted
+        claims_file_arg = None
+        source_file_arg = source_path
+    else:
+        if not opts.claims_file or not opts.source_file:
+            raise HarnessError(
+                "dogfood requires --claims-file and --source-file, or --from-ledger")
+        claims_arg = None
+        source_text_arg = None
+        claims_file_arg = opts.claims_file
+        source_file_arg = opts.source_file
+    if opts.from_ledger:
+        with open(opts.claims_out, "w", encoding="utf-8", newline="\n") as f:
+            f.write(fixture)
+        eprint(f"[dogfood] curated manifest written to {opts.claims_out}")
+
+    def on_phase(name, payload):
+        _emit({"dogfood_phase": name, **payload}, None)
+
+    validate_target_file(opts.file)
+    if opts.verify:
+        validate_verify_command(opts.verify)
+
+    report = _service_run_dogfood(
+        settings,
+        file=opts.file,
+        instruction=opts.instruction,
+        verify_cmd=opts.verify,
+        claims_file=claims_file_arg,
+        source_file=source_file_arg,
+        definitions_file=opts.definitions_file,
+        claims=claims_arg,
+        source_text=source_text_arg,
+        claim_context=opts.claim_context,
+        task_id=opts.task_id,
+        max_cost=opts.max_cost,
+        max_rounds=opts.max_rounds,
+        require_consent=opts.require_consent,
+        model=opts.model,
+        max_tokens=opts.max_tokens,
+        task_max_cost=opts.task_max_cost,
+        allow_escalation=opts.allow_escalation,
+        reasoning_effort=opts.reasoning_effort,
+        renew_consent=opts.renew_consent,
+        require_diff_authorization=getattr(
+            opts, "require_diff_authorization", None),
+        max_rotations=opts.max_rotations,
+        backend=opts.backend,
+        max_lines=opts.max_lines,
+        on_phase=on_phase,
+        run_verify_fn=_run_claims_verify,
+        apply_session_fn=_session)
+
+    _emit(report, opts.out)
+    if report.get("status") == "ungrounded":
+        sys.exit(2)
+    if report.get("status") == "not_confirmed":
+        eprint("[dogfood] no defect survived the panel tally; nothing to apply.")
+        sys.exit(3)
+    if "apply" in report:
+        code = terminal_exit_code(report["apply"].get("status"))
+        if code:
+            sys.exit(code)
+
+
+def _cmd_brief(opts, settings=None):
+    """Build the grounded context pack (MR-8 spec / HV-2). Hermetic: no key, no
+    network; the pack asserts nothing beyond the goal."""
+    goal = getattr(opts, "goal_opt", None) or getattr(opts, "goal_pos", None) or getattr(opts, "goal", None)
+    if not goal:
+        raise HarnessError("brief requires a goal (via argument or --goal)")
+    raw_files = list(getattr(opts, "files", []) or [])
+    files_csv = getattr(opts, "files_csv", None)
+    if files_csv:
+        raw_files.extend([f.strip() for f in files_csv.split(",") if f.strip()])
+    seen = set()
+    files = []
+    for f in raw_files:
+        if f not in seen:
+            seen.add(f)
+            files.append(f)
+    budget = getattr(opts, "budget", 48000) or 48000
+    pack = build_brief(goal, files, max_total_chars=budget)
+    if getattr(opts, "freshness", False):
+        pack["freshness_report"] = freshness_report(pack)
+    if getattr(opts, "render", False):
+        rendered = render_brief(pack)
+        if getattr(opts, "out", None):
+            with open(opts.out, "w", encoding="utf-8") as f:
+                f.write(rendered)
+        else:
+            sys.stdout.write(rendered)
+        return
+    out = {"brief": pack}
+    if getattr(opts, "validate", False):
+        out["grounding_issues"] = validate_brief(pack)
+        out["ok"] = not out["grounding_issues"]
+    out["status"] = "ok" if out.get("ok", True) else "incomplete"
+    _emit_by_status(out, opts.out)
+
+
+def _cmd_lint_claims(opts, settings=None):
+    """Hermetic claim linting: no network, no key. Exits 2 on error issues."""
+    manifest_ctx, claims = load_claims_manifest(opts.claims_file)
+    quoted = _read_text(opts.source_file, "--source-file")
+    defs = load_definitions_file(opts.definitions_file) if opts.definitions_file else {}
+    context = opts.claim_context if opts.claim_context is not None else manifest_ctx
+    prompt, report = build_claims_prompt(claims, quoted, source_index=defs,
+                                         context=context)
+    out = {"ok": report["ok"], "issues": report["issues"],
+           "expansions": report["expansions"],
+           "window_lines": len(quoted.splitlines()) if quoted.strip() else 0}
+    if opts.show_prompt:
+        out["prompt"] = prompt
+    _emit(out, opts.out)
+    for issue in report["issues"]:
+        eprint(f"[claims-lint] {issue['severity'].upper()} "
+               f"{issue['code']}: {issue['message']}")
+    if not report["ok"]:
+        sys.exit(2)
+
+
+def _batch_options(opts, continuation=None):
+    """The per-file session options for apply and continue, built once."""
+    instruction = getattr(opts, "instruction", None)
+    if continuation and instruction:
+        continuation = dict(continuation)
+        continuation["remaining_scope"] = instruction
+    model = opts.model or getattr(opts, "trial_model", None)
+    return BatchOptions(
+        instruction=instruction, edit_snippet=opts.edit_snippet,
+        verify_cmd=opts.verify, max_rounds=opts.max_rounds,
+        require_consent=opts.require_consent, model=model,
+        max_tokens=opts.max_tokens, task_max_cost=opts.task_max_cost,
+        allow_escalation=opts.allow_escalation,
+        reasoning_effort=opts.reasoning_effort, renew_consent=opts.renew_consent,
+        require_diff_authorization=getattr(
+            opts, "require_diff_authorization", None),
+        max_rotations=opts.max_rotations, backend=opts.backend,
+        verify_only=opts.verify_only, max_lines=opts.max_lines,
+        continuation=continuation)
+
+
+
+def _cmd_apply(opts, settings):
+    # Validate persisted state before key/model setup. A malformed or ungated
+    # continuation must fail without even fetching /key or /models.
+    continuation = None
+    if opts.continue_from:
+        continuation = validate_continuation(_read_json(opts.continue_from,
+                                                        "--continue-from state"))
+    if not opts.file and not continuation:
+        raise HarnessError("apply requires --file (or --continue-from <state.json>)")
+
+    engine = _session(settings)
+    # Multi-file batch (#12): repeated --file flags run one governed session
+    # per file through the same engine/router/gate, sharing the task budget.
+    files = opts.file if isinstance(opts.file, list) else ([opts.file] if opts.file else [])
+    if not files and not continuation:
+        raise HarnessError("apply requires --file (repeatable for multi-file batches)")
+    # The engine owns the batch loop (and, on resume, replaces the file list
+    # with the continuation's own target).
+    result = engine.apply_batch(
+        files or [None], task_id=opts.task_id,
+        options=_batch_options(opts, continuation),
+        keep_going=opts.keep_going)
+    result["meta"] = _run_meta(settings, engine.governor)
+    _emit_by_status(result, opts.out)
+
+
+def _cmd_continue(opts, settings):
+    # As with --continue-from, reject missing verification authority before any
+    # OpenRouter key/model lookup. `validate_continuation` also unwraps a full
+    # persisted result object for CLI callers.
+    continuation = validate_continuation(
+        _read_json(opts.state, "--state continuation"))
+    engine = _session(settings)
+    result = engine.apply_batch(
+        [None], task_id=opts.task_id,
+        options=_batch_options(opts, continuation))
+    _emit_by_status(result, opts.out, continued=True)
+
+
+def _cmd_offer(opts, settings):
+    api_key, gov = _governor(settings)
+    ledger = _ledger(settings)
+    result = probe_consent(
+        transport=HttpTransport(), api_key=api_key, governor=gov,
+        task_id=opts.task_id or uuid.uuid4().hex[:8], task=opts.task,
+        model=opts.model or settings.judge, context=opts.context,
+        ledger=ledger, required=True, fallback_pool=settings.panel_pool,
+        min_confidence=settings.min_confidence)
+    _emit(result, opts.out)
+
+
+def _cmd_defer(opts, settings):
+    ledger = _ledger(settings)
+    entry = ledger.append("defer_midtask", task_id=opts.task_id, reason=opts.reason,
+                          category=opts.category or None, model="(deferral)")
+    _emit({"status": "deferred", "task_id": opts.task_id, "reason": opts.reason,
+           "category": opts.category, "ledger_entry": entry}, None)
+
+
+def _cmd_issue_sort(opts, settings):
+    """Thin JEV-P5 face: load the operator pack, call the ONE policy owner,
+    emit combo + structural. No second Jev client, no invented buckets."""
+    raw_pack = _read_json(opts.pack, "issue-sort pack")
+    pack = validate_operator_pack(raw_pack)
+    ledger = _ledger(settings)
+    # CLI/MCP/GUI parity: a keyed face composes the shared spend governor
+    # (session.jev_face_governor) so preflight can reserve, instead of
+    # silently degrading to keyword fallback on a keyed machine. Unkeyed
+    # runs stay governor-free and hermetic.
+    gov = jev_face_governor(settings, getattr(opts, "max_cost", None))
+    jev_policy = policy_for(settings, transport=HttpTransport(),
+                            governor=gov, ledger=ledger)
+    result, structural, combo = jev_policy.evaluate_issue_sort(
+        {"issue": opts.issue}, pack, site="issue_sort")
+    envelope = {
+        "status": "ok" if combo.get("bucket") else "unmatched",
+        "combo": combo,
+        "structural": structural,
+        "answers": result.answers,
+        "reasons": result.reasons,
+        "is_fallback": bool(combo.get("is_fallback")),
+        "pack_id": combo.get("pack_id"),
+        "bucket": combo.get("bucket"),
+        "path_id": combo.get("path_id"),
+        "suggested_next_action": combo.get("suggested_next_action"),
+    }
+    _emit(envelope, opts.out)
+
+
+def _cmd_log_judgment(opts, settings):
+    """Thin JEV-LOG face: parse ($0), judge every item via the ONE policy
+    owner, aggregate to JSON. No second Jev client; unmatched stays honest."""
+    raw_pack = _read_json(opts.pack, "log pack")
+    try:
+        pack = validate_log_pack(raw_pack)
+    except ValueError as exc:
+        raise HarnessError(f"log pack invalid: {exc}") from exc
+    log_text = _log_load_text(opts.log)
+    # Same composition as issue-sort/route: keyed runs get the shared spend
+    # governor (CLI/MCP/GUI parity) so the JEV-LOG dogfood can judge live;
+    # --max-cost bounds the run, unkeyed stays hermetic with no governor.
+    gov = jev_face_governor(settings, getattr(opts, "max_cost", None))
+    jev_policy = policy_for(settings, transport=HttpTransport(),
+                            governor=gov, ledger=_ledger(settings))
+    analysis = _log_analyze(
+        log_text, pack, jev_policy,
+        info_sample=int(getattr(opts, "info_sample", 0) or 0),
+    )
+    # Honest silence check: a log dump that has lines but extracted zero
+    # items almost always means the header format didn't match the
+    # expected `tracing` shape (--help documents it), not that the run
+    # genuinely saw no WARN/ERROR -- flag it instead of emitting a
+    # quietly-empty analysis that looks like a clean log.
+    if (analysis.get("coverage", {}).get("total_items") == 0
+            and log_text.strip()):
+        eprint("[log-judgment] read {} line(s) but matched 0 log items; "
+               "check the log header format matches "
+               "'<ISO-8601 ts>Z  LEVEL module::path: message' "
+               "(see `harness log-judgment --help`)"
+               .format(len(log_text.splitlines())))
+    if getattr(opts, "save_to", None):
+        _log_write_analysis(analysis, opts.save_to)
+    _emit(analysis, opts.out)
+
+
+def _cmd_route(opts, settings):
+    """SITE-2 face: route a user query onto the declared model ladder.
+
+    The ladder pack comes from --pack (operator/config owned, never
+    hardcoded here); unkeyed runs answer via the deterministic tier
+    heuristic with is_fallback=true. Same composition shape as issue-sort:
+    policy + ledger only.
+    """
+    try:
+        pack = validate_route_pack(_read_json(opts.pack, "route pack"))
+    except ValueError as exc:
+        raise HarnessError(f"route pack invalid: {exc}") from exc
+    ledger = _ledger(settings)
+    # CLI/MCP/GUI parity: keyed runs compose the shared spend governor so
+    # preflight can reserve (see session.jev_face_governor).
+    gov = jev_face_governor(settings, getattr(opts, "max_cost", None))
+    jev_policy = policy_for(settings, transport=HttpTransport(),
+                            governor=gov, ledger=ledger)
+    result, structural, combo = jev_policy.evaluate_model_route(
+        {"goal": opts.goal}, pack, site="model_route")
+    envelope = {
+        "status": "ok" if combo.get("rung_id") else "unroutable",
+        "route": combo,
+        "structural": structural,
+        "answers": result.answers,
+        "reasons": result.reasons,
+        "is_fallback": bool(combo.get("is_fallback")),
+        "pack_id": combo.get("pack_id"),
+        "rung_id": combo.get("rung_id"),
+        "tier": combo.get("tier"),
+        "model": combo.get("model"),
+        "cost_class": combo.get("cost_class"),
+    }
+    _emit(envelope, opts.out)
+
+
+def _repo_summary_policy_factory(settings, chunk_cap, run_budget, ledger):
+    """Compose the ONE policy owner for JEV-P6, chunked under HARD_MAX_COST.
+
+    Each governor this face composes is bounded by ``jev_face_governor``
+    (``settings.max_cost`` or ``--max-cost``; anything above HARD_MAX_COST
+    is refused fail-closed). The operator's explicit ``--run-budget`` bounds
+    the CUMULATIVE actual spend of the whole run across chunks: the factory
+    returns ``None`` when the budget cannot cover one more worst-case call
+    and the driver stops honestly with ``stop_reason=run_budget``. Unkeyed
+    runs compose a governor-free hermetic policy and never stop early.
+    """
+    state = {"gov": None, "policy": None}
+
+    def make_policy(cumulative: float):
+        if not getattr(settings, "jev_api_key", None):
+            if state["policy"] is None:
+                state["policy"] = policy_for(
+                    settings, transport=HttpTransport(), governor=None,
+                    ledger=ledger)
+            return state["policy"]
+        worst = jev_cost(JEV_MAX_INPUT_TOKENS)
+        if (run_budget is not None
+                and float(cumulative) + worst > float(run_budget)):
+            return None
+        if state["gov"] is None or state["gov"].remaining() < worst:
+            gov = jev_face_governor(settings, chunk_cap)
+            if gov is None:
+                return None
+            state["gov"] = gov
+            state["policy"] = policy_for(
+                settings, transport=HttpTransport(), governor=gov,
+                ledger=ledger)
+        return state["policy"]
+
+    return make_policy
+
+
+def _cmd_repo_summary(opts, settings):
+    """JEV-P6 face: whole-repo inventory ($0) + keyed element judgments via
+    the ONE policy owner (preflight -> typed call -> settle + one jev_eval
+    per element), aggregated to an envelope JSON and a REPO-MAP render."""
+    raw_pack = _read_json(opts.pack, "repo-summary pack")
+    try:
+        pack = validate_repo_summary_pack(raw_pack)
+    except ValueError as exc:
+        raise HarnessError(f"repo-summary pack invalid: {exc}") from exc
+    ledger = _ledger(settings)
+    run_budget = getattr(opts, "run_budget", None)
+    state_path = getattr(opts, "state", None)
+    if not state_path and getattr(opts, "save_to", None):
+        state_path = str(opts.save_to) + ".judgments.jsonl"
+    make_policy = _repo_summary_policy_factory(
+        settings, getattr(opts, "max_cost", None), run_budget, ledger)
+    envelope = _repo_analyze(
+        opts.root, pack, make_policy,
+        state_path=state_path,
+        file_limit=getattr(opts, "limit", None),
+        symbol_limit=int(getattr(opts, "symbols", 200) or 0),
+        run_budget=run_budget,
+        task_id="repo-summary",
+        exclude=[getattr(opts, "save_to", None),
+                 getattr(opts, "map", None), state_path],
+    )
+    written = {}
+    if getattr(opts, "save_to", None):
+        written["envelope"] = _repo_write_envelope(envelope, opts.save_to)
+    if getattr(opts, "map", None):
+        written["map"] = _repo_write_map(_repo_render_map(envelope), opts.map)
+    report = {key: envelope[key] for key in
+              ("schema", "generated_at", "pack_id", "coverage", "spend",
+               "axes", "attention", "nouls", "structural")}
+    report["written"] = written
+    report["state_path"] = state_path
+    _emit(report, opts.out)
+
+
+def _cmd_site_export(opts, settings):
+    """SITE-1 face: verified ledger -> sanitized site-bundle-v1 JSON.
+
+    Fail-closed end to end: refuses without --yes (the operator's explicit
+    public-release affirmation), refuses on a broken chain, and scans the
+    output for credential shapes before a single byte lands on disk.
+    """
+    if not opts.yes:
+        raise HarnessError(
+            "site-export publishes evidence beyond this machine; pass --yes "
+            "together with a consent record you actually signed")
+    import harness as _harness_pkg
+    bundle = _site_export_bundle(
+        opts.ledger, opts.consent, pricing_path=opts.pricing,
+        harness_version=_harness_pkg.__version__,
+        include_economics=bool(getattr(opts, "economics", False)))
+    size = _site_export_write(bundle, opts.out)
+    eprint(f"[site-export] bundle {bundle['bundle_id']} written: {opts.out} "
+           f"({size} bytes, {bundle['totals']['runs']} runs, "
+           f"truncated={bundle['truncated']})")
+
+
+def _cmd_ledger(opts, settings):
+    if opts.ledger_cmd == "tail" and opts.n < 1:
+        # tail(0) is [-0:] == the whole ledger; negative n slices from the
+        # front -- both silent nonsense (same class as models --limit).
+        raise HarnessError("ledger tail count must be a positive integer")
+    if opts.ledger_cmd == "defer-stats" and opts.window < 1:
+        raise HarnessError("defer-stats window must be a positive integer")
+    ledger = _ledger(settings)
+    if opts.ledger_cmd == "tail":
+        _emit({"entries": ledger.tail(opts.n), "count": len(ledger.entries()),
+               "chain": ledger.chain_status()}, opts.out)
+    elif opts.ledger_cmd == "verify":
+        ok, bad = ledger.verify()
+        _emit({"verified": ok, "first_bad_seq": bad,
+               "chain": ledger.chain_status()}, opts.out)
+        if not ok:
+            sys.exit(2)
+    elif opts.ledger_cmd == "repair":
+        kept, dropped = ledger.repair()
+        _emit({"repaired": dropped > 0, "kept": kept, "dropped": dropped},
+              opts.out)
+    elif opts.ledger_cmd == "defer-stats":
+        _emit(ledger.defer_stats(window=opts.window), opts.out)
+    elif opts.ledger_cmd == "report":
+        from . import trust as trust_policy
+        report = ledger.participation_report()
+        report["trust"] = trust_policy.trust_status(report)
+        _emit(report, opts.out)
+
+
+def _cmd_bench(opts, settings):
+    if load_manifest is None or run_bench is None:
+        raise HarnessError(
+            f"bench unavailable: harness/bench.py failed to import "
+            f"({_bench_import_error}); restore or repair it first")
+    engine = _session(settings, opts.max_cost)
+    tasks = load_manifest(opts.manifest)
+    for t in tasks:
+        if opts.require_consent:
+            t.setdefault("require_consent", True)
+        if opts.max_rounds:
+            t.setdefault("max_rounds", opts.max_rounds)
+    report = run_bench(engine, tasks)
+    _emit(report, opts.out)
+    st = report["bench"]["statuses"]
+    if st.get("ok", 0) < len(tasks):
+        eprint("[bench] some tasks did not pass; see report.")
+        if st.get("deferred") or st.get("consent_blocked"):
+            sys.exit(3)
+        sys.exit(2)
+
+
+def _cmd_site_check(opts, settings):
+    """Thin CLI face over AutonomousAgent's shared request lifecycle."""
+    prompt = " ".join(opts.prompt).strip()
+    if not is_site_check_prompt(prompt):
+        raise HarnessError(
+            "site-check requires a single current availability question "
+            "for a named public site")
+    agent = AutonomousAgent(settings=settings)
+    result = agent.run_prompt(
+        prompt=prompt, auto_apply=False, session_id=opts.session_id,
+        force_conversation=True)
+    _emit(result, opts.out)
+    code = terminal_exit_code(result.get("status"))
+    if code:
+        sys.exit(code)
+
+
+def _cmd_models(opts, settings):
+    if opts.limit < 1:
+        raise HarnessError("--limit must be a positive integer")
+    api_key, gov = _governor(settings)
+    transport = HttpTransport()
+    ids = discover_free_models(transport, api_key, prefer=settings.panel_pool,
+                               limit=opts.limit)
+    if opts.all:
+        # A different cache intent (full catalog, not the free-only filter),
+        # but the same verified key -- no second governor needed.
+        rows = []
+        for m in gov.fetch_models(refresh=True):
+            p = m.get("pricing") or {}
+            def _p(v):
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    return None
+            rows.append({"id": m.get("id"),
+                         "context": m.get("context_length"),
+                         "prompt_price": _p(p.get("prompt")),
+                         "completion_price": _p(p.get("completion"))})
+        rows.sort(key=lambda r: r["id"] or "")
+        ids = [r["id"] for r in rows]
+    else:
+        rows = ids
+    _emit({"free_only": not opts.all, "models": rows, "count": len(rows),
+           "meta": {"source": "openrouter:/models", "fetched_at": time.time(),
+                    "use_free": settings.use_free}}, opts.out)
+
+
+def _cmd_spend(opts, settings):
+    api_key, gov = _governor(settings)
+    status = gov.key_status()
+    # Enrichment (Phase 1): the session-level budget view the governor
+    # enforces, alongside the key-level data -- the same numbers a UI
+    # dashboard needs, from the one owner.
+    status["session"] = {"spent": gov.spent, "ceiling": gov.max_cost,
+                         "remaining": max(0.0, gov.max_cost - gov.spent)}
+    ledger = _ledger(settings)
+    c_report = ledger.cost_report()
+    if "jev" in c_report:
+        status["jev"] = c_report["jev"]
+    _emit(status, opts.out)
+
+
+def _cmd_cost(opts, settings):
+    """Cost observability snapshot: track spend by tier, model, lane, and calculate savings."""
+    ledger = _ledger(settings)
+    report = ledger.cost_report(
+        window=getattr(opts, "last", None),
+        by_tier=bool(getattr(opts, "by_tier", False)),
+        by_model=bool(getattr(opts, "by_model", False)),
+        by_lane=bool(getattr(opts, "by_lane", False)),
+        savings=bool(getattr(opts, "savings", False)),
+        price_table=SNAPSHOT_PRICE_TABLE,
+    )
+    if not getattr(opts, "json", False):
+        _print_cost_table(report)
+    _emit(report, opts.out)
+
+
+# DF-HUL-2: the CLI's default attempt seat (harness.mission_driver's code-
+# owned pack probe) makes no model call and spends nothing. It is
+# deliberately unkeyed/local-only -- CLI `mission run` / `mission resume
+# --run` never dispatch a paid model. A caller that wants a paid attempt
+# seat is a *library* caller: inject a callable into
+# ``harness.mission_driver.run_mission(..., attempt_fn=...)`` yourself, for
+# example one built from ``harness.session.apply_session`` / ``engine_for``
+# (resolves models through the existing Router/pool ladders -- no second
+# model client, no brand strings here). See README.md "CLI" / `harness
+# mission --help`.
+_MISSION_ATTEMPT_SEAT_NOTE = (
+    "attempt seat: unkeyed/local-only pack probe "
+    "(harness.mission_driver.pack_probe_attempt); no model call, no spend. "
+    "CLI `mission run`/`mission resume --run` cannot select a paid seat. "
+    "Library callers get one by injecting attempt_fn into "
+    "harness.mission_driver.run_mission (e.g. an apply-lane callable from "
+    "harness.session.apply_session, routed via the existing Router/ladders)."
+)
+
+
+def _run_mission_driver(pack, opts):
+    """Shared HUL-D driver call for `mission run` and `mission resume --run`
+    (DF-HUL-3: one driver, no second loop). Adds the CLI attempt-seat note
+    (DF-HUL-2) to the returned summary."""
+    run_settings = load_settings()
+    allow_live_jev = bool(getattr(opts, "live_jev", False))
+    if allow_live_jev and getattr(run_settings, "jev_api_key", None):
+        plan_ceiling = getattr(opts, "max_cost_usd", None) or getattr(opts, "max_cost", None) or 0.10
+        gov = jev_face_governor(run_settings, plan_ceiling)
+        transport = HttpTransport()
+        ledger = _ledger(run_settings) if hasattr(run_settings, "ledger_path") else None
+        scope_policy = policy_for(run_settings, transport=transport, governor=gov, ledger=ledger)
+    else:
+        run_settings.jev_api_key = None
+        try:
+            scope_policy = policy_for(run_settings)
+        except HarnessError:
+            scope_policy = None
+    stall_limit = getattr(opts, "stall_limit", None)
+    result = _mission_run(
+        pack,
+        attempt_fn=_mission_pack_probe,
+        scope_policy=scope_policy,
+        stall_limit=int(stall_limit) if stall_limit else 5,
+        max_attempts=getattr(opts, "max_attempts", None),
+        max_tokens=getattr(opts, "max_tokens", None),
+        max_errors=getattr(opts, "max_errors", None),
+    )
+    result["attempt_seat"] = _MISSION_ATTEMPT_SEAT_NOTE
+    return result
+
+
+def _cmd_mission(opts, settings):
+    """HUL-A/D mission pack CLI: init | status | resume | findings | run."""
+    from . import mission_record as mr
+    cmd = getattr(opts, "mission_cmd", None)
+    if cmd == "init":
+        in_scope = _split_opt_list(getattr(opts, "in_scope", ""))
+        out_scope = _split_opt_list(getattr(opts, "out_of_scope", ""))
+        spec = mr.build_mission_spec(
+            mission_id=opts.mission_id,
+            request=opts.request,
+            success_definition=opts.success_definition,
+            max_cost_usd=opts.max_cost_usd,
+            terminal_reserve_cost_usd=getattr(opts, "terminal_reserve_cost_usd", 0.0),
+            in_scope=in_scope,
+            out_of_scope=out_scope,
+            persistence_root=getattr(opts, "root", "missions"),
+            verifier_kind=getattr(opts, "verifier_kind", "unspecified"),
+        )
+        pack = mr.init_mission_pack(opts.root, spec)
+        _emit(mr.pack_summary(pack), opts.out)
+        return
+    if cmd == "run":
+        # HUL-D until-limits driver. CLI scope seat unkeyed by default.
+        pack = mr.load_mission_pack(opts.root, opts.mission_id)
+        result = _run_mission_driver(pack, opts)
+        _emit(result, opts.out)
+        return
+    pack = mr.load_mission_pack(opts.root, opts.mission_id)
+    if cmd == "status":
+        mr.write_status(pack)
+        mr.write_index(pack)
+        _emit(mr.pack_summary(pack), opts.out)
+        return
+    if cmd == "resume":
+        # DF-HUL-3: plain `mission resume` stays a read-only status call
+        # (it never mutates progress) but is honest that it did not
+        # continue anything and says how to. `--run` continues the SAME
+        # HUL-D until-limits driver `mission run` uses (no second loop).
+        if getattr(opts, "run", False):
+            terminal_before = mr.is_terminal(pack)
+            result = _run_mission_driver(pack, opts)
+            result["resumed"] = not terminal_before
+            _emit(result, opts.out)
+            return
+        state = mr.load_resume(pack)
+        validated = mr.validate_resume(state, expected_id=pack.id)
+        mr.write_resume(pack, validated)
+        mr.write_status(pack)
+        out = mr.pack_summary(pack)
+        out["resume"] = validated
+        resumable = validated["status"] not in ("terminal", "complete", "failed")
+        out["resumable"] = resumable
+        out["resumed"] = False
+        out["how_to_continue"] = (
+            f"read-only status only -- nothing was continued; pass --run to "
+            f"continue the until-limits driver from resume.json "
+            f"(harness mission resume --id {pack.id} --root {opts.root} --run)"
+        ) if resumable else (
+            "mission is already terminal; resume --run will not continue it "
+            "(see mission findings for the terminal outcome)"
+        )
+        _emit(out, opts.out)
+        return
+    if cmd == "findings":
+        if not pack.findings_md.is_file():
+            mr.ensure_findings_placeholder(pack)
+        body = pack.findings_md.read_text(encoding="utf-8")
+        out = mr.pack_summary(pack)
+        out["findings_md"] = body
+        out["terminal"] = mr.is_terminal(pack)
+        _emit(out, opts.out)
+        return
+    raise HarnessError(f"unknown mission command: {cmd!r}")
+
+
+def _cmd_trust(opts, settings):
+    """Read-only trust snapshot: no key, no network, no ledger writes."""
+    from . import trust as trust_policy
+    ledger = _ledger(settings)
+    _emit(trust_policy.trust_status(ledger.participation_report(),
+                                    model=opts.model,
+                                    caller=opts.caller), opts.out)
+
+
+def _cmd_rankings(opts, settings):
+    """Rankings-driven candidate report (advisory; no config mutation).
+
+    One GET for the daily rankings plus the cached live catalog; with
+    --probe, each proposed candidate additionally pays one governed vote.
+    """
+    api_key, gov = _governor(settings, opts.max_cost)
+    report = _rankings_report(
+        HttpTransport(), api_key, gov,
+        top_n=opts.top, probe_candidates=bool(opts.probe))
+    report["cost_by_model"] = gov.cost_by_model()
+    report["meta"] = _run_meta(settings, gov)
+    _emit(report, opts.out)
+
+
+def _cmd_economics(opts, settings):
+    """Economics & value surfaces: EV-0a discount probe, EV-1..EV-5 report /
+    freshness / bounded pool-rotation proposals, and EV-6 Fireworks comparison.
+    """
+    if getattr(opts, "provider", None) == "fireworks":
+        if getattr(opts, "confirm_single_paid_call", False) or getattr(opts, "model", None):
+            return _cmd_fireworks_verify(opts, settings)
+        endpoints = load_fireworks_endpoints(pack_path=getattr(opts, "pack", None))
+        comparisons = compare_fireworks_vs_openrouter(endpoints=endpoints)
+        if not getattr(opts, "json", False):
+            hdr = f"{'Family':<22} {'Fireworks ($/M)':<18} {'OpenRouter ($/M)':<18} {'Cheaper'}"
+            print(hdr)
+            print("-" * len(hdr))
+            for row in comparisons:
+                fw_in = row.get("fireworks_input_per_mtok", 0.0)
+                fw_out = row.get("fireworks_output_per_mtok", 0.0)
+                or_in = row.get("openrouter_input_per_mtok", 0.0)
+                or_out = row.get("openrouter_output_per_mtok", 0.0)
+                print(f"{row.get('family', ''):<22} {fw_in:.2f}/{fw_out:.2f}{'':<8} "
+                      f"{or_in:.2f}/{or_out:.2f}{'':<8} {row.get('cheaper_provider', '')}")
+        _emit({
+            "provider": "fireworks",
+            "endpoints": len(endpoints),
+            "comparisons": comparisons,
+        }, opts.out, force_json=getattr(opts, "json", False))
+        return
+
+    if getattr(opts, "check_fresh", False):
+        freshness = check_tier_snapshot_freshness()
+        _emit(freshness, opts.out, force_json=getattr(opts, "json", False))
+        if not freshness.get("ok"):
+            sys.exit(2)
+        return
+
+    if (getattr(opts, "report", False)
+            or getattr(opts, "propose", False)
+            or getattr(opts, "apply", False)):
+        ledger = _ledger(settings)
+        entries = ledger.entries()
+        freshness = check_tier_snapshot_freshness()
+        seat_share = seat_share_report(entries)
+        cost_rep = ledger.cost_report(
+            by_tier=True, by_model=True, by_lane=True, savings=True,
+            price_table=SNAPSHOT_PRICE_TABLE,
+        )
+        current_pool = list(getattr(settings, "apply_pool", None) or ())
+        candidates = []
+        for m in current_pool:
+            price = SNAPSHOT_PRICE_TABLE.get(m, {})
+            in_rate = float(price.get("input_per_mtok") or 0.5)
+            out_rate = float(price.get("output_per_mtok") or 1.5)
+            est_cost = max(1e-6, (in_rate * 2.0 + out_rate * 0.8) / 1000.0)
+            candidates.append({
+                "id": m,
+                "value_score": round(1.0 / est_cost, 4),
+                "cost_usd": round(est_cost, 6),
+                "samples": 5,
+            })
+        proposal = evaluate_pool_rotation(
+            current_pool=current_pool,
+            candidate_metrics=candidates,
+            ledger_entries=entries,
+            allow_cost_increase=bool(getattr(opts, "allow_cost_increase", False)),
+        )
+        applied = False
+        if (getattr(opts, "apply", False)
+                and proposal.get("changed")
+                and proposal.get("proposed_pool")):
+            apply_pool_rotation(proposal["proposed_pool"])
+            applied = True
+        payload = {
+            "status": "ok",
+            "freshness": freshness,
+            "tiers": TIER_MODELS,
+            "unlisted_tier_fallbacks": unlisted_tier_fallbacks(),
+            "seat_share": seat_share,
+            "rotation_proposal": proposal,
+            "applied": applied,
+            "cost_summary": cost_rep,
+        }
+        _emit(payload, opts.out, force_json=getattr(opts, "json", False))
+        return
+
+    if not opts.probe_model:
+        raise HarnessError(
+            "`harness economics` runs the EV-0a discount probe; pass "
+            "--probe-model <id>. Pricing the endpoint feeds, the cost index "
+            "and cheapest-endpoint selection are EV-1+ work and no face here "
+            "reports them.")
+    api_key, gov = _governor(settings, getattr(opts, "max_cost", None))
+    record = _run_discount_probe(HttpTransport(), api_key, gov,
+                                 opts.probe_model)
+    if opts.record and record["semantics"] in (
+            DISCOUNT_LISTED_IS_EFFECTIVE, DISCOUNT_IS_MULTIPLIER):
+        report = {"recorded": _record_discount_semantics(
+            record, opts.verdict_path),
+            "semantics": record["semantics"]}
+    else:
+        report = {"recorded": None, "probe": record}
+        if opts.record:
+            eprint("[economics] probe was not conclusive "
+                   f"({record['semantics']}: {record.get('reason')}); "
+                   "nothing recorded, the price gate keeps refusing.")
+    _emit(report, opts.out)
+
+
+
+def _cmd_capabilities(opts, settings):
+    if getattr(opts, "check_shipped", False):
+        # Freshness validation of the SHIPPED default lanes: pure /models read
+        # ($0.00, no chat call), exit 2 when any default pool id has left the
+        # live catalog -- the twice-recurred stale-id defect class, now
+        # machine-checked instead of audit-cadence-checked.
+        api_key, gov = _governor(settings)
+        catalog = {m["id"] for m in gov.fetch_models(refresh=True)}
+        stale = sorted(shipped_model_ids() - catalog)
+        report = {"ok": not stale, "stale": stale,
+                  "checked": len(shipped_model_ids()),
+                  "catalog_size": len(catalog)}
+        _emit(report, opts.out)
+        if stale:
+            eprint("[check-shipped] stale default model ids (run will hard-fatal "
+                   "at fetch_pricing): " + ", ".join(stale))
+            sys.exit(2)
+        return
+    api_key, gov = _governor(settings, opts.max_cost)
+    out = _capabilities_payload(settings, gov, api_key=api_key,
+                                refresh=opts.refresh, bench=opts.bench,
+                                all_models=opts.all)
+    if not opts.json:
+        _print_capabilities_table(out)
+    _emit(out, opts.out)
+
+
+def _capabilities_payload(settings, gov, api_key=None, refresh=False,
+                          bench=False, all_models=False):
+    """CLI seam for capability.capabilities_payload (the ONE owner); the
+    session objects come from the CLI's own composition."""
+    return _capability_payload_owner(
+        gov, _ledger(settings), panel_pool=settings.panel_pool,
+        apply_pool=settings.apply_pool, judge=settings.judge,
+        api_key=api_key, transport=HttpTransport(), refresh=refresh,
+        bench=bench, all_models=all_models)
+
+
+def _plan_compose(settings, opts, gov, transport, api_key, *,
+                  candidate_files, frontier_model, execute, confirm=None,
+                  decompose_llm=None, plan_consensus=None, hourglass=None,
+                  allow_heuristic_preview=False):
+    """Plan-lane flow via the ONE owner (harness/waist.py): heuristic or
+    cheap-LLM decomposition, then (hourglass default: on) waist
+    confirmation."""
+    if hourglass is None:
+        hourglass = _resolve_hourglass(opts, settings)
+    if confirm is None:
+        confirm = hourglass["confirm"]
+    if decompose_llm is None:
+        decompose_llm = hourglass.get("decompose", False)
+    if plan_consensus is None:
+        plan_consensus = bool(getattr(opts, "plan_consensus", None))
+    plan_ledger = (_ledger(settings) if hasattr(settings, "ledger_path") else None)
+    jev_policy = (policy_for(settings, transport=transport,
+                             governor=gov, ledger=plan_ledger)
+                  if hasattr(settings, "jev_api_key") else None)
+    return _compose_plan(
+        transport=transport, api_key=api_key, governor=gov,
+        ledger=plan_ledger if (confirm or plan_consensus) else None,
+        opts_goal=opts.goal,
+        candidate_files=candidate_files, frontier_model=frontier_model,
+        use_free=settings.use_free,
+        decompose_llm=decompose_llm,
+        confirm=confirm,
+        plan_consensus=plan_consensus,
+        execute=execute,
+        allow_escalation=bool(getattr(opts, "allow_escalation", getattr(settings, "allow_escalation", False))),
+        jev_policy=jev_policy,
+        # The same pinned output budget the nodes will run with, so the
+        # chunk policy measures each pass against the real one.
+        max_tokens=getattr(opts, "max_tokens", None),
+        # DF-HG-3b: opt-in only (CLI: --allow-heuristic-preview); the
+        # default stays fail-closed for a plan-only preview whose LLM
+        # decomposition fails.
+        allow_heuristic_preview=allow_heuristic_preview,
+        # HV-4/HV-2-use / HV-6: everything a lane must hand the ONE composer, taken
+        # from the owner of that decision rather than assembled here -- the
+        # run's allowance, the operator's stage subset, and the intake brief
+        # the `context` stage produces. Attaching composition is evidence;
+        # it is not a second budget and it refuses no run by itself.
+        **compose_arguments(settings, goal=opts.goal,
+                            files=candidate_files,
+                            stages=getattr(opts, "stages", None),
+                            brief=getattr(opts, "brief", None),
+                            max_input_tokens=getattr(opts, "token_budget_input", None),
+                            max_output_tokens=getattr(opts, "token_budget_output", None),
+                            jev_policy=jev_policy))
+
+
+def _resolve_hourglass(opts, settings):
+    """Tri-state plan flags -> effective values (ONE mapping, owned by
+    config.resolve_hourglass): an explicit flag wins, otherwise the
+    settings-file default (auto-scaling hourglass: all on)."""
+    return resolve_hourglass(settings, opts)
+
+
+def _cmd_plan(opts, settings):
+    # Decompose a high-level goal into an executable TaskDAG and optionally execute
+    candidate_files = getattr(opts, "file", None)
+    frontier_model = getattr(opts, "frontier_model", None) or getattr(settings, "frontier_model", None)
+    execute = getattr(opts, "execute", False)
+    hourglass = _resolve_hourglass(opts, settings)
+    confirm = hourglass["confirm"]
+    decompose_llm = hourglass["decompose"]
+    plan_consensus = bool(getattr(opts, "plan_consensus", None))
+    resume_path = getattr(opts, "resume", None)
+
+    # DF-HG-1: plan composed-ceiling preflight honors --task-max-cost as well
+    # as --max-cost (precedence: explicit flag; engine defaults apply if neither).
+    plan_ceiling = getattr(opts, "task_max_cost", None)
+    if plan_ceiling is None:
+        plan_ceiling = getattr(opts, "max_cost", None)
+
+    # ONE governor for the whole run when it spends: decomposition,
+    # confirmation, and node execution share a single ceiling (the engine's
+    # when executing; a verified standalone governor for a plan-only LLM run).
+    engine = None
+    if execute:
+        engine = _session(settings, max_cost=plan_ceiling)
+        gov, transport, api_key = engine.governor, engine.transport, engine.api_key
+    elif decompose_llm or confirm or plan_consensus:
+        api_key, gov = _governor(settings, plan_ceiling)
+        transport = HttpTransport()
+    elif getattr(settings, "jev_api_key", None):
+        gov = jev_face_governor(settings, plan_ceiling)
+        transport = HttpTransport()
+        api_key = settings.jev_api_key
+    else:
+        gov, transport, api_key = None, None, None
+
+    # HG-pyramid-resume: a resume run re-plans only if no state was supplied;
+    # with state, the stored DAG's pending nodes are the work.
+    # DF-HG-2: cold-start bootstrap allows a missing resume_path to start fresh
+    # and persist its state upon completion.
+    pending_state = None
+    if resume_path:
+        pending_state = load_state(resume_path, allow_missing=True)
+
+    plan_result = _plan_compose(
+        settings, opts, gov, transport, api_key,
+        candidate_files=candidate_files, frontier_model=frontier_model,
+        execute=execute, confirm=confirm, decompose_llm=decompose_llm,
+        plan_consensus=plan_consensus, hourglass=hourglass,
+        allow_heuristic_preview=bool(
+            getattr(opts, "allow_heuristic_preview", False)))
+    if plan_result.get("status") == "refused":
+        # The waist refused (or the composed ceiling / unreachable waist
+        # fail-closed fired); execution must not start (exit code 2).
+        _emit_by_status(plan_result, opts.out)
+        return
+    if not execute:
+        if isinstance(plan_result.get("structural"), dict):
+            plan_result["structural"] = dict(plan_result["structural"])
+            plan_result["structural"]["site"] = "cli"
+        _emit(plan_result, opts.out)
+        return
+
+    # The plan's discovered per-node gate, carried into the executor as the
+    # default final gate. Named distinctly from gate_runner.run_gate (the
+    # shell-free runner) so a local can never shadow the runner.
+    discovered_gate = None
+    if isinstance(plan_result.get("dag"), dict):
+        # Carry the plan-level discovered gate into the executor for the
+        # default final gate.
+        for n in plan_result.get("nodes") or ():
+            if isinstance(n, dict) and n.get("local_gate"):
+                discovered_gate = n["local_gate"]
+                break
+    stage_gate = getattr(opts, "stage_gate", None)
+
+    if pending_state is not None:
+        dag = dag_for_pending(pending_state)
+        node_routes = node_routes_for_pending(pending_state, plan_result.get("nodes"))
+        if not dag.nodes:
+            output = {
+                "status": "ok",
+                "goal": pending_state.get("goal") or opts.goal,
+                "total_nodes": 0,
+                "completed_nodes": 0,
+                "results": list((pending_state.get("node_results") or {}).values()),
+                "cost": float(pending_state.get("spent") or 0.0),
+                "resumed": True,
+                "composed_worst_case": plan_result.get("composed_worst_case"),
+            }
+            _emit_by_status(output, opts.out)
+            return
+    else:
+        dag = TaskDAG.from_dict(plan_result["dag"])
+        node_routes = {n.get("node_id"): n for n in plan_result["nodes"]}
+
+    def on_stage_done(executable_nodes, _results):
+        # Optional full-suite stage gate (MR-5): the composed tree must be
+        # green before dependent stages start; failure aborts the run.
+        # PLAT-cmd-data: the same shell-free runner the verify gate uses --
+        # no shell means a forward-slash path is not cmd.exe's problem.
+        if not stage_gate:
+            return
+        rc, output = run_gate(stage_gate, timeout=STAGE_GATE_TIMEOUT)
+        if rc != 0:
+            raise HarnessError(
+                f"stage gate failed after a parallel stage completed; "
+                f"stopping before dependent stages (gate: {stage_gate}, "
+                f"exit {rc})\n{output.strip()[:800]}")
+
+    # ONE execution assembly for every lane (executor.PlanExecutor): worker
+    # count, reservations, worktree isolation, final gate, and per-node
+    # routing. The agent's edit lane builds the same object.
+    plan_exec = PlanExecutor(
+        engine, node_routes,
+        parallel=hourglass["parallel"], isolate=hourglass["isolate"],
+        max_workers=getattr(opts, "max_workers", DEFAULT_PLAN_WORKERS),
+        keep_going=getattr(opts, "keep_going", False),
+        require_diff_authorization=hourglass["require_diff_authorization"],
+        route_kwargs_fn=functools.partial(
+            node_apply_kwargs,
+            explicit_model=getattr(opts, "model", None),
+            explicit_task_max_cost=getattr(opts, "task_max_cost", None)),
+        base_apply_kwargs={
+            "allow_verify": True,
+            "require_consent": False,
+            "model": getattr(opts, "model", None),
+            "max_tokens": getattr(opts, "max_tokens", None),
+            "task_max_cost": getattr(opts, "task_max_cost", None),
+            "allow_escalation": getattr(opts, "allow_escalation", False),
+            "reasoning_effort": getattr(opts, "reasoning_effort", None),
+            "renew_consent": False,
+            "max_rotations": getattr(opts, "max_rotations", 3),
+        },
+        task_max_cost=getattr(opts, "task_max_cost", None),
+        # The budget this lane is really running under (the session ceiling
+        # this command resolved), so a node reservation is bounded by it
+        # instead of by an unrelated nominal default.
+        run_ceiling=getattr(gov, "max_cost", None),
+        on_stage_done=on_stage_done,
+        final_gate=getattr(opts, "final_gate", None),
+        run_gate=discovered_gate)
+    all_results = plan_exec.execute(dag)
+    summary = PlanExecutor.summarize(all_results)
+
+    # HG-pyramid-resume: persist after every execute so a later --resume can
+    # skip completed ok nodes.
+    if resume_path or getattr(opts, "persist_state", None):
+        state_path = resume_path or getattr(opts, "persist_state", None)
+        merged = dict((pending_state or {}).get("node_results") or {})
+        for key, res in all_results.items():
+            if key == "final_gate":
+                continue
+            merged[key] = res
+        persist_state(
+            state_path,
+            goal=plan_result.get("goal") or opts.goal,
+            dag=(pending_state or {}).get("dag") or plan_result.get("dag"),
+            node_results=merged,
+            spent=float(summary.get("total_cost") or 0.0)
+            + float((pending_state or {}).get("spent") or 0.0),
+            plan_nodes=plan_result.get("nodes"))
+
+    output = {
+        "status": "ok" if summary["all_ok"] else "failed",
+        "goal": opts.goal,
+        "total_nodes": len(dag.nodes),
+        "completed_nodes": summary["completed"],
+        "results": [r for key, r in all_results.items() if key != "final_gate"],
+        "cost": summary["total_cost"],
+        "composed_worst_case": plan_result.get("composed_worst_case"),
+        "final_gate": summary.get("final_gate"),
+    }
+    for field in ("composition", "planning", "token_budget", "brief",
+                  "stage_judgments", "stage_states"):
+        if plan_result.get(field) is not None:
+            output[field] = plan_result[field]
+    if pending_state is not None:
+        output["resumed"] = True
+        output["skipped_completed"] = sorted(
+            nid for nid, res in ((pending_state.get("node_results") or {}).items())
+            if isinstance(res, dict) and res.get("status") in ("ok", "success"))
+    structural = aggregate_structural(list(all_results.values()), site="cli")
+    if structural is None and isinstance(plan_result.get("structural"), dict):
+        structural = dict(plan_result["structural"])
+        structural["site"] = "cli"
+    if structural is not None:
+        output["structural"] = structural
+    _emit_by_status(output, opts.out)
+
+
+def _cmd_gates(opts, settings):
+    """The documented gates, as this platform's exact commands (PLAT-cmd-data).
+
+    Listing is the default because that is what the docs need: a contributor
+    on any OS reads the same registry the runner executes, with
+    ``{python}`` already resolved to the running interpreter. ``--run``
+    executes one gate through the single shell-free runner and exits with the
+    gate's own code, so "run the documented gate" is one command everywhere
+    instead of three shell idioms.
+    """
+    run_name = getattr(opts, "run_gate", None)
+    if not run_name:
+        payload = {
+            "gates": [
+                {
+                    "name": name,
+                    "summary": GATES[name].summary,
+                    "argv": GATES[name].argv(phase=getattr(opts, "phase", None) or "JEV-P0")
+                            if name == "jev-phase" else GATES[name].argv(),
+                    "command": GATES[name].command(phase=getattr(opts, "phase", None) or "JEV-P0")
+                               if name == "jev-phase" else GATES[name].command(),
+                }
+                for name in GATE_ORDER
+            ],
+        }
+        if getattr(opts, "json", False):
+            _emit(payload, getattr(opts, "out", None), force_json=True)
+        else:
+            print(gate_help())
+            print("")
+            for entry in payload["gates"]:
+                print(f'{entry["name"]}:')
+                print("  " + entry["command"])
+        return
+    spec = GATES.get(run_name)
+    if spec is None:
+        raise HarnessError(
+            f"unknown gate: {run_name} (known: {', '.join(GATE_ORDER)})")
+    params = {"phase": getattr(opts, "phase", None) or "JEV-P0"} \
+        if run_name == "jev-phase" else {}
+    timeout = getattr(opts, "timeout", None)
+    rc, output = run_gate(
+        spec.argv(**params),
+        timeout=int(timeout) if timeout else
+        (STAGE_GATE_TIMEOUT if run_name in ("unittest", "audit") else VERIFY_TIMEOUT * 2),
+    )
+    if output:
+        eprint(output.rstrip())
+    if getattr(opts, "json", False):
+        _emit({"gate": run_name, "exit_code": rc}, getattr(opts, "out", None),
+              force_json=True)
+    if rc != 0:
+        raise HarnessError(f"gate {run_name} failed with exit code {rc}")
+
+
+def _write_jev_phase_out(opts, payload):
+    if getattr(opts, "out", None):
+        out_dir = os.path.dirname(opts.out)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        # PLAT-parity: LF + UTF-8 always, so a Jev report written on Windows
+        # hashes the same as the same report written on Linux/macOS.
+        osal.write_text(opts.out, json.dumps(payload, indent=2, default=str))
+
+
+def _print_jev_phase_result(result):
+    print(f"phase={result['phase']} score={result['score']}/{result['min_score']} "
+          f"can_mark_complete={result['can_mark_complete']}")
+    print("hard_gates:", json.dumps(result["hard_gates"]))
+    if result.get("blockers"):
+        print("blockers:")
+        for b in result["blockers"]:
+            print(f"  - {b}")
+    sem = result.get("semantic") or {}
+    print(f"semantic: score={sem.get('score')} fallback={sem.get('is_fallback')} "
+          f"model={sem.get('model')} note={sem.get('note')}")
+    sentiment = result.get("sentiment") or {}
+    axes = sentiment.get("axes") or {}
+    if axes:
+        print("sentiment:")
+        for axis in sorted(axes):
+            a = axes[axis]
+            print(f"  {axis}: {a.get('level')} (source={a.get('source')})")
+        overall = sentiment.get("overall") or {}
+        print(f"  overall: {overall.get('level')}")
+    improvements = result.get("improvements") or []
+    if improvements:
+        print("improvements:")
+        # Primary gap first for the human reading top-to-bottom; the stored
+        # order (ordinal asc, then axis id) is unchanged in the JSON.
+        for imp in sorted(improvements, key=lambda i: 0 if i.get("primary") else 1):
+            marker = "*" if imp.get("primary") else "-"
+            print(f"  {marker} [{imp.get('bucket')}] {imp.get('suggested_next_action')} "
+                  f"(axis={imp.get('axis')}, level={imp.get('level')}, "
+                  f"source={imp.get('source')})")
+
+
+def _cmd_jev_phase(opts, settings):
+    """Dogfood the JEV bar: hard gates + full sentiment buckets drive whether
+    a mission phase may be marked complete (JEV-BAR)."""
+    use_live = not getattr(opts, "local_only", False)
+    all_phases = bool(getattr(opts, "all", False))
+    phase = getattr(opts, "phase", None)
+    if not all_phases and not phase:
+        raise HarnessError("jev-phase requires --phase or --all")
+    pack_path = getattr(opts, "pack", None)
+    min_score = float(getattr(opts, "min_score", 85.0))
+
+    if all_phases:
+        # --all is a local accounting pass; one live judgment per phase could
+        # multiply spend unexpectedly. Keep the live-mode behavior visible
+        # even when JSON is selected, without contaminating its stdout payload.
+        if use_live:
+            eprint("jev-phase --all is a local accounting pass; live Jev is not called. "
+                   "Use --phase <ID> for a live phase judgment.")
+        jev_policy = None
+        board = score_all_phases(
+            opts.repo_root, jev_policy=jev_policy, min_score=min_score,
+            pack=pack_path)
+        if getattr(opts, "json", False):
+            print(json.dumps(board, indent=2, default=str))
+        else:
+            for phase_id in sorted(board["phases"]):
+                result = board["phases"][phase_id]
+                top = (result.get("improvements") or [None])[0]
+                top_desc = (f"{top['bucket']}: {top['suggested_next_action']}"
+                           if top else "-")
+                print(f"{phase_id} score={result['score']} "
+                      f"bar_pass={result['bar']['pass']} top_improvement={top_desc}")
+            if board.get("false_complete"):
+                print("false_complete:", ", ".join(board["false_complete"]))
+        _write_jev_phase_out(opts, board)
+        if board.get("false_complete"):
+            raise HarnessError(
+                "phases claim complete but fail the JEV bar: "
+                + ", ".join(board["false_complete"]))
+        return
+
+    result = dogfood_phase(
+        opts.repo_root,
+        phase,
+        evidence_path=getattr(opts, "evidence", None),
+        settings=settings if use_live else None,
+        transport=HttpTransport() if use_live and settings is not None else None,
+        governor=(jev_face_governor(settings, min(settings.max_cost, 0.05))
+                  if use_live and settings is not None else None),
+        ledger=(_ledger(settings) if use_live and settings is not None else None),
+        use_live_jev=use_live,
+        min_score=min_score,
+        pack_path=pack_path,
+    )
+    if getattr(opts, "json", False):
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        _print_jev_phase_result(result)
+    _write_jev_phase_out(opts, result)
+    if not result.get("can_mark_complete"):
+        raise HarnessError(
+            f"phase {result['phase']} completion score {result['score']} "
+            f"< {result['min_score']} or hard gates failed — do not mark complete")
+
+
+def _cmd_jev_vision_assessment(opts, settings):
+    """Run the bounded HV-0 vision assessment or a no-dispatch preflight."""
+    state = build_vision_assessment_state(opts.repo_root)
+    model = getattr(settings, "jev_model", None) or "jev-latest"
+    preflight = vision_assessment_preflight(state, model)
+    reserve = jev_cost(preflight["estimated_input_tokens"])
+    configured_limit = finite_number(
+        getattr(settings, "max_cost", DEFAULT_MAX_COST),
+        "max_cost", 0.0, HARD_MAX_COST)
+    override = getattr(opts, "max_cost", None)
+    effective_limit = (configured_limit if override is None else
+                       finite_number(override, "max_cost", 0.0, HARD_MAX_COST))
+    if getattr(opts, "preflight_only", False):
+        report = {
+            "status": "preflight_only",
+            "pack_id": VISION_ASSESSMENT_PACK_ID,
+            "pack_version": VISION_ASSESSMENT_PACK_VERSION,
+            "preflight": preflight,
+            "worst_case_reserve_usd": reserve,
+            "effective_max_cost_usd": effective_limit,
+            "hard_max_cost_usd": HARD_MAX_COST,
+            "dispatch_attempts": 0,
+        }
+        _emit(report, opts.out, force_json=getattr(opts, "json", False))
+        if not preflight["fits_context"] or reserve > effective_limit:
+            raise HarnessError("vision assessment preflight refused; no request was sent")
+        return
+
+    policy = policy_for(
+        settings,
+        transport=HttpTransport(),
+        governor=jev_face_governor(settings, getattr(opts, "max_cost", None)),
+        ledger=_ledger(settings),
+    )
+    envelope = policy.evaluate_vision_assessment(
+        state, task_id="hv-0-vision-assessment")
+    _emit(envelope.to_dict(), opts.out,
+          force_json=getattr(opts, "json", False))
+    if envelope.status != "assessed":
+        raise HarnessError("vision assessment is unassessed; see the emitted reason")
+
+
+def _extract_judgment_records(entries):
+    return _jcal.extract_judgment_records(entries)
+
+
+def _cmd_jev_freeze(opts, settings):
+    """Operator face over ``config.freeze_jev_settings`` (GAP-freeze-face).
+
+    The owner has existed since JEV-P4; this is the missing CLI face. A
+    *preview* (the default -- no ``--persist``) reports the pin/threshold the
+    freeze would apply and writes nothing, so an operator can see the effect
+    before touching config.json. ``--persist`` performs the write through
+    ``update_config`` -- the ONE config-I/O owner -- and the emitted
+    ``effective`` block is read back with ``load_settings()``, i.e. what the
+    NEXT run will actually use rather than what this call hoped it wrote.
+    """
+    min_confidence = getattr(opts, "min_confidence", None)
+    if getattr(opts, "calibrate", False) and min_confidence is None:
+        ledger = _ledger(settings)
+        entries = ledger.tail(2000)
+        records = _extract_judgment_records(entries)
+        if records:
+            report = _jcal.analyze_judgments(records)
+            rec = report.get("recommendation")
+            if rec and rec.get("discriminating_band"):
+                min_confidence = rec["discriminating_band"][0]
+                eprint(f"[jev-freeze] calibration recommended min_confidence: {min_confidence:.3f}")
+
+    frozen = freeze_jev_settings(
+        settings,
+        jev_model=getattr(opts, "model", None),
+        min_confidence=min_confidence,
+        persist=bool(getattr(opts, "persist", False)))
+    result = {
+        "status": "frozen" if frozen["persisted"] else "preview",
+        "command": "jev-freeze",
+        "freeze": frozen,
+        "note": (
+            "written to config.json; `effective` is what the next run loads"
+            if frozen["persisted"] else
+            "preview only -- nothing was written; re-run with --persist to freeze"),
+    }
+    _emit(result, opts.out, force_json=getattr(opts, "json", False))
+    if not frozen["persisted"]:
+        eprint("[jev-freeze] preview only (no write); pass --persist to pin")
+
+
+def _cmd_provision(opts, settings):
+    """Host provisioning (PROVISION-CORE): probe, plan, or execute with approval."""
+    cmd = getattr(opts, "provision_cmd", None)
+    if cmd == "probe":
+        probe = _pv.probe_host()
+        res = probe.to_dict()
+        if not getattr(opts, "json", False) and not getattr(opts, "quiet", False):
+            print(f"OS: {probe.os_name} ({probe.arch})")
+            print(f"Python: {probe.python_version} ({probe.python_executable})")
+            print(f"GPU: {probe.gpu_present} (free disk: {(probe.free_disk_bytes or 0) / (1024**3):.1f} GB)")
+            print(f"Package managers: {', '.join(sorted(probe.usable_managers())) or 'none'}")
+        _emit(res, getattr(opts, "out", None), force_json=getattr(opts, "json", False))
+    elif cmd == "plan":
+        root = os.path.abspath(getattr(opts, "root", "."))
+        probe = _pv.probe_host()
+        policy = _pv.policy_for_probe(probe, [root])
+        plan = _pv.plan_provision(opts.goal, probe, policy=policy)
+        rendered = _pv.render_plan(plan)
+        res = plan.to_dict()
+        res["rendered"] = rendered
+        if not getattr(opts, "json", False) and not getattr(opts, "quiet", False):
+            print(rendered)
+        _emit(res, getattr(opts, "out", None), force_json=getattr(opts, "json", False))
+    elif cmd == "apply":
+        plan_file = getattr(opts, "plan_file", None)
+        if not plan_file or not os.path.isfile(plan_file):
+            raise HarnessError(f"plan file not found: {plan_file}")
+        try:
+            with open(plan_file, encoding="utf-8") as f:
+                raw = json.load(f)
+        except Exception as exc:
+            raise HarnessError(f"failed to read plan JSON: {exc}") from exc
+        try:
+            plan = _pv.plan_from_dict(raw)
+        except Exception as exc:
+            raise HarnessError(f"malformed plan JSON: {exc}") from exc
+        probe = _pv.probe_host()
+        policy = _pv.policy_for_probe(probe, [plan.root])
+        _pv.validate_plan(plan, policy)
+        dry_run = bool(getattr(opts, "dry_run", True))
+        gate = _pv.ApprovalGate()
+        if getattr(opts, "approve_all", False):
+            gate.record(
+                plan,
+                _pv.APPROVE,
+                approver="operator-cli",
+                reason="CLI --approve-all flag",
+            )
+        ledger = _ledger(settings)
+        report = _pv.execute_plan(plan, gate, policy=policy, ledger=ledger, dry_run=dry_run)
+        res = report.to_dict()
+        if not getattr(opts, "json", False) and not getattr(opts, "quiet", False):
+            print(f"Provision run: {report.outcome} (dry_run={dry_run})")
+            for sr in report.results:
+                print(f"  [{sr.status}] step {sr.step_id}: {sr.note or sr.status}")
+        _emit(res, getattr(opts, "out", None), force_json=getattr(opts, "json", False))
+
+
+def _cmd_repo_cards(opts, settings):
+    """Repo philosophy cards (REPO-CARDS): deterministic scan of committed config."""
+    root = Path(opts.root) if getattr(opts, "root", None) else _rc.default_root()
+    cards = Path(opts.cards) if getattr(opts, "cards", None) else (Path(__file__).resolve().parent.parent / _rc.CARDS_SUBDIR)
+    check = bool(getattr(opts, "check", False))
+    repo_filter = getattr(opts, "repo", None)
+
+    rationale_dir = cards / _rc.RATIONALE_SUBDIR
+    repos = [(_rc.canonical_repo_name(n, cards), p) for n, p in _rc.discover_repos(root)]
+    if repo_filter:
+        repos = [(n, p) for n, p in repos if n == repo_filter or n.lower() == repo_filter.lower()]
+
+    if check:
+        stale = []
+        for name, path in repos:
+            body = _rc.render_card(name, _rc.scan_repo(path), _rc.rationale_for(name, rationale_dir))
+            target = cards / f"{name}.md"
+            if not target.is_file() or target.read_text(encoding="utf-8") != body:
+                stale.append(name)
+        res = {
+            "status": "stale" if stale else "ok",
+            "checked": len(repos),
+            "stale": stale,
+            "up_to_date": len(repos) - len(stale),
+        }
+        _emit(res, getattr(opts, "out", None), force_json=getattr(opts, "json", False))
+        if stale:
+            for s in stale:
+                eprint(f"[repo-cards] stale: {s}")
+            raise HarnessError(f"{len(stale)} card(s) would change")
+        if not getattr(opts, "quiet", False) and not getattr(opts, "json", False):
+            print("cards up to date")
+    else:
+        changed, unchanged = _rc.generate(root, cards, repo=repo_filter)
+        res = {
+            "status": "written",
+            "changed": changed,
+            "unchanged": unchanged,
+        }
+        _emit(res, getattr(opts, "out", None), force_json=getattr(opts, "json", False))
+        if not getattr(opts, "quiet", False) and not getattr(opts, "json", False):
+            for c in changed:
+                print(f"wrote {c}")
+            for u in unchanged:
+                print(f"unchanged {u}")
+
+
+def _cmd_jev_calibration(opts, settings):
+    """Jev calibration analysis (JEV-P3-calibration-analysis): confidence distribution & threshold band."""
+    records = []
+    file_path = getattr(opts, "file", None)
+    if file_path:
+        if not os.path.isfile(file_path):
+            raise HarnessError(f"file not found: {file_path}")
+        with open(file_path, encoding="utf-8") as f:
+            raw = json.load(f)
+            if isinstance(raw, list):
+                records = raw
+            elif isinstance(raw, dict) and "records" in raw:
+                records = raw["records"]
+    else:
+        ledger = _ledger(settings)
+        entries = ledger.tail(2000)
+        records = _extract_judgment_records(entries)
+
+    report = _jcal.analyze_judgments(records)
+    if not getattr(opts, "json", False) and not getattr(opts, "quiet", False):
+        print(_jcal.format_report(report))
+    _emit(report, getattr(opts, "out", None), force_json=getattr(opts, "json", False))
+
+
+def _cmd_refine(opts, settings):
+    """Propose-Probe-Compose refinement loop (issue #239, Phase 0 pilot)."""
+    ledger = _ledger(settings)
+
+    # --record-outcome TASK_ID FAMILY JEV_OUTCOME : P0 task outcome tracking.
+    if getattr(opts, "record_outcome", None):
+        task_id, family, outcome_s = opts.record_outcome
+        try:
+            outcome = float(outcome_s)
+        except ValueError as err:
+            raise HarnessError(f"JEV_OUTCOME must be a number 0-1, got {outcome_s!r}") from err
+        rec = _refine.record_task_outcome(ledger, task_id, family, outcome)
+        _emit({"recorded": True, "task_id": task_id, "seq": rec.get("seq")},
+              getattr(opts, "out", None),
+              force_json=getattr(opts, "json", False))
+        return
+
+    # --status : pilot status, lessons, tiers.
+    if getattr(opts, "status", False):
+        report = _refine.status_report(ledger)
+        if not getattr(opts, "json", False) and not getattr(opts, "quiet", False):
+            print(f"refine pilot: {'ACTIVE' if report['pilot_active'] else 'inactive'} "
+                  f"({report['pilot_cycles_completed']}/{report['pilot_cycles_target']} cycles)")
+            print(f"lessons: {report['lessons_count']} ({report['seed_lessons']} seed)")
+            print(f"families: {', '.join(report['families'])}")
+        _emit(report, getattr(opts, "out", None),
+              force_json=getattr(opts, "json", False))
+        return
+
+    # --task / --family : run a refinement cycle (Phase 0 pilot-gated).
+    task_id = getattr(opts, "task", None)
+    family = getattr(opts, "family", None)
+    if not task_id and not family:
+        raise HarnessError("harness refine needs --task, --family, --status, or --record-outcome")
+    if not _refine.pilot_active() and not _refine.load_pilot_state().get("graduated"):
+        raise HarnessError("refine pilot complete and not graduated: operator review required "
+                           "(see issue #239 Phase 0)")
+    # Full cycle execution lands in Phase 2; the scaffold validates inputs now.
+    if task_id:
+        rec = _refine.get_task_outcome(ledger, task_id)
+        if rec is None:
+            raise HarnessError(f"no task_outcome recorded for {task_id!r} "
+                               f"(record with: harness refine --record-outcome {task_id} <family> <0-1>)")
+        _emit({"task_id": task_id, "outcome": rec.get("jev_outcome"),
+               "pilot_cycle": "validated (Phase 2 executes the loop)"},
+              getattr(opts, "out", None),
+              force_json=getattr(opts, "json", False))
+        return
+    if not _refine.valid_family(family):
+        raise HarnessError(f"unknown task family: {family!r}")
+    _emit({"family": family, "pilot_cycle": "validated (Phase 2 executes the loop)"},
+          getattr(opts, "out", None),
+          force_json=getattr(opts, "json", False))
+
+
+def _cmd_fireworks_verify(opts, settings):
+    """EV-8's only shipped surface: the single paid Fireworks call.
+
+    No new command: ``harness economics --provider fireworks
+    --confirm-single-paid-call --model <confirmed-path> --max-cost <= 0.01``.
+    Every refusal lives in ``run_fireworks_probe`` (the ONE owner of the
+    one-shot rule); this face only resolves keys, builds the session, and
+    emits the report.
+    """
+    if not getattr(opts, "confirm_single_paid_call", False):
+        raise HarnessError(
+            "the paid Fireworks verification sends real money; pass "
+            "--confirm-single-paid-call to confirm this one call.")
+    if not getattr(opts, "model", None):
+        raise HarnessError(
+            "pass --model accounts/fireworks/models/<slug> with a confirmed "
+            "model path for the verification call.")
+    if getattr(opts, "max_cost", None) is None:
+        raise HarnessError(
+            "pass an explicit --max-cost (at most $0.01) for the single paid "
+            "verification call.")
+    api_key, gov = _governor(settings, getattr(opts, "max_cost", None))
+    report = run_fireworks_probe(
+        HttpTransport(), api_key, resolve_fireworks_key(), gov,
+        _ledger(settings), model=opts.model, max_cost=opts.max_cost,
+        fireworks_enabled=getattr(settings, "fireworks_enabled", False),
+        receipt_path=getattr(opts, "receipt", None))
+    _emit(report, getattr(opts, "out", None), force_json=getattr(opts, "json", False))
+
+
+# Command -> handler. `required=True` subparsers make an unknown command
+# unreachable here, so the table has no default arm; every handler takes
+# (opts, settings), so a signature drift fails loudly at dispatch instead of
+# silently mis-binding arguments.
+_DISPATCH = {
+    "site-check": _cmd_site_check,
+    "verify": _cmd_verify,
+    "lint-claims": _cmd_lint_claims,
+    "brief": _cmd_brief,
+    "apply": _cmd_apply,
+    "plan": _cmd_plan,
+    "dogfood": _cmd_dogfood,
+    "continue": _cmd_continue,
+    "offer": _cmd_offer,
+    "defer": _cmd_defer,
+    "issue-sort": _cmd_issue_sort,
+    "log-judgment": _cmd_log_judgment,
+    "repo-summary": _cmd_repo_summary,
+    "route": _cmd_route,
+    "site-export": _cmd_site_export,
+    "ledger": _cmd_ledger,
+    "models": _cmd_models,
+    "bench": _cmd_bench,
+    "capabilities": _cmd_capabilities,
+    "gates": _cmd_gates,
+    "spend": _cmd_spend,
+    "cost": _cmd_cost,
+    "trust": _cmd_trust,
+    "rankings": _cmd_rankings,
+    "economics": _cmd_economics,
+    "fireworks-verify": _cmd_fireworks_verify,
+    "jev-phase": _cmd_jev_phase,
+    "jev-vision-assessment": _cmd_jev_vision_assessment,
+    "jev-freeze": _cmd_jev_freeze,
+    "mission": _cmd_mission,
+    "provision": _cmd_provision,
+    "repo-cards": _cmd_repo_cards,
+    "jev-calibration": _cmd_jev_calibration,
+    "refine": _cmd_refine,
+}
+
+
+def _flushes_fallbacks(fn):
+    """Write deduped Jev fallback tails to the ledger when a command ends."""
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            flush_all_fallbacks()
+    return wrapper
+
+
+@_flushes_fallbacks
+def main(argv=None):
+    args = argv if argv is not None else sys.argv[1:]
+    # The UI faces exit before settings/ledger setup: they run their own
+    # servers and manage their own state (serve needs no key until a
+    # dispatch happens; each runner loads settings itself).
+    if args[:1] == ["serve"]:
+        from .server import main as _serve
+        return _serve(args[1:])
+    if args[:1] == ["desktop"]:
+        from .ui import main as _desktop
+        return _desktop(args[1:])
+    if args[:1] == ["media"]:
+        # Media generation via sovereign-media (adapter parses its own
+        # subarguments; mirrors the serve/desktop early-intercept pattern).
+        from .media_client import run_cli as _media_cli
+        return _media_cli(args[1:])
+    if args[:1] == ["driver"]:
+        # Verified extraction -> Jev decision -> deterministic action via
+        # driver-core. The driver owns the ordering, the extraction
+        # consensus, and the action; this adapter only carries the envelope.
+        from .perception_client import run_cli as _driver_cli
+        return _driver_cli(args[1:])
+    ap = build_parser()
+    opts = ap.parse_args(args)
+    import harness.output as _output
+    _output.QUIET = bool(getattr(opts, "quiet", False))
+    # Phase-1 UI groundwork: optional typed event stream + color policy.
+    # The sink is module-global state registered once per CLI invocation;
+    # with no --events flag nothing is registered and emit() is a no-op.
+    from . import events as _events
+    from . import render as _render
+    if getattr(opts, "events", None):
+        _events.add_jsonl_sink(opts.events)
+    _render.set_color_enabled(
+        not getattr(opts, "no_color", False)
+        and not os.environ.get("NO_COLOR"))
+    try:
+        if (opts.command == "jev-vision-assessment"
+                and getattr(opts, "preflight_only", False)):
+            settings = load_vision_preflight_settings(
+                max_cost_override=getattr(opts, "max_cost", None))
+        else:
+            settings = load_settings()
+        if getattr(opts, "trial_model", None):
+            settings.trial_model = opts.trial_model
+        _DISPATCH[opts.command](opts, settings)
+    except HarnessError as e:
+        kind = getattr(e, "kind", "harness_error")
+        cost = max(0.0, float(getattr(e, "known_cost", 0.0) or 0.0))
+        usage = f" (known billed usage: ${cost:.6f})" if cost else ""
+        print(f"[FATAL] [{kind}] {e}{usage}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("[interrupted] aborted by user (Ctrl-C); no further spend", file=sys.stderr)
+        sys.exit(130)
+
+
+if __name__ == "__main__":
+    main()
+

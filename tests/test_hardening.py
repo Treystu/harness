@@ -1,0 +1,443 @@
+"""Regressions for backlog items #15, #16, and #20 (property tests).
+
+All hermetic: no network, no key.
+"""
+import contextlib
+import io
+import json
+import os
+import tempfile
+import unittest
+from unittest import mock
+
+from harness.prompts import _apply_unified_diff, _parse_ready
+from harness.prompts import READY_MARKER
+from harness.config import load_settings, DEFAULT_MAX_TOKENS
+from harness.capability import (
+    CAPABILITIES_SCHEMA_VERSION, load_profiles, save_profiles,
+    build_profiles_from_models,
+)
+from harness.spend import SpendGovernor
+from harness.tokens import estimate_prompt_tokens
+from harness.errors import HarnessError
+
+
+class ConfigRangeValidationTests(unittest.TestCase):
+    """#15: nonsense numeric config must fail closed, not silently apply."""
+
+    def test_out_of_range_max_tokens_raises(self):
+        with mock.patch.dict(os.environ, {"HARNESS_MAX_TOKENS": "10"}):
+            with self.assertRaises(HarnessError):
+                load_settings()
+
+    def test_out_of_range_max_cost_raises(self):
+        with mock.patch.dict(os.environ, {"HARNESS_MAX_COST": "-1"}):
+            with self.assertRaises(HarnessError):
+                load_settings()
+
+    def test_out_of_range_panelists_raises(self):
+        with mock.patch.dict(os.environ, {"HARNESS_MAX_PANELISTS": "99"}):
+            with self.assertRaises(HarnessError):
+                load_settings()
+
+    def test_valid_ranges_pass(self):
+        with mock.patch.dict(os.environ, {"HARNESS_MAX_TOKENS": str(DEFAULT_MAX_TOKENS)}):
+            s = load_settings()
+        self.assertEqual(s.max_tokens, DEFAULT_MAX_TOKENS)
+
+    def test_max_cost_capped_at_hard_ceiling(self):
+        """HARD_MAX_COST is a documented hard ceiling: a misconfigured or
+        hostile `max_cost` above it must be refused, not silently applied."""
+        with mock.patch.dict(os.environ, {"HARNESS_MAX_COST": "500"}):
+            with self.assertRaises(HarnessError):
+                load_settings()
+        with mock.patch.dict(os.environ, {"HARNESS_TASK_MAX_COST": "999"}):
+            with self.assertRaises(HarnessError):
+                load_settings()
+
+    def test_hard_ceiling_boundary_values_accepted(self):
+        """The hard ceilings themselves remain configurable (e.g. CI wants 10¢)."""
+        with mock.patch.dict(os.environ, {"HARNESS_MAX_COST": "0.10",
+                                           "HARNESS_TASK_MAX_COST": "0.25"}):
+            s = load_settings()
+        self.assertEqual(s.max_cost, 0.10)
+        self.assertEqual(s.task_max_cost, 0.25)
+
+    def test_integer_settings_stay_integers(self):
+        """Regression (live dogfood): finite_number returns float, so every
+        integer setting arrived as 3.0 and range()/max_workers crashed the
+        first live panel fan-out -- a path the hermetic suite never took."""
+        with mock.patch.dict(os.environ, {"HARNESS_MAX_PANELISTS": "3",
+                                           "HARNESS_MAX_TOKENS": "2048",
+                                           "HARNESS_MAX_ROTATIONS": "2",
+                                           "HARNESS_MAX_COST": "0.02"}):
+            s = load_settings()
+        self.assertIs(type(s.max_panelists), int)
+        self.assertIs(type(s.max_tokens), int)
+        self.assertIs(type(s.max_rotations), int)
+        self.assertIs(type(s.max_cost), float)
+        range(s.max_panelists)  # must not raise
+
+    def test_unknown_config_key_warns(self):
+        """#15: an unknown key in config.json must warn on stderr, not vanish."""
+        import contextlib
+        import io
+        import harness.config as cfg
+        with tempfile.TemporaryDirectory() as d:
+            cfg_path = os.path.join(d, "config.json")
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump({"max_cost": 0.05, "not_a_real_key": 1}, f)
+            err = io.StringIO()
+            with mock.patch.object(cfg, "CONFIG_DIR", d), \
+                 contextlib.redirect_stderr(err):
+                s = cfg.load_settings()
+            self.assertIn("not_a_real_key", err.getvalue())
+            self.assertEqual(s.max_cost, 0.05)
+
+
+class CapabilitiesSchemaVersionTests(unittest.TestCase):
+    """#15: a foreign/older capabilities.json is treated as stale, not truth."""
+
+    def _models(self):
+        return [{"id": "test/free-model",
+                 "pricing": {"prompt": "0", "completion": "0"},
+                 "context_length": 4096,
+                 "architecture": {"modality": "text->text"}}]
+
+    def test_save_stamps_schema_version(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "capabilities.json")
+            profiles = build_profiles_from_models(self._models())
+            save_profiles(path, profiles, fetched_at=123.0)
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertEqual(data["schema_version"], CAPABILITIES_SCHEMA_VERSION)
+            loaded, fetched = load_profiles(path)
+            self.assertIn("test/free-model", loaded)
+            self.assertEqual(fetched, 123.0)
+
+    def test_wrong_schema_version_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "capabilities.json")
+            profiles = build_profiles_from_models(self._models())
+            save_profiles(path, profiles, fetched_at=123.0)
+            with open(path, "r+", encoding="utf-8") as f:
+                data = json.load(f)
+                data["schema_version"] = 999
+                f.seek(0)
+                json.dump(data, f)
+                f.truncate()
+            loaded, fetched = load_profiles(path)
+            self.assertEqual(loaded, {})
+            self.assertIsNone(fetched)
+
+
+class CostByModelTests(unittest.TestCase):
+    """#16: the governor tracks per-model spend and never hides it."""
+
+    def _gov(self, **kw):
+        transport = mock.Mock()
+        with mock.patch.object(SpendGovernor, "verify_key", return_value=None):
+            return SpendGovernor(transport, "key", **kw)
+
+    def test_costs_aggregate_per_model(self):
+        gov = self._gov(max_cost=1.0)
+        gov.record_actual(0.01, "panelist-a")
+        gov.record_actual(0.02, "panelist-a")
+        gov.record_actual(0.005, "judge")
+        self.assertEqual(gov.cost_by_model(), {"panelist-a": 0.03, "judge": 0.005})
+        self.assertAlmostEqual(gov.spent, 0.035)
+
+    def test_ceiling_still_enforced(self):
+        gov = self._gov(max_cost=0.01)
+        gov.record_actual(0.009, "a")
+        with self.assertRaises(HarnessError):
+            gov.record_actual(0.01, "b")
+
+
+class TokenEstimatePropertyTests(unittest.TestCase):
+    """#7/#20: the estimator must be within sane bounds and never undercount
+    below chars/4 (the industry-standard char/token ratio)."""
+
+    def test_never_below_chars_over_4(self):
+        samples = [
+            "hello world",
+            "a" * 1000,
+            "def foo(bar):\n    return bar * 2\n",
+            json.dumps({"claims": [{"id": f"c{i}", "real": False} for i in range(50)]}),
+            "",
+        ]
+        for s in samples:
+            est = estimate_prompt_tokens(s)
+            self.assertGreaterEqual(est, len(s) // 4, msg=f"undercount for {s[:40]!r}")
+
+    def test_scales_monotonically(self):
+        short = estimate_prompt_tokens("x" * 100)
+        long = estimate_prompt_tokens("x" * 10000)
+        self.assertGreater(long, short)
+
+
+class ReadyParserSovereigntyTests(unittest.TestCase):
+    """Playtest pass: a defer declared anywhere in the response must be
+    honored -- the 5-line window silently applied edits the model tried to
+    defer (diff bodies push the marker past the old window)."""
+
+    def test_trailing_defer_after_diff_body_is_honored(self):
+        body = "@@ -1,2 +1,2 @@\n-alpha\n+beta\n" + READY_MARKER + " defer cannot match\n"
+        decision, reason, rest = _parse_ready(body)
+        self.assertEqual(decision, "defer")
+        self.assertIn("beta", rest)
+        self.assertNotIn("READY", rest)
+
+    def test_hedged_response_defers_conservatively(self):
+        body = READY_MARKER + " confident\nbody\n" + READY_MARKER + " defer unsure\n"
+        decision, _, _ = _parse_ready(body)
+        self.assertEqual(decision, "defer")
+
+    def test_first_line_confident_still_works(self):
+        decision, _, rest = _parse_ready(READY_MARKER + " confident\nfile body\n")
+        self.assertEqual(decision, "confident")
+        self.assertEqual(rest, "file body\n")
+
+    def test_missing_marker_stays_missing(self):
+        decision, _, rest = _parse_ready("plain text\n")
+        self.assertEqual(decision, "missing")
+        self.assertEqual(rest, "plain text\n")
+
+
+class UnifiedDiffEngineTests(unittest.TestCase):
+    """Playtest pass: the #11 diff engine, driven exactly as models
+    feed it (prose-wrapped diffs, truncations, zero-context hunks).
+    Header counts are claims, not law (dogfood 2026-09-13): a correct
+    body merges even when its @@ header miscounts; every refusal is a
+    genuine content problem, and the exact-source match still gates
+    everything that reaches disk."""
+
+    SRC = "line1\nline2\nline3\nline4\nline5\n"
+
+    def test_happy_path(self):
+        diff = ("--- a/f\n+++ b/f\n@@ -2,3 +2,4 @@\n line2\n-line3\n"
+                "+line3 patched\n line4\n+line4b\n")
+        self.assertEqual(_apply_unified_diff(self.SRC, diff),
+                         "line1\nline2\nline3 patched\nline4\nline4b\nline5\n")
+
+    def test_context_mismatch_refused(self):
+        diff = "@@ -1,2 +1,2 @@\n-LINE1\n+x\n line2\n"
+        with self.assertRaises(HarnessError):
+            _apply_unified_diff(self.SRC, diff)
+
+    def test_truncated_hunk_refused(self):
+        with self.assertRaises(HarnessError):
+            _apply_unified_diff(self.SRC, "@@ -1,3 +1,1 @@\n line1\n")
+
+    def test_prose_only_refused(self):
+        with self.assertRaises(HarnessError):
+            _apply_unified_diff(self.SRC, "I made some changes, looks great!")
+
+    def test_zero_context_insertion(self):
+        out = _apply_unified_diff(self.SRC, "@@ -0,0 +1,2 @@\n+new top\n+new top2\n")
+        self.assertTrue(out.startswith("new top\nnew top2\n"))
+
+    def test_miscounted_header_correct_body_merges(self):
+        # The recorded dogfood class: old side complete, new-side header
+        # under-counts the adds. The body decides; the exact-source
+        # match below still gates the content.
+        src = "head\n" * 24 + "ctx0\nold tail\nrest\n"
+        diff = ("@@ -25,2 +25,5 @@\n ctx0\n-old tail\n"
+                "+new0\n+new1\n+new2\n+new3\n+new4\n+new5\n+new6\n")
+        out = _apply_unified_diff(src, diff)
+        self.assertIn("new6\n", out)
+        self.assertNotIn("old tail", out)
+        self.assertIn("rest\n", out)
+
+    def test_exact_fill_header_lie_no_silent_drop(self):
+        # The worst variant of the same lie: the miscounted window fills
+        # EXACTLY, which used to merge while silently dropping the
+        # body's tail. Every body line must land.
+        src = ("head\n" * 24 + "".join(f"ctx{i}\n" for i in range(5))
+               + "old tail\nrest\n")
+        body = ("".join(f" ctx{i}\n" for i in range(5)) + "-old tail\n"
+                + "".join(f"+new{i}\n" for i in range(26)))
+        out = _apply_unified_diff(src, "@@ -25,6 +25,24 @@\n" + body)
+        self.assertIn("new25\n", out)
+        self.assertNotIn("old tail", out)
+        self.assertIn("rest\n", out)
+
+    def test_zero_context_overcount_merges(self):
+        # A hungry window on an over-counted header used to swallow the
+        # trailing split artifact as a phantom context line and refuse.
+        out = _apply_unified_diff(self.SRC, "@@ -0,0 +1,9 @@\n+new top\n+new top2\n")
+        self.assertTrue(out.startswith("new top\nnew top2\n"))
+
+    def test_pure_context_miscount_refused(self):
+        # A recovered hunk must describe a change; a pure-context body
+        # cannot be anchored honestly.
+        with self.assertRaises(HarnessError):
+            _apply_unified_diff("a\nb\n", "@@ -1,2 +1,3 @@\n a\n b\n")
+
+    def test_junk_after_miscounted_body_refused(self):
+        # A miscounted header plus non-diff junk after the body leaves
+        # its completeness unknowable: refused, as the old parser
+        # refused in-window garbage.
+        with self.assertRaises(HarnessError):
+            _apply_unified_diff("a\nb\n", "@@ -1,1 +1,2 @@\n+a\nSome closing prose\n")
+
+
+class ApplyConsentOptionalTests(unittest.TestCase):
+    """Playtest pass: apply with require_consent=False crashed with
+    UnboundLocalError when the renewal ladder read the never-created consent
+    result; renewal must tolerate an absent initial probe."""
+
+    def test_apply_without_consent_does_not_crash_on_renewal(self):
+        from tests._fake import FakeTransport, m, comp
+        from harness.spend import SpendGovernor
+        from harness.ledger import AutonomyLedger
+        from harness.router import Router
+        from harness.apply import ApplyEngine
+        with tempfile.TemporaryDirectory() as d:
+            fp = os.path.join(d, "f.txt")
+            with open(fp, "w", encoding="utf-8") as f:
+                f.write("def a():\n    return 1\n")
+            body = ("@@ -1,2 +1,2 @@\n def a():\n-    return 1\n+    return 10\n"
+                    "\n" + READY_MARKER + " confident\n")
+            fake = FakeTransport(
+                models=[m("m/apply"), m("m/judge")],
+                posts=[comp('{"decision": "accept", "reason": "ok", '
+                            '"redirect_model": null, "scope_suggestion": null}'),
+                       comp(body)])
+            gov = SpendGovernor(fake, "sk-test")
+            ledger = AutonomyLedger(os.path.join(d, "l.jsonl"))
+            engine = ApplyEngine(fake, "k", gov, ledger, Router(["a"], "m/judge", "m/apply"),
+                                 default_require_consent=False, default_renew_consent=True)
+            # Unknown trust requires gateless writes to carry a gate; the
+            # stub runner keeps this hermetic (the no-consent renewal path
+            # under test is unchanged).
+            engine.run_verify = lambda cmd, timeout=None, cwd=None: (0, "")
+            r = engine.apply_edit(task_id="t", file_path=fp, instruction="bump",
+                                  backend="diff", require_consent=False,
+                                  verify_cmd="check")
+            self.assertEqual(r["status"], "ok")
+            with open(fp, encoding="utf-8") as stream:
+                self.assertIn("return 10", stream.read())
+
+
+class EolPreservationTests(unittest.TestCase):
+    """Live dogfood finding: whole-file model output arrives LF-only (the
+    model never saw the tree's bytes), so _atomic_write flipped CRLF
+    checkouts file-wide -- a dirty tree for zero content change. Writes
+    now aim at the target's own detected style; snapshot restore stays
+    byte-exact via newline=None."""
+
+    def test_detect_newline(self):
+        from harness.filesafety import detect_newline
+        with tempfile.TemporaryDirectory() as d:
+            crlf = os.path.join(d, "crlf.txt")
+            with open(crlf, "wb") as f:
+                f.write(b"a\r\nb\r\n")
+            self.assertEqual(detect_newline(crlf), "\r\n")
+            lf = os.path.join(d, "lf.txt")
+            with open(lf, "wb") as f:
+                f.write(b"a\nb\n")
+            self.assertEqual(detect_newline(lf), "\n")
+            bare = os.path.join(d, "bare.txt")
+            with open(bare, "wb") as f:
+                f.write(b"no newlines here")
+            self.assertIsNone(detect_newline(bare))
+            mixed = os.path.join(d, "mixed.txt")
+            with open(mixed, "wb") as f:
+                f.write(b"a\nb\r\n")
+            self.assertEqual(detect_newline(mixed), "\r\n")
+            self.assertIsNone(detect_newline(os.path.join(d, "missing.txt")))
+
+    def test_atomic_write_preserves_crlf_target(self):
+        from harness.filesafety import _atomic_write
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "f.txt")
+            with open(p, "wb") as f:
+                f.write(b"def a():\r\n    return 1\r\n")
+            _atomic_write(p, "def a():\n    return 2\n")
+            with open(p, "rb") as f:
+                self.assertEqual(f.read(), b"def a():\r\n    return 2\r\n")
+
+    def test_atomic_write_leaves_lf_target_alone(self):
+        from harness.filesafety import _atomic_write
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "f.txt")
+            with open(p, "wb") as f:
+                f.write(b"a\n")
+            _atomic_write(p, "b\n")
+            with open(p, "rb") as f:
+                self.assertEqual(f.read(), b"b\n")
+
+    def test_atomic_write_none_is_byte_exact(self):
+        from harness.filesafety import _atomic_write
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "f.txt")
+            with open(p, "wb") as f:
+                f.write(b"a\r\n")
+            _atomic_write(p, "b\n", newline=None)
+            with open(p, "rb") as f:
+                self.assertEqual(f.read(), b"b\n")
+
+
+class BackupHijackTests(unittest.TestCase):
+    """A planted symlink at the predictable backup dir or destination must
+    fail the backup closed (warn + None), never redirect bytes elsewhere."""
+
+    def _symlink_or_skip(self, src, dst):
+        if not hasattr(os, "symlink"):
+            self.skipTest("symlinks unavailable")
+        try:
+            os.symlink(src, dst)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable")
+
+    def test_planted_destination_link_is_bypassed_not_followed(self):
+        from harness.filesafety import backup_file
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "f.txt")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write("original\n")
+            victim = os.path.join(d, "victim.txt")
+            with open(victim, "w", encoding="utf-8") as f:
+                f.write("victim\n")
+            import harness.filesafety as fs
+            with unittest.mock.patch.object(fs.tempfile, "gettempdir",
+                                            return_value=d):
+                backup_dir = os.path.join(d, "harness-backups")
+                os.makedirs(backup_dir)
+                # Plant a symlink at the legacy predictable name; the unique
+                # O_EXCL destination must neither follow nor overwrite it.
+                plant = os.path.join(backup_dir, "t-r1-f.txt")
+                self._symlink_or_skip(victim, plant)
+                with contextlib.redirect_stderr(io.StringIO()):
+                    dest = backup_file(src, "t", 1)
+                self.assertIsNotNone(dest)
+                self.assertNotEqual(os.path.realpath(dest),
+                                    os.path.realpath(victim))
+                self.assertTrue(os.path.islink(plant))  # plant untouched
+            with open(victim, encoding="utf-8") as f:
+                self.assertEqual(f.read(), "victim\n")
+
+    def test_hijacked_backup_dir_refused(self):
+        from harness.filesafety import backup_file
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "f.txt")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write("original\n")
+            elsewhere = os.path.join(d, "elsewhere")
+            os.makedirs(elsewhere)
+            import harness.filesafety as fs
+            with unittest.mock.patch.object(fs.tempfile, "gettempdir",
+                                            return_value=os.path.join(d, "t")):
+                # Point gettempdir()/harness-backups at an attacker dir.
+                os.makedirs(os.path.join(d, "t"))
+                self._symlink_or_skip(
+                    elsewhere, os.path.join(d, "t", "harness-backups"))
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.assertIsNone(backup_file(src, "t", 1))
+            self.assertEqual(os.listdir(elsewhere), [])
+
+
+if __name__ == "__main__":
+    unittest.main()

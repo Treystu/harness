@@ -1,0 +1,486 @@
+"""MCP tool schemas: pure data, no logic.
+
+This module exists so the protocol adapter (harness/mcp.py) reads as
+framing + lanes + dispatch. The dicts are byte-for-byte the tool contracts
+previously inlined in McpServer._tools(); the single consumer imports
+TOOL_SCHEMAS and returns it. Keep this module free of imports and code --
+schemas only.
+"""
+
+TOOL_SCHEMAS = [
+    {
+        "name": "site_check",
+        "title": "Check one public site's availability",
+        "description": (
+            "Run the shared freeform request lifecycle for one current "
+            "public-site availability question: Jev selects the workflow, "
+            "Harness performs at most one bounded HTTPS probe, and Jev judges "
+            "the observed response. No page-content research or mutation."),
+        "inputSchema": {"type": "object", "properties": {
+            "prompt": {"type": "string",
+                       "description": "Natural-language request to check one public site"},
+            "session_id": {"type": "string",
+                          "description": "Optional chat-history session id"},
+        }, "required": ["prompt"]},
+        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "panel_verify",
+        "title": "Multi-model verification",
+        "description": "Panel of cheap/free models answers a self-contained question, then a judge "
+                       "synthesizes a structured verdict (agreement, confidence, disagreements, "
+                       "defer). Cost-bounded. No web/file tools by design.",
+        "inputSchema": {"type": "object", "properties": {
+            "prompt": {"type": "string", "description": "Self-contained question + context"},
+            "panel": {"type": "string", "description": "Comma-separated model pool. Defaults to configured panel pool."},
+            "judge": {"type": "string", "description": "Judge model id. Defaults to configured judge."},
+            "max_tokens": {"type": "integer", "default": 2048,
+                           "description": "Per-call output budget. The vote lane enforces its "
+                                          "own minimum (4096) and the judge/specialist lanes "
+                                          "theirs (8192); an explicit value here wins."},
+            "reasoning_effort": {"type": "string", "enum": ["auto", "off", "none", "low", "medium", "high", "on"]},
+            "converge": {"type": "boolean", "description": "Run the convergence specialist on per-claim votes (requires per-claim JSON panel output)"},
+            "convergence_model": {"type": "string", "description": "Primary specialist model (default: judge)"},
+            "specialist_pool": {"type": "string", "description": "Comma-separated specialist fallback ladder, strongest first (default: configured pool)"},
+            "task_id": {"type": "string"},
+            "task_max_cost": {"type": "number", "minimum": 0, "maximum": 0.25,
+                              "description": "Optional per-call cost ceiling (USD), capped at HARD_TASK_MAX_COST"},
+        }, "required": ["prompt"]},
+    },
+    {
+        "name": "apply_edit",
+        "title": "Scoped code edit with verification",
+        "description": "Make a single, scoped (<500-line file) code change, run a verification "
+                       "gate, retry up to max_rounds, renew consent each round, defer instead of "
+                       "guessing at the capability limit, and rotate models on error. Returns a "
+                       "continuation state when deferred.",
+        "inputSchema": {"type": "object", "properties": {
+            "file": {"anyOf": [
+                         {"type": "string"},
+                         {"type": "array", "items": {"type": "string"},
+                          "minItems": 1},
+                     ],
+                     "description": "Path to a file, or paths for a multi-file batch "
+                                    "(one governed session per file, shared task budget, "
+                                    "fail-fast)"},
+            "instruction": {"type": "string", "description": "What to change (<=1000 chars)"},
+            "edit_snippet": {"type": "string", "description": "Intent anchor snippet (<=2000 chars)"},
+            "verify_cmd": {"type": "string", "description": "Shell command gate, e.g. 'cargo check' (requires server allow_verify)"},
+            "allow_verify": {"type": "boolean", "description": "Explicit confirmation to run a verify gate in this request (required when allow_verify is not enabled server-side)"},
+            "max_rounds": {"type": "integer", "default": 3, "minimum": 1, "maximum": 20},
+            "max_tokens": {"type": "integer", "minimum": 64, "maximum": 200000,
+                            "description": "Maximum output tokens per model call"},
+            "require_consent": {"type": "boolean", "description": "Ask the model if it accepts the work first"},
+            "renew_consent": {"type": "boolean", "description": "Re-check consent before each round (continued consensus)"},
+            "require_diff_authorization": {"type": "boolean", "description": "An independent verifier model must allow the EXACT resulting content before every write (diff-bound attestation, fail-closed)"},
+            "max_rotations": {"type": "integer", "minimum": 0, "maximum": 20,
+                               "description": "How many model rotations to allow on error"},
+            "allow_escalation": {"type": "boolean", "description": "Permit escalation to the configured stronger model"},
+            "reasoning_effort": {"type": "string", "enum": ["auto", "off", "none", "low", "medium", "high", "on"]},
+            "model": {"type": "string", "description": "Explicit model override; otherwise the corrected apply route is used"},
+            "backend": {"type": "string", "enum": ["harness", "morph", "diff"], "default": "harness", "description": "morph: MorphLite-compatible structured editing; diff: strict unified-diff editing (no file-size ceiling)"},
+            "verify_only": {"type": "boolean", "description": "Return the proposal without writing or running the verification gate"},
+            "max_lines": {"type": "integer", "default": 500, "minimum": 1, "maximum": 500,
+                           "description": "Per-file line ceiling (1-500)"},
+            "task_max_cost": {"type": "number", "description": "Per-task cost ceiling"},
+            "allow_write": {"type": "boolean", "description": "Explicit confirmation that this MCP request may write files"},
+            "continuation": {"type": "object", "description": "State from a deferred run to resume"},
+            "task_id": {"type": "string"},
+        }, "anyOf": [
+            {"required": ["instruction"]},
+            {"required": ["continuation"]},
+        ]},
+    },
+    {
+        "name": "offer_work",
+        "title": "Ask for consent on a work item",
+        "description": "Probe whether a model accepts, declines, defers, or redirects a work item. "
+                       "Dispatch is allowed only on 'accept'.",
+        "inputSchema": {"type": "object", "properties": {
+            "task": {"type": "string", "description": "Work item description"},
+            "task_id": {"type": "string"},
+            "model": {"type": "string", "description": "Model to ask (defaults to configured judge)"},
+            "context": {"type": "string"},
+        }, "required": ["task"]},
+    },
+    {
+        "name": "defer_work",
+        "title": "Revoke consent mid-task",
+        "description": "A model (or operator) may defer/revoke consent at any point. Partial work is "
+                       "preserved; the task returns to the queue with the reason recorded. This is the "
+                       "continued-consensus hook: the sovereign model can call it to stop work.",
+        "inputSchema": {"type": "object", "properties": {
+            "task_id": {"type": "string"},
+            "reason": {"type": "string"},
+            "category": {"type": "string", "description": "e.g. capability, consent, alignment"},
+        }, "required": ["task_id"]},
+    },
+    {
+        "name": "ledger_status",
+        "title": "Autonomy ledger",
+        "description": "Tail of the append-only, hash-chained autonomy/participation ledger, plus "
+                       "chain-integrity status.",
+        "inputSchema": {"type": "object", "properties": {
+            "limit": {"type": "integer", "default": 20, "minimum": 1},
+        }},
+    },
+    {
+        "name": "participation_report",
+        "title": "Autonomy & participation metrics",
+        "description": "Aggregate metrics: offers, accept/decline/defer/redirect rates, completions, "
+                       "deferral points, per-model participation, and a degenerate-consent flag.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "spend_status",
+        "title": "Key & spend status",
+        "description": "OpenRouter key identity, spend limit, remaining balance, and harness session spend.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "trust_status",
+        "title": "Trust & correctness standing",
+        "description": "Bipolar trust scores (-11 extreme distrust, 0 unknown, +11 extreme "
+                       "trust) for the calling host and optionally one model, plus the "
+                       "correctness level that rations spend ceilings. Read-only.",
+        "inputSchema": {"type": "object", "properties": {
+            "model": {"type": "string", "description": "Model id to score (defaults to none: host only)"},
+        }},
+    },
+    {
+        "name": "plan_and_execute",
+        "title": "Autonomous DAG task planning and sliding-scale execution",
+        "description": "Decompose a high-level goal into an executable Directed Acyclic Graph (DAG), "
+                       "classify subtask complexity into sliding-scale model tiers (Scout/Distiller/Frontier), "
+                       "and optionally execute independent subtasks concurrently with file mutual exclusion.",
+        "inputSchema": {"type": "object", "properties": {
+            "goal": {"type": "string", "description": "High-level goal or instruction to plan and accomplish"},
+            "execute": {"type": "boolean", "default": False, "description": "Execute the DAG if true; preview/plan only if false"},
+            "parallel": {"type": "boolean", "default": True, "description": "Execute independent subtasks concurrently in parallel (default: on; isolation per the session's hourglass_isolate setting)"},
+            "max_workers": {"type": "integer", "default": 4, "minimum": 1, "maximum": 16},
+            "frontier_model": {"type": "string", "description": "Frontier model or alias for Tier 2 nodes (e.g. gpt-6, qwen-max)"},
+            "decompose_llm": {"type": "boolean", "default": True,
+                              "description": "Author the DAG with the cheapest tier-appropriate model "
+                                             "(schema-validated; default: on when the hourglass is active; "
+                                             "heuristic fallback when execute=true)"},
+            "confirm": {"type": "boolean", "default": True, "description": "Confirm the plan at the frontier waist before execution (brief + bounded file-window rounds; approve/amend/split/refuse verdict; a refused plan never executes). Default: on"},
+            "plan_consensus": {"type": "boolean", "default": False,
+                               "description": "Cheap plan-soundness check before the waist "
+                                              "(JSON sound/reasons; unsound forces the waist "
+                                              "amend path; ledgered plan_consensus)"},
+            "final_gate": {"anyOf": [{"type": "boolean"}, {"type": "string"}],
+                           "description": "Post-DAG final verification gate: false disables, "
+                                          "true/auto uses a discovered/declared verify command, "
+                                          "or pass an explicit command string"},
+            "require_diff_authorization": {"type": "boolean", "default": True, "description": "An independent verifier model must allow the exact resulting content of every node write before it lands (default: on)"},
+            "file": {"anyOf": [
+                         {"type": "string"},
+                         {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                     ],
+                     "description": "Optional allowed file paths"},
+            "stages": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                ],
+                "description": "Subset of pipeline stages to execute (context, planning, execution, verification)",
+            },
+            "brief": {
+                "anyOf": [
+                    {"type": "object"},
+                    {"type": "string"},
+                ],
+                "description": "Supplied context brief artifact or path to JSON pack file",
+            },
+            "token_budget_input": {
+                "type": "integer",
+                "minimum": 1024,
+                "description": "Override input token allowance ceiling for the composed run",
+            },
+            "token_budget_output": {
+                "type": "integer",
+                "minimum": 256,
+                "description": "Override output token allowance ceiling for the composed run",
+            },
+            "max_cost": {"type": "number", "minimum": 0, "maximum": 0.25},
+            "allow_write": {"type": "boolean", "description": "Confirm permission to write files when execute=true"},
+        }, "required": ["goal"]},
+    },
+    {
+        "name": "issue_sort",
+        "title": "Sort an issue into an operator-declared bucket",
+        "description": "JEV-P5 issue-sort: operator declares the bucket pack; code owns "
+                       "matching; TypeSafe choice criteria = operator labels only. Never "
+                       "invents buckets, path_ids, or suggested actions. Unkeyed / "
+                       "transport fail / out-of-pack → is_fallback with keyword match "
+                       "against pack keywords only; no match → bucket=null.",
+        "inputSchema": {"type": "object", "properties": {
+            "issue": {"type": "string", "description": "Issue or deferral note text to sort"},
+            "pack": {"type": "object",
+                     "description": "Operator bucket pack: {id, buckets: {id: {label, "
+                                    "kind: trouble_area|alternate_path|orchestration_driver, "
+                                    "path_id, keywords[], suggested_next_action, attention}}}"},
+            "task_id": {"type": "string"},
+        }, "required": ["issue", "pack"]},
+    },
+    {
+        "name": "route_query",
+        "title": "Route a query onto the declared model ladder",
+        "description": "SITE-2 route marketplace: compares the request against the "
+                       "declared rung ladder (tier + cost class + observed evidence) "
+                       "and picks the cheapest capable rung. Choice criteria = declared "
+                       "rung ids only; never invents rungs or model ids. Unkeyed / "
+                       "transport fail / out-of-ladder → is_fallback with the code-owned "
+                       "tier heuristic; unsatisfiable floor → rung=null.",
+        "inputSchema": {"type": "object", "properties": {
+            "goal": {"type": "string", "description": "The user request to route"},
+            "pack": {"type": "object",
+                     "description": "Operator route pack: {id, rungs: [{rung_id, tier: "
+                                    "T0|T1|T2|T3, model, cost_class: free|cheap|moderate|"
+                                    "expensive|premium, observed_success?, samples?, "
+                                    "guidance?, notes?}]}"},
+            "task_id": {"type": "string"},
+        }, "required": ["goal", "pack"]},
+    },
+    {
+        "name": "mission_status",
+        "title": "Mission pack status (read-only)",
+        "description": "Thin face over the HUL-A mission pack (harness.mission_record): "
+                       "regenerates STATUS.md/INDEX.md from on-disk pack state and returns "
+                       "the machine-readable summary (phase, dual budget, receipts, resume "
+                       "state). Read-only -- never mutates mission progress, spend, or "
+                       "resume status (same semantics as `harness mission status`).",
+        "inputSchema": {"type": "object", "properties": {
+            "mission_id": {"type": "string", "description": "Mission id (pack directory name)"},
+            "root": {"type": "string", "default": "missions",
+                     "description": "Mission pack root directory"},
+        }, "required": ["mission_id"]},
+    },
+    {
+        "name": "continue_work",
+        "title": "Resume a deferred/failed apply from its continuation state",
+        "description": "Thin face over the existing continue lane (the same "
+                       "engine.apply_batch(continuation=...) path `harness continue` and "
+                       "the UI's Continue pane use): resumes a gated apply from its saved "
+                       "continuation state. Write-gated exactly like apply_edit -- refuses "
+                       "without allow_write, and the continuation's target file must be "
+                       "inside an allowed root.",
+        "inputSchema": {"type": "object", "properties": {
+            "continuation": {"type": "object", "description": "Saved continuation state "
+                             "from a deferred/failed apply_edit or `harness apply`"},
+            "instruction": {"type": "string", "description": "Instruction override (<=1000 chars)"},
+            "verify_cmd": {"type": "string", "description": "Verify command override "
+                          "(requires server allow_verify; defaults to the continuation's own gate)"},
+            "allow_verify": {"type": "boolean", "description": "Explicit confirmation to run a "
+                             "verify gate in this request (required when allow_verify is not "
+                             "enabled server-side)"},
+            "max_rounds": {"type": "integer", "default": 3, "minimum": 1, "maximum": 20},
+            "allow_write": {"type": "boolean", "description": "Explicit confirmation that this "
+                            "MCP request may write files"},
+            "task_id": {"type": "string"},
+        }, "required": ["continuation"]},
+    },
+    {
+        "name": "log_judgment",
+        "title": "Single-pass log-factor analysis against a frozen operator pack",
+        "description": "JEV-LOG: code extracts log items ($0), the ONE Jev policy "
+                       "owner judges every item (bucket choice + operator-declared "
+                       "score), and code aggregates the JSON artifact. Bucket ids and "
+                       "score levels come only from the operator pack; unmatched "
+                       "items stay unmatched; fallback counts are reported, never "
+                       "smoothed. Freeze the pack via operator approval before use.",
+        "inputSchema": {"type": "object", "properties": {
+            "log_text": {"type": "string", "description": "Raw runtime log dump text"},
+            "pack": {"type": "object",
+                     "description": "Frozen operator log pack: P5 bucket pack + one "
+                                    "score block {id, instructions, levels[]}"},
+            "info_sample": {"type": "integer", "minimum": 0,
+                            "description": "Also judge every Nth INFO record (0 = WARN/ERROR only)"},
+            "task_id": {"type": "string"},
+        }, "required": ["log_text", "pack"]},
+    },
+    {
+        "name": "jev_phase",
+        "title": "JEV completion bar (local-only, read-only)",
+        "description": "Thin face over harness.jev_completion (the same engine "
+                       "`harness jev-phase --local-only` runs): hard gates + "
+                       "sentiment buckets score one phase or the whole board. "
+                       "Always local-only -- never calls a live Jev judge and "
+                       "never mutates STATUS or the repo.",
+        "inputSchema": {"type": "object", "properties": {
+            "repo_root": {"type": "string", "default": ".",
+                          "description": "Repo root to read STATUS/evidence from"},
+            "phase": {"type": "string", "description": "Phase id, e.g. DF-UI-2 "
+                     "(required unless 'all' is set)"},
+            "all": {"type": "boolean", "default": False,
+                    "description": "Score every declared phase contract"},
+            "min_score": {"type": "number", "minimum": 0, "maximum": 100,
+                          "description": "Completion score threshold (default 85.0)"},
+        }, "anyOf": [
+            {"required": ["phase"]},
+            {"required": ["all"],
+             "properties": {"all": {"const": True}}},
+        ]},
+    },
+    {
+        "name": "jev_freeze",
+        "title": "Freeze JEV model pin + confidence threshold",
+        "description": "Thin face over harness.config.freeze_jev_settings (the "
+                       "same owner the CLI `jev-freeze` command calls). A "
+                       "preview (persist=false, the default) reports the pin/"
+                       "threshold the freeze would apply and writes nothing; "
+                       "persist=true writes the operator config.json and "
+                       "requires allow_write. Refused fail-closed when the "
+                       "environment pins the same key, since the pin would "
+                       "not take effect.",
+        "inputSchema": {"type": "object", "properties": {
+            "model": {"type": "string",
+                      "description": "Model id to pin (e.g. jev-1.13.0); omit "
+                                     "to keep the current pin"},
+            "min_confidence": {"type": "number", "minimum": 0, "maximum": 1,
+                               "description": "Abstain/escalate threshold; omit "
+                                              "to keep the current value"},
+            "persist": {"type": "boolean", "default": False,
+                        "description": "Write the named keys into the operator "
+                                       "config.json (requires allow_write)"},
+            "allow_write": {"type": "boolean",
+                            "description": "Explicit confirmation for a config "
+                                           "write in this request"},
+            "task_id": {"type": "string"},
+        }},
+    },
+    {
+        "name": "dogfood",
+        "title": "Three-phase self-hosting dogfood audit and gated repair",
+        "description": "DF-UI-2 / HV-6: Run the self-hosting dogfood loop "
+                       "(ground -> verify -> apply) over claims and source window.",
+        "inputSchema": {"type": "object", "properties": {
+            "file": {"type": "string",
+                     "description": "Target file to repair under apply gate"},
+            "instruction": {"type": "string",
+                            "description": "Apply repair instruction"},
+            "verify": {"type": "string",
+                       "description": "Verify gate command for apply phase"},
+            "claims_file": {"type": "string",
+                            "description": "Path to claims JSON file"},
+            "source_file": {"type": "string",
+                            "description": "Path to source text window file"},
+            "definitions_file": {"type": "string",
+                                 "description": "Optional path to definitions JSON file"},
+            "claim_context": {"type": "string",
+                              "description": "Optional context override string"},
+            "max_cost": {"type": "number", "minimum": 0, "maximum": 0.25},
+            "max_rounds": {"type": "integer", "minimum": 1, "maximum": 8, "default": 3},
+            "allow_write": {"type": "boolean",
+                            "description": "Confirm permission to write target file"},
+            "task_id": {"type": "string"},
+        }, "required": ["file", "instruction"]},
+    },
+    {
+        "name": "generate_brief",
+        "title": "Build an evidence-bearing context pack",
+        "description": "Generate a grounded context pack (HV-2 brief) for a goal from source files. "
+                       "Cites exact windows, estimates tokens, checks freshness, and tracks omissions. "
+                       "Hermetic: no network, no model call.",
+        "inputSchema": {"type": "object", "properties": {
+            "goal": {"type": "string", "description": "High-level goal or instruction to brief"},
+            "files": {"type": "array", "items": {"type": "string"},
+                      "description": "Source file paths to inspect and cite"},
+            "budget": {"type": "integer", "default": 48000,
+                       "description": "Maximum character budget for cited windows (default: 48000)"},
+            "freshness": {"type": "boolean", "default": False,
+                          "description": "Evaluate and attach source freshness report"},
+            "render": {"type": "boolean", "default": False,
+                       "description": "Render markdown prose representation instead of raw JSON"},
+        }, "required": ["goal"]},
+    },
+    {
+        "name": "driver_step",
+        "title": "Run verified extraction, Jev decision, and action step",
+        "description": "Execute a verified extraction -> Jev decision -> deterministic action "
+                       "step via driver-core. Consensus happens upstream of the decision. "
+                       "Returns an envelope with ok: true on execution or ok: false on a refusal "
+                       "(HTTP 200). Only transport failures raise.",
+        "inputSchema": {"type": "object", "properties": {
+            "target": {"type": "string", "description": "Target window, process, URL or selector"},
+            "schema": {"type": "string", "enum": ["cli", "dom", "gui", "screen", "mcp"],
+                       "description": "Extraction schema (default: 'cli')"},
+            "action": {"type": "string", "description": "Declared action to consent to (optional)"},
+            "params": {"type": "object", "description": "Action parameter object (optional)"},
+            "by": {"type": "string", "description": "Consent grantor label (default: the MCP peer, e.g. mcp:<client>). 'operator' needs allow_write=true"},
+            "require_stable": {"type": "boolean", "default": True,
+                               "description": "Require stable state before execution"},
+            "task_id": {"type": "string"},
+        }, "required": ["target"]},
+    },
+    {
+        "name": "driver_health",
+        "title": "Check driver-core service status and declared sources",
+        "description": "Query driver-core liveness, version, and declared perception sources.",
+        "inputSchema": {"type": "object", "properties": {
+            "task_id": {"type": "string"},
+        }},
+    },
+    {
+        "name": "driver_vocabulary",
+        "title": "List driver-core declared action vocabulary",
+        "description": "Query driver-core closed 14-action vocabulary, tier mutability, and normalizers.",
+        "inputSchema": {"type": "object", "properties": {
+            "task_id": {"type": "string"},
+        }},
+    },
+    {
+        "name": "driver_verify",
+        "title": "Verify cryptographic audit chain and spend budget",
+        "description": "Verify the hash-chain integrity of the driver audit log and return spend totals.",
+        "inputSchema": {"type": "object", "properties": {
+            "task_id": {"type": "string"},
+        }},
+    },
+    {
+        "name": "host_provision_probe",
+        "title": "Probe host system facts for provisioning",
+        "description": "Probe host hardware, operating system, interpreter, GPU, and package managers (read-only facts).",
+        "inputSchema": {"type": "object", "properties": {}},
+        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "host_provision_plan",
+        "title": "Plan host provisioning for a goal",
+        "description": "Generate an ordered, typed host-provisioning Plan for a goal (dry-run/advisory only; consent required before execution).",
+        "inputSchema": {"type": "object", "properties": {
+            "goal": {"type": "string", "description": "Provisioning goal text (e.g. 'install ruff')"},
+            "root": {"type": "string", "description": "Optional approved root directory (defaults to current working directory)"},
+        }, "required": ["goal"]},
+        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "repo_cards",
+        "title": "Repo philosophy cards generator/checker",
+        "description": "Generate or check deterministic repo philosophy cards from committed repository config.",
+        "inputSchema": {"type": "object", "properties": {
+            "check": {"type": "boolean", "description": "True to verify cards match without writing"},
+            "repo": {"type": "string", "description": "Optional specific repository name"},
+        }},
+        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "jev_calibration",
+        "title": "Jev judgment calibration analysis",
+        "description": "Analyze Jev judgment confidence distribution and recommend calibration threshold bands from ledger history (read-only).",
+        "inputSchema": {"type": "object", "properties": {
+            "window": {"type": "integer", "default": 1000, "description": "Number of recent ledger entries to inspect"},
+        }},
+        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+    },
+    {
+        "name": "economics_report",
+        "title": "Economics & value routing report",
+        "description": "Report tier snapshot freshness, seat-share diversity, per-lane/per-tier cost metering, and bounded pool-rotation proposals (read-only).",
+        "inputSchema": {"type": "object", "properties": {
+            "allow_cost_increase": {"type": "boolean", "default": False, "description": "Allow proposing a candidate with higher expected cost"},
+        }},
+        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+    },
+]
+

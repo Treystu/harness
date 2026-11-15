@@ -1,0 +1,334 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer run for the same ref supersedes queued/running ones -- stops the
+# queued-runs pileup seen on the runner-availability crunch of 2026-09-19.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # PLAT-parity-tests: line-ending hygiene is a property of the CHECKOUT, so
+  # it is checked on a fresh one, before anything else runs. A .gitattributes
+  # rule that makes files look modified is invisible to the rest of CI and
+  # fatal to the apply engine, which reads `git status --porcelain` as a
+  # node's diff (the 2026-09-27 matrix run found exactly that).
+  checkout-hygiene:
+    name: Checkout hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: A fresh checkout must be clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          dirty="$(git status --porcelain --untracked-files=no)"
+          if [ -n "$dirty" ]; then
+            echo "fresh checkout is dirty (line-ending or attribute rules):" >&2
+            echo "$dirty" >&2
+            git ls-files --eol >&2
+            exit 1
+          fi
+          echo "working tree clean; eol inventory:"
+          git ls-files --eol | awk '{print $1}' | sort | uniq -c
+
+  # PLAT-ci-matrix: the hermetic suite runs on every supported OS, and the
+  # parity tests inside it are what make "same bytes everywhere" a claim
+  # rather than an intention. The full python-version sweep stays on Ubuntu
+  # (the oldest supported version is the interesting one); Windows and macOS
+  # run the current version, which is what exercises the platform-specific
+  # code paths (8.3 short names, case-insensitive roots, the UI bind).
+  test:
+    name: hermetic suite (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.9"
+          - os: ubuntu-latest
+            python-version: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install development tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+      # Lint is an Ubuntu-only gate (PLAT-ci-matrix): one linter, one
+      # platform, so a lint finding is never a runner-specific artefact.
+      - name: Lint (ruff)
+        if: runner.os == 'Linux'
+        run: python -m ruff check harness tests examples/oc_handoff
+      - name: Compile
+        run: python -m compileall -q harness tests examples/oc_handoff
+      - name: Check repo philosophy cards (drift check)
+        run: python -m harness.repo_cards --check
+      - name: Run tests (hermetic, no network, warnings clean)
+        run: python -W error::ResourceWarning -m unittest discover -s tests -v
+
+  audit:
+    runs-on: ubuntu-latest
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install development tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+      - name: Lint audit script
+        run: python -m ruff check audits
+      - name: 4-dimensional audit (9.5+ bar on every dimension)
+        run: python audits/self/audit.py
+      - name: Live model-freshness check (only when OPENROUTER_API_KEY secret is set)
+        if: env.OPENROUTER_API_KEY != ''
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: python -m harness.cli capabilities --check-shipped
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+          python -m build
+      - name: Check metadata (twine)
+        run: python -m twine check dist/*
+      - name: Version parity (pyproject vs harness.__version__ vs MCP)
+        run: |
+          pip install tomli
+          python - <<'EOF'
+          import subprocess, sys
+          try:
+              import tomllib
+          except ImportError:
+              import tomli as tomllib
+          from pathlib import Path
+          py = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+          declared = py["project"]["name"]
+          version = py["project"]["version"]
+          assert declared == "sovereign-harness", f"unexpected distribution name: {declared}"
+          code = "import harness; print(harness.__version__)"
+          got = subprocess.run([sys.executable, "-c", code], check=True,
+                               capture_output=True, text=True).stdout.strip()
+          assert got == version, f"harness.__version__ ({got}) != pyproject ({version})"
+          src = Path("harness/mcp.py").read_text(encoding="utf-8")
+          assert "from . import __version__" in src, "mcp.py must derive SERVER_VERSION from harness.__version__"
+          print(f"version parity OK: {declared} == {version} (importable, reads {got})")
+          EOF
+      - name: Smoke-install wheel in a clean venv
+        run: |
+          python -m venv .smoke-venv
+          .smoke-venv/bin/python -m pip install --upgrade pip
+          .smoke-venv/bin/pip install dist/*.whl
+          cd "$HOME"  # outside the repo so `import harness` resolves to the wheel
+          "$GITHUB_WORKSPACE/.smoke-venv/bin/python" -c "import harness; print(harness.__version__)"
+          "$GITHUB_WORKSPACE/.smoke-venv/bin/harness" --help > /dev/null
+      - name: DF-CI-3 -- serve + MCP stdio smoke test (installed wheel, no network)
+        run: |
+          set -e
+          cd "$HOME"  # outside the repo, same as the install-smoke step above
+          BIN="$GITHUB_WORKSPACE/.smoke-venv/bin"
+          # -- harness serve: bind an OS-assigned free port (--port 0), pull
+          # the actual port back out of the startup line it prints on stderr.
+          "$BIN/harness" serve --port 0 > serve.out 2> serve.err &
+          SERVE_PID=$!
+          PORT=""
+          for _ in $(seq 1 30); do
+            PORT=$(grep -oE 'http://[0-9.]+:[0-9]+/' serve.err | tail -1 | sed -E 's#.*:([0-9]+)/#\1#' || true)
+            [ -n "$PORT" ] && break
+            sleep 0.5
+          done
+          if [ -z "$PORT" ]; then
+            echo "::error::harness serve never printed its bound port"; cat serve.err; kill "$SERVE_PID" 2>/dev/null || true; exit 1
+          fi
+          curl -sS -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:$PORT/" | grep -qx 200
+          curl -sS -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:$PORT/app.js" | grep -qx 200
+          kill "$SERVE_PID" 2>/dev/null || true
+          wait "$SERVE_PID" 2>/dev/null || true
+          # -- harness-mcp: one JSON-RPC `initialize` frame through the real
+          # server construction path in the installed wheel. Startup calls
+          # SpendGovernor.verify_key(), which DOES call out to OpenRouter --
+          # a dummy key alone 401s and crashes main() before anything
+          # reaches stdout (that combination made this step flaky/red).
+          # Running in-process against "$BIN/python" (so it is the wheel's
+          # harness, not the source tree) with HttpTransport.get faked
+          # exercises the handshake with genuinely no network.
+          OPENROUTER_API_KEY=sk-ci-smoke-dummy "$BIN/python" <<'PY'
+          import io
+          import json
+          from unittest import mock
+
+          import harness._http as _http
+
+          def fake_get(self, url, api_key):
+              return {"data": {"limit": 1, "limit_remaining": 1, "label": "ci-smoke"}}
+
+          with mock.patch.object(_http.HttpTransport, "get", fake_get):
+              from harness import session as composition
+              from harness.config import load_settings, resolve_hourglass
+              from harness.mcp import McpServer
+
+              settings = load_settings()
+              transport = composition.HttpTransport()
+              api_key, governor = composition.governor_for(settings)
+              ledger = composition.ledger_for(settings, caller="mcp")
+              router = composition.router_for(settings)
+              engine = composition.engine_for(settings, api_key, governor, ledger, router)
+              req = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
+              out = io.StringIO()
+              server = McpServer(
+                  transport=transport, api_key=api_key, governor=governor,
+                  ledger=ledger, router=router, engine=engine,
+                  max_panelists=settings.max_panelists, use_free=settings.use_free,
+                  allow_write=settings.mcp_allow_write,
+                  allow_verify=settings.mcp_allow_verify,
+                  allowed_roots=settings.mcp_allowed_roots,
+                  tool_timeout=settings.mcp_tool_timeout,
+                  auth_token=settings.mcp_auth_token,
+                  hourglass=resolve_hourglass(settings),
+                  stdin=io.StringIO(json.dumps(req) + "\n"),
+                  stdout=out,
+              )
+              server.serve_forever()
+
+          resp = json.loads(out.getvalue().strip().splitlines()[0])
+          name = resp["result"]["serverInfo"]["name"]
+          assert name == "harness", f"serverInfo.name was {name!r}, expected 'harness'"
+          print(f"MCP initialize OK: serverInfo.name == {name!r}")
+          PY
+          rm -rf "$GITHUB_WORKSPACE/.smoke-venv"
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # PLAT-ci-matrix: the *installed* package is what a user runs, and its
+  # entry points live in different places per platform (Scripts/ vs bin/).
+  # Building once and installing the same wheel everywhere keeps the matrix
+  # honest: one artifact, three filesystems, three console-script layouts.
+  # The heavy serve + MCP handshake smoke stays in the Ubuntu package job;
+  # this job proves the wheel installs and its CLI runs on every OS.
+  package-installed:
+    name: installed package (${{ matrix.os }})
+    needs: package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            venv_python: bin/python
+          - os: windows-latest
+            venv_python: Scripts/python.exe
+          - os: macos-latest
+            venv_python: bin/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download the built wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Smoke-install the wheel in a clean venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Absolute from the start: the smoke run leaves the repo (so
+          # `import harness` resolves to the wheel, not the checkout), and a
+          # relative venv path would not survive the cd.
+          VENV="$GITHUB_WORKSPACE/.smoke-venv"
+          PY="$VENV/${{ matrix.venv_python }}"
+          python -m venv "$VENV"
+          "$PY" -m pip install --upgrade pip
+          "$PY" -m pip install dist/*.whl
+          cd "$HOME"  # outside the repo so `import harness` resolves to the wheel
+          "$PY" -c "import harness; print(harness.__version__)"
+          "$PY" -m harness.cli --help > /dev/null
+          "$PY" -m harness.cli gates --json > /dev/null
+          echo "installed-package smoke OK on ${{ matrix.os }} ($PY)"
+      - name: Clean up the smoke venv
+        if: always()
+        shell: bash
+        run: rm -rf "$GITHUB_WORKSPACE/.smoke-venv"
+
+  # handoff-scope (issue #108): every handoff has one owner, and a document
+  # that quietly mixes another lane's evidence should not land without being
+  # noticed. This job is ADVISORY by design -- it reports and annotates, and
+  # it never fails the build. A gate that blocks a merge over a missing HTML
+  # comment trains people to delete the comment, so the first step is
+  # visibility, not enforcement. Promotion to blocking is a separate,
+  # deliberate decision once the register has proved itself.
+  handoff-scope:
+    name: handoff scope (advisory)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # The gate diffs the working tree against a base ref, so the base has to
+      # resolve. On a pull_request event that is the PR's base branch; on a push
+      # to main it is main itself, which is a no-op diff and correctly reports
+      # "no changed handoff documents".
+      - name: Resolve the diff base
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}"
+          git fetch --no-tags origin "$BASE"
+          echo "BASE=$BASE" >> "$GITHUB_ENV"
+          echo "diffing handoff documents against origin/$BASE"
+      # Strict, but it tests the TOOL rather than any document: a drifted
+      # classifier would make every advisory finding untrustworthy. Reported as
+      # a warning rather than a failure, to keep this job warn-only.
+      - name: Classifier self-test (strict; reported, not enforced)
+        id: selftest
+        continue-on-error: true
+        run: |
+          python scripts/validate_handoff_scope.py --repo-root . --self-test
+      - name: Report a drifted classifier
+        if: failure() && steps.selftest.outcome == 'failure'
+        run: echo "::warning title=handoff scope::The ownership-gate classifier self-test failed. Advisory findings below may be unreliable until refresh_coverage/validate_handoff_scope.py is repaired."
+      - name: Advisory scan of changed handoff documents
+        id: scan
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          python scripts/validate_handoff_scope.py \
+            --repo-root . --warn-only --changed-from "origin/$BASE"
+      - name: Annotate any ownership findings
+        if: failure() && steps.scan.outcome == 'failure'
+        run: echo "::warning title=handoff scope::The ownership gate reported a problem. This job does not block; see the log for the named document."
+      - name: Always print the register
+        if: always()
+        run: |
+          echo "--- waiver register ---"
+          cat handoff_scope_waivers.json

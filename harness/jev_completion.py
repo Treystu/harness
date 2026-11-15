@@ -1,0 +1,1634 @@
+"""Jev phase-completion accountability (dogfood gate).
+
+Code owns hard mechanical facts (PR/merge, required tests present, named
+gates, open blockers). Jev owns a bounded semantic 0-100 judgment on whether
+the evidence actually shows the phase is done. STATUS may claim complete only
+when every hard gate passes AND the combined score clears the threshold.
+"""
+from __future__ import annotations
+
+import json
+import hashlib
+import hmac
+import math
+import os
+import re
+import sqlite3
+from contextlib import closing
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote
+
+from .errors import HarnessError
+from . import osal
+from .jev_packs import (
+    DEFAULT_PHASE_COMPLETION_PACK,
+    PHASE_COMPLETION_SITE,
+    heuristic_completion_sentiment,
+    load_completion_pack,
+    phase_status_claims_complete,
+    phase_status_has_blocker,
+    phase_status_has_language,
+    phase_status_has_verdict,
+    phase_status_names_core_verdict,
+    phase_status_mentions_merge,
+    phase_status_mentions_pr,
+    phase_status_says_pr_open,
+    validate_completion_pack,
+)
+
+PHASE_COMPLETE_MIN_SCORE = 85.0
+COMPLETION_SCORE_MAX = 100.0
+# Keep these limits aligned with examples/oc_handoff/worker.py. Reads below are
+# capped as well as preflighted so a concurrent size change cannot expand them.
+_OC_HANDOFF_MAX_BYTES = 1_000_000
+_OC_MANIFEST_MAX_BYTES = 16_384
+_OC_RECEIPT_MAX_BYTES = 16_384
+_OC_RECEIPT_ROW_LIMIT = 128
+_OC_STATE_MAX_BYTES = 64 * 1024 * 1024
+
+# Mechanical points when hard gates pass. Sum == 100.
+_HARD_GATE_POINTS = {
+    "pr_merged": 25,
+    "origin_evidence": 10,
+    "required_tests_present": 20,
+    "required_files_present": 0,
+    "oc_handoff_verified": 0,
+    "local_gates_green": 15,
+    "ci_green": 15,
+    "no_open_blockers": 15,
+}
+
+# JEV-BAR: the fixed 5-level default pack, kept identical to
+# packs/phase_completion.pack.json (the JSON file is canonical; the module
+# constant here is only the hermetic fallback used when a temp/test repo has
+# no packs/ directory of its own -- test_jev_bar_sentiment.py asserts the two
+# stay equal).
+DEFAULT_COMPLETION_PACK: Dict[str, Any] = {
+    "id": "harness-phase-completion-v1",
+    "sentiment": {
+        "levels": [
+            "blocking — evidence contradicts completion",
+            "at_risk — open gap likely to fail review",
+            "mixed — evidence partial or ambiguous",
+            "confident — evidenced with minor gaps",
+            "proven — evidenced and consistent",
+        ],
+        "ordinals": [0, 35, 60, 85, 100],
+        "blocking_max_index": 0,
+        "improve_below_index": 3,
+    },
+    "axes": {
+        "merge_evidence": {"authority": "code", "bucket": "merge_pending",
+            "instructions": "Rate the merge evidence: the phase PR is merged, cited by PR number or merge SHA in the STATUS row."},
+        "gate_tests": {"authority": "code", "bucket": "tests_missing",
+            "instructions": "Rate whether named hermetic gate tests exist for this phase and are cited."},
+        "verification": {"authority": "code", "bucket": "gates_unverified",
+            "instructions": "Rate the verification evidence: local gates, CI, and the self-audit bar."},
+        "status_honesty": {"authority": "jev", "bucket": "status_dishonest",
+            "instructions": "Rate whether the STATUS row is honest: no complete claim while open, repair, or failing language remains."},
+        "residual_scope": {"authority": "jev", "bucket": "residual_untracked",
+            "instructions": "Rate whether residual or deferred work is tracked as its own row rather than hidden inside a complete claim."},
+        "dogfood": {"authority": "jev", "bucket": "dogfood_missing",
+            "instructions": "Rate live dogfood evidence for user-facing lanes: receipts, cost, fallback rate."},
+    },
+    "buckets": {
+        "merge_pending": {"label": "Merge evidence missing", "path_id": "bar/merge",
+            "keywords": ["no pr", "not merged", "this pr", "draft"],
+            "suggested_next_action": "Drive the PR to green CI, merge it, and cite PR #/merge SHA in the STATUS row."},
+        "tests_missing": {"label": "Named gate tests missing", "path_id": "bar/tests",
+            "keywords": ["missing required tests", "no tests"],
+            "suggested_next_action": "Add the named hermetic gate tests to the phase contract and make them pass."},
+        "gates_unverified": {"label": "Gates or CI unverified", "path_id": "bar/gates",
+            "keywords": ["audit", "coverage", "ci red", "bar not met"],
+            "suggested_next_action": "Run the local battery and audits/self/audit.py to BAR MET; cite the CI run."},
+        "status_dishonest": {"label": "STATUS claim contradicts evidence", "path_id": "bar/status",
+            "keywords": ["in progress", "repair", "blocked"],
+            "suggested_next_action": "Correct the STATUS wording so the claim matches the evidence (no complete while open)."},
+        "residual_untracked": {"label": "Residual work hidden in a complete claim", "path_id": "bar/residual",
+            "keywords": ["residual", "deferred", "follow-up", "remaining"],
+            "suggested_next_action": "Split residual/deferred work into its own open STATUS row with an owner, or close it with evidence."},
+        "dogfood_missing": {"label": "Live dogfood evidence missing", "path_id": "bar/dogfood",
+            "keywords": ["dogfood", "smoke", "receipt"],
+            "suggested_next_action": "Run paid-cheap live dogfood on the user-facing lane; record receipt, cost, and fallback rate."},
+    },
+}
+
+# Bucket ids a failed hard (code) gate maps to -- always the pack's own
+# declared buckets; never invented. Multiple gates may share one bucket.
+_HARD_GATE_BUCKETS = {
+    "pr_merged": "merge_pending",
+    "origin_evidence": "merge_pending",
+    "required_tests_present": "tests_missing",
+    "required_files_present": "gates_unverified",
+    "oc_handoff_verified": "dogfood_missing",
+    "local_gates_green": "gates_unverified",
+    "ci_green": "gates_unverified",
+    "no_open_blockers": "status_dishonest",
+}
+
+# Canonical phase contracts for mission STATUS dogfooding.
+PHASE_CONTRACTS: Dict[str, Dict[str, Any]] = {
+    # EV-0 (model economics addendum, see the EV-* section in the canon):
+    # evidence ingest + the discount-semantics gate. Its `status_needle`
+    # arrived only in #175: the contract had been here all along with no
+    # needle anywhere, so the phase resolved no row and read 35.0/85.0 with
+    # every evidence gate false -- identical to a phase that never landed.
+    # No pr_pattern yet --
+    # the PR pin is added with the merge commit, exactly as GAP-freeze-face
+    # flipped its row on its own merge rather than claiming completion in a
+    # STATUS edit that no code gated.
+    "EV-0": {
+        "status_needle": r"\bEV-0\b",
+        "pr_pattern": r"PR #163|PR #167|c8da12e|998e50f",
+        "required_tests": [
+            "tests/test_economics_ingest.py",
+            "tests/test_economics_discount.py",
+            "tests/test_economics_cli.py",
+        ],
+        # EV-0's evidence layer is four modules, one concern each; the
+        # contract follows the code rather than naming a file that is gone.
+        "required_files": [
+            "harness/endpoint_pricing.py",
+            "harness/benchmark_ingest.py",
+            "harness/discount_probe.py",
+            "harness/discount_gate.py",
+        ],
+    },
+    "EV-1": {
+        "status_needle": r"\bEV-1\b",
+        "pr_pattern": r"PR #241",
+        "required_tests": [
+            "tests/test_economics_index.py",
+        ],
+        "required_files": [
+            "harness/endpoint_pricing.py",
+            "harness/capability.py",
+            "harness/discount_gate.py",
+        ],
+    },
+    "EV-2": {
+        "status_needle": r"\bEV-2\b",
+        "pr_pattern": r"PR #241",
+        "required_tests": [
+            "tests/test_routing_table.py",
+        ],
+        "required_files": [
+            "harness/routing_table.py",
+            "packs/tiers.snapshot.json",
+        ],
+    },
+    "EV-3": {
+        "status_needle": r"\bEV-3\b",
+        "pr_pattern": r"PR #241",
+        "required_tests": [
+            "tests/test_economics_route_policy.py",
+        ],
+        "required_files": [
+            "harness/jev_policy.py",
+            "packs/economics_route.pack.json",
+        ],
+    },
+    "EV-4": {
+        "status_needle": r"\bEV-4\b",
+        "pr_pattern": r"PR #241",
+        "required_tests": [
+            "tests/test_economics_auto_rotation.py",
+            "tests/test_model_slates.py",
+        ],
+        "required_files": [
+            "harness/config.py",
+            "harness/capability.py",
+            "harness/panel.py",
+        ],
+    },
+    "EV-5": {
+        "status_needle": r"\bEV-5\b",
+        "pr_pattern": r"PR #241",
+        "required_tests": [
+            "tests/test_economics_cli.py",
+            "tests/test_rankings_cli.py",
+            "tests/test_cost_cli.py",
+        ],
+        "required_files": [
+            "harness/cli.py",
+            "harness/mcp.py",
+            "harness/mcp_schemas.py",
+            "harness/server.py",
+            "harness/site_export.py",
+        ],
+        "user_facing": True,
+    },
+    "EV-6": {
+        "status_needle": r"\bEV-6\b",
+        "pr_pattern": r"PR #208|PR #241",
+        "required_tests": [
+            "tests/test_economics_fireworks_source.py",
+        ],
+        "required_files": [
+            "harness/endpoint_pricing.py",
+            "packs/fireworks.endpoints.json",
+        ],
+    },
+    "EV-7": {
+        "status_needle": r"\bEV-7\b",
+        "pr_pattern": r"PR #212|PR #241",
+        "required_tests": [
+            "tests/test_economics_fireworks_route.py",
+        ],
+        "required_files": [
+            "harness/fireworks.py",
+            "harness/config.py",
+            "harness/spend.py",
+            "harness/chat.py",
+        ],
+    },
+    "EV-8": {
+        "status_needle": r"\bEV-8\b",
+        "pr_pattern": r"PR #241",
+        "required_tests": [
+            "tests/test_economics_fireworks_verify.py",
+        ],
+        "required_files": [
+            "harness/fireworks_probe.py",
+            "harness/cli.py",
+        ],
+        "user_facing": True,
+    },
+    "REFINE-LOOP": {
+        "status_needle": r"\bREFINE-LOOP\b",
+        "pr_pattern": r"PR #240|a7daf42",
+        "required_tests": [
+            "tests/test_refine_loop.py",
+        ],
+        "required_files": [
+            "harness/refine.py",
+            "harness/data/task_families.json",
+            "harness/data/experience.md",
+            "harness/data/refine_propose_prompt.md",
+        ],
+        "user_facing": True,
+    },
+    "JEV-P0": {
+        "status_needle": r"JEV-P0|0 Contract|contract truth",
+        "pr_pattern": r"PR #34|d042d70",
+        "required_tests": ["tests/test_jev.py", "tests/test_jev_smoke.py"],
+        "required_files": ["harness/jev.py"],
+    },
+    "JEV-P1": {
+        "status_needle": r"JEV-P1|One owner|one owner \+ lanes",
+        "pr_pattern": r"PR #35|9d5ff14",
+        "required_tests": [
+            "tests/test_jev_policy.py",
+            "tests/test_jev_lane_parity.py",
+            "tests/test_jev_ledger_spend.py",
+        ],
+        "required_files": ["harness/jev_policy.py"],
+    },
+    "JEV-P2": {
+        "status_needle": r"JEV-P2|2 Pillars|System One pillars",
+        "pr_pattern": r"PR #36",
+        "required_tests": [
+            "tests/test_consent_confidence.py",
+            "tests/test_min_confidence_gating.py",
+            "tests/test_jev_triage.py",
+            "tests/test_jev_policy.py",
+            "tests/test_jev_lane_parity.py",
+            "tests/test_jev_ledger_spend.py",
+        ],
+        "required_files": [],
+    },
+    "JEV-P3": {
+        "status_needle": r"JEV-P3|3 Utilization|utilization",
+        "pr_pattern": r"PR #43|7eb18ea",
+        "required_tests": [
+            "tests/test_jev_util_coverage.py",
+            "tests/test_jev_util_paths.py",
+            "tests/test_jev_util_route.py",
+        ],
+        "required_files": [],
+    },
+    "JEV-P4": {
+        "status_needle": r"JEV-P4|4 Ops|ops / exit",
+        "pr_pattern": r"PR #46|a021cfc",
+        "required_tests": ["tests/test_jev_p4_ops_exit.py"],
+        "required_files": [],
+        "user_facing": True,
+    },
+    "JEV-COMPLETION": {
+        "status_needle": r"JEV-COMPLETION|completion score|dogfood 0-100|Accountability",
+        "pr_pattern": r"PR #39|5e15f8d",
+        "required_tests": ["tests/test_jev_completion.py", "tests/test_jev_bar_sentiment.py"],
+        "required_files": ["harness/jev_completion.py", "packs/phase_completion.pack.json"],
+    },
+    "SITE": {
+        "status_needle": r"SITE-\*|SITE-1|SITE-3\.\.9|proof bench site",
+        "pr_pattern": r"PR #60|a9ae53f",
+        "required_tests": [
+            "tests/test_site_export.py",
+            "tests/test_site_aggregate.py",
+            "tests/test_route_pack.py",
+            "tests/test_route_faces.py",
+            "tests/test_site_server.py",
+            "tests/test_site_cli_faces.py",
+            "tests/test_site_fold_parity.py",
+            "tests/test_site_parity_directives.py",
+        ],
+        "required_files": [
+            "harness/site_export.py",
+            "harness/site_aggregate.py",
+            "harness/route_pack.py",
+        ],
+    },
+    "JEV-P5": {
+        "status_needle": r"JEV-P5|issue-sort buckets",
+        "pr_pattern": r"PR #42|c9e1c67",
+        "required_tests": ["tests/test_jev_issue_sort.py"],
+        "required_files": ["harness/jev_packs.py"],
+        "user_facing": True,
+    },
+    "HUL-A": {
+        "status_needle": r"\bHUL-A\b",
+        "pr_pattern": r"PR #41|64e63a3",
+        "required_tests": ["tests/test_hul_mission_record.py"],
+        "required_files": ["harness/mission_record.py"],
+    },
+    "HUL-B": {
+        "status_needle": r"\bHUL-B\b",
+        "pr_pattern": r"PR #47|536e75c",
+        "required_tests": ["tests/test_hul_budget_reserve.py"],
+        "required_files": ["harness/spend.py"],
+    },
+    "HUL-C": {
+        "status_needle": r"\bHUL-C\b",
+        "pr_pattern": r"PR #48|469f34f",
+        "required_tests": ["tests/test_hul_jev_scope_gate.py"],
+        "required_files": ["harness/jev_policy.py"],
+    },
+    "HUL-D": {
+        "status_needle": r"\bHUL-D\b",
+        "pr_pattern": r"PR #48|469f34f",
+        "required_tests": ["tests/test_hul_driver_findings_resume.py"],
+        "required_files": ["harness/mission_driver.py"],
+        "user_facing": True,
+    },
+    "JEV-LOG-SCHEMA": {
+        "status_needle": r"JEV-LOG-schema",
+        "pr_pattern": r"PR #56|431836d",
+        "required_tests": ["tests/test_jev_log_pack.py"],
+        "required_files": ["harness/jev_packs.py"],
+    },
+    "JEV-LOG-PARSE": {
+        "status_needle": r"JEV-LOG-parse",
+        "pr_pattern": r"PR #56|431836d",
+        "required_tests": [
+            "tests/test_jev_log_pack.py",
+            "tests/test_jev_log_envelope.py",
+        ],
+        "required_files": ["harness/log_items.py"],
+    },
+    "JEV-LOG-FACTOR-PASS": {
+        "status_needle": r"JEV-LOG-factor-pass",
+        "pr_pattern": r"PR #57|e15a723",
+        "required_tests": ["tests/test_jev_log_envelope.py"],
+        "required_files": ["harness/log_analysis.py"],
+    },
+    "JEV-LOG-JUDGMENT": {
+        "status_needle": r"JEV-LOG-judgment",
+        "pr_pattern": r"PR #56|PR #57|431836d|e15a723",
+        "required_tests": ["tests/test_jev_log_judgment.py"],
+        "required_files": ["harness/jev_policy.py"],
+    },
+    "JEV-LOG-ENVELOPE": {
+        "status_needle": r"JEV-LOG-envelope",
+        "pr_pattern": r"PR #57|e15a723",
+        "required_tests": ["tests/test_jev_log_envelope.py"],
+        "required_files": ["harness/log_analysis.py"],
+    },
+    "JEV-LOG-CLI": {
+        "status_needle": r"JEV-LOG-cli",
+        "pr_pattern": r"PR #57|e15a723",
+        "required_tests": ["tests/test_jev_log_envelope.py"],
+        "required_files": ["harness/cli.py"],
+        "user_facing": True,
+    },
+    "JEV-LOG-DOGFOOD": {
+        "status_needle": r"JEV-LOG-dogfood",
+        "pr_pattern": r"PR #57|e15a723",
+        "required_tests": ["tests/test_jev_log_envelope.py"],
+        "required_files": [],
+        "user_facing": True,
+    },
+    "MS": {
+        "status_needle": r"`MS-\*`|cheapest-capable",
+        # Not yet cited by a real PR: the generic pr_pattern=None rule
+        # (STATUS row must match PR #\d+ AND the word MERGED) applies --
+        # never the bare "PR #" pattern (that let any PR mention pass).
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_hg_ms_parity.py",
+            "tests/test_model_envelope.py",
+        ],
+        "required_files": ["harness/config.py"],
+    },
+    "JEV-P6": {
+        "status_needle": r"JEV-P6",
+        "pr_pattern": r"PR #65|1936ed4",
+        "required_tests": [
+            "tests/test_repo_items.py",
+            "tests/test_jev_repo_pack.py",
+            "tests/test_jev_repo_judgment.py",
+            "tests/test_jev_repo_envelope.py",
+        ],
+        "required_files": [
+            "harness/repo_items.py",
+            "harness/repo_summary.py",
+            "packs/repo_summary.pack.json",
+        ],
+        "user_facing": True,
+    },
+    "HG": {
+        "status_needle": r"HG-\*|hourglass composition",
+        "pr_pattern": r"PR #44|f22accb",
+        "required_tests": [
+            "tests/test_hg_cli_resume_coverage.py",
+            "tests/test_hg_composed_ceiling.py",
+            "tests/test_hg_condense_decompose.py",
+            "tests/test_hg_extra_coverage.py",
+            "tests/test_hg_final_gate.py",
+            "tests/test_hg_hourglass_defaults.py",
+            "tests/test_hg_hybrid_isolate.py",
+            "tests/test_hg_ms_parity.py",
+            "tests/test_hg_plan_consensus.py",
+            "tests/test_hg_pyramid_resume.py",
+            "tests/test_hg_waist_unreachable_refuses.py",
+        ],
+        "required_files": [],
+    },
+    "JEV-BAR": {
+        "status_needle": r"JEV-BAR",
+        # PR number not known yet: generic pr_pattern=None rule.
+        "pr_pattern": None,
+        "required_tests": ["tests/test_jev_bar_sentiment.py"],
+        "required_files": ["packs/phase_completion.pack.json", "harness/jev_completion.py"],
+    },
+    # PLAT-* (platform unification): the bar for these rows is "the claim is
+    # enforced by a named test", so each row names the tests that enforce it.
+    # pr_pattern stays None: the STATUS row must cite the merged PR itself.
+    "PLAT-CMD-DATA": {
+        "status_needle": r"\bPLAT-cmd-data\b",
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_plat_cmd_runnable.py",
+            "tests/test_cli_gates.py",
+        ],
+        "required_files": [
+            "harness/gate_runner.py",
+            "harness/osal.py",
+        ],
+    },
+    "PLAT-OSAL-MODULE": {
+        "status_needle": r"\bPLAT-osal-module\b",
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_osal.py",
+            "tests/test_osal_boundary.py",
+        ],
+        "required_files": ["harness/osal.py"],
+    },
+    "PLAT-CI-MATRIX": {
+        "status_needle": r"\bPLAT-ci-matrix\b",
+        "pr_pattern": None,
+        "required_tests": ["tests/test_plat_ci_matrix.py"],
+        "required_files": [".github/workflows/ci.yml", ".gitattributes"],
+    },
+    "PLAT-PARITY-TESTS": {
+        "status_needle": r"\bPLAT-parity-tests\b",
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_plat_parity_ledger.py",
+            "tests/test_plat_parity_jev_report.py",
+            "tests/test_plat_parity_site_export.py",
+        ],
+        "required_files": [".gitattributes"],
+    },
+    "PLAT-DOCS": {
+        "status_needle": r"\bPLAT-docs\b",
+        "pr_pattern": None,
+        "required_tests": ["tests/test_plat_docs.py"],
+        "required_files": [
+            "docs/security.md",
+            "docs/mcp.md",
+            "docs/architecture.md",
+            "CONTRIBUTING.md",
+            "README.md",
+        ],
+    },
+    "HV-1": {
+        "status_needle": r"\bHV-1\b|stage-specific JEV integration",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_hourglass_jev_integrations.py",
+            "tests/test_jev_answer_lifecycle.py",
+        ],
+        "required_files": [
+            "harness/jev_packs.py",
+            "harness/jev_policy.py",
+        ],
+        "user_facing": False,
+    },
+    "HV-3": {
+        "status_needle": r"\bHV-3\b|token allowance and accounting owner",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": ["tests/test_hourglass_token_budget.py"],
+        "required_files": [
+            "harness/token_budget.py",
+            "harness/config.py",
+        ],
+        "user_facing": False,
+    },
+    "HV-4": {
+        "status_needle": r"\bHV-4\b",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_hourglass_stage_composition.py",
+            "tests/test_hourglass_planning_budget.py",
+        ],
+        # The canon's HV-4 row names harness/waist.py as the composition
+        # owner, so the gate requires that file and not a parallel module.
+        "required_files": [
+            "harness/waist.py",
+            "harness/config.py",
+        ],
+        "user_facing": False,
+    },
+    "HV-5": {
+        "status_needle": r"\bHV-5\b",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_hourglass_execution_budget.py",
+            "tests/test_hourglass_consent_handoff.py",
+        ],
+        "required_files": [
+            "harness/agent.py",
+        ],
+        "user_facing": False,
+    },
+    "HV-6": {
+        "status_needle": r"\bHV-6\b",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_hourglass_surface_parity.py",
+            "tests/test_hourglass_end_to_end.py",
+        ],
+        "required_files": [
+            "harness/cli_parser.py",
+            "harness/cli.py",
+            "harness/mcp.py",
+            "harness/mcp_schemas.py",
+            "harness/server.py",
+        ],
+        "user_facing": True,
+    },
+    "DRV-1": {
+        "status_needle": r"\bDRV-1\b",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_perception_client.py",
+            "tests/test_server_driver.py",
+            "tests/test_mcp_driver.py",
+            "tests/test_driver_conformance.py",
+        ],
+        "required_files": [
+            "harness/perception_client.py",
+            "driver_core/driver.py",
+            "driver_core/server.py",
+        ],
+        "user_facing": True,
+    },
+    "DRV-2": {
+        "status_needle": r"\bDRV-2\b",
+        # Closes only with a registered input backend and a live step.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_driver_conformance.py",
+        ],
+        "required_files": [
+            "driver_core/osal.py",
+            "driver_core/executor_registry.py",
+        ],
+        "user_facing": True,
+    },
+    "HV-2": {
+        "status_needle": r"\bHV-2\b|evidence-bearing context brief",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_hourglass_brief.py",
+            "tests/test_brief.py",
+            "tests/test_hg_condense_decompose.py",
+        ],
+        "required_files": [
+            "harness/brief.py",
+            "harness/condenser.py",
+        ],
+        "user_facing": False,
+    },
+    "HV-0": {
+        "status_needle": r"\bHV-0\b|vision-assessment pilot|vision assessment",
+        # The row must cite a real merged PR before the phase can pass.
+        "pr_pattern": None,
+        "required_tests": [
+            "tests/test_jev_vision_assessment.py",
+            "tests/test_jev.py",
+            "tests/test_jev_policy.py",
+            "tests/test_jev_ledger_spend.py",
+            "tests/test_jev_p4_ops_exit.py",
+            "tests/test_jev_smoke.py",
+            "tests/test_hul_budget_reserve.py",
+        ],
+        "required_files": [
+            "harness/_http.py",
+            "harness/jev.py",
+            "harness/jev_packs.py",
+            "harness/jev_policy.py",
+            "harness/cli.py",
+            "harness/cli_parser.py",
+            "packs/hourglass_vision_assessment.pack.json",
+        ],
+        "user_facing": True,
+    },
+    "CLAUDE-LANE": {
+        "status_needle": r"CLAUDE-LANE",
+        # PR lands in a sibling PR; missing files must fail the bar honestly
+        # until both PRs merge (operator ruling, JEV-BAR spec).
+        "pr_pattern": None,
+        "required_tests": [],
+        "required_files": [
+            "CLAUDE.md",
+            ".claude/skills/isolated-mission/SKILL.md",
+            ".claude/skills/isolated-request/SKILL.md",
+        ],
+        "user_facing": True,
+    },
+    "OC-HANDOFF": {
+        "status_needle": r"OC-HANDOFF",
+        "pr_pattern": r"PR #90|6aea14b",
+        "required_tests": ["tests/test_oc_handoff_worker.py"],
+        "required_files": [
+            "examples/oc_handoff/worker.py",
+            "docs/jev-roadmap.md",
+            "HANDOFF/OC_FINDINGS.md",
+        ],
+    },
+    # External project phase. Without a declared contract an unlisted phase id
+    # falls back to the generic pr_pattern=None rule but its STATUS row is never
+    # matched, so it scores against no evidence at all. Registering it makes
+    # CivicScore's own PR, tests and docs the contract.
+    # The 2026-10-04 recovered-WIP train merged six shipped slices
+    # (#164/#165/#166/#169/#170/#171) and gave each a canon STATUS row. Until
+    # these entries existed the rows were prose the engine never read: an
+    # unregistered id falls back to pr_pattern=None with an EMPTY
+    # required_tests/required_files, `collect_phase_evidence` finds no STATUS
+    # row at all, and the phase scores 35.0/85.0 with pr_merged/origin_
+    # evidence/local_gates_green/ci_green all false -- identical to a phase
+    # that has genuinely not landed. A row that says complete while the gate
+    # cannot see its merge is worse than no row: it is a false open on work
+    # whose PR and green CI run are cited in the row itself.
+    "CHAT-LANE": {
+        "status_needle": r"\bCHAT-LANE\b",
+        "pr_pattern": r"PR #170|deb4859",
+        "required_tests": [
+            "tests/test_waist_response_shapes.py",
+            "tests/test_chat_reasoning_memory.py",
+            "tests/test_agent_run_limits.py",
+        ],
+        "required_files": [
+            "harness/waist.py",
+            "harness/chat.py",
+            "harness/agent.py",
+        ],
+    },
+    "DYN-ROT": {
+        "status_needle": r"\bDYN-ROT\b",
+        "pr_pattern": r"PR #171|d78319f",
+        "required_tests": ["tests/test_router_dynamic_rotation.py"],
+        "required_files": ["harness/router.py", "harness/apply_policy.py"],
+    },
+    "JEV-CORE-HARDENING": {
+        "status_needle": r"\bJEV-CORE-HARDENING\b",
+        "pr_pattern": r"PR #165|ede5d0f",
+        "required_tests": [
+            "tests/test_jev_core_hardening.py",
+            "tests/test_jev_chaos.py",
+        ],
+        "required_files": ["harness/spend.py", "harness/ledger_analytics.py"],
+    },
+    "REPO-CARDS": {
+        "status_needle": r"\bREPO-CARDS\b",
+        "pr_pattern": r"PR #164|bbe7f6e",
+        "required_tests": ["tests/test_repo_cards.py"],
+        "required_files": ["harness/repo_cards.py"],
+    },
+    "PROVISION-CORE": {
+        "status_needle": r"\bPROVISION-CORE\b",
+        "pr_pattern": r"PR #166|24057b1",
+        "required_tests": [
+            "tests/test_provision.py",
+            "tests/test_provision_hardening.py",
+            "tests/test_provision_structural.py",
+            "tests/test_provision_wiring.py",
+        ],
+        "required_files": ["harness/provision.py"],
+    },
+    # Normalised by `_norm_phase`, so this key is upper-case while the canon
+    # row spells it lower-case after `JEV-P3`.
+    "JEV-P3-CALIBRATION-ANALYSIS": {
+        "status_needle": r"\bJEV-P3-calibration-analysis\b",
+        "pr_pattern": r"PR #169|c031dc5",
+        "required_tests": ["tests/test_jev_calibration_analysis.py"],
+        "required_files": ["harness/jev_calibration.py"],
+    },
+}
+
+
+def _canonical_json(value: Any) -> bytes:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True,
+                      separators=(",", ":"), allow_nan=False).encode("utf-8")
+
+
+def _sha256(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _safe_repo_file(root: Path, relative: str) -> Optional[Path]:
+    """Resolve one file under root without following symlinks."""
+    try:
+        cursor = root
+        for part in Path(relative).parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                return None
+        resolved = cursor.resolve(strict=True)
+        if not resolved.is_relative_to(root):
+            return None
+    except (OSError, RuntimeError):
+        return None
+    return resolved if resolved.is_file() else None
+
+
+def _read_bounded(path: Path, limit: int) -> Optional[bytes]:
+    """Read at most limit bytes, refusing oversized files and growth races."""
+    try:
+        if path.stat().st_size > limit:
+            return None
+        with path.open("rb") as handle:
+            value = handle.read(limit + 1)
+    except (OSError, RuntimeError):
+        return None
+    return value if len(value) <= limit else None
+
+
+def _git_bytes(root: Path, *args: str, max_bytes: int = 1_000_000) -> Optional[bytes]:
+    """Run a Git query while keeping captured stdout within a fixed bound.
+
+    The process mechanics live in osal (PLAT-osal-module): a git query is
+    OS contact, and this module owns what the answer *means* -- that an
+    oversized, timed-out or failed query is ``None`` rather than a truncated
+    answer that would silently under-report evidence.
+    """
+    return osal.run_bounded(["git", "-C", str(root), *args], max_bytes)
+
+
+def _valid_oc_handoff_receipt(root_value: str) -> bool:
+    """Require the worker's signed-manifest receipt and audited commit.
+
+    The worker only creates a receipt after native Jev passes and the isolated
+    commit changes exactly HANDOFF/OC_FINDINGS.md. Recheck the persisted
+    receipt, archived manifest digest, commit parent/diff, and current output
+    here so STATUS or --evidence overrides cannot manufacture completion.
+    """
+    try:
+        root = Path(root_value).resolve(strict=True)
+        output = _safe_repo_file(root, "HANDOFF/OC_FINDINGS.md")
+        db_path = _safe_repo_file(root, ".harness/oc_handoff/state.sqlite3")
+        if output is None or db_path is None:
+            return False
+        output_bytes = _read_bounded(output, _OC_HANDOFF_MAX_BYTES)
+        if output_bytes is None:
+            return False
+        output_hash = _sha256(output_bytes)
+        if db_path.stat().st_size > _OC_STATE_MAX_BYTES:
+            return False
+        db_wal = db_path.with_name(db_path.name + "-wal")
+        if (db_wal.is_symlink()
+                or (db_wal.exists() and db_wal.stat().st_size > _OC_STATE_MAX_BYTES)):
+            return False
+        key_hex = os.environ.get("HARNESS_OC_HANDOFF_HMAC_KEY", "")
+        if not re.fullmatch(r"[0-9a-f]{64}", key_hex):
+            return False
+        key = bytes.fromhex(key_hex)
+        db_uri = "file:" + quote(db_path.as_posix(), safe="/:") + "?mode=ro"
+        with closing(sqlite3.connect(db_uri, uri=True, timeout=2)) as db:
+            rows = db.execute(
+                "SELECT t.task_id, t.state, t.phase, t.repo_sha, t.commit_sha, "
+                "t.manifest_sha256, t.receipt_json, o.receipt_json, o.state "
+                "FROM tasks AS t JOIN outbox AS o ON o.task_id=t.task_id "
+                "WHERE t.state='complete' AND t.phase='complete' "
+                "AND length(CAST(t.receipt_json AS BLOB)) BETWEEN 1 AND ? "
+                "AND length(CAST(o.receipt_json AS BLOB)) BETWEEN 1 AND ? "
+                "ORDER BY t.updated_at DESC, t.task_id DESC LIMIT ?",
+                (_OC_RECEIPT_MAX_BYTES, _OC_RECEIPT_MAX_BYTES,
+                 _OC_RECEIPT_ROW_LIMIT),
+            ).fetchall()
+    except (OSError, RuntimeError, sqlite3.Error, ValueError, TypeError):
+        return False
+
+    for (task_id, task_state, phase, base, commit, manifest_hash,
+         task_receipt, outbox_receipt, outbox_state) in rows:
+        try:
+            receipt = json.loads(task_receipt)
+            outbox_doc = json.loads(outbox_receipt)
+            if (not isinstance(receipt, dict) or not isinstance(outbox_doc, dict)
+                    or receipt != outbox_doc):
+                continue
+            receipt_hmac = receipt.pop("receipt_hmac_sha256", None)
+            if (not isinstance(receipt_hmac, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", receipt_hmac)):
+                continue
+            expected_hmac = hmac.new(
+                key, _canonical_json(receipt), hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(expected_hmac, receipt_hmac):
+                continue
+            checksum = receipt.pop("receipt_sha256", None)
+            if not isinstance(checksum, str) or _sha256(_canonical_json(receipt)) != checksum:
+                continue
+            receipt["receipt_sha256"] = checksum
+            receipt["receipt_hmac_sha256"] = receipt_hmac
+            base = str(base or "")
+            commit = str(commit or "")
+            manifest_hash = str(manifest_hash or "")
+            if (not isinstance(task_id, str)
+                    or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{2,63}", task_id)
+                    or task_state != "complete" or phase != "complete"
+                    or outbox_state not in {"pending", "delivered"}
+                    or receipt.get("task_id") != task_id
+                    or receipt.get("state") != "committed_for_review"
+                    or receipt.get("output") != "HANDOFF/OC_FINDINGS.md"
+                    or receipt.get("base_commit") != base
+                    or receipt.get("commit") != commit
+                    or receipt.get("manifest_sha256") != manifest_hash
+                    or not re.fullmatch(r"[0-9a-f]{40}", base)
+                    or not re.fullmatch(r"[0-9a-f]{40}", commit)
+                    or not re.fullmatch(r"[0-9a-f]{64}", manifest_hash)
+                    or not isinstance(receipt.get("branch"), str)
+                    or not receipt["branch"].strip()):
+                continue
+
+            jev = receipt.get("jev")
+            if (not isinstance(jev, dict) or jev.get("verdict") != "pass"
+                    or jev.get("is_fallback") is not False
+                    or jev.get("site") != "oc-handoff"
+                    or not isinstance(jev.get("model"), str) or not jev["model"].strip()):
+                continue
+            confidence = jev.get("confidence")
+            supported = jev.get("supported")
+            cost = jev.get("cost")
+            min_confidence = jev.get("min_confidence")
+            input_tokens = jev.get("input_tokens")
+            if any(isinstance(value, bool) or not isinstance(value, (int, float))
+                   for value in (confidence, supported, cost, min_confidence)):
+                continue
+            try:
+                confidence_value = float(confidence)
+                supported_value = float(supported)
+                cost_value = float(cost)
+                threshold_value = float(min_confidence)
+            except (OverflowError, ValueError):
+                continue
+            if (not all(math.isfinite(value) for value in (
+                        confidence_value, supported_value, cost_value, threshold_value))
+                    or not 0.0 <= confidence_value <= 1.0
+                    or not 0.0 <= supported_value <= 1.0
+                    or not 0.0 <= threshold_value <= 1.0
+                    or supported_value < threshold_value
+                    or (confidence_value > 0.0 and confidence_value < threshold_value)
+                    or not 0.0 <= cost_value <= 0.05
+                    or isinstance(input_tokens, bool)
+                    or not isinstance(input_tokens, int)
+                    or not 0 <= input_tokens <= 1024):
+                continue
+
+            archive_path = _safe_repo_file(
+                root, ".harness/oc_handoff/archive/" + str(task_id) + ".json")
+            if archive_path is None:
+                continue
+            manifest_bytes = _read_bounded(archive_path, _OC_MANIFEST_MAX_BYTES)
+            if manifest_bytes is None:
+                continue
+            manifest = json.loads(manifest_bytes.decode("utf-8"))
+            payload_keys = (
+                "version", "task_id", "repo_sha", "approved_by", "approved_at",
+                "nonce", "expires_at", "findings",
+            )
+            if not isinstance(manifest, dict) or any(key not in manifest for key in payload_keys):
+                continue
+            payload = {key: manifest[key] for key in payload_keys}
+            attestation = manifest.get("attestation")
+            if (payload["task_id"] != task_id or payload["repo_sha"] != base
+                    or not isinstance(payload["approved_by"], str)
+                    or not payload["approved_by"].strip()
+                    or isinstance(payload["version"], bool)
+                    or payload["version"] != 1
+                    or isinstance(payload["approved_at"], bool)
+                    or not isinstance(payload["approved_at"], int)
+                    or isinstance(payload["expires_at"], bool)
+                    or not isinstance(payload["expires_at"], int)
+                    or not payload["approved_at"] < payload["expires_at"]
+                    or payload["expires_at"] - payload["approved_at"] > 900
+                    or not isinstance(payload["nonce"], str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", payload["nonce"])
+                    or not isinstance(payload["findings"], list)
+                    or not 1 <= len(payload["findings"]) <= 4
+                    or _sha256(_canonical_json(payload)) != manifest_hash
+                    or not isinstance(attestation, dict)
+                    or attestation.get("verifier_id") != payload["approved_by"]
+                    or attestation.get("expires_at") != payload["expires_at"]):
+                continue
+            from .attest import compute_diff_sha256, parse_attestation
+
+            def verify_signature(signed_payload: bytes, signature: str) -> bool:
+                expected = hmac.new(key, signed_payload, hashlib.sha512).hexdigest()
+                return hmac.compare_digest(expected, signature)
+
+            try:
+                parse_attestation(
+                    json.dumps(attestation, sort_keys=True),
+                    diff_sha256=compute_diff_sha256(_canonical_json(payload)),
+                    base_sha256=_sha256(base.encode("ascii")),
+                    round_nonce=payload["nonce"],
+                    now=payload["approved_at"] + 1,
+                    verify_signature=verify_signature,
+                )
+            except (HarnessError, ValueError, TypeError, KeyError):
+                continue
+
+            marker = ("## Approved OC handoff " + str(task_id) + "\n").encode("utf-8")
+            manifest_marker = ("\"manifest_sha256\": \"" + manifest_hash + "\"").encode("ascii")
+            if (receipt.get("output_sha256") != output_hash
+                    or marker not in output_bytes or manifest_marker not in output_bytes):
+                continue
+
+            parent_line = _git_bytes(
+                root, "rev-list", "--parents", "-n", "1", commit, max_bytes=128)
+            if parent_line is None or parent_line.decode("ascii", "ignore").split() != [commit, base]:
+                continue
+            changed = _git_bytes(
+                root, "diff-tree", "--no-commit-id", "--name-only", "-r", base,
+                commit, max_bytes=256)
+            if changed is None or changed.decode("utf-8", "replace").splitlines() != [
+                    "HANDOFF/OC_FINDINGS.md"]:
+                continue
+            committed_output = _git_bytes(
+                root, "show", commit + ":HANDOFF/OC_FINDINGS.md",
+                max_bytes=_OC_HANDOFF_MAX_BYTES)
+            if committed_output is None or _sha256(committed_output) != output_hash:
+                continue
+            head_output = _git_bytes(
+                root, "show", "HEAD:HANDOFF/OC_FINDINGS.md",
+                max_bytes=_OC_HANDOFF_MAX_BYTES)
+            if head_output is None or _sha256(head_output) != output_hash:
+                continue
+            if _git_bytes(
+                    root, "merge-base", "--is-ancestor", commit, "HEAD",
+                    max_bytes=0) is None:
+                continue
+            return True
+        except (OSError, RuntimeError, sqlite3.Error, OverflowError,
+                ValueError, TypeError, KeyError, UnicodeError):
+            continue
+    return False
+
+
+def _norm_phase(phase_id: str) -> str:
+    raw = (phase_id or "").strip().upper().replace(" ", "-")
+    if not raw:
+        raise HarnessError("phase id is required")
+    if raw.startswith("P") and raw[1:2].isdigit():
+        return f"JEV-P{raw[1:2]}"
+    # A named track id keeps its canonical spelling. The old P-prefix
+    # catch-all rewrote PLAT-cmd-data to JEV-PLAT-CMD-DATA, which matched no
+    # PHASE_CONTRACTS entry -- the phase silently scored on an empty contract
+    # and an empty row.
+    return raw
+
+
+def _row_id_cell(row: str) -> str:
+    """The row's identity token, normalized to lowercase.
+
+    A STATUS row is ``| `HV-4` title | **complete** | evidence |``, so the
+    id is the first backticked token of the first cell (or, unbackticked,
+    the first word of it). Everything after that token is a title, and
+    everything after the first cell is prose that may be about OTHER
+    phases -- which is exactly what must not decide this row's identity.
+    """
+    cells = row.split("|")
+    if len(cells) < 2:
+        return ""
+    first = cells[1]
+    quoted = re.search(r"`([^`]+)`", first)
+    token = quoted.group(1) if quoted else first.split()[0] if first.split() else ""
+    return re.sub(r"\s+", "", token).lower()
+
+
+def _status_row_for(roadmap_text: str, phase_id: str) -> Optional[str]:
+    # Registration is encoded ONCE, in PHASE_CONTRACTS: whether a phase is
+    # registered, what its contract requires, and how its STATUS row is found.
+    # The needle used to live in a second dict here, and the two drifted --
+    # EV-0 had a contract and no needle, so it resolved no row and scored
+    # 35.0/85.0 with pr_merged/origin_evidence/local_gates_green/ci_green all
+    # false, byte-identical to a phase that never landed.
+    needle = PHASE_CONTRACTS.get(phase_id, {}).get("status_needle")
+    pat = re.compile(needle, re.I) if needle else None
+    if not pat or not roadmap_text:
+        return None
+    candidates: List[str] = []
+    for line in roadmap_text.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|") or not pat.search(stripped):
+            continue
+        if not phase_status_has_language(stripped):
+            continue
+        # No separate spec-row skip is needed: a work-item definition row
+        # (ID | work text) carries no status language, so the check above
+        # already drops it. #174's explicit `JEV-P<n>-x` skip re-tested that
+        # same signal as `and not statusish` -- a compiled pattern, always
+        # truthy -- so it could never fire.
+        candidates.append(stripped)
+    if not candidates:
+        return None
+    # Identity as a FILTER, not merely a preference bonus. A row whose id
+    # cell IS a *different* registered phase is that phase's STATUS row, full
+    # stop: it may quote this phase in prose ("`HV-5` dispatches through it")
+    # and it carries that other phase's merge citation, so preferring it lets
+    # an unimplemented phase inherit a neighbour's merge. This is not
+    # hypothetical -- registering a needle for `HV-5`/`HV-6` (which have no
+    # STATUS row of their own yet) made both resolve to the `HV-3` row and
+    # report `pr_merged: true` off `PR #100 MERGED`, a fake-complete leak of
+    # exactly the kind the identity bonus was added to stop. Identity cannot
+    # express that as a bonus, because the phases concerned have no own-id
+    # row to reward: the neighbouring row wins by default.
+    #
+    # Only *registered* phase ids are excluded. A wildcard family id
+    # (`MS-*`, `HG-*`, `SITE-*`), a sub-item (`HV-2-use`, `JEV-P6-waist-brief`)
+    # and a tracker row with no phase id in the cell are not another phase's
+    # STATUS row, so they stay eligible and phases without an exact-id row
+    # rank exactly as they always did.
+    other_phase_ids = {k.lower() for k in PHASE_CONTRACTS} - {phase_id.lower()}
+    candidates = [r for r in candidates if _row_id_cell(r) not in other_phase_ids]
+    if not candidates:
+        return None
+
+    # Identical repeated rows are one candidate; source order must not decide
+    # which distinct row owns a phase.
+    candidates = sorted(set(candidates))
+
+    # Prefer a row whose first cell names the requested phase. A narrative
+    # mention elsewhere in the row is weaker identity evidence. The identity
+    # term is the PRIMARY key, so this phase's own row always outranks a row
+    # that merely mentions it; an exact tie between two distinct best rows is
+    # not resolved by document order -- it fails closed below.
+    def rank(row: str) -> tuple[int, int]:
+        low = row.lower()
+        first_cell = row.split("|", 2)[1].strip() if "|" in row else ""
+        identity = int(bool(re.search(
+            rf"(?<![A-Za-z0-9-]){re.escape(phase_id)}(?:-\*)?(?![A-Za-z0-9-])",
+            first_cell, re.I)))
+        score = 0
+        # A row whose ID *cell* IS this phase outranks every row that merely
+        # mentions it. Without this, a neighbouring row that happens to name
+        # the phase in its prose (``HV-3`` naming ``HV-4`` as its consumer,
+        # say) and carries stronger keywords (``merged``, a PR number) wins,
+        # and the phase is then scored on ANOTHER row's claims. That is how a
+        # phase gets marked complete -- or blocked -- by wording that was
+        # never about it. The other half of that fix is the FILTER above; this
+        # bonus only has to separate this phase's own row from the rows that
+        # survive it (its spec row, its wildcard family, a tracker row).
+        if _row_id_cell(row) == phase_id.lower():
+            score += 50
+        # Identity alone is not enough: the vision-plan spec table ALSO has
+        # an exact ``| `HV-4` |`` row, and it once tied with the STATUS row at
+        # the identity bonus, so the winner was decided by document order --
+        # i.e. by whichever row happened to be written first. A STATUS row
+        # carries an explicit bolded verdict in its own cell (``**in
+        # progress**``); a spec row states the contract and carries no verdict
+        # at all. Preferring a row that *concludes* over one that *defines*
+        # separates the two deterministically, and it sits BELOW identity so
+        # a mentioning row can never overtake the phase's own row.
+        if phase_status_has_verdict(row):
+            score += 30
+        if phase_status_names_core_verdict(low):
+            score += 10
+        # Word-boundary, not substring: a row that merely NAMES the flag
+        # (``pr_merged``) or a longer identifier must not be preferred as if
+        # it carried merge proof. A bare ``"merged" in low`` did exactly
+        # that, and two rows landing on the same score left the winner to
+        # document order. ``collect_phase_evidence`` already gated merges on
+        # ``\bmerged\b``; this is the same rule applied to the preference.
+        merged_word = phase_status_mentions_merge(low)
+        pr_word = bool(re.search(r"\bpr\s*#", low))
+        if pr_word or merged_word:
+            score += 5
+        # The canonical STATUS row spells out the merge; the tracker row often
+        # cites only "PR #NN <sha>". Prefer the row that carries merge proof.
+        if merged_word:
+            score += 3
+        if phase_id.lower() in low or "pillar" in low or "owner" in low or "accountability" in low:
+            score += 2
+        if re.search(r"policy|consent-confidence|min-confidence|triage|apply\|", low):
+            score -= 5
+        return identity, score
+    best_rank = max(rank(row) for row in candidates)
+    best = [row for row in candidates if rank(row) == best_rank]
+    if len(best) > 1:
+        return "ambiguous STATUS row"
+    return best[0]
+
+
+def collect_phase_evidence(repo_root: str, phase_id: str,
+                           extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Gather code-owned phase evidence from the repo + optional overrides."""
+    phase = _norm_phase(phase_id)
+    # A phase with no declared contract falls back to the generic
+    # pr_pattern=None rule (PR #\d+ AND MERGED) -- never the bare "PR #"
+    # substring, which let any PR mention pass regardless of merge state.
+    contract = PHASE_CONTRACTS.get(
+        phase, {"pr_pattern": None, "required_tests": [], "required_files": []})
+    root = os.path.abspath(repo_root or os.getcwd())
+    roadmap_path = os.path.join(root, "docs", "jev-roadmap.md")
+    status_row = None
+    if os.path.isfile(roadmap_path):
+        try:
+            with open(roadmap_path, encoding="utf-8") as fh:
+                status_row = _status_row_for(fh.read(), phase)
+        except OSError:
+            status_row = None
+    status_row_ambiguous = status_row == "ambiguous STATUS row"
+
+    required_tests = list(contract.get("required_tests") or [])
+    tests_present = []
+    tests_missing = []
+    for rel in required_tests:
+        path = os.path.join(root, rel.replace("/", os.sep))
+        (tests_present if os.path.isfile(path) else tests_missing).append(rel)
+
+    required_files = list(contract.get("required_files") or [])
+    files_missing = [
+        rel for rel in required_files
+        if not os.path.isfile(os.path.join(root, rel.replace("/", os.sep)))
+    ]
+
+    evidence: Dict[str, Any] = {
+        "phase": phase,
+        "repo_root": root,
+        "status_row": status_row,
+        "pr_pattern": contract.get("pr_pattern"),
+        "user_facing": bool(contract.get("user_facing")),
+        "required_tests": required_tests,
+        "tests_present": tests_present,
+        "tests_missing": tests_missing,
+        "required_files": required_files,
+        "files_missing": files_missing,
+        "pr_merged": False,
+        "origin_evidence": "",
+        "local_gates_green": False,
+        "ci_green": False,
+        "gate_output": None,
+        "ci_run": None,
+        "open_blockers": [],
+        "notes": [],
+    }
+
+    if status_row:
+        if status_row == "ambiguous STATUS row":
+            evidence["open_blockers"].append("ambiguous STATUS row")
+            evidence["origin_evidence"] = status_row
+        else:
+            pattern = contract.get("pr_pattern")
+            mentions_pr = phase_status_mentions_pr(status_row, pattern)
+            open_pr = phase_status_says_pr_open(status_row)
+            merged_word = phase_status_mentions_merge(status_row)
+            evidence["pr_merged"] = bool(mentions_pr and merged_word and not open_pr)
+            evidence["origin_evidence"] = status_row
+            claims_complete = phase_status_claims_complete(status_row)
+            has_blocker = phase_status_has_blocker(status_row)
+            if claims_complete and has_blocker:
+                evidence["open_blockers"].append(
+                    "STATUS claims complete while row still lists open/repair/fail evidence")
+            elif has_blocker:
+                evidence["open_blockers"].append("STATUS row not complete")
+            if open_pr:
+                evidence["open_blockers"].append("STATUS says PR open or no PR")
+            if evidence["pr_merged"]:
+                evidence["ci_green"] = True  # merged PR implies checks were required green
+                evidence["local_gates_green"] = True  # operator claimed green on merge path
+    else:
+        # `notes` is not printed by `harness jev-phase`, so a phase whose
+        # row cannot be resolved used to report a bare score with no
+        # stated cause -- indistinguishable from a phase that simply
+        # failed. `open_blockers` IS printed, so the cause belongs there.
+        evidence["open_blockers"].append(
+            f"unresolvable phase: no STATUS row found for {phase} in "
+            "docs/jev-roadmap.md (registered in PHASE_CONTRACTS without a "
+            "_status_row_for needle, or an id that is not registered)")
+        evidence["notes"].append(f"no STATUS row found for {phase} in docs/jev-roadmap.md")
+
+    if tests_missing:
+        evidence["open_blockers"].append("missing required tests: " + ", ".join(tests_missing))
+        evidence["local_gates_green"] = False
+        evidence["ci_green"] = False
+    if files_missing:
+        evidence["open_blockers"].append("missing required files: " + ", ".join(files_missing))
+
+    if phase == "OC-HANDOFF":
+        evidence["oc_handoff_verified"] = _valid_oc_handoff_receipt(root)
+        if not evidence["oc_handoff_verified"]:
+            evidence["open_blockers"].append(
+                "no verified signed OC handoff receipt with a passing native Jev result "
+                "and exact-file audited commit")
+    else:
+        evidence["oc_handoff_verified"] = True
+
+    if extra:
+        for key in ("pr_merged", "local_gates_green", "ci_green", "origin_evidence"):
+            if key in extra:
+                evidence[key] = bool(extra[key]) if key != "origin_evidence" else extra[key]
+        for key in ("gate_output", "ci_run"):
+            if extra.get(key):
+                evidence[key] = extra[key]
+        if isinstance(extra.get("open_blockers"), list):
+            evidence["open_blockers"] = list(extra["open_blockers"])
+        if extra.get("status_row"):
+            evidence["status_row"] = extra["status_row"]
+        if extra.get("gate_output"):
+            evidence["notes"].append(str(extra["gate_output"])[:500])
+
+    # Caller-supplied evidence may supplement gates, but cannot resolve an
+    # ambiguous canonical STATUS identity or erase its fail-closed blocker.
+    if status_row_ambiguous:
+        evidence["open_blockers"].append("ambiguous STATUS row")
+
+    # Deduplicate blockers
+    seen = set()
+    uniq = []
+    for b in evidence["open_blockers"]:
+        if b not in seen:
+            seen.add(b)
+            uniq.append(b)
+    evidence["open_blockers"] = uniq
+    return evidence
+
+
+def _hard_gates(evidence: Dict[str, Any]) -> Dict[str, bool]:
+    tests_ok = not bool(evidence.get("tests_missing"))
+    files_ok = not bool(evidence.get("files_missing"))
+    phase = str(evidence.get("phase") or "").upper()
+    oc_handoff_ok = (phase != "OC-HANDOFF"
+                     or evidence.get("oc_handoff_verified") is True)
+    blockers = list(evidence.get("open_blockers") or [])
+    return {
+        "pr_merged": bool(evidence.get("pr_merged")),
+        "origin_evidence": bool(str(evidence.get("origin_evidence") or "").strip()),
+        "required_tests_present": tests_ok,
+        "required_files_present": files_ok,
+        "oc_handoff_verified": oc_handoff_ok,
+        "local_gates_green": bool(evidence.get("local_gates_green")),
+        "ci_green": bool(evidence.get("ci_green")),
+        "no_open_blockers": not blockers,
+    }
+
+
+def _mechanical_score(gates: Dict[str, bool]) -> float:
+    return float(sum(pts for name, pts in _HARD_GATE_POINTS.items() if gates.get(name)))
+
+
+def _resolve_completion_pack(repo_root: Optional[str], path: Optional[str]) -> Dict[str, Any]:
+    """Load the operator completion pack, falling back to the in-code
+    default only when the caller did not name a path AND the canonical file
+    is absent (hermetic temp repos in tests). An explicitly-named path that
+    is missing or invalid still raises ``HarnessError``."""
+    root = os.path.abspath(repo_root or os.getcwd())
+    if path is None:
+        rel = DEFAULT_PHASE_COMPLETION_PACK
+        full = rel if os.path.isabs(rel) else os.path.join(root, rel.replace("/", os.sep))
+        if not os.path.isfile(full):
+            return validate_completion_pack(DEFAULT_COMPLETION_PACK)
+    return load_completion_pack(root, path)
+
+
+def _coerce_pack(repo_root: Optional[str], pack: Any) -> Dict[str, Any]:
+    """Accept a raw/validated pack dict, a pack file path, or ``None``
+    (canonical default) -- one call site, one pack owner."""
+    if isinstance(pack, dict):
+        return validate_completion_pack(pack)
+    return _resolve_completion_pack(repo_root, pack)
+
+
+def score_phase_completion(
+    evidence: Dict[str, Any],
+    *,
+    jev_policy=None,
+    min_score: float = PHASE_COMPLETE_MIN_SCORE,
+    pack: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Return the dogfoodable phase completion judgment: hard gates (code)
+    plus the JEV-BAR full sentiment pass -- every evidence axis gets a
+    declared level, every axis below the bar maps to a declared improvement
+    bucket, so the result is a prioritized improvement list that drives work
+    to bar pass (0-hallucination, fail-closed: Jev may only lower a
+    code-authority axis, never raise it past the code-owned fact)."""
+    if not isinstance(evidence, dict) or not evidence.get("phase"):
+        raise HarnessError("phase evidence requires a phase id")
+    gates = _hard_gates(evidence)
+    mechanical = _mechanical_score(gates)
+
+    pack_doc = _coerce_pack(evidence.get("repo_root"), pack)
+    levels = pack_doc["sentiment"]["levels"]
+    ordinals = pack_doc["sentiment"]["ordinals"]
+    blocking_max_index = pack_doc["sentiment"]["blocking_max_index"]
+    improve_below_index = pack_doc["sentiment"]["improve_below_index"]
+
+    code_levels = heuristic_completion_sentiment(evidence, pack_doc)
+
+    live_result = live_judgment = None
+    if jev_policy is not None:
+        live_result, _live_structural, live_judgment = jev_policy.evaluate_phase_completion(
+            evidence, pack_doc)
+
+    def live_index(axis: str) -> Optional[int]:
+        if live_judgment is None:
+            return None
+        return live_judgment.get("live_levels", {}).get(axis)
+
+    def live_valid(axis: str) -> bool:
+        return (live_judgment is not None and not live_judgment.get("is_fallback")
+                and live_index(axis) is not None)
+
+    axis_info: Dict[str, Dict[str, Any]] = {}
+    for axis, spec in pack_doc["axes"].items():
+        code_idx = int(code_levels.get(axis, 2))
+        l_idx = live_index(axis)
+        valid = live_valid(axis)
+        if spec["authority"] == "code":
+            if valid:
+                effective = min(code_idx, l_idx)
+                source = "live" if l_idx < code_idx else "code"
+            else:
+                effective, source = code_idx, "code"
+        else:  # authority == "jev"
+            if valid:
+                effective, source = l_idx, "live"
+            else:
+                effective, source = code_idx, "code"
+        confidence = (live_judgment.get("live_confidence", {}).get(axis)
+                     if (live_judgment is not None and valid) else None)
+        axis_info[axis] = {
+            "bucket": spec["bucket"],
+            "level": levels[effective],
+            "index": effective,
+            "ordinal": ordinals[effective],
+            "source": source,
+            "code_index": code_idx,
+            "live_index": l_idx,
+            "confidence": confidence,
+        }
+
+    semantic_score = (sum(info["ordinal"] for info in axis_info.values()) / len(axis_info)
+                      if axis_info else 0.0)
+
+    all_hard_pass = all(gates.values())
+    if not all_hard_pass:
+        # Hard fail: score cannot clear the gate no matter how nice the prose.
+        combined = min(mechanical, semantic_score, min_score - 0.01)
+        combined = max(0.0, combined)
+    else:
+        combined = 0.7 * mechanical + 0.3 * semantic_score
+        combined = max(0.0, min(COMPLETION_SCORE_MAX, combined))
+
+    blocking_axes = sorted(axis for axis, info in axis_info.items()
+                           if info["index"] <= blocking_max_index)
+    bar_pass = bool(all_hard_pass and combined >= float(min_score) and not blocking_axes)
+    can_mark_complete = bar_pass
+
+    blockers = list(evidence.get("open_blockers") or [])
+    if not gates.get("pr_merged"):
+        blockers.append("hard gate failed: pr_merged")
+    if not gates.get("origin_evidence"):
+        blockers.append("hard gate failed: origin_evidence")
+    if not gates.get("required_tests_present"):
+        blockers.append("hard gate failed: required_tests_present")
+    if not gates.get("required_files_present"):
+        blockers.append("hard gate failed: required_files_present")
+    if not gates.get("oc_handoff_verified"):
+        blockers.append("hard gate failed: oc_handoff_verified")
+    if not gates.get("local_gates_green"):
+        blockers.append("hard gate failed: local_gates_green")
+    if not gates.get("ci_green"):
+        blockers.append("hard gate failed: ci_green")
+    if not gates.get("no_open_blockers"):
+        blockers.append("hard gate failed: open_blockers")
+
+    # --- improvements: sentiment axes below the bar + failed hard gates,
+    # deduped by bucket (most severe wins), sorted ordinal asc then axis id.
+    improvement_by_bucket: Dict[str, Dict[str, Any]] = {}
+
+    def add_improvement(bucket_id: Optional[str], *, axis: Optional[str],
+                        level: Optional[str], ordinal: Optional[float], source: str):
+        if not bucket_id or bucket_id not in pack_doc["buckets"]:
+            return
+        entry = pack_doc["buckets"][bucket_id]
+        candidate = {
+            "axis": axis, "bucket": bucket_id, "label": entry["label"],
+            "path_id": entry["path_id"],
+            "suggested_next_action": entry["suggested_next_action"],
+            "level": level, "ordinal": ordinal, "source": source,
+            "confidence": (axis_info[axis]["confidence"] if axis in axis_info else None),
+        }
+        existing = improvement_by_bucket.get(bucket_id)
+        if existing is None or (ordinal is not None and (
+                existing["ordinal"] is None or ordinal < existing["ordinal"])):
+            improvement_by_bucket[bucket_id] = candidate
+
+    for axis, info in axis_info.items():
+        if info["index"] < improve_below_index:
+            add_improvement(info["bucket"], axis=axis, level=info["level"],
+                            ordinal=info["ordinal"], source=info["source"])
+
+    # `no_open_blockers` is not by itself evidence that a row is dishonest.
+    # `axis_status_honesty`, computed above in the same call, already drew
+    # that line and gave its BEST level to a row that honestly says
+    # **open**; only a row that CLAIMS complete while listing a blocker
+    # scores 0 there. Because a hard gate is stamped at ordinal -1 it
+    # outranked that correct verdict, so an honestly-open row was told
+    # "correct the STATUS wording ... (no complete while open)" -- an
+    # instruction to edit truthful prose into a completion claim. Emit the
+    # bucket only for the real case; an open row's actual open work is
+    # reported by its own failing gates, its semantic axes and its
+    # printed blockers.
+    _row = evidence.get("status_row")
+    _row_is_dishonest = bool(
+        isinstance(_row, str) and _row
+        and phase_status_claims_complete(_row)
+        and phase_status_has_blocker(_row))
+    for gate_name, bucket_id in _HARD_GATE_BUCKETS.items():
+        if gates.get(gate_name):
+            continue
+        if gate_name == "no_open_blockers" and not _row_is_dishonest:
+            continue
+        # A code-certain hard-gate failure outranks any semantic axis
+        # flagging the same bucket -- ordinal -1 always dedupes to it.
+        add_improvement(bucket_id, axis=None, level=None, ordinal=-1.0,
+                        source="hard_gate")
+
+    primary_gap = live_judgment.get("primary_gap") if live_judgment else None
+    if primary_gap and primary_gap not in improvement_by_bucket and primary_gap in pack_doc["buckets"]:
+        entry = pack_doc["buckets"][primary_gap]
+        improvement_by_bucket[primary_gap] = {
+            "axis": None, "bucket": primary_gap, "label": entry["label"],
+            "path_id": entry["path_id"],
+            "suggested_next_action": entry["suggested_next_action"],
+            "level": None, "ordinal": None, "source": "live", "confidence": None,
+        }
+
+    improvements = sorted(
+        improvement_by_bucket.values(),
+        key=lambda item: (item["ordinal"] if item["ordinal"] is not None else 50.0,
+                          item["axis"] or ""))
+    for item in improvements:
+        item["primary"] = bool(primary_gap and item["bucket"] == primary_gap)
+
+    # "Overall" sentiment: the declared level nearest the aggregate score --
+    # the honest single-word read of where the combined evidence sits.
+    overall_index = min(range(len(ordinals)),
+                        key=lambda i: (abs(ordinals[i] - semantic_score), i))
+
+    if jev_policy is not None and live_result is not None:
+        semantic = {
+            "score": round(semantic_score, 2),
+            "is_fallback": bool(live_judgment.get("is_fallback")) if live_judgment else True,
+            "model": live_result.model,
+            "site": PHASE_COMPLETION_SITE,
+            "verdict": live_result.verdict,
+            "cost": float(live_result.cost or 0.0),
+            "reasons": list(live_result.reasons or []),
+        }
+    else:
+        semantic = {
+            "score": round(semantic_score, 2),
+            "is_fallback": True,
+            "model": "local-heuristic",
+            "site": PHASE_COMPLETION_SITE,
+            "verdict": "fallback",
+        }
+
+    return {
+        "phase": evidence.get("phase"),
+        "score": round(combined, 2),
+        "min_score": float(min_score),
+        "can_mark_complete": bool(can_mark_complete),
+        "hard_gates": gates,
+        "mechanical_score": round(mechanical, 2),
+        "semantic": semantic,
+        "blockers": blockers,
+        "status_row": evidence.get("status_row"),
+        "evidence": {
+            "pr_merged": evidence.get("pr_merged"),
+            "origin_evidence": evidence.get("origin_evidence"),
+            "tests_missing": evidence.get("tests_missing") or [],
+            "open_blockers": evidence.get("open_blockers") or [],
+        },
+        "sentiment": {
+            "pack_id": pack_doc["id"],
+            "levels": list(levels),
+            "axes": {axis: {k: v for k, v in info.items() if k != "bucket"}
+                     for axis, info in axis_info.items()},
+            "overall": {"ordinal": ordinals[overall_index], "level": levels[overall_index]},
+        },
+        "improvements": improvements,
+        "bar": {"pass": bar_pass, "blocking_axes": blocking_axes,
+                "min_score": float(min_score)},
+    }
+
+
+def load_evidence_file(path: str) -> Dict[str, Any]:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise HarnessError(f"cannot read evidence file: {exc}") from exc
+    if not isinstance(data, dict):
+        raise HarnessError("evidence file must contain a JSON object")
+    return data
+
+
+def dogfood_phase(
+    repo_root: str,
+    phase_id: str,
+    *,
+    evidence_path: Optional[str] = None,
+    settings=None,
+    transport=None,
+    governor=None,
+    ledger=None,
+    use_live_jev: bool = True,
+    min_score: float = PHASE_COMPLETE_MIN_SCORE,
+    pack_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Collect evidence and score one phase for mission dogfooding."""
+    extra = load_evidence_file(evidence_path) if evidence_path else None
+    evidence = collect_phase_evidence(repo_root, phase_id, extra=extra)
+    jev_policy = None
+    if use_live_jev and settings is not None:
+        from .jev_policy import policy_for
+        jev_policy = policy_for(settings, transport=transport, governor=governor, ledger=ledger)
+    return score_phase_completion(
+        evidence, jev_policy=jev_policy, min_score=min_score, pack=pack_path)
+
+
+def score_all_phases(
+    repo_root: str,
+    *,
+    jev_policy=None,
+    min_score: float = PHASE_COMPLETE_MIN_SCORE,
+    pack: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Dogfood the JEV bar across every declared phase contract in one pass
+    (JEV-BAR ``--all``). ``false_complete`` names phases whose STATUS row
+    claims complete while the bar honestly fails -- the exact accountability
+    gap this gate exists to surface; an honestly-open phase failing the bar
+    is expected, not an error."""
+    root = os.path.abspath(repo_root or os.getcwd())
+    pack_doc = _coerce_pack(root, pack)
+    phases: Dict[str, Any] = {}
+    passing: List[str] = []
+    failing: List[str] = []
+    false_complete: List[str] = []
+    for phase_id in sorted(PHASE_CONTRACTS):
+        evidence = collect_phase_evidence(root, phase_id)
+        result = score_phase_completion(
+            evidence, jev_policy=jev_policy, min_score=min_score, pack=pack_doc)
+        phases[phase_id] = result
+        if result["bar"]["pass"]:
+            passing.append(phase_id)
+        else:
+            failing.append(phase_id)
+            if phase_status_claims_complete(evidence.get("status_row") or ""):
+                false_complete.append(phase_id)
+    return {"phases": phases, "passing": passing, "failing": failing,
+            "false_complete": false_complete}

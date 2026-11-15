@@ -1,0 +1,1624 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
+**until 1.0.0**, after which it will adhere to it strictly (the 0.x line may
+break APIs between minor versions).
+
+## [Unreleased]
+
+### Added
+
+- **Dynamic model rotation is now wired.** `rank_models_dynamically` shipped with the
+  Dynamic Resource Allocation Engine but had no production caller and no producer for its
+  `health_status` input, so the dynamic-model half of the engine was inert. `harness/router.py`
+  now keeps a per-model health registry (`note_model_result` / `model_health`) and serves the
+  four rotation pools through properties that delegate ordering to the ranker once a model in that
+  pool has an observed outcome; `harness/apply_policy.py` records every terminal attempt outcome
+  (HTTP error, paid BYOK, reasoning-only, readiness defer, success) into it. The declared head of a
+  pool is never displaced, so DF-LING-2 (in rotation, never default) and the cheap-first
+  discipline still hold, and a pool nobody has observed yet is served exactly as declared.
+  16 hermetic tests in `tests/test_router_dynamic_rotation.py`.
+
+- **Native driver module (`driver_core/`, `DRV-1`)** — a self-contained, standard-library-only package (verified extraction, Jev decision, deterministic action) reached through the existing `harness/perception_client.py` adapter, with a `driver-core` entry point, loopback REST under `/api/driver/*` (`health`, `vocabulary`, `schemas`, `verify`, `step`, `start`, `drive`), a Driver pane, and the MCP tools `driver_step`/`driver_health`/`driver_vocabulary`/`driver_verify`. Every synthetic input action (`click`, `type_text`, `press_key`, `focus`, `scroll`, `submit_irreversible`) is refused with `execution_refused` until an input backend is registered; nothing in this repository registers one, so `DRV-2` stays open. See `docs/driver.md`.
+- **Jev spend and credit truth** — Jev input is priced at the verified $0.042/Mtok with the $5.00 monthly credit surfaced as a `jev` block on `/api/spend`, `/api/cost` and the cost report; legacy ledger entries priced at the old $42/Mtok are recomputed from their recorded input tokens.
+
+### Fixed
+
+- **Test isolation for subset test suites (#211)** — moved `test_agent` global patches into `setUpModule()` so importing `test_agent` does not pollute preceding test modules with disabled Jev keys or mocked governors during subset runs.
+- **CLI escalation governance and HTTP worker resilience (#215, #219)** — added `--no-escalation` CLI flag and ensured `--max-rotations 0` prevents secondary model escalation; enforced `--task-max-cost` ceiling against actual spend in the escalation loop. Resiliently resolve `_http_worker.py` across temporary and moved checkout paths with safe cwd fallback, and allow weather query retrieval from `api.weather.gov`, `weather.gov`, and `wttr.in`.
+- **Driver token and auth** — the in-process driver no longer uses a fixed fallback token: it uses `DRIVER_TOKEN` when declared and otherwise a random per-start token that is never placed in the environment or returned by an endpoint. A UI server started with a generated token no longer hands that token to whichever caller presents one first. A driver run's summary no longer reports success it did not observe: it reports `ok_steps`, says the goal was met only when the `verify` command passed, and reports `cancelled` runs as such. The UI server now accepts its token only from headers (never the URL), compares it in constant time, redacts `token=` from its log, closes the connection after a refused POST, and creates the desktop token file owner-only. `/api/driver/drive` no longer auto-grants consent by default (opt-in `auto_approve` grants only the read-only `observe` action, not labelled as a person), a passing `verify` with zero successful driver steps reports `verified_without_driver`, and `max_cost` is enforced. The test suite refuses any non-loopback network connection (`tests/__init__.py`), and the audit's R13 failure output now leads with the failing lines.
+
+## [0.4.2] - 2026-10-01
+
+### Added
+
+- **`GAP-token-kinds`** — Refined `TokenBudget` to classify input, output, reasoning tokens, and cached tokens. Added `reasoning_tokens` and `cached_tokens` to `Usage` (maintaining 3-tuple equality compatibility and namedtuple attribute access), tracked on `TokenBudget` (`used_reasoning()`, `used_cached()`), snapshot fields `token_kinds` (`{"input": ..., "output": ..., "reasoning": ..., "cached": ...}`), `token_kinds_by_label`, and `estimation_markers` (`has_estimates`, `has_unavailable`, `all_actual`). Forwarded token details in `apply_policy` and `consent` when present in provider responses.
+- **`JEV-P4-residual` live dogfood A/B receipt** — Archived empirical benchmark in `audits/self/dogfood/JEV_P4_AB_EVIDENCE.md` comparing plan and triage execution with vs without Jev on paid lanes (`deepseek/deepseek-v4.1-flash` apply, `z-ai/glm-5.3-flash` judge, `jev-1.13.0` native). Proved that Jev catches goal coverage gaps that unkeyed syntactic heuristics blindly pass, with honest fallback attribution and minimal token overhead (< $0.000002 Jev spend).
+- **`GAP-waist-degrade` & `GAP-judge-fallback`** — Added honest degradation envelopes on waist model saturation (`degraded: True`, explicit SHA-256 resume token, fail-closed unconfirmed plan refusal) and deterministic per-claim tally fallback on judge exhaustion (honestly recording a draw/abstention without approving unverified code).
+- **Dynamic Resource Allocation Engine** — Introduces `harness/dynamic_allocation.py` to replace static, hardcoded numbers across token budgeting, spend ceilings, window pagination, evidence sizing, and model selection with dynamic, context-aware negotiation. Dynamic model context window scaling (`dynamic_run_token_budget`), adaptive file window line sizing (`compute_adaptive_window_lines`), dynamic waist rounds (`compute_adaptive_waist_rounds`), dynamic terminal reserve computation (`compute_dynamic_terminal_reserve`), model-rate evaluated tier spend ceilings (`compute_dynamic_tier_ceiling`), task-scoped evidence question sizing (`compute_dynamic_evidence_budget`), risk-calibrated confidence thresholds (`compute_dynamic_confidence_threshold`), dynamic model candidate ranking (`rank_models_dynamically`), proportional child stage token budgeting (`TokenBudget.proportional_stage`), and raised hard ceilings (`HARD_MAX_COST = 1.00`, `HARD_TASK_MAX_COST = 1.00`, UI slider and exact inputs up to $1.00). 11 hermetic unit tests in `tests/test_dynamic_allocation.py`.
+
+- **`harness brief` & batch HTTP runner** — Added context brief CLI enhancements (positional goal, comma-separated files, budget/freshness flags), MCP `generate_brief` tool, server batch planning runner via `POST /api/runs {"kind": "plan", ...}`, and web UI apply and dogfood panes in `harness/ui/panes.js`.
+- **Diff authorization and consent staleness** — Added diff-hash bound authorization tokens (`pre_write_diff_authorization`) and granular consent staleness reasons (`target_drift`, `scope_drift`, `model_drift`, `timeout`).
+
+- **`HV-3` token allowance and accounting owner** — `harness/token_budget.py` is the one policy owner for per-call input/output maxima and for composable stage/run token reservations, enforced **independently** of the dollar governor: a free route can still overflow a context window, and a dollar ceiling says nothing about how many tokens a stage may read, so `harness/spend.py` keeps the dollars and this module keeps the tokens and neither can raise the other. `TokenBudget` holds an input and an output allowance; `budget.stage(...)` returns a child that may only **narrow** its parent, so a planning stage handed successively smaller briefs cannot widen its own limits by nesting; one call's worst case is reserved from every budget in the chain at once under the root's single lock, so W concurrent workers cannot each preflight against the full remainder and collectively overspend it. The `allowance()` object *is* the reservation and settles or cancels exactly once — a second settle, or settling an allowance this budget does not own, is refused rather than silently ignored. `settle(..., source=...)` labels usage `actual`, `estimated`, or `unavailable` and charges the **full** reservation when the real usage cannot be read, because zero is the one answer this owner may not give; a provider reporting more than was reserved is recorded with the overrun counted in `over_input_tokens`, not clamped. `cancel()` is the pre-dispatch refusal that charges nothing. `snapshot()` exposes used/reserved/remaining, per-label usage with its source, and `open_allowances` so a leaked reservation is visible instead of holding the allowance forever. New config `token_budget_input`/`token_budget_output` (`HARNESS_TOKEN_BUDGET_INPUT`/`_OUTPUT`) with absolute hard caps, wired through `budget_from_settings`. 22 hermetic tests in `tests/test_hourglass_token_budget.py`, including real-thread concurrency tests; a named `jev-phase` contract for `HV-3` is registered in `harness/jev_completion.py`.
+
+- **`HV-0` vision-assessment pilot receipt** — `audits/self/dogfood/HV0_LIVE_PILOT_2026-09-26.md` records the first live, fully-keyed Hourglass vision assessment: all four pre-dispatch gates passed with margin (15,896 estimated input tokens against the 64k request limit and 14,425 against the 32k `state`+longest-question limit; worst-case reserve $0.0000668 against the $0.10 hard cap), then one no-retry call returned `status=assessed` on native `jev-1.13.0` with `fallback_state=not_used`, `usage_source=actual`, 15,301 in / 154 out tokens and **$0.0000642642**, with one reservation, one settlement, one metadata-only `jev_eval`, and a clean ledger chain. This is the evidence that closes the `HV-0` row. Jev's verdict is advisory only: the row flipped on code-owned gates plus this receipt, never on Jev's score, and the envelope carries no completion field.
+
+- **`HV-2` evidence-bearing context brief** — `harness/brief.py` moves to schema **v2** (additive; v1 packs stay readable) and records four code-owned evidence families so a brief can be trusted by a downstream seat that will be billed tokens against it. *Freshness:* every cited source carries `bytes` and `observed_at`, the pack carries `built_at`, and the new `freshness_report()` re-checks each pin and reports drifted/missing sources as findings instead of raising; a brief citing no sources is explicitly **not** fresh rather than vacuously fresh. *Scope coverage:* `scope.included`/`scope.excluded` alongside code-owned `coverage` counters. *Visible omission:* a source the budget cannot represent is listed in `omitted`, mirrored in `coverage.gaps`, and shown in the rendered artifact. *Uncertainty and conflicts:* each declared conflict must cite the sources it came from; uncited or unknown-source conflicts are refused. *Size:* `estimated_tokens` is measured over the bytes the pack actually ships. The new `render_brief()` consumes a **supplied** pack with zero I/O, so a caller can use a brief produced elsewhere without re-running intake, while `validate_brief()` fails closed on coverage-counter disagreement, a bad token estimate, or a wrong schema version. The module stays hermetic: no network, no model, no Jev call. 19 hermetic tests in `tests/test_hourglass_brief.py`; the 10 pre-existing `test_brief` tests pass unchanged. A named `jev-phase` contract for `HV-2` is registered in `harness/jev_completion.py`.
+
+- **Brief budget is now genuinely binding** — `_window` bounded a truncated excerpt only by the per-window cap (`HEAD_WINDOW_CHARS`), ignoring the caller's remaining budget, so a small remaining budget was silently overrun and `max_total_chars` was decorative on exactly the inputs most likely to need it. The excerpt is now bounded by both, and a source that cannot be represented at all is recorded as omitted rather than dropped.
+
+- **`HV-1` stage-specific Jev integrations (second slice)** — `harness/jev_packs.py` gains `hourglass-stage-v1`, one versioned pack that declares every Hourglass judgment point as a named **dimension** with its own typed questions: `context_intake` (relevance, coverage sufficiency, conflict present), `plan_soundness` (sound, evidence requested), `execution` (suitable to execute, checkpoint required), `consent` (fresh, defer required, escalation justified), and `restart_target`. One owner method, `JevPolicy.evaluate_hourglass_stage(dimension, state)`, settles one preflight reservation, one dispatch, one settlement, and one metadata-only ledger `jev_eval` per call, carrying capability/pack/dimension identity. Signals are read through the official answer shapes and are **all-or-nothing**: an unkeyed, transport-failed, malformed, partial, or out-of-range result leaves every signal `None` with `native=False`, and is never promoted to a native judgment. An unknown dimension raises rather than inventing a question set, so no model-created category can bypass the owner.
+
+- **`HV-1` restart-target enum, recommended by Jev and enforced by code** — the selectable targets are declared once (`context`/`planning`/`execution`) and reused by the pack, the normalizer, and the guard, so the three cannot drift. `validate_restart_request` is the code-owned decision: it refuses an out-of-vocabulary target, refuses a forward-or-same-stage move (a restart only walks back down the ladder), **preserves** a stage already recorded complete instead of re-entering it, and sets `consent_renewal_required` when consent is known stale so a changed assignment must re-derive consent before any dispatch. It never raises, so a caller reports the refusal instead of crashing a run, and the recommendation is never itself an action. 22 hermetic tests in `tests/test_hourglass_jev_integrations.py`; a named `jev-phase` contract for `HV-1` is registered in `harness/jev_completion.py`.
+
+- **HV-0 JEV vision assessment** — adds the immutable ten-category Hourglass assessment pack, canonical-source state builder and sanitizer, measured token/context preflight, and a typed `jev-vision-assessment` CLI preflight surface. The policy path uses one no-retry dispatch, exact Score/legend/probability validation, one reservation/settlement/metadata event, and leaves malformed or unavailable responses unassessed. The shared Jev input price uses the verified account rate of $0.042/Mtok ($42 per billion tokens, output free), with $5.00 monthly credit tracking across CLI, server, and UI; missing input usage conservatively settles at the measured request estimate and is labeled estimated. The earlier `$42/Mtok` and `$0.0042/Mtok` entries describe earlier iterations and are superseded by this verified pricing.
+
+- DF-UI-2 mission HTTP safety — mission-list responses now use bounded pagination and compact summaries without receipt/evaluation histories; the single-mission HTTP GET no longer rewrites generated status/index files.
+
+- **`harness media` adapter (`MEDIA-1`)** — integrated from the operator-tree lane's in-progress work: `harness/media_client.py` is a thin, stdlib-only `MediaAdapter` for the sovereign-media sibling service (image/video generation), giving honest `MediaUnavailable` failures on an unreachable/down service and structured budget-refusal envelopes (with the math) instead of a silent empty result — credentials and the provider catalog stay entirely service-side. Endpoint/token resolve from `~/.config/harness/media.json` or `MEDIA_BASE_URL`/`MEDIA_TOKEN`/`MEDIA_CONFIG_PATH` env vars, with no provider or service brand strings hardcoded in the adapter or its `harness media {image,video,job,jobs,balance}` CLI face (wired in `harness/cli.py`/`harness/cli_parser.py`, dispatched before `build_parser()`). Hermetic tests (injectable `opener` transport seam, no network) cover success, service-unavailable, budget refusal, and the CLI face in `tests/test_media_client.py`; documented in `docs/media.md` and the README CLI section.
+
+- **UI + MCP parity (`DF-UI-1`, `DF-UI-3`)** — the UI gains minimal `Verify` and `Continue` panes (`harness/ui/panes.js`) that POST to the existing `/api/runs` dispatch contract with the server's already-supported `verify`/`continue` run kinds (no new server logic); `bench` stays documented as API-only in `docs/ui-readiness.md`. The MCP server gains two thin tool faces: `mission_status` (read-only, over `harness.mission_record`) and `continue_work` (over the existing continue lane, write-gated exactly like `apply_edit`) in `harness/mcp_schemas.py`/`harness/mcp.py`, with `tools/list` parity and call tests in `tests/test_mcp.py` and the README tool list updated.
+
+- **Jev self-audit gate (`JEV-AUDIT-GATE`)** — `JevPolicy.evaluate_audit_dimensions` (site `audit_dimensions`) now resolves each of the 4 dimensions from declared legend/probability answers only (never a raw score-as-index guess), settles preflight + exactly one ledger `jev_eval` per call on every path (unkeyed, governor-missing, transport-error, invalid-response, and partial-unmatched fallbacks included), and reports a dimension absent from a partial `--dim` run as honest `not_evaluated` (`level_index`/`score` `None`) rather than a false 0.0 — `jev_gate_pass`/`bar_95_pass` is true only when all four declared dimensions were evaluated and score >= 9.5. `audits/self/audit.py` prints `[N/E]` for unevaluated dimensions. Hermetic keyed-path tests (fake transport/evaluator + governor + ledger) in `tests/test_audit_dimensions.py`.
+
+- **Jev bar sentiment buckets (`JEV-BAR`)** — `harness jev-phase` gate upgraded to full per-axis sentiment buckets (`packs/phase_completion.pack.json`, 5 levels, 6 axes) + operator improvement buckets (`merge_pending`, `tests_missing`, `gates_unverified`, `status_dishonest`, `residual_untracked`, `dogfood_missing`). Code-owned gates + Jev semantic judgment via `JevPolicy.evaluate_phase_completion` (site `phase_completion`), fail-closed (Jev may only lower code authority), 0-hallucination. CLI adds `--all` and prioritized `improvements:` output. Hermetic gate tests in `tests/test_jev_bar_sentiment.py`.
+
+- **JEV answer-lifecycle / answer-sufficiency (`HV-1`, partial)** — integrated from the Freebuff lane's `feat/hv-answer-lifecycle` (originating `freebuff/jev-hourglass-driver-20260923`) into the existing `JevPolicy`/`jev_packs` owner: no second completion contract, no second Jev client. `jev_packs.answer_question_pack` (`answer-sufficiency-v1`) adds typed `answer_sufficient`/`iteration_required`/`plan_required` nouls; `JevPolicy.evaluate_answer` judges a bounded candidate answer against the request and retained context with one reservation/settlement/ledger event and an honest native/fallback/malformed distinction. `orchestrator.drive()` gains an opt-in `jev_completion_threshold` (via a new `_result_probability` helper reading the existing `goal_achieved` completion noul) that requires another round before the generative judge spends when live Jev support is below the caller's threshold. `AutonomousAgent.run_hourglass_request` runs a direct-answer request through bounded local context intake, the existing panel/judge/escalation ladder, and a capped `evaluate_answer` reiterate loop (`ok`/`deferred`/`plan_required`/`needs_iteration`); an advisory `plan_required` signal never crosses the write boundary, and an edit-intent request still uses the existing plan/execute lane (now with `use_jev_completion=True`). Hermetic tests in `tests/test_jev_answer_lifecycle.py`, plus `orchestrator._result_probability`/threshold coverage in `tests/test_orchestrator.py`. See `docs/jev-roadmap.md`'s `HV-1` progress note for what this slice does not yet cover (context/execution/consent judgment points, the restart-target enum) and what was deliberately left out of this PR (an unrelated Jev pricing correction and a new `dogfood_coordinator` module, neither reconcilable into this one contract).
+
+### Fixed
+
+- **repo-summary stop reasons are honest (`DF-JEV-4`)** — the driver set `stop_reason="run_budget"` from a bare `except HarnessError:`, so *any* policy failure was reported as budget exhaustion and the actual message was discarded. Measured 2026-09-25: a run with a $0.25 cumulative budget and a $0.10 per-governor ceiling stopped after 2,315 of 3,638 elements having spent **$0.0107** — 95.7% of the budget unspent — leaving 1,323 elements pending with no recoverable cause in the artifact. The `except` is now narrowed by `_is_budget_refusal_error`, which matches the two refusal shapes `spend.assert_spend_allowed` actually raises (`would exceed phase ceiling`, `would eat terminal_reserve`); anything else stops with `stop_reason="error"` and a `coverage.stop_detail` carrying the exception type and message, both surfaced in the envelope and in REPO-MAP. The marker deliberately avoids a bare `"exceed"` so an unrelated failure such as "rate limit exceeded" is not mislabelled as money running out. The existing test that pinned the old catch-all behaviour is updated to the corrected contract alongside the fix.
+
+- **Jev Score tolerance rejects correct provider output (`DF-JEV-2`)** — `validate_vision_assessment_answers` required `abs(score - Σ level×p) <= 1e-4`, but the provider reports `score` at two decimals alongside separately rounded probabilities, so the identity does not hold on real responses and *correct* output was rejected. The 2026-09-25 live pilot on `2cf24b5` returned `status=unassessed` with `usage_source=actual` and 14,397 input tokens — a billed, non-fallback `jev-1.13.0` answer thrown away. The tolerance is now derived from the provider's output precision, which the pack declares as `score_probability_precision` (pack `1.1.0`): `vision_score_identity_tolerance(level_count, precision)` bounds the worst-case accumulated rounding error as one half-quantum for the score plus one half-quantum per weighted level term. A genuine distribution/score disagreement is still rejected, and `tests/test_jev_vision_assessment.py` now pins both directions plus an end-to-end keyed call that returns `assessed` for the exact live-shaped response that previously came back unassessed. This is the blocker for the `HV-0` close-out.
+
+- **Billed-but-discarded Jev answers, now recoverable and counted (`DF-JEV-3`)** — a `choice` answer whose `probabilities` key set was not exactly the declared criteria was a hard reject, and `JevEvaluator` still recorded the provider's `usage`, so the call was billed in full, the answer was discarded, and the caller silently degraded to the keyword fallback. Measured over 7,279 keyed calls: 4.6% discarded overall ($0.001369, 4.4% of spend) and **94.1%** (48 of 51) on a single axis of seven criteria — the stricter the declared vocabulary, the more reliably the tool paid for answers it threw away. A `probabilities` set that is a *subset* of the declared criteria and already normalizes onto it is now a recoverable shape: the omitted options are recorded as `None` and listed in `unmatched_options`, never given an invented probability. An option the operator never declared stays fatal, a subset that does not sum to one stays fatal, and a `score` legend mismatch stays strict because that legend is the provider's own answer rather than an operator vocabulary. Every billed-but-unusable response now carries `discarded=True` through `JevPolicy._structural` and the repo-summary row, and the envelope/REPO-MAP report `coverage.billed_but_discarded` with `spend.discarded_cost_usd`/`discarded_input_tokens`, so a run states its own effective coverage instead of presenting paid calls as clean fallback rows.
+
+- **Ling in rotation, never default (`DF-LING-2`; catalog freshness, `DF-MS-4`)** - the 2026-09-23 operator ruling permits Ling in rotation but never as the first/default pick. The delisted free listing `inclusionai/ling-3.0-flash-fin:free` is removed from both shipped free pools; paid `inclusionai/ling-3.0-flash` remains at a non-default position in the paid panel rotation. Tests pin the free-pool exclusion and paid rotation order. `DF-LING-1` separately fixed JSON/reasoning handling in `chat._extract_json`/`_REASONING_HINTS`.
+- **Verify preflight over-reservation (`DF-MS-2b`)** — `panel._judge_fallback_reserve` now sizes the judge-fallback reserve to `panel_pool[max_panelists:]`, the dispatch tail that can actually go undispatched, instead of the whole panel pool: every panelist within `max_panelists` is guaranteed to be dispatched as a vote (succeed or fail) and can therefore never also be an untried judge-fallback candidate, so a pool no larger than `max_panelists` (the common 3-panel + judge shape) now reserves $0 for judge fallback instead of one full judge-sized call per panelist (~90x the actual worst case). `verify --max-cost` help text no longer cites the stale `~$0.036` minimum. Tests: `tests/test_reserve_call_parity.py`, `tests/test_cli.py`.
+- **Ledger segment discovery + audit worktree collisions (`DF-LEDGER-1`, `DF-AUDIT-2`)** — `AutonomyLedger._rotated_paths` now matches only the exact rotation suffix the rotator writes (`%Y%m%dT%H%M%S.%f`), so a human backup sharing the ledger's prefix (e.g. `ledger.jsonl.bak-...-dogfood`) is skipped with a stderr note instead of being loaded as a chain segment and quarantined wholesale. `WorktreeIsolation.create` now names each worktree's branch/path with a per-call unique suffix (pid + short uuid) on top of the node id, so concurrent runs (or a crashed run's leftover) reusing the same node id never collide on `harness/task_N`. Tests: `tests/test_ledger.py::LedgerSegmentDiscoveryTests`, `tests/test_worktree.py::WorktreeIsolationTests`.
+- **Verify panel wiring + hourglass fail-closed preview (`DF-CLI-2`, `DF-BOD-1`, `DF-HG-3b`, `DF-HG-4`)** — `harness verify --panel` now reaches `service.run_verify`/`panel_judge` (was parsed but silently dropped); a requested panelist removed pre-dispatch by the capability hard gate, catalog-unknown id, or learned-BYOK filter is now reported in `panel_failures` instead of silently shrinking `max_panelists` seating. Restored fail-closed as the DEFAULT for a plan-only `harness plan` preview whose LLM decomposition fails twice (the Board's rejection of PR #68's silent degrade); added opt-in `harness plan --allow-heuristic-preview`, which degrades loudly to `decomposition='heuristic'` with a stderr note and an explicit `confirmation.verdict: "skipped"` (never reported as waist-confirmed) — `--execute` behavior is unchanged. Aligned `waist.compose_plan`'s docstring with the emitted `decomposition` value and fixed `plan --task-max-cost` help text to state its real precedence over `--max-cost` instead of calling it an alias. Tests: `tests/test_cli.py`, `tests/test_panel.py`, `tests/test_waist.py`, `tests/test_hg_condense_decompose.py`, `tests/test_hg_extra_coverage.py`.
+- **CI + docs hygiene (`DF-CI-1..3`, `DF-DOCS-1..5`, `DF-AUDIT-1`)** — `rankings.yml` drops its unconditional `continue-on-error` for an explicit `::warning::` soft-fail only when `OPENROUTER_API_KEY` is unset; `site.yml`'s missing-`CF_API_TOKEN` path now also warns and writes a `$GITHUB_STEP_SUMMARY` line; `ci.yml`'s package job adds an installed-wheel smoke test (`harness serve` on an OS-assigned port + `curl`, and a stdio `harness-mcp` `initialize` handshake asserting `serverInfo.name == "harness"`); `harness-mcp` now answers `--help`/`--version` without entering stdio-serve mode; `harness log-judgment --help` documents the expected log line format and its "matched 0 items" stderr note; README/CONTRIBUTING gained the MCP `tools/list`-accurate tool line, more CLI examples, the paid-escalation-failover disclosure, and the D5-reinstall-after-version-bump note; `audits/self/audit.py`'s R14 live probe now opt-in via `HARNESS_AUDIT_LIVE` (was silently inert under a mismatched var name). Tests: `tests/test_mcp.py`.
+- **HUL-D follow-ups (`DF-HUL-1..3`)** — `HUL_B_DUAL_BUDGET_NOTE` no longer claims dual-budget enforcement is absent; it now names the real enforcer (`mission_record.record_spend` via `spend.assert_spend_allowed`), pinned by a driver-level test where an attempt's cost would eat `terminal_reserve` and is refused. `harness mission resume` stays read-only (revalidates `resume.json`, never restarts the driver) but its output is now honest: `resumed: false` plus `how_to_continue`; the new `--run` flag continues the *same* HUL-D until-limits driver `mission run` uses (`harness._run_mission_driver`, no second loop) from `resume.json`. CLI `mission run` / `mission resume --run` results now carry an explicit `attempt_seat` note: the CLI's default seat is the unkeyed/local-only pack probe (no model call, no spend); a paid seat is a library integration via `attempt_fn` injection (e.g. an apply-lane callable through the existing Router/ladders) -- no new model client, no CLI-selectable keyed seat. Tests: `tests/test_hul_driver_findings_resume.py`.
+- **Lane correctness (`DF-CLI-1`, `DF-APPLY-1`, `DF-SITE-1`)** — `harness ledger verify` exits 2 on a broken chain (documented exit codes); `harness continue --instruction X` now overrides the saved continuation scope instead of replaying it; static `/site/` assets no longer require the UI auth header (JSON API stays guarded). Tests: `tests/test_apply_instruction_override.py`, `tests/test_cli.py`, `tests/test_site_server.py`.
+- **Canon regression canary (`DF-GOV-1`)** — `tests/test_jev_completion.py` no longer pins `MS` as open after PR #69 completed its routing slice; the undelivered context half is tracked as `MS-context`.
+- **Hourglass repair (`DF-HG-1`, `DF-HG-2`, `DF-HG-3`)** — Fixed three confirmed dogfood defects in hourglass planning:
+  - `DF-HG-1`: `_cmd_plan` now honors `--task-max-cost` (and alias `--max-cost`) as the ceiling for the plan governor; `composed_worst_case` returns `plan_ceiling` in the envelope.
+  - `DF-HG-2`: `plan --resume PATH` supports cold-start bootstrapping when `PATH` does not exist yet (`load_state(..., allow_missing=True)`), persisting state on execution completion. Added `--persist-state` flag to CLI parser.
+  - `DF-HG-3`: LLM decomposition retries once on parse/transport failure and falls back loudly to the heuristic in preview mode too (`decomposition="heuristic"`) with an `orchestration_note` event instead of crashing FATAL.
+- **MCP** — `initialize` now negotiates the protocol version per the MCP lifecycle (echo supported, otherwise answer `2025-06-18`) instead of rejecting newer clients; Claude Code 2.1 (`2025-11-25`) could not connect. Non-string `protocolVersion` is still rejected (`-32602`). Tests in `tests/test_mcp.py`.
+- **Ling judge parsing (`DF-LING-1`)** — `_extract_json` now advances to the next `{` candidate instead of giving up when the first balanced span fails to parse, so think/prose-wrapped judge output (`<think>{draft}</think>{"verdict":"allow"}`) still yields the real verdict; `_REASONING_HINTS` gains an `inclusionai/ling` entry so `looks_reasoning` recognizes the Ling family. Tests in `tests/test_chat.py`, `tests/test_extra.py`.
+
+### Changed
+
+- **Agent lane** — Claude Code replaces the Freebuff lane: `CLAUDE.md`, tool-neutral `AGENTS.md`, `.claude/` skills (`/isolated-mission`, `/isolated-request`, seats `/cto` `/ceo` `/bod`), scout/implementer/verifier agent tiers, project settings; `docs/freebuff-context.md` → `docs/claude-context.md`; canon STATUS gains `CLAUDE-LANE`, `JEV-BAR-*`, `JEV-P6` and the `DF-*` dogfood follow-ups (HG reopened on two confirmed defects).
+
+## [0.4.1] — 2026-09-21
+
+### Added
+- GUI: runtime settings seam — `POST /api/settings` (via `update_config`, validated
+  fail-closed through `load_settings` and written atomically) so the UI can switch
+  the primary route (free/paid), arm/disarm paid escalation, and set the run cost
+  ceiling without restarting. Route badge click = free/paid posture, Shift+click =
+  escalation arm; spend meter click opens a slider+text price-cap popover.
+
+- **MS model envelope + keyed thin-face governor parity.** Every apply terminal,
+  the batch envelope, and the agent envelope carry `model_envelope`
+  (`model_requested` vs `model_observed`); the keyed thin faces (`issue-sort`,
+  `route`, `log-judgment`) compose the shared spend governor with `--max-cost`
+  bounds (fail-closed above `HARD_MAX_COST`), so keyed machines judge live
+  instead of silently degrading to keyword fallback -- unkeyed runs stay
+  governor-free and hermetic.
+
+### Fixed
+- GUI route badge no longer flips a client-only localStorage flag that nothing
+  consumed; the toggle now persists server-side and the UI re-renders from the
+  server's response.
+- Spend meter reads the real configured ceiling instead of a hardcoded $0.05.
+- Waist confirmation unreachable across the full ladder now degrades to
+  local-gate execution with `verdict: unavailable` provenance instead of killing
+  the run (operator no-interruptions ruling: only a monetary cap or required user
+  input may stop a run). Plan-only mode still fails closed.
+
+- **`harness jev-phase` canon row coverage.** The completion gate now finds the
+  canon STATUS rows for `JEV-P5`, `HUL-A..D`, `JEV-LOG-*` and `MS-*` (rows that
+  carry MERGED rank higher), so phases whose canon rows already claim MERGED
+  can actually score `can_mark_complete` instead of failing closed on rows the
+  gate could not see.
+
+- **`harness serve` site: pretty URLs + honest local mode.** `/site/` and
+  `/site/<page>[/]` resolve to the page's `index.html` (directories without one
+  stay 404 -- the fallback never guesses), and `app.js` no longer gates local
+  mode on a hardcoded port `harness serve` never listens on, so the served Proof
+  Bench actually reaches `/api/snapshot` instead of always falling back to the
+  static demo (`?mode=public` stays the explicit worker view); `el()` now
+  appends child arrays as nodes, so `barChart` and the router reasons list
+  render instead of `"[object HTMLDivElement],..."` garbage. Regression tests
+  (source pins + real-JS probes via node) cover all three.
+
+## [0.4.0] — 2026-09-21
+
+### Added
+
+- **SITE Proof Bench site + unified Jev-directed escalation evidence (PR #60).** The capability/$ proof surface: fail-closed `harness site-export` (consent gate, hash-chain verify, deny-by-default event allowlist, credential-shape scan before any byte lands; `bundle_id` binds the consent record so it cannot be swapped post-hoc); eight gated-runs-only metrics (`site_aggregate.py`: cost per gated task, run-depth histogram, frontier warrant rate, basis-labeled modeled hourglass savings, Jev leverage, cohorts); zero-hallucination router (`harness route` + MCP `route_query`, choice ⊆ declared rungs, unkeyed → honest tier-heuristic fallback); static six-page site with a free-plan Cloudflare Worker (D1 + KV rollup + native Rate Limiting binding) whose JS fold is pinned to the Python `fold_rollup` by shared fixture vectors; additive UI panes (Chat legacy untouched / Proof / Insights / Legacy API). The two sessions unified at the ledger: the CLI escalation executor's `escalate` provenance (`directed_by=jev`, confidence, target rung, condensed-context size) flows through the exporter allowlist into Jev-directed trace cards on the site traces page and the local UI Proof pane — the condensed context itself never crosses the sanitize boundary (`tests/test_site_parity_directives.py`). `harness serve` serves the site under `/site/` (traversal-guarded, extension-allowlisted, auth-guarded), making it the single local entrypoint for UI and site; `harness jev-phase --phase SITE` scores the slice through the standard completion gate.
+
+- **JEV-P2 Jev-directed escalation (wire, not delete).** The previously dead decision functions now drive the production apply path: `JevPolicy.evaluate_escalation_decision` answers a typed two-noul pack (`escalation_decision_pack`: current-tier pass confidence for `decide_probe_verify_escalate`, remaining-budget noul for `should_abstain`) over code-owned failure context; `jev_escalation_directive` maps the calibrated confidence onto a ladder rung (clamped, never re-buys the failed rung; the 0.70 bucket boundary IS the decision function's `min_confidence`) and `RunState.pending_jev_directive` parks it for the `EscalationDriver` — the ONE consumer. The generative verify lane keeps priority, an abstain directive retires the walk for that failure, unavailable Jev signals keep the status-quo walk (honest fallback), and the emit event `jev_escalation_directive` records which source drove the walk (`tests/test_jev_escalation_driver.py`). A lifecycle integration module (`tests/test_jev_escalation_lifecycle.py`) proves the whole seam with real Router/engine/driver/gate/ledger/governor — fakes only at the chat transport and Jev evaluator seams, content-keyed verify gate so every asserted pass is a real on-disk state transition.
+
+- **JEV-LOG envelope + factor-pass + CLI.** `harness/log_analysis.py` owns Stage D batch judgment (every extracted item through `JevPolicy.evaluate_log_item`) and the Stage E code-owned aggregate artifact (`coverage` with honest fallback/unmatched counts, bucket counts, score distributions, mechanical tallies; `write_analysis` emits utf-8-no-BOM JSON). Stage B cheap-seat pack drafting is prompt-only (`stage_b_pack_prompt`) and `freeze_pack_draft` enforces the FRP gate: a draft is never valid for judgment runs without explicit operator approval. New thin faces: `harness log-judgment --log … --pack … [--save-to …] [--info-sample N]` and MCP `log_judgment` — both call the policy owner only (`tests/test_jev_log_envelope.py`).
+- **JEV-LOG operator log-factor analysis (first slice).** Code-owned log parsing and judgment against frozen operator packs: `harness/log_items.py` extracts Rust `tracing` log items ($0 spend; header-token levels only, bounded continuation lines, code-owned line evidence, mechanical tallies) and `harness/jev_packs.py` extends the P5 operator-pack shape with one declared score block (`validate_log_pack`, `log_factor_question_pack`, site=`log_factor`). `JevPolicy.evaluate_log_item` is the ONE policy owner for per-item bucket choice + score judgment: 0-hallucination contract (bucket ∈ pack keys, score level ∈ declared levels via the official legend mapping, path/action always pack-owned), unkeyed runs fall back to the pack keyword matcher with honest `is_fallback`, one hash-chained `jev_eval` per call (`tests/test_jev_log_pack.py`, `tests/test_jev_log_judgment.py`).
+- **HUL-B dual budget reserve.** `harness/spend.py` is the ONE owner of the dual envelope: `working_remaining = max_cost - spent - terminal_reserve`. Attempt-phase preflight/reserve/record refuse spend that would eat `terminal_reserve`; terminal FINDINGS may spend up to the reserve only when the mission is already terminal. Mission `budget.json` and STATUS report `working_remaining` + reserve honestly via the same formula (`mission_record` delegates; no second governor).
+- **JEV-COMPLETION dogfood phase gate.** `harness jev-phase` scores a mission phase 0-100 from code-owned hard gates (PR/origin evidence, required tests present, local+CI green, no open blockers) plus a Jev semantic score; STATUS may claim complete only when `can_mark_complete=true` and score ≥ 85 (`harness/jev_completion.py`, CLI, `tests/test_jev_completion.py`).
+
+- **JEV-P2 confidence-gated System One pillars.** Consent now preserves calibrated confidence, low-confidence Jev decisions abstain before writes, verification gates, and Jev spend, and typed triage signals route complex work toward the plan lane. The lean jury is intentionally deferred until it has a dedicated fail-closed gate contract.
+
+- **JEV-P1 shared structural policy and lane evidence.** CLI, MCP, waist, batch, and agent paths now share one Jev policy owner with preflighted input-token spend, hash-chained `jev_eval` records, and stable structural envelopes; the verification gate remains code-authoritative and unkeyed runs remain explicit local fallback.
+
+- **JEV-P0 contract-truth adapter.** TypeSafe System One answers now use only official Noul/Choice/Score shapes, input-token pricing (original implementation rate `$42/Mtok`, output free; corrected for the operator-verified account rate in HV-0 above), configured model/threshold settings, per-call question packs, and honest code-owned local structural fallback. Optional live smoke is operator-gated; CLI/MCP/waist wiring remains P1.
+
+### Fixed
+
+- **Waist confirmation walks an ordered ladder with 429 rotation and paid escalation.**
+  When the primary frontier model (`google/gemma-4-31b-it:free`) experienced
+  `HTTP 429: Provider returned error`, plan confirmation halted immediately on the
+  first attempt without retrying across fallback rungs or escalating to paid models.
+  `harness/waist.py` now resolves `resolve_waist_ladder` (free models first, then
+  paid frontier escalation when `allow_escalation` is enabled), emits rotation events
+  on transient failures, and rotates to subsequent rungs. In autonomous execution mode
+  (`execute=True`), if all external confirmation rungs are unreachable due to provider
+  outage, it emits an honest orchestration note and proceeds with DAG execution under
+  the local verification gate instead of crashing the run thread. Web UI dispatch
+  and agent lanes now properly propagate `allow_paid` / `allow_escalation`.
+
+- **Isolated node writes now actually land, and a node gates the file it
+  edits.** Behavioural verification of the armed lane (a two-round, two-node
+  parallel plan on a real git repo) surfaced two independent lies: an
+  isolated node's edit never reached the tree while the node reported `ok`,
+  and a later round's node ran a verification gate about the *first* file the
+  prompt named. (1) A worker writes files but a branch carries only what the
+  worktree **committed**, so `git merge` reported "Already up to date" and the
+  edit vanished -- the gate passed inside the worktree, so nothing
+  contradicted the success. `WorktreeIsolation.merge` now commits the node's
+  declared work first (`commit(handle, paths)`, declared paths included:
+  absolute targets are relativized to the worktree, which also fixes the
+  audit flagging an MCP-lane node's own declared write as undeclared), and
+  the executor passes the node's targets through. (2) The agent lane's gate
+  was discovered once from the original prompt files, so a node editing
+  `b.py` ran `py_compile <repo>/a.py`: it proved nothing about that node's
+  write and made two concurrent nodes compile the same path (a real
+  intermittent `verify_failed` on Windows, which cost the node its merge).
+  Each node's own declared target now wins, then the run's gate, then its
+  own compile. Two smaller accounting fixes landed with them: the run's
+  per-node results are keyed per round (each round's plan restarts node ids,
+  so a later round silently overwrote an earlier round's result and its
+  cost, making the envelope under-report spend), and
+  `WorktreeIsolation.merge(handle, paths)` takes the node's declared targets.
+
+- **A node reservation is now bounded by the run's real budget, so the GUI
+  lane completes edits on default settings.** On a default run
+  (`max_cost=$0.05`) every node of the armed lane failed before doing any
+  work with `reservation $0.100000 would put spent+outstanding at
+  $0.100000, over ceiling $0.050000`: a free-tier node's route declares a
+  $0.00 cost ceiling, but `waist.node_apply_kwargs` deliberately drops a $0
+  ceiling from the request (a zero task budget would refuse the escalation
+  ladder), so `spend.NodeReserver` read "no ceiling" and reserved the
+  engine's nominal $0.10 default instead. Three things changed in the
+  owners: `NodeReserver.declared_ceiling` reads the node's own route
+  ceiling (so $0.00 free is a ceiling, not "unknown"), its nominal fallback
+  is capped by the run ceiling, `SpendGovernor.remaining()` is the one
+  accessor for what a run can still commit (spent plus outstanding
+  liability), and `executor.PlanExecutor` takes `run_ceiling`, which the
+  CLI, MCP, and agent lanes all pass -- so no lane depends on an unrelated
+  default. Fail-closed is preserved and pinned: a node whose worst case
+  cannot fit what remains is still refused (never trimmed to fit), and the
+  reason now names the remaining budget and the ceiling.
+
+### Added
+
+- **Plan-lane chunking: work that cannot fit one model pass is split before
+  dispatch, and work that fits stays one call.** Only targets past the
+  500-line rewrite cap previously reached the diff backend; nothing detected
+  an instruction that could not be sent at all or a target one pass cannot
+  even read, so those failed late as truncations, context errors, or
+  out-of-scope fatals. The plan lane now distinguishes the two remedies:
+  a target past the engine's whole-file rewrite cap (`MAX_FILE_LINES`), or
+  one whose rewrite could not fit the pass's output budget
+  (`config.DEFAULT_APPLY_MAX_TOKENS`, or the lane's pinned `max_tokens`),
+  becomes ONE node carrying the `backend: "diff"` hint -- bounded hunks, a
+  small edit to a big file stays a single call; while an instruction longer
+  than `MAX_INSTRUCTION_CHARS` (a request that could not be sent) or a
+  target larger than the pass's read budget (the rung's declared context
+  via `capability.source_budget_for`, with an unknown rung left alone
+  rather than given a guessed limit) splits into ordered chunks, each
+  inside budget, chained so the existing DAG dispatch runs them one pass at
+  a time; dependents of a split node wait for its last chunk. The policy
+  lives once, in `waist.chunk_oversized_nodes`; `compose_plan` fits the
+  plan before the waist gate reviews it (and re-fits an amended plan), so
+  every lane -- CLI, MCP, and the agent's edit lane -- dispatches the same
+  plan, with a `chunking` block on the envelope when nodes were split.
+
+### Changed
+
+- **The GUI/Auto edit lane now runs the full hourglass.** The lane the
+  desktop actually drives (`harness serve` -> `server.run_chat_task` ->
+  `AutonomousAgent._handle_edit`) planned and executed on its own private
+  path: a serial single-tree executor, no waist confirmation, no cost
+  reservations, no worktree isolation, no write attestation -- so a run
+  could report "escalated" while every node ran on one free model. It now
+  plans through the ONE composer (`waist.compose_plan`, confirmation
+  included) and executes through the ONE assembly
+  (`executor.PlanExecutor`: parallel workers, per-node reservations via
+  `spend.NodeReserver`, isolation rooted at the edited tree, and write
+  attestation). CLI, MCP, and the agent lane build that same object, and
+  the hourglass switches come from `config.resolve_hourglass`, so the lane
+  inherits exactly the settings the CLI reads. Two gate defects surfaced
+  while wiring it: the waist confirmation reused the *decomposition*
+  model's seam (a cheap rung answered, and the ledger credited, the
+  frontier verdict -- it now resolves and calls its own frontier rung, the
+  same owner the Router binds from), and an unset `--frontier-model` made
+  the default-ON confirmation fatal on every plan run (it now resolves
+  instead of dying). A waist refusal, or an unreachable waist rung,
+  dispatches nothing and says why. Disarming the hourglass (`hourglass_*:
+  false`) keeps the historical serial single-tree lane, unchanged.
+
+### Added
+
+- **Free-tier saturation auto-escalates into the lowest paid rung.** With
+  a paid key connected, `allow_escalation` now defaults ON and the
+  escalation ladder appends the paid rungs (cheapest first) after the
+  free ones. Two defects made that ladder unreachable exactly when it
+  mattered: a 429 on an escalation rung failed the whole ladder closed
+  (saturation is "busy", not "impossible" -- the walk now continues),
+  and an exhausted apply pool raised past the ladder entirely (it now
+  breaks into the escalation-or-honest-terminal tail). An explicit
+  `allow_escalation: false` still disarms it; no paid key, no ladder.
+- **The autonomous orchestrator drives complex edits to completion.**
+  Any deferral into Auto mode now routes through an orchestrator loop in
+  the edit lane: a repo-wide relevance triage (LLM file-triage over the
+  bounded listing, validated against the real files, keyword fallback)
+  picks the context; a smarter model on the orchestration ladder
+  decomposes the goal into bite-sized subtasks; cheap models execute
+  every node with self-healing retry (failures become state, not aborts);
+  and a completion judge issues one strict-JSON verdict per round --
+  incomplete scope is re-planned and re-executed, up to three rounds,
+  instead of stopping at the first partial result. New
+  `harness/orchestrator.py` owns the judge and triage decisions
+  (`assess_completion`, `triage_files`); new telemetry
+  (`orchestration_round`, `orchestration_note`) streams round-by-round
+  status into the GUI's "Processing task" stepper, whose title now tracks
+  the live phase (planning / executing subtask N / orchestrator round N).
+  The GUI used to force every chat-box prompt down the conversation lane,
+  where a model could narrate code it would never write; an edit-intent
+  prompt in Auto mode now drives the orchestrator directly (questions and
+  Auto-off runs keep the conversational lane).
+- **The hourglass is the default (M4).** The plan lane now runs the full
+  hourglass unprompted -- frontier-waist confirmation, parallel stages,
+  worktree isolation, and diff-bound write attestation are all ON for
+  `harness plan` and MCP `plan_and_execute` alike. Every stage stays
+  opt-out-able: per request via `--no-confirm` / `--no-parallel` /
+  `--no-isolate` / `--no-attestation`, or permanently via four new
+  settings (`hourglass_confirm`, `hourglass_parallel`,
+  `hourglass_isolate`, `hourglass_require_attestation`; env
+  `HARNESS_HOURGLASS_*`). Explicit flags beat settings; settings beat
+  the built-in default; the MCP schema carries the same knobs with
+  `default: true` so GUI callers get identical behavior.
+- **Parallel-stage isolation + cost reservations (M3).** Two frontier
+  verdicts obtained through Harness itself (consensus across independent
+  model families; see docs/hourglass-micro-requests.md) drove the design:
+  (1) **Isolation** — `harness plan --isolate` runs concurrent nodes of a
+  stage in isolated `git worktree`s + local branches; the worker's gate
+  and targets resolve inside its worktree; branches merge back in stage
+  order, and a merge conflict fails the node (`merge_conflict`) instead of
+  force-merging. Before accepting, the node's committed diff against its
+  branch point plus uncommitted leftovers is audited against its declared
+  target files — undeclared writes reject the node and nothing lands in
+  the repo. Opt-in (git worktrees are host tooling; the default stays
+  shared-tree mutex execution). (2) **Reservations** — parallel dispatch
+  now reserves each node's worst-case cost before dispatch and reconciles
+  the billed actual after (`SpendGovernor.reserve`/`reconcile`, `outstanding`
+  liability counted by every preflight), closing the overspend interleaving
+  where W concurrent preflights each pass against the full remaining
+  ceiling before any of them records. `--stage-gate <cmd>` runs the
+  composed tree's gate after each parallel stage; a failing gate stops the
+  run before dependent stages start.
+- **Coverage ritual is thread-honest.** The coverage baseline traced only
+  the main thread (`trace.runfunc` installs `sys.settrace` alone), so
+  suite-executed lines inside executor worker threads were invisible --
+  D12 would report phantom gaps for exactly the parallel paths M3 adds.
+  `refresh_coverage_baseline.py` now installs the tracer for threads too,
+  and new tests pin the settle paths (audit failure → `fatal`, failed-node
+  passthrough without merge, `merge_conflict`), the CLI `--isolate` /
+  `--stage-gate` surface, the MCP parallel lane, and the reservation
+  error paths.
+- **Malformed route data degrades, never fails open (MR-1).** A frontier
+  review of the shipped per-node routing diff (run through Harness itself)
+  found `node_apply_kwargs` violating its own degradation contract on
+  malformed input: truthy non-mapping detail/route crashed, a string
+  ladder silently became per-character "model ids", a non-iterable ladder
+  raised, and an `inf` ceiling passed through as an unbounded task budget.
+  All shapes now degrade to `{}` (previous behavior — the governor's
+  key-level ceiling still binds), pinned hermetically.
+- **`split` is a first-class waist verdict (MR-4).** A frontier review of
+  the shipped verdict contract against its requirement found the
+  four-way enum (approve | amend | split | refuse) broken: a planner
+  emitting `verdict:"split"` fail-closed. `split` now parses and
+  re-validates exactly like amend (full node-set replacement through the
+  same schema as the original) and gets its own ledgered
+  `plan_verdict` kind and confirmation verdict.
+- **`harness/attest.py`: diff-bound independent authorization, phase 1
+  (MR-9 / M4).** The sovereign-diff-v1 contract drafted through Harness
+  itself: canonical signing payload, strict JSON parse (duplicate keys
+  rejected), exact-field schema, allow-only verdicts, diff/base/nonce
+  binding, exclusive expiry, and a pinned-verifier signature seam — no
+  verifier configured means refuse (intent approval is never a
+  fallback). `require_attestation` is the one-call gate the phase-2
+  apply-loop enforcement will consult before every write; an attestation
+  bound to the real diff never validates against a summarized one.
+- **The second verifier is wired in (M4 phase 2).** With
+  `--require-attestation` (CLI apply/continue/dogfood) or
+  `require_diff_authorization` (MCP apply_edit), every candidate write
+  first shows the EXACT resulting content — plus both content hashes —
+  to an independent verifier model (default: the router's judge), and
+  writes only on a parsed `allow`. Deny, unparseable output, and
+  transport errors all refuse the write fail-closed; the attestation
+  (hash-bound to those exact bytes, `response_sha256` recording what the
+  verifier actually said — a ledger digest, not a signature) lands in the
+  tamper-evident ledger. One extra verifier call per write, per the
+  operator's cost-acceptable call.
+- **`harness brief`: grounded context packs (MR-8).** A hermetic builder
+  that generates the reusable pack for a goal/model pair: cited file
+  windows pinned to per-source content hashes, honest truncation labels,
+  and no claims of its own — `grounding.claims`/`unknowns` start empty
+  for the frontier consumer to fill under the same rule.
+  `validate_brief` is the grounding lint (drifted sources, non-span
+  windows, unknown citations, and uncited claims are all rejected);
+  `harness brief <goal> --file ... --validate` builds and lints in one
+  step.
+- **Test determinism: the R3 flake caught and defused.** The battery
+  flaked once under load; a focused MCP soak reproduced it on the first
+  try — a 0.05s `tool_timeout` could expire during the worker's lazy
+  apply-chain construction, so the deadline tripped before the first
+  POST and the test's 60s gate wait starved. Both deadline tests now
+  give the startup a 30x-wider window (1.5s; every asserted behavior
+  unchanged) and the gate wait names the post count it saw on failure.
+- **The waist is live: `harness plan --confirm` (M2).** Before execution
+  spend, the plan is confirmed by the frontier model (`--frontier-model` /
+  `HARNESS_FRONTIER_MODEL`) through a condensed brief -- file-signature
+  MicroBrief plus bounded file windows -- as its ONLY repo access. The
+  verdict contract is strict JSON (`approve` / `amend` with a full
+  replacement node set / `refuse` with reason + cited brief evidence /
+  `request_windows` for bounded round-trips, capped at 2). Amended plans
+  re-classify through the same sliding scale; a refusal is terminal,
+  ledgered (`plan_verdict`, with rounds + cost), and the plan never
+  executes; window requests past the round budget fail closed. The
+  confirmation shares the run's ONE governor ceiling with execution.
+- **LLM decomposition: `harness plan --decompose-llm` (M1).** The cheapest
+  tier-appropriate model (the tier-0 ladder head from the same
+  sliding-scale policy -- no new routing policy) authors the DAG via the
+  schema-validated decomposition contract that had been built but unwired;
+  `dag.plan_task` accepts a `decomposed_dag` and classifies it identically.
+  On `--execute` a decomposition failure falls back to the heuristic with
+  a loud note; a plan-only preview fails loudly instead of silently
+  downgrading. `chat.governed_text` is the new one owner of the
+  single-shot governed call (preflight -> chat -> bill -> extract); MCP
+  `plan_and_execute` gains `decompose_llm`/`confirm` params with the same
+  semantics; a refused plan is a fail-closed envelope on every surface.
+- **Plan execution now routes per node.** `harness plan --execute`, MCP
+  `plan_and_execute`, and the agent lane discarded the per-node
+  sliding-scale intelligence at dispatch: every node ran on the settings'
+  apply pool regardless of its computed tier. A new pure mapping
+  (`dag.node_apply_kwargs`) threads each node's tier ladder into
+  `apply_edit` as the per-request `apply_pool` (the engine orders it at
+  the routing boundary, rotation included) and binds the tier cost
+  ceiling as the per-task ceiling on paid tiers. A $0 free-tier ceiling
+  is deliberately not passed -- a zero task budget would refuse the
+  escalation ladder for hard nodes; the governor owns free-tier cost.
+  An explicit `--model` still pins routing outright, and an explicit
+  `--task-max-cost` keeps its exact value (tier policy never tightens an
+  explicit operator bound).
+- **Chat web tools, opt-in per run.** The conversation lane can now attach
+  real evidence instead of fabricating it: with `web: true` on the run (UI
+  toggle), a URL prompt fetches the page and a plain question runs one web
+  search, and the retrieved sources (or their honest failures) are placed in
+  the model's context with a cite-only-these contract; the persisted turn
+  records `web_used` provenance. Fetch is allowlist-only (`https`, one host
+  set owned by `harness/web.py`, redirects refused) and search targets one
+  operator-configured endpoint (`HARNESS_WEB_SEARCH_URL`), so neither is an
+  SSRF surface. With web tools OFF, the system prompt states the no-internet
+  boundary plainly -- the model can no longer roleplay an arXiv/Lean sweep it
+  never ran (the Riemann incident, `sess_tk4073vs`).
+- **The chat sidebar is live.** `app.js` now renders `/api/chat/sessions`
+  (newest first, active highlighted), click-to-load switches sessions,
+  per-session delete hits `/api/chat/session/delete`, the working-directory
+  field sends `root_dir` with chat prompts, and a Web badge toggles the new
+  web tools; the list refreshes after each run completes.
+- **Pre-publication review record.** Before flipping this repository public,
+  a full audit checked the tree and all 186 commits for secrets (clean),
+  commit identity (noreply-only), and `.gitignore` drift. The
+  tracked-but-ignored `audits/scmessenger/_runs/` artifacts and
+  `.freebuff/project-id` were untracked (`git rm --cached` only; working
+  copies stay on disk and remain ignored). `audits/scmessenger/` ships
+  deliberately: it records an AI-assisted, read-only security triage of the
+  author's companion project (SCMessenger) run through this engine, with its
+  caveats intact (`audits/scmessenger/CTO_REVIEW.md`). Dogfood evidence in
+  `audits/self/` keeps its original local-machine paths on purpose: those
+  files are SHA-256-pinned by `corpus_manifest.json`, and cosmetic rewrites
+  would break the integrity check.
+
+### Fixed
+
+- **"Escalated" is evidence-bound, not a handoff note.** A capability defer
+  that routed itself into the plan lane stamped `escalated_from_defer`
+  unconditionally, so a run that planned, executed every node on the free
+  lane, and never touched an escalation rung still reported itself as
+  escalated (the ling/gemma-100% report). The label now requires evidence
+  produced where the walk is actually known: the escalation driver annotates
+  a gate-passed rung with the primary it replaced (`escalated_from`), the
+  rung that passed (`escalated_to`), the walked rungs, and both pool families
+  -- `escalation.escalation_evidence` is the ONE definition of that evidence
+  and returns nothing for a failed attempt or a walk that stayed inside one
+  family (a free rung rotated to another free rung is a rung walk, not an
+  escalation). The edit lane stamps `escalated_from_defer` only on that
+  evidence and otherwise says plainly that the handoff ran while no rung did;
+  the envelope carries `escalated_model`, `escalated_from_model`,
+  `escalation_family`, and `escalation_rungs` so the claim is checkable. The
+  legacy single-rung path annotates identically. Agent nodes also thread
+  `allow_escalation` and `attest_model` explicitly (`node_apply_kwargs`),
+  with `session.attest_model_for` as the one owner of the verifier identity,
+  so a GUI node's escalation arming and verifier are auditable from the lane
+  instead of inherited silently.
+- **Frontier defaults to the price-efficient rung.** qwen3.8-max lists the
+  same intelligence tier (53/100) as fable-5.1 / gpt-6-astra at $2/$6
+  in/out vs their $10/$50, so `resolve_frontier_model`'s paid default and
+  the escalation ladder now reach qwen first: the ladder reads
+  glm-5.3-flash → deepseek-v4-pro → **qwen3.8-max** → gpt-4.1 →
+  gpt-5.6-sol, and the `qwen` / `qwen-max` / `qwen3.8-max` aliases map to
+  it. The flagship capstone stays as the judge's last resort.
+- **The orchestrator finishes what it plans in one pass.** Node targets
+  over the 500-line whole-file ceiling route straight to the diff backend
+  (touched hunks only) instead of dying as "out of scope" fatals, and the
+  GUI's "Processing task" stepper renders the DAG as a live phase list --
+  one row per subtask (· pending, ⚙ running, ✓ done, ✗ failed), keyed per
+  orchestrator round so re-plans extend the list instead of erasing it.
+- **Trust recovers: the saturation spiral can no longer lock the operator
+  out.** Three compounding calibration bugs turned a saturated free tier
+  into a permanent mutation ban. (1) Host trust: guidance-denial strikes
+  were permanent while the level reward capped at +11, so ~23 soft denials
+  (many from the system's own refusal loop during the 429 outage) floored
+  the score at -11 with no earn-back despite the error text promising one;
+  surplus clean work now forgives soft strikes at the same 3-per-strike
+  rate levels accrue (hostile strikes stay permanent). (2) Model
+  attribution: a check_apply denial struck the primary model even when the
+  model's own band allowed the write -- host-driven and budget-driven
+  refusals no longer name a model, so a saturated tier stops poisoning
+  every model the rotation touches. (3) The trust step-up ledgered its
+  own escalation as a soft denial against the rung being promoted
+  (now its own `trust_escalation` event type, excluded from denial
+  counts). The deadlock breaker: a SOFT denial recorded at the refuse
+  band is the lockout speaking, not new evidence -- counting it made the
+  gate feed itself strikes while denied nodes completed nothing, so no
+  earn-back was ever possible; refuse-band soft denials no longer count
+  (host or model side), while hostile attempts stay evidence in every
+  band. Models get the same surplus-forgiveness arithmetic as the host,
+  healing the calibration the attribution bug poisoned. Alongside these,
+  the unknown-correctness task ceiling rose
+  from 0.2 to 0.4 of the $0.25 hard cap (`DEFAULT_TASK_MAX_COST` $0.05 →
+  $0.10): a fresh-ledger paid rescue rung must afford one worst-case call
+  (~$0.084) or the ladder starves the rung it just stepped up to. Free
+  saturation now verifiably escalates into the lowest paid rung and
+  applies (dogfooded: slugify written for $0.00035 after the free
+  primary 429'd).
+- **Capability defers auto-escalate into the hourglass.** With the
+  escalation gate armed and a paid key resolved, a chat defer no longer
+  stops at a "route to the plan lane" note: the request routes itself into
+  the plan lane in the same turn (`_handle_edit` auto-applied) --
+  file discovery, frontier-planned DAG, governed apply with the paid
+  escalation rungs, verify gates on every node. The returned result is
+  stamped `escalated_from_defer` with the defer reason, the response
+  carries a visible "Auto-escalated to the plan lane (hourglass)" line,
+  and the turn persists with both facts. If the handoff fails (no
+  routable target files, plan refusal), the honest defer stands with the
+  failure recorded in the response. Truncation defers do not
+  auto-escalate -- their content already exists and needs `continue`, not
+  a new plan.
+- **"Hitting a limit": truncated chat turns were saved as `status: ok` --
+  no rotation, no escalation, no defer.** The long-formalization session
+  (Lean 4 dumps cut mid-line turn after turn) exposed three gaps. (1)
+  Providers do not always report `finish_reason: "length"` honestly, and
+  the chat lane trusted it: a body cut mid-code-block passed
+  `assess_output`. The lane now also runs `looks_truncated` (unbalanced
+  code fence / brackets) and treats a cut body as unusable -- which
+  rotates to the next ladder rung, paid rungs included. (2) When every
+  rung is cut, the walk no longer raises a bare error: it defers with the
+  longest cut-off body kept as the response, `defer_reason` "truncated at
+  the token cap on every ladder model", a ledger `deferred` entry, and a
+  `next_step` of `say "continue"` or the plan lane (which has multi-round
+  continuation). (3) The system prompt now bans tool-call markup
+  outright ("<tool_call>...") after a session showed the model roleplaying
+  a `web_search` tool call it does not have.
+- **The chat lane had no deferral contract -- hard asks got a prose "I
+  can't" instead of an honest defer.** Every other lane treats "this is
+  beyond me" as a first-class outcome (apply's `HARNESS_DEFER:` capability
+  marker, consent's accept/decline/defer/redirect, `_defer_result` with a
+  continuation state), but the conversation lane had none of it: asked to
+  do something way too hard, the model could only say it can't, and the
+  deferral left no trace. The chat system prompt now teaches the contract
+  (defer with `HARNESS_DEFER: <reason>` instead of guessing or
+  overpromising), and the lane parses the marker the same way
+  `apply_policy` does: the prose before it stays as the answer, the reason
+  becomes a `deferred` result with `defer_reason` + the plan-lane resume
+  path (`harness plan --goal "..." --execute` / MCP `plan_and_execute`),
+  a `model_result` `status=deferred` `category=capability` entry lands in
+  the ledger (feeding `defer-stats`), the turn persists like any completed
+  turn, and the UI renders a visible "Deferred" banner with the reason and
+  the resume path instead of hiding the handoff. Because free models defer
+  in prose far more often than in the marker contract, a refusal-shaped
+  answer ("I can't do that...") with no successful tool evidence is treated
+  as the deferral it is -- the model's own refusal sentence becomes the
+  reason -- while a limitation caveat inside a turn that did retrieve
+  evidence stays a normal answer.
+- **One transient fetch failure left a web-on URL turn with no evidence.**
+  The allowlisted fetch of anthropic.com/research/riemann-zeta
+  intermittently hits an upstream blip (challenge/5xx/timeout); the lane
+  recorded the FAILED source and stopped, so the model answered from
+  history and the user saw "the fetch attempt failed". `fetch_url` now
+  retries exactly once on transient failures (network errors, HTTP
+  429/5xx -- never on policy refusals or deterministic statuses), and when
+  every fetch in a turn fails, `_gather_web_context` runs one search as
+  fallback evidence with the FAILED notes kept intact. The web-on
+  capability note also tells the model the sources were gathered by the
+  runtime -- no more narrated fake "[Tool call: fetch]" theater.
+- **"Web on" searched nothing and the model denied having web access.**
+  Two stacked causes. (1) The DuckDuckGo html/lite endpoints answer
+  datacenter IPs with an HTTP-202 JS challenge, so every non-URL web-on
+  turn produced only a FAILED source; the default search endpoint is now
+  Bing (keyless, serves real result HTML), with its `/ck/a` base64
+  redirect links resolved to plain target URLs, its edge paths parsed
+  (no-heading blocks skipped, no-snippet blocks -> "", scheme-confusion
+  `u=` payloads dropped), and the DDG parser kept for the
+  `HARNESS_WEB_SEARCH_URL` override. (2) The base chat system prompt said
+  "You have NO internet access" even on web-enabled runs, so the model
+  denied the attached tools instead of using them; the claim now lives
+  only in the no-web disclosure, and web-on runs get a capability note
+  stating that search is attached and fetch is restricted to exactly the
+  allowlisted hosts -- so "can you access X?" gets a truthful answer about
+  what will and will not be fetched.
+- **The UI chat lane swallowed provider failures as a fake apology.** The
+  429 incident: the conversation lane pinned one free model
+  (`google/gemma-4-31b-it:free`), ignored the HTTP status from `chat`, and
+  rendered "I was unable to formulate a response." with `status: "ok"` and
+  $0.00 spend when the upstream shared pool rate-limited it -- the
+  provider's actual error (with its remedy hint) was thrown away. The lane
+  now walks the settings-owned ladder -- tier-1 head, free panel pool
+  (different upstream providers), then the paid escalation rungs when
+  `allow_escalation` is set -- one governed attempt per rung
+  (preflight -> chat -> bill, the `governed_text` contract), emits a
+  rotation per advance, refuses BYOK-routed responses as untrackable
+  spend, and raises an honest `HarnessError` carrying every rung's failure
+  when all rungs fail (the run record shows the real HTTP error; no fake
+  turn is persisted). `assess_output` also stopped calling whitespace-only
+  bodies usable. Verified live: a rate-limited head model rotates to
+  `ling-3.0-flash-fin:free` and answers with the fetched
+  anthropic.com/research page attached as evidence.
+- **Leaked redirect response tripped the audit's R13 leak scan** (local
+  CPython 3.14+; summary still said OK, so the battery looked green while
+  an unraisable `ResourceWarning: Implicitly cleaning up <HTTPError 302>`
+  printed at GC time). The redirect-refusal test now closes the raised
+  HTTPError, which owns the loopback response.
+- **UI overlap at wide viewports.** The sidebar redesign was prepended to
+  `app.css` while the entire superseded legacy stylesheet remained below it;
+  the legacy `header`/`#input-footer` `position: fixed; left: 0; right: 0`
+  rules won the cascade, so the header and input bar escaped the main panel
+  and rendered across the (opaque, z-60) sidebar. The stale block is deleted;
+  the layout is now fixed-sidebar + normal-flow main panel with a single
+  `position: fixed` rule in the file.
+- `_delete_chat_session` refuses ids containing path separators or `..`
+  (defense-in-depth: delete targets can no longer lean on `Path` collapsing
+  traversal segments), pinned by endpoint tests.
+
+## [0.3.3] — 2026-09-16
+
+### Fixed
+
+- The release driver's interpreter discovery crashed when
+  `uv` is absent (FileNotFoundError), failing the suite and the
+  audit's R13 on CI runners; discovery now fails open (PATH
+  fallback, then an honest per-version note) and the S6 pin is
+  environment-honest (proves the matrix where uv exists, proves
+  the degradation where it does not).
+
+### Changed
+
+- Split the two largest engine modules into one-owner-per-concern pairs, code moved verbatim as mixins so every call site and test keeps its shape: `ledger.py` (876 lines) keeps the storage/integrity lifecycle while `ledger_analytics.py` owns the read-only analytics (`participation_report` calibration incl. `gate_wasted_runs`, `defer_stats`); `apply.py` (866 lines) keeps the engine lifecycle (`apply_edit`, `_prepare`, `apply_batch`) while `apply_policy.py` owns the per-round machinery (billing, edit loop, consent, rotation, deferrals, escalation). Byte-identity proven by replaying real ledger + real-engine surfaces (report, tail, verify, chain, repair, happy path, gate-fail rotation, escalation lane) pre/post; ownership mirror pins added; coverage baseline regenerated as one diff per CONTRIBUTING.
+- The self-audit's suite check (R13) now fails deterministically when
+  the suite's captured output carries unraisable-warning signatures
+  (`ResourceWarning`, `unclosed file`), closing the GC-timing blind
+  spot that flaked the v0.3.2 release gate (PR #17).
+- The self-audit reads a hash-pinned evidence corpus: D11 verifies every
+  tracked dogfood artifact and audit report against
+  `audits/self/corpus_manifest.json` (refreshed only via
+  `refresh_corpus_manifest.py`, documented in CONTRIBUTING), so a silent
+  edit to audit evidence fails the audit deterministically.
+- The suite check's classifier now self-verifies its contract inside the
+  audit (R14): clean output passes, planted-leak output (each signature
+  load-bearing) fails, and the old parse-only rule provably diverges on
+  the planted shape -- so weakening the summary parse or the signature
+  scan fails the audit deterministically instead of silently restoring
+  the GC-timing blind spot PR #18 closed.
+- Coverage is now measured, not just counted: a stdlib-trace baseline
+  (`audits/self/coverage_baseline.json`, refreshed via
+  `refresh_coverage_baseline.py`) records every line the battery
+  executes, and D12 fails the audit when changed harness lines below a
+  95% bar were never executed by the traced suite (fail-open as a
+  visible SKIP when data is unavailable). Baseline at merge: 77% of
+  executable lines overall -- honest, unmoving legacy gaps included
+  (server.py 26%, mcp.py 62%); the 95% bar binds changed lines only.
+
+## [0.3.2] — 2026-09-16
+
+### Added
+
+- Scripted release driver (`audits/self/release.py`): mechanizes the
+  docs/releasing.md mechanical steps in order -- state gate, CHANGELOG
+  flatten + version bumps, the full release battery per interpreter
+  (with the self-audit BAR MET gate and leak scan), and the
+  build/twine/smoke mechanics -- with `--dry-run` rehearsal; humans
+  keep the timing, PR review, merge, tag, and publish decisions.
+- The release battery now covers the CI matrix by direct execution:
+  the full suite runs locally under uv-managed CPython 3.9 / 3.11 /
+  3.13 plus the local default (729 tests each, zero leak signatures).
+- Gate-waste-aware apply-lead selection: the ledger counts rounds-exhausted
+  apply runs per leading model (`gate_wasted_runs` in `participation_report`
+  calibration) and pool ordering folds it into the existing demotion strike,
+  so a repeat gate-waster sorts below unproven peers -- demoted, not banned,
+  and fail-open with no evidence. Closes the v0.3.1 dogfood finding (one
+  free-tier model led 258 gate-wasted apply runs).
+
+### Changed
+
+- cli.py's presentation layer (`_emit`, `_emit_by_status`,
+  `_print_capabilities_table`) extracted to `harness/cli_report.py` verbatim:
+  cli.py now reads as handlers + dispatch, cli_report owns the report/exit-code
+  rendering contract. Byte-identical, proven by a 27-artifact stdout/stderr/
+  exit-code oracle replay across help, read-only, and both emit-code paths.
+
+## [0.3.1] — 2026-09-16
+
+### Added
+- **Batch fail-soft (`apply --keep-going`).** A multi-file batch can
+  continue past a failed file instead of aborting: every per-file result --
+  failures included -- stays in the batch envelope, the overall status
+  names the FIRST failure (a later success can never mask a mixed batch
+  into `ok`), and the shared-gate verdict reports not-passed. Fail-fast
+  remains the default and is byte-identical to prior behavior; the flag
+  lives on the apply parser only (continue/dogfood untouched); no retry
+  logic, no analytics. Proven through the real CLI entry point (mixed and
+  default runs via `cli.main` with the emitted `--out` JSON), plus loop
+  pins on the engine batch surface.
+- **Apply change preview in the UI.** Every changed-terminal apply result
+  (preview, ok, gated ok, escalated ok) now carries a unified `diff` of the
+  touched file plus its `file` path, computed once where the run already
+  held both sides in memory (`results._content_diff` -- no filesystem reads,
+  no new capability). The web UI's result summary renders it as a
+  color-coded, escaped, 400-line-capped changes block -- the scoped-edit
+  trust surface, visible exactly where trust gates force preview-only --
+  with the raw-JSON toggle remaining for the full envelope. Proven end to
+  end: unit pins on every terminal shape, a server-level test that the
+  envelope reaches `/api/runs/{id}/result` unstripped, a live probe through
+  the real served server, and a render proof executing the actual
+  `resultSummary` against the live payload.
+- **Rankings surface (server + UI, strictly read-only).** `GET /api/rankings`
+  serves the latest rankings report verbatim — the same data the weekly
+  workflow files as its artifact (`window`, `top`, `climbers`,
+  `ranked_in_catalog`, `proposed_candidates` with probe verdicts) — plus the
+  list of reports on disk, newest first. A missing or unreadable report is a
+  200 with `available: false` and an actionable note (the empty/stale state
+  is normal, never a silent fallback to an older file). A Rankings view in
+  the web UI renders it with the established enter-to-refresh contract. The
+  hard constraint holds: the endpoint and view never generate, probe, or
+  mutate configuration — `harness rankings` stays the one producer, so
+  nothing auto-mutates. Covered by endpoint tests through the real server
+  surface, including a mechanized read-only check.
+- **MCP progress streaming (the one deferred UI-readiness item).** A client
+  that includes `params._meta.progressToken` on an identified `tools/call`
+  now receives one `notifications/progress` frame per typed run event
+  (`panel_call`, `gate_end`, `rotation`, ...) while the tool runs: same
+  token, monotonically increasing `progress`, human-readable `message`, no
+  `total` (the lanes don't know one). Frames stop at completion (the sink
+  is removed with the request -- success, error, or cancel); a request
+  without a token gets zero progress frames, exactly the historical
+  behavior, and a malformed token is ignored (`_meta` is advisory -- a
+  telemetry preference can never fail a run). Implemented as an events-bus
+  sink bound to the request, so panel/apply lanes stay telemetry-only and
+  the protocol adapter owns only the frame translation. Proven end to end
+  through the real stdio frame loop.
+
+### Changed
+- **The rankings envelope-to-UI field contract is mechanized.** A contract
+  pin derives every member read the real `loadRankings` makes from app.js
+  source (not a hand-list) and asserts each resolves on an envelope produced
+  by rankings.py's real builder through the real endpoint assembler,
+  including both `available: false` fallbacks; where a node runtime exists,
+  the real renderer is executed against the real envelope with per-row value
+  co-occurrence. Vacuity-proven: planted key renames on either side (UI or
+  server envelope) fail the battery instead of silently blanking the view.
+- **Skip hygiene is mechanized.** The suite's 10 skips (on Windows) are all
+  environment gates, not convenience: 7 symlink-privilege gates
+  (WinError 1314 without Developer Mode -- security-relevant symlink-escape
+  paths that CI's Linux legs run for real) and 3 POSIX-mode-bit gates; the
+  optional-dep gates (local_fit's numpy/onnx training deps, the live-key
+  catalog freshness check) follow the same classified pattern and are
+  already exercised wherever the environment provides them. A new
+  architecture-guard class (`SkipHygieneTests`) keeps it that way: every
+  skip reason must state its category (platform / privilege / optional dep
+  / live credential), and blunt unconditional `@unittest.skip` disables are
+  banned -- proven to fire on both violation shapes.
+- **`ci.yml` gains a `workflow_dispatch` trigger.** CI never fired for the
+  branch's final heads (zero check-runs for `f187cb3`/`141d21a` across two
+  pushes -- confirmed environmental, PR #8 merge-basis comment); a manual
+  dispatch is the cheapest re-emit path once Actions minutes are restored.
+  No job, matrix, or gate content changed.
+- **One per-file options owner for the batch CLI face.** `cli._cmd_apply`'s
+  ~18 hand-threaded kwargs into `apply_batch` (re-packed into a dict by
+  `run_batch`) collapsed into the immutable `BatchOptions` bundle: one
+  definition constructed in one place, consumed by the loop, and every
+  caller (CLI apply/continue/dogfood, MCP tools/call, both server task
+  runners) now passes it -- `run_batch` is single-mode. Run-level knobs
+  (task_id, keep_going, apply_pool, cancel_check, resume routing) stay
+  run_batch parameters -- they describe the batch, not a file's session.
+  `_cmd_continue` now builds the same bundle through the same helper.
+  `--keep-going`'s apply-parser-only scope is documented at the definition
+  site as the deliberate divergence it is (the multi-file batch is the only
+  multi-file surface). Behavior byte-identical: full battery green; the
+  bundle's field defaults are pinned equal to run_batch's legacy signature
+  (vacuity-proven) and the run-level pool/cancel-check merge is pinned with
+  non-None values.
+
+- **The CLI parser surface has its own owner.** `harness/cli_parser.py`
+  (build_parser, flag builders) is pure argparse construction moved
+  verbatim from cli.py (912 → 683 lines): every subcommand and flag lives
+  in exactly one module, and a new surface test pins parser registration
+  against the dispatch table. All 12 help surfaces replayed byte-identical;
+  the self-audit's subcommand extraction follows the move with a live-parser
+  strictness assert (the D1 lesson mechanized for D2).
+
+### Fixed
+- **The self-audit's MCP-tool extraction is blind no more.** The schema
+  extraction moved the tool literals out of mcp.py, so the audit's source
+  grep returned an empty tool list — README parity then reported every
+  real tool stale while the missing-side check ran vacuous. The audit
+  now imports the names from mcp_schemas (the contract owner); CI's
+  audit job is back to a meaningful 10/10.
+
+- **Resume through a BatchOptions bundle delivers the saved state.** The
+  dual-mode options path silently dropped the run-level `continuation` to
+  None in the per-file payload (the merge covered only apply_pool and
+  cancel_check), so a CLI resume ran as a fresh apply; no test drove a
+  successful resume end to end. Single-mode run_batch now validates and
+  delivers the run-level parameter (or the bundle-carried one), pinned by
+  a regression test and proven end to end through the real CLI entry
+  point on both resume faces (apply --continue-from, continue).
+
+- **Miscounted-diff hunk headers no longer waste the apply lane.** Dogfood
+  evidence recorded 12/12 near-miss refusals of diffs whose body lines were
+  correct but whose `@@` header miscounted ("truncated: expected -6/+24,
+  got -6/26"), each burning a full failed apply round; the worst variant
+  merged while silently dropping the body's tail. Hunk bodies now parse to
+  their natural end (next `@@`, junk line, or EOF) and the body decides; a
+  recovered hunk must still describe a change, a short old-side at EOF is
+  still refused as truncation-ambiguous, junk after a miscounted body is
+  still refused, and the exact-source match still gates every line that
+  reaches disk -- the validation gate is unchanged.
+
+## [0.3.0] — 2026-09-15
+
+### Added
+- **Explicit reasoning disable (the "off means OFF" fix).** `off`/`none`
+  now send `reasoning:{"effort":"none"}` instead of omitting the key --
+  omitting means the provider default (reasoning ON) for reasoning-native
+  models, the failure that killed the Sep-13 BoD runs. The disable payload
+  carries no token cap; a mandatory-reasoning route (glm-5.3-flash,
+  gpt-5-mini) draws the documented HTTP 400 and the existing param-rejection
+  retry runs the provider default with the rejected attempt's billable cost
+  merged. glm-5.3 joins the reasoning hints. `off` is now the vote-lane
+  default.
+
+- **Task-shaped lane budgets (ONE owner).** `config.effective_lane_policy`
+  is the single owner of per-lane output budgets and reasoning modes: votes
+  >= 4096 with reasoning disabled; judge synthesis and escalation rungs
+  >= 8192 with `auto`; the convergence specialist stays at the vote floor
+  (its window-aware trim must stay usable on small-context specialists);
+  apply keeps 4096. Explicit caller configuration always wins; defaults
+  flow through preflight reservations, actual-cost accounting, run metadata,
+  and ledger evidence.
+
+- **Verified 2026-09-13 model slates (paid tier).** `DEFAULT_PANEL_PAID`
+  moves to the probe-verified vote pool (deepseek-v4-flash, v4.1-flash,
+  ling-3.0-flash, gpt-4o-mini, gpt-5-mini, gpt-5.6-luna, gemini-3.8-flash);
+  the paid judge is `z-ai/glm-5.3-flash` (value deep-thinker);
+  `deepseek-v4.1-flash` leads the apply pool; the escalation ladder is the
+  verified deep-think tier (glm-5.3-flash, deepseek-v4-pro, gpt-4.1,
+  gpt-5.6-sol). gemini-2.5-pro, gpt-5 (non-mini), and the V3-era deepseek
+  ids are dropped per operator rulings. `DEFAULT_MAX_COST` rises to $0.05
+  (actual verified 5-vote cost: $0.0038; `HARD_MAX_COST` unchanged).
+
+- **Rankings-driven candidate refresh.** `harness rankings [--probe]` (new
+  `harness/rankings.py`) pulls the OpenRouter daily rankings, aggregates
+  top/climbing models, intersects with the live catalog, and proposes
+  pool candidates; `--probe` gates each candidate through a billable
+  one-vote probe (reasoning disabled). A scheduled weekly workflow
+  (`.github/workflows/rankings.yml`) files the report as an artifact;
+  nothing mutates configuration automatically.
+
+- **Canonical service layer (`harness/service.py`).** The web server's
+  verify runner and the CLI's verify path consume ONE assembly: shared
+  BOM-tolerant prompt/claims-window reading, the cancelled-run spend
+  envelope, and cost/meta attachment. Server tests now pin the service
+  seam.
+
+- **Non-authoritative deterministic tally artifact.** When a structured
+  judge is exhausted (unparseable/failed), the consensus now carries a
+  `tally_artifact` rendering the deterministic per-claim vote summary,
+  explicitly marked `authoritative: false` -- reviewable evidence, never a
+  fabricated verdict.
+
+- **Pool-policy visibility.** Learned-BYOK filtering and strike/demotion
+  gating announce what they remove (stderr notes + `pool_filtered` events);
+  silent pool shrinkage is gone. The UI live feed renders `pool_filtered`
+  and `rankings_probe` events, and the Trust view's Refresh button works.
+
+- **Full web-UI parity for the verify lane.** The Dispatch → Verify tab now
+  covers the structured-claims workflow (claims manifest + source file +
+  optional definitions), with pre-network lint rejection surfaced as a
+  `rejected` run; `/api/trust` exposes the CLI `trust` snapshot on a new
+  Trust view; Result cards show a human verdict summary (verdict, votes,
+  judge, cost, synthesis) with the raw JSON envelope behind a toggle; every
+  view refreshes when entered; Settings shows server status from
+  `/api/status`.
+
+- **Judge-seat fallback rotation.** A failed judge (HTTP 5xx/408/429,
+  reasoning-only, truncated, or unparseable body) no longer discards a
+  converged panel's evidence: one bounded same-seat retry on transient
+  errors, then rotation to un-voted free panel-pool members. Every fallback
+  call is preflight-reserved, so the worst-case cost guarantee holds; paid
+  judges keep single-attempt semantics; the seat still never fabricates a
+  verdict (an exhausted seat defers with raw panel outputs).
+
+- **Truncation honesty on the judge seat.** A judge body cut off mid-JSON
+  (unbalanced braces/fence) is reported as `truncated`, not lumped in with
+  complete-but-malformed `unparseable` output (the Sep-11 seat-gate loss).
+
+- **`harness ledger defer-stats [window]`.** Operator aggregate of WHY runs
+  deferred: panel defer rate (lost judges), mid-task categories, consent
+  outcomes. Also on the web UI Ledger view and
+  `GET /api/ledger/defer-stats`.
+
+- **gpt-5 / o1 recognized as reasoning models.** `looks_reasoning` hints
+  extended so `auto` effort caps hidden thinking for OpenAI reasoning models
+  (three live `bod-governance` judge calls failed reasoning-only on Sep 13).
+
+- **Multi-rung apply escalation ladder (opt-in).** When `allow_escalation` is
+  set and `escalation_pool` is configured, a failed cheap apply walks the
+  ladder (cheapest → most capable). Each rung produces COMPLETE file content
+  and is finished through the real verification gate.
+
+- **Minority-dissent demotion.** Structured panels record models that vote in
+  the minority on defect claims (`minority_models` + ledger
+  `panel_minority_dissent`). After two strikes, `order_pool` sorts them below
+  unproven peers (same policy as unusable/consent-unusable). A lone dissenter
+  that is *correct* is not banned — it is demoted after *repeated* lone
+  dissent that invents conflicts.
+
+- **MCP shared-secret auth (optional).** `HARNESS_MCP_AUTH_TOKEN` /
+  `mcp_auth_token`: when set, `tools/call` requires matching
+  `params._meta.harness_token`. Unset keeps the documented stdio trust model.
+
+- **MCP `panel_verify.task_max_cost`.** Optional per-call ceiling (0–0.25);
+  refuses before network spend if the session budget cannot absorb it.
+
+- **Polish pass (sandpaper):** README test-coverage list rewritten to match
+  the current suite; `Router.next_model` and `spend.resolve_models`
+  deleted with their tests (zero production callers, per the no-dead-code
+  rubric); lint extended to `B007/B017/B904/UP015/UP031` with chained
+  (`from e`) or suppressed (`from None`) raises throughout; output
+  hygiene enforced (config warnings and ledger quarantine notices go
+  through `eprint`, `[ledger]` stays audible under `--quiet`, the
+  capabilities table moved off stdout so piped JSON parses); security and
+  releasing docs updated to the MCP lanes, trust gates, anchors, and the
+  real validation commands.
+
+- **Dogfood-driven close-out of the four deferred audit items** (panel
+  evidence under `audits/self/dogfood/item{1,2,3b,4}.*`):
+  - *Ledger rotation anchors.* Every rotation opens the fresh active file
+    with a chained `segment` event naming the moved file and its tip, so
+    segment boundaries stay cryptographically linked. New `chain_status()`
+    reports validity plus retention shape (`segmented`, per-file bounds,
+    `first_retained_seq`, `pruned`); a pruned prefix reports as an explicit
+    cut, never as genesis. `repair()` now truncates only the cut file,
+    leaves healthy segments byte-identical, and is a no-op on healthy
+    ledgers; `ledger verify` / MCP `ledger_status` surface the chain
+    status. The dogfood panel confirmed the gap 2/2 before the fix.
+  - *MCP lanes + deadlines.* Three serial workers (`mutation`,
+    `spendy`, `observe`) replace the single worker, so a long apply/panel
+    no longer head-of-line-blocks status queries (frames correlate by id,
+    never position). Every request carries a cooperative deadline
+    (`HARNESS_MCP_TOOL_TIMEOUT`, 60..7200s, default 1800) tripped through
+    the same cancel path as `notifications/cancelled`. Confirmed 3/3.
+  - *Per-caller tagging.* Ledger events carry the session caller id
+    (`cli`, `mcp`, `mcp:<name>/<version>` from initialize clientInfo);
+    reports break out `per_caller` history and host trust scores named
+    peers separately, with the untagged global as fallback. New `harness
+    trust --caller` and MCP-side attribution included.
+  - *Tally-first judging.* The context-budget trim shapes only a copy for
+    the judge prompt (disclosed in-prompt); the deterministic tally counts
+    full votes and the result keeps them, so a resource-cap trim reports
+    as `trimmed_for_judge` -- never as transport `panel_shortfall`.
+
+- **Dogfood found a live crash first:** integer settings arrived as floats
+  (`finite_number` returns float), so `range()/max_workers` crashed the
+  first live panel fan-out -- a path the hermetic suite never took.
+  Settings coerce back to int, panel hardens its target, regression
+  pinned. The run spent $0.00 before failing.
+
+- **Free-tier diff-merge finding:** 12 model attempts across two items
+  wrote near-miss unified diffs (correct content, wrong hunk counts)
+  that the strict merger refused 12/12. Model-written diffs are not a
+  viable lane at this tier today; panel verification + hermetic gates
+  carried these items instead. Evidence in the item reports.
+
+- **Whole-file exercise (bench schema validation):** panel-confirmed,
+  then 9 model whole-file attempts failed file fidelity (fences left in,
+  dropped functions, syntax breaks) before one honest capability
+  deferral; the 5-line fix landed directly with the red test as gate.
+  Two self-hosting findings came free: a deferred self-edit that breaks
+  `harness/bench.py` used to kill the CLI at its own import line (bench
+  imports guarded at module level now -- `continue` survives), and
+  whole-file writes normalized CRLF checkouts to LF (fixed:
+  `_atomic_write` now aims at the target's detected style, with an
+  explicit byte-exact mode that snapshot restore uses).
+
+- **`run_bench` validates its schema:** a task missing `instruction`
+  aborts as `HarnessError` like every other manifest schema error (was a
+  raw `KeyError`), and an unnamed task defaults to `"task"` mirroring
+  the loader.
+
+- **Local model-fit advisory layer wired into pool ordering
+  (`harness/local_fit/`, opt-in, off by default).** A small locally-trained
+  neural net (no LLM, no runtime dependencies) scores each candidate model
+  seat for unusable/truncated/usable-stop risk from pre-dispatch features
+  only (task, lane, declared profile, ledger calibration), and — only when
+  explicitly enabled — demotes scorer-flagged likely-unusable models after
+  their peers *within* the existing demotion tier of
+  `capability.order_pool`. Three-stage flag gating: OFF (default; the hook
+  is never imported or called), OBSERVE (`HARNESS_LOCAL_FIT_ENABLE` +
+  `HARNESS_LOCAL_FIT_MODEL_DIR`: score-and-log, order untouched), INFLUENCE
+  (`HARNESS_LOCAL_FIT_USE_ADVISORY_ORDER=1`, threshold
+  `HARNESS_LOCAL_FIT_UNUSABLE_THRESHOLD` default 0.6, inclusive). The hook
+  is fail-closed end to end: any error degrades to the baseline order, and
+  it can never cross the strike-demotion boundary or reorder unflagged
+  models among themselves. Training/eval over `audits/*/_runs/*/*.json` via
+  the read-only extractor; train-time deps are the optional
+  `local-fit-train` extra; runtime inference is pure stdlib
+  (`model_weights.json` + `infer.py`, parity-pinned against the ONNX
+  export). Train/serve feature parity is enforced by a pinning test; the
+  enabled ordering path is tested to never import numpy/onnx/onnxruntime.
+
+- **Local-fit merge review (same bar as everything else):** the prototype
+  `hook`/`dispatch_hook`/`advisory` seam is deleted (unreachable from the
+  live path, with contradictory tier-crossing ordering); eval observed
+  maps are train-only (the old per-split maps leaked eval answers into
+  eval features); specialist rows read model/raw/cost from the conv dict;
+  shuffling is seeded; ONNX export derives width from the net; train-test
+  numpy imports are guarded for clean CI. Honestly measured on 9 v4 runs:
+  leakage-free eval top1 0.647–0.867 (mean 0.761 vs ~0.64 majority), and a
+  leave-one-run-out routing study shows the net recapitulating ledger
+  observed rates with no measurable lift over the trivial baseline
+  (Spearman +0.730 vs +0.750; precision@1 8/8 both) -- INFLUENCE is safe
+  to ship fail-closed, value on larger corpora unproven; see
+  `harness/local_fit/RE_MERGE_READINESS.md`.
+
+- **Bipolar trust (-11..+11) with hard gates and correctness-rationed
+  ceilings (`harness/trust.py`, `docs/trust.md`).** Cold start is always 0
+  (unknown); clean runs earn slowly (3 per +1) while safety signals land
+  fast (bounded protocol-sloppiness, -1 guidance denials, -4 hostile
+  denials; ordinary verify misses move correctness, never trust).
+  Principals are host + model + continuation author (weakest link; author
+  only matters on resume). `<= -6` refuses mutation/exec, negative forces
+  preview-only, unknown writes require a gate (enforced at the write, so
+  consent/deferral paths still run). Correctness unlocks ceiling
+  fractions (0 -> today's defaults, negative below, +6.. full hard cap).
+  New surfaces: `harness trust`, MCP `trust_status`, additive `trust` on
+  ledger/MCP reports; every denial ledgered as `trust_gate` evidence.
+  Also closed: `--max-cost` override capped at `HARD_MAX_COST` (C2),
+  continuation file-retarget refused (C4), engine-boundary gate
+  tokenizability preflight, MCP boundary refusals ledgered.
+
+- **CI audit gate:** a new `audit` job in `.github/workflows/ci.yml` runs the
+  4-dimensional audit (`audits/self/audit.py`) with its 9.5+ per-dimension bar
+  on every push/PR, plus ruff over the audit script itself and an opt-in live
+  `capabilities --check-shipped` freshness re-check when the
+  `OPENROUTER_API_KEY` secret is configured (pure `/models` read, $0 spend).
+
+- **Audit sweep: spend, execution, and convergence hardening.** Probe lane
+  learns paid-BYOK prefixes and stops burning questions on them, reserves
+  reasoning-fallback slots per question, and bills error-path costs like
+  every other lane; `chat()` resolves a missing `usage.cost` once for all
+  lanes (free fills zero, paid estimates from token counts, blind fails
+  closed); transport retries fold dropped transient-attempt spend into the
+  final response; ledger appends use non-blocking cross-process locks;
+  backups and bench snapshots refuse planted symlinks; bench containment
+  resolves parent-dir symlinks; the convergence specialist names
+  reassurance-claim polarity and trims votes to the smallest candidate
+  window; consent renewals attribute to the answering model; the dead
+  key-fragment label guard is gone (live `/key` exact match remains);
+  claims `_DEFN_RE` word boundary restored so in-window definitions
+  suppress redundant auto-expansion.
+
+- **Consent-probe curation:** consent answers the parser cannot use (empty,
+  reasoning-only, unparseable — ledgered as `consent_rotate`, HTTP tier faults
+  excluded) now count toward the same two-strike demotion as the apply lane's
+  unusable outputs, so a consent-blind judge is rotated below unproven models
+  at the next panel/consent lane build.
+
+- **`capabilities --check-shipped`** — machine-checked config freshness: the
+  new `config.shipped_model_ids()` enumerates every default lane id across
+  both tier policies; the command validates all of them against the live
+  catalog ($0.00, one GET /models) and exits 2 naming any stale id — closing
+  the twice-recurred stale-default-id defect class. The catalog-fixture pin
+  (which itself rotted) is replaced by a live-gated suite test that
+  auto-runs the same check wherever an API key exists.
+
+- **Pre-run saturation warning** — the look-ahead half of the saturation
+  policy (`saturation.pre_run_warning`): before a run spends anything, the
+  recent ledger is scanned for rate-limited model results (429s in the last
+  100 events, ≥3 = saturated; 401/auth faults deliberately not counted) and
+  one plain-language warning prints to stderr — advice, never a gate — with
+  key-near-limit state qualifying the BYOK advice. Warns at most once per
+  process; every failure mode degrades to silence. Wired at both assembly
+  sites (CLI `_session` + `_run_claims_verify`, MCP `main`).
+
+- **Ledger-seeded self-hosting (`dogfood --from-ledger`)** — the loop closes:
+  the harness curates its next self-audit from its own recorded run evidence
+  instead of a hand-authored fixture. Three deterministic, ranked rules turn
+  recent ledger entries into factual claims — a model whose runs repeatedly
+  fail-closed at the verification gate, a model repeatedly paid for HTTP 200s
+  with no usable content, and free-tier rate limiting dominating recent
+  dispatches — each with its evidence window. The curated manifest is
+  persisted via `--claims-out`, passes the hermetic ground lint, and flows
+  through the same gate-confirmed panel and gated self-apply phases.
+  Curation reads the ledger only (no live key) and is ledgered as a
+  `dogfood_curate` event. (Live proof: curated 3 claims from this repo's real
+  ledger — 82 gemma-4-31b gate fail-closes, 4 for openrouter/free, 5 paid-
+  for-nothing calls — panel-confirmed, gated apply passed, $0.00.)
+
+- **`harness dogfood` — the self-hosting loop as one command.** Composes the
+  three lanes with fail-closed phase gates: hermetic claims lint (an
+  ungrounded claim never reaches a model), live panel + convergence tally
+  (the defect must be *gate-confirmed* — every required panel slot voting —
+  before any edit), then the gated self-apply with the operator's verify
+  command. Exit 0 only if every phase proved its claim; shortfall panels,
+  unconfirmed defects, and deferrals all stop short of the edit with full
+  evidence in the `--out` report. CLI-only by design: the
+  verify→self-edit chain stays under operator authority; its phases remain
+  individually available over MCP. The verify execution path is shared with
+  `verify` (`_run_claims_verify`), so the two surfaces cannot drift.
+
+- **MCP batch parity: `apply_edit` accepts a `file` array.** Multi-file
+  batches run through the new engine-owned `ApplyEngine.apply_batch` (one
+  governed session per file, shared budget, fail-fast, shared-gate
+  aggregation) — previously the batch loop lived only in the CLI, so MCP
+  had no batch capability at all.
+
+- `--quiet` on `bench` and `continue` (verify/apply had it; the others
+  rejected it with an argparse error).
+
+- Fixed the `--quiet` flag itself, which the facade split had silently
+  disconnected (the CLI wrote `core.QUIET`; `eprint` reads `output.QUIET`).
+### Changed
+- **No verify assembly left handler-side.** `mcp.py`'s `panel_verify` no
+  longer lane-defaults locally (panel pool, judge, convergence model,
+  specialists): validated-None arguments flow through to
+  `service.run_verify`, whose caller→router→settings resolution is the one
+  owner. `cli._read_text` is now a delegation stub to
+  `service.read_text_file`, the ONE BOM-tolerant reader; the name stays for
+  its other call sites and patch seam. Error wording unchanged.
+
+- **One resolved-inputs owner for verify.** `service.run_verify`'s eight
+  inline `arg or router.X or settings.X` fallback chains collapsed into the
+  immutable `ResolvedVerifyInputs` struct (the `PanelLanePolicy` move),
+  built once and read by `pre_run_warning` and the `panel_judge` call;
+  fallback order preserved exactly, public signature unchanged, behavior
+  proven byte-identical by a nine-scenario resolved-inputs oracle.
+
+- **MCP verify lane unified onto the service layer.** `panel_verify` no
+  longer imports `panel_judge` or self-assembles convergence/router kwargs:
+  it delegates to `service.run_verify` (the same owner the CLI and web
+  server consume) with session-injected governor/ledger/transport/router,
+  keeping only its protocol concerns -- boundary validation, tool schemas,
+  JSON-RPC frames, and its historical result shape (no meta/cost
+  attachment, no service-side task id). The cancelled-run envelope moved to
+  the service; MCP still answers its established `-32800` protocol error.
+
+- **MCP tool schemas are pure data.** The ~140-line schema dict literal
+  moved from `mcp.py` into a new `mcp_schemas.py` data-only module (no
+  imports, no logic), leaving the protocol adapter as framing + lanes +
+  dispatch (785 → 664 lines). Byte-identity proven by replaying the full
+  `tools/list` response through the real stdio frame loop before and after
+  the extraction.
+
+- **MCP lane scheduling is pure policy.** `LANES`, the lane membership
+  constants, and `lane_for` moved verbatim from `mcp.py` into a new
+  `mcp_lanes.py`, leaving the protocol adapter as framing + dispatch +
+  cancellation lifecycle (664 → 646 lines). Per-lane dispatch proven
+  byte-identical by an instrumented frame-loop probe (one request per
+  lane, submit-to-pool correlation) before and after the extraction.
+
+- **One immutable-struct idiom.** `PanelLanePolicy` and
+  `ResolvedVerifyInputs` converted from `__slots__` + read-only-property
+  boilerplate to frozen dataclasses (`apply_state.py`'s idiom), deleting
+  ~33 net lines of boilerplate; the keyword-only constructors are kept
+  (`init=False` + `object.__setattr__`) so resolution logic, attribute
+  surface, and every call site are unchanged. Behavior proven identical by
+  the nine-scenario resolved-inputs oracle and the lane-policy
+  attribute-surface replay -- and immutability is now genuinely enforced:
+  attribute assignment raises `FrozenInstanceError` (the previous idiom was
+  mutable-by-convention; nothing relied on that laxity).
+
+- **The struct-idiom rule is universal.** `CapabilityProfile` converted to
+  a frozen dataclass (the last bare-`__slots__` class): the TTL refresh
+  goes through `dataclasses.replace`, and the custom init gained a
+  `_fetched_at` keyword (replace re-calls `__init__` with every field) so
+  every existing caller stays valid. Zero `__slots__` remain in
+  `harness/`, enforced by a new architecture-guard check.
+
+- **CLI claims assembly consolidated.** `harness verify --claims-file` now
+  prepares its prompt through `service.prepare_verify` (one owner for
+  BOM-tolerant reading, manifest parsing, grounding, convergence
+  activation, and reassurance derivation); the CLI keeps lint printing and
+  error wording verbatim.
+
+- **Paid-lane default ceiling.** `DEFAULT_MAX_COST` $0.02 -> $0.05 to fit
+  the wider verified vote pool's worst-case reserve (~$0.04). The hard
+  ceiling (`HARD_MAX_COST`, $0.10) is unchanged.
+
+- **UI close-out.** `#btn-trust-refresh` handler wired; trailing-EOF fix
+  in `harness/ui/app.js`.
+
+- Architecture pass: the terminal status vocabulary gained its meaning as a
+  one-place policy — `results.SUCCESS_STATUSES` and
+  `results.terminal_exit_code` — replacing the failure-set copy in cli's
+  `_emit_by_status`, the success-set copy in `apply_batch`, and dogfood's
+  re-derived exit block. The consent mechanics text moved from apply.py to
+  prompts.py (pure prompt text belongs with the prompt contracts);
+  `models --all` reuses the session's verified governor instead of building
+  a throwaway one.
+
+- Architecture pass: the verify recipe (catalog seed, capability panel
+  ordering, degrade-to-given-order) moved into the panel lane as its single
+  owner — the CLI's verify lane and MCP's `panel_verify` dropped their
+  duplicated seed+order blocks (MCP's even ordered converging panels under
+  the wrong task key). dogfood tests lost 18 lines of dead governor-mock
+  boilerplate by patching the session seam instead. Net -37 lines.
+
+- Architecture pass: engine composition extracted to `harness/session.py` as
+  the ONE owner (governor/ledger/router/engine builders + `apply_session`
+  with the pre-spend saturation look-ahead). MCP now composes from it — its
+  20-line construction copy is deleted, so engine-kwarg and tier-policy
+  changes can no longer land in the CLI and miss MCP. A new architecture
+  guard pins ApplyEngine/Router construction to session.py only.
+
+- Earlier: one dependency-assembly site (`cli._session`) wired
+  key+governor, ledger, router and engine identically for verify, apply,
+  continue, dogfood and bench — replacing the four verbatim copies, and
+  threading `settings.use_free` into the engine on both construction sites
+  (CLI and MCP — previously silently defaulted to False, so mixed-pool
+  demotion sort semantics differed from config). Apply resumes inherit the
+  saved continuation task id (ledger
+  attribution stays under the original task; explicit --task-id still wins).
+  Test tree mirrors owners: marker/extraction parsing tests moved to
+  `tests/test_prompts.py`, the CLI-boundary gate test to `tests/test_cli.py`,
+  the gate-broken engine test into the engine lifecycle suite.
+
+- Architecture pass: the apply result vocabulary (round entries, terminal
+  and deferred result builders, HTTP error rendering) moved to a new
+  `harness/results.py` — one def site per result shape the CLI and MCP
+  consume; apply.py is 1,077 → 999 lines and the vocabulary is pinned by
+  the architecture test. Interface hygiene is also pinned: interface
+  functions import policy at module level (cli.py's three remaining lazy
+  imports lifted), with `main()`'s lazy entry as the documented exception.
+  The test tree now mirrors the product tree: `test_core.py` dissolved into
+  `test_spend.py` / `test_panel.py` / `test_convergence.py` /
+  `test_specialist.py` / `test_chat.py`, and `test_audit_fixes.py` into
+  `test_ledger.py` / `test_judge.py` / `test_tokens.py` / `test_probe.py` /
+  `test_dogfood.py` — same 262 tests, behavior-named homes, shared `_gov`
+  fixture in `tests/_fake.py`.
+
+- **`apply_edit` decomposed into phases with a single orchestrator.** Argument
+  policy lives in one `_prepare` (validated, engine defaults frozen into an
+  `_ApplyRequest`); the round loop's phases — initial consent, renewal,
+  rotation, dispatch, merge, gate, escalation, terminal assembly — are named
+  helpers mutating one `_RunState`, and every outcome still exits through the
+  shared terminal builders. Behavior-preserving: all 243 tests pass unchanged;
+  a change to one behavior now lands in one phase, not a 600-line loop body.
+
+- `cli.main` dispatches through a command table instead of a 12-way `elif`
+  chain; handlers all take `(opts, settings)` (fixing a stale `_cmd_spend`
+  call signature that the chain masked).
+
+- **Layering completed and enforced.** `apply.py` (1,062 lines) shed its two
+  non-engine concerns: prompt contracts and response parsing moved to
+  `prompts.py`, disk/gate mutation policy (atomic write, backups, shell-free
+  verify runner) to `filesafety.py` — `apply.py` is now the round loop,
+  rotation, escalation, and batch orchestration only. `core.py` was pruned to
+  the names callers actually import, and the new `tests/test_architecture.py`
+  enforces the import direction (no module may import an interface;
+  `core.py` must stay a pure re-export shim), so the layering can no longer
+  silently regress.
+
+- **Pool ordering has ONE owner: `capability.ordered_pool`.** It reads the
+  governor's cached /models catalog, orders by observed-corrected
+  reliability, drops catalog-stale ids at the routing boundary (a stale
+  configured id previously hard-failed the whole run at pricing lookup), and
+  degrades to the caller's order when capability data is unavailable. The
+  panel lane self-serves ordering inside `panel_judge` (dropping its
+  `capability_profiles`/`report` parameters); the apply lane orders per
+  request inside the engine.
+
+- **No per-request router mutation.** `mcp.py` no longer writes ordered
+  pools into the shared `Router` (the same per-request-vs-lifetime bug class
+  as the continuation-gate leak); routing is resolved per request in the
+  engine, and a regression test pins router immutability on both engines.
+### Fixed
+- **UI assets missing from the wheel.** `harness/ui/*` (index.html, app.js,
+  app.css) now ship via `[tool.setuptools.package-data]`; previously an
+  installed `harness serve` / `harness desktop` 500'd every static page.
+
+- **Abort-spend honesty.** A cancelled verify no longer drops the spend of
+  in-flight panel calls that billed before the cooperative cancel landed:
+  the envelope reports the true `actual_cost` and per-model breakdown, and
+  the UI maps the lane-level `ToolCancelled` to an honest `cancelled` run.
+
+- **Event-sink leak in the UI server tests.** `ServerHarness` now uninstalls
+  its events sink on teardown; leaked sinks could silently starve later
+  servers once the bus's `MAX_SINKS` cap was reached.
+
+- **Cancel works in the UI verify lane.** `run_verify_task` accepted the
+  run's cancel closure but never forwarded it to `panel_judge`, so Cancel
+  was a silent no-op in the web UI's main lane (apply and continue already
+  forwarded it). A cancelled verify now aborts at the next check (in-flight
+  calls are discarded, no judge call, no verdict), and the run reads
+  `cancelled: "cancelled by user"` instead of a misleading `error`.
+
+- **Result on a failed/cancelled run.** The UI Result button rendered
+  `null`; it now shows the run's error message.
+
+- **BOM tolerance on inbound files.** `--claims-file`, definitions files,
+  and CLI text/JSON readers decode `utf-8-sig`, so PowerShell-redirected
+  handoff artifacts (BOM'd `claims.json` from the rule8-281 run) load
+  instead of failing `json.load` with "Unexpected UTF-8 BOM".
+
+- **Verdict honesty.** Panel tallies print `N R / M NR` vote counts, not
+  `(3/3)` participation that looked like unanimity. Shortfall lines say
+  `SHORTFALL` explicitly.
+
+- **Specialist vs tally.** When the specialist's claim map disagrees with the
+  deterministic majority, the conflict is recorded on
+  `convergence.specialist.tally_conflicts` and the tally is named authoritative.
+
+- **MCP verify default tokens.** `max_tokens` default raised 300 → 2048 to
+  match the CLI verify lane.
+
+- **Atomic write staging.** Temp files are staged under `realpath(parent)`.
+
+- **Bench snapshot.** `.orig` created with `O_CREAT|O_EXCL`.
+
+- **Verify gate tokenize.** Engine always shell-tokenizes `verify_cmd`;
+  PATH existence remains opt-in for hermetic stubs.
+
+- **Library apply filesystem jail.** `ApplyEngine(allowed_roots=...)` (wired
+  from `settings.mcp_allowed_roots` / `HARNESS_MCP_ALLOWED_ROOTS`) refuses
+  targets outside configured roots via realpath. Empty roots keeps the
+  historical unrestricted CLI behavior.
+
+- **Backup TOCTOU.** Backups use `O_CREAT|O_EXCL` with a unique dest name
+  and never prune the just-created file.
+
+- **Ledger load integrity.** Load recomputes each entry hash + prev_hash
+  linkage, requires integer `seq`, flags `chain_broken`, and `verify()`
+  fails closed when load quarantined damage (never a silent pass).
+  `repair()` heals quarantined torn tails (unsegmented rewrite; segmented
+  keeps older segments byte-identical).
+
+- **local_fit extract skips non-run JSON** (list `summary.json` etc.).
+
+- **PR #4 review (cubic/codex) follow-ups.** Escalation `needed` must be JSON
+  boolean `true`; invalid `target_rung` coerces to 0; specialist
+  `escalation`/`plan` surface on the consensus payload; apply ladder enforces
+  `--task-max-cost`, handles `diff` backend + `HARNESS_DEFER`, seeds judge
+  condensed context into RunState; legacy `escalation_model` keeps precedence
+  over the default ladder; `judge_top` used only when escalation is allowed;
+  dead `RunState` plan fields removed; train-time skips require
+  numpy+onnx+onnxruntime; `_defined_in` ignores comment lines; paid-pool
+  test no longer tautological; local_fit extract test accepts extra run dirs.
+
+- **`--out` creates parent directories.** Relative paths like
+  `results/foo.json` no longer fail after a paid/free panel run with
+  `cannot write --out` when the parent folder is missing.
+
+- **Claims lint sees Python definitions.** `_DEFN_RE` now matches
+  `def`/`class` as well as Rust `fn`/`const`/… (and `pub(crate)`).
+
+- **Train-time tests skip without the `local-fit-train` extra.**
+  Clean runners without numpy/onnx no longer error; classes that import
+  `train` are skipped with an explicit reason.
+
+- **Local-fit advisory scores were inert on real data (saturation).** The
+  trained net's real-data logits were tiny, so exported probabilities
+  saturated (p_unusable ~0.15 for every candidate, spread ~0.03) and the
+  INFLUENCE path reordered nothing at any threshold. Three-part mechanism
+  fix (data expansion is intentionally out of scope):
+  export-time temperature calibration (`train.export_temperature`, persisted
+  as `temperature` in `model_weights.json`/`model_meta.json`, applied as
+  logits/T by the stdlib scorer so the ONNX parity pin still holds); input
+  z-score clipping (`Z_CLIP=8`) in the runtime scorer so unseen-at-train-time
+  dispatch features (e.g. declared context length) cannot blow logits into a
+  pinned softmax; and a fail-closed degenerate-artifact guard in
+  `dispatch.maybe_order_pool` that detects unseparable score maps
+  (`score_spread_too_small`) and collapsed top-class probability
+  (`top_class_saturated`), keeps the baseline order, reports the reason on
+  the result and stderr (`capability.order_pool` logs the stand-down).
+  A pool that legitimately scores all-healthy (real spread, unpinned top-1)
+  is explicitly NOT degenerate: no reorder is then the correct outcome.
+  New mock-free end-to-end test trains on synthetic audit data containing a
+  genuinely failing model and proves INFLUENCE demotes it within its
+  strike-demotion tier while OFF/OBSERVE stay order-identical to baseline.
+
+- **Fail-closed consent deferrals carry an explicit `dispatched: false`**
+  verdict in their result shape, so a consumer can branch on the dispatch
+  decision without inferring it from the synthetic defer's reason text
+  (4-dimension audit, A11).
+
+- **`validate_cost` deleted** - a finite_number alias with zero callers
+  (the dead "audit #15" validator pattern again); `finite_number` is the
+  one cost validator (audit SM8).
+
+- **The redundant `cli._engine` seam is gone.** Engine construction has one
+  owner (session.engine_for) since the architecture guard landed; the CLI's
+  re-export alias existed only for a round-1 test and invited a second
+  construction site. The key-wiring regression test now pins the real
+  constructor (audit SM2).
+
+- README documents `harness defer` (the CLI face of `defer_work` was
+  reachable but undocumented) (audit SD2).
+
+- **Multi-file batches always return the batch envelope**, even when they
+  fail fast on file 1 (previously a one-result batch collapsed to the bare
+  single-file shape, so consumers keying on `results` couldn't tell a batch
+  death from a single-file run), and the envelope's shared-gate
+  `verify.passed` now derives from the last file's actual verdict instead of
+  hardcoding `true`.
+
+- Terminal `api_error` rounds now always name the real failure: the HTTP
+  status is prefixed to the provider message (a "Rate limit exceeded:
+  free-models-per-day" body no longer hides the 429 from the saturation
+  guidance), and reasoning-only pool exhaustion reports a human sentence
+  instead of dumping the raw JSON response body (behavior-verification pass).
+
+- Reasoning-only demotion actually fires on real runs: the counter now joins
+  the apply engine's own `"no usable content"` error reason (it previously
+  matched a string the engine never writes), and demoted models sort below
+  every unproven model on both tiers instead of only losing ties.
+
+- **Bench no longer leaves solved fixtures in the tree.** `run_bench` now
+  restores every task sandbox in a `finally` (a successful run previously
+  left the fixed fixture on disk — committing that would defeat the bench;
+  the docstring's "idempotent and re-runnable" promise now covers the tree
+  it leaves behind), and the sandbox snapshot/restore plus `_atomic_write`
+  round-trip is byte-faithful (`newline=""` throughout): CRLF fixtures no
+  longer come back EOL-laundered as phantom diffs.
+
+- README documents the `harness dogfood` self-hosting loop (previously only
+  CONTRIBUTING did) and states the full exit-code meanings.
+
+- A bench task missing its required `file` key fails with a clean
+  `[FATAL] bench task '<name>' is missing required key 'file'` instead of a
+  raw `KeyError` traceback (every other manifest error already honored the
+  contract).
+
+- The deferred-task resume hint no longer names a flag pair that does not
+  exist together (`--continue-from` lives on `apply`; `continue` takes
+  `--state`): it now prints the exact `harness continue --state <out.json>`
+  command to run.
+
+- A missing or malformed `--definitions-file` fails with a clean
+  `[FATAL] definitions file ...` error instead of a raw `JSONDecodeError`
+  traceback (`load_definitions_file` now honors the harness error contract,
+  matching the claims-manifest loader).
+
+- **The tree changes only through a passed gate.** Capability-deferred runs no
+  longer write the model's partial output to the target (the partial travels
+  in the continuation state), failed runs rewind the target to its pre-run
+  content, and merge-failure feedback no longer collides with the broken-gate
+  detector. Dogfooding the harness on its own repo corrupted `config.py`
+  through the ungated partial path; this class is closed and pinned.
+
+- **Ledger chain no longer forks under concurrency.** `append()` rebases its
+  chain state under the append lock (two processes previously appended from
+  the same `prev_hash`, producing duplicate seqs), and `harness ledger repair`
+  truncates to the longest valid hash-chain prefix.
+
+- **Config hard ceilings are enforced** (`HARD_MAX_COST`/`HARD_TASK_MAX_COST`
+  are now real bounds in `load_settings`), the dead `_validate_settings_values`
+  duplicate is deleted, and config load failures exit via the CLI's clean
+  `[FATAL]` path.
+
+- **Consent probes see the full target file** (both initial and renewal
+  probes, one preview policy in `consent.py`) — models were honestly refusing
+  to consent to edits they could only see 60 lines of.
+
+- Line-numbered source in diff prompts plus richer merge-error feedback
+  (models miscounted lines in unnumbered views); round-feedback strings no
+  longer contain literal `\n` escapes.
+
+## [0.2.0] — 2026-09-05
+
+### Changed
+- **Engine split by concern.** The 1,240-line `harness/core.py` is now a
+  compatibility facade over focused modules: `spend.py` (SpendGovernor,
+  BYOK, discovery), `chat.py` (the single model-I/O path plus the ONE shared
+  output-usability verdict, `assess_output`, replacing four divergent lane
+  checks), `panel.py` (panel+judge run), `convergence.py` (deterministic
+  tally + specialist lane), `continuation.py` (continuation contract + gate
+  identity), and `output.py`/`tokens.py`/`errors.py` (quiet gate, token
+  estimate, exception types). Behavior preserved: all 217 hermetic tests pass
+  unchanged (two test seams re-pointed at their owning modules), verified
+  live through the CLI, the MCP stdio server, a free-tier claims audit, and a
+  bench task. The CLI's tripled ApplyEngine construction and apply/continue
+  exit-code policy are collapsed into one site each. The module map lives in
+  CONTRIBUTING.md.
+- **Package renamed to `sovereign-harness`.** The PyPI name `harness` belongs
+  to an unrelated project ("Language-neutral meta-framework for server-less
+  style services"), so this distribution now publishes as `sovereign-harness`.
+  The import name is unchanged (`import harness`), and the CLI entry points
+  remain `harness` and `harness-mcp`.
+- **Version is single-sourced** from `pyproject.toml`:
+  `harness.__version__` and the MCP `serverInfo` now derive from it
+  (installed-package metadata first, source-checkout fallback second), so the
+  three can no longer drift.
+- Added `[project.urls]` metadata (Homepage, Issues) to the package.
+
+### Fixed
+- **`ApplyEngine._continuation_gate` no longer leaks across applies**
+  (`harness/apply.py`). Resuming a gated apply pinned its gate on the engine
+  for its lifetime, so a later *fresh* apply with a different gate was refused
+  with "verify gate changed" — and the MCP server, which keeps one engine for
+  the whole session, would have broken every apply after the first resume.
+  Per-request gate state now resets at the start of each apply; the resume
+  path still pins and the tamper check still refuses.
+- **Continuations resume instead of false-tripping the broken-gate guard**
+  (`harness/apply.py`). Restored `history` entries carry no `verify_output`, so
+  the "gate failed identically on consecutive rounds" comparison saw empty
+  outputs and aborted every multi-round resume before a single new model call.
+  Only real gate outputs now participate in the guard.
+- **`harness bench` accepts the documented single-task file**
+  (`harness/bench.py`). A bare task object (the README's "a task is one JSON
+  file" shape) produced a zero-task manifest that ran nothing and exited 0;
+  it now loads as a one-task manifest, and a manifest that yields no tasks or
+  an unrecognizable shape fails with a clear error instead of silent success.
+- **Backups survive slashed task ids** (`harness/apply.py`). Bench names tasks
+  `bench/<name>`, and the slash landed in the backup *filename*, breaking the
+  backup write on every platform — bench ran with its safety net silently
+  disabled (visible as a `[warn] backup failed` on each task). Task-id
+  separators are now flattened in backup names.
+- **`harness-mcp` / `python -m harness.mcp` actually serve**
+  (`harness/mcp.py`). The module had no `__main__` guard, so direct invocation
+  imported and exited 0 having served nothing.
+- MCP `ledger_status` returns `verified` as a structured object
+  (`{"ok", "first_bad_seq"}`) instead of a raw Python tuple serialized as an
+  array.
+- Documentation drift: the README and `harness/core.py` docstring still
+  described GLM-5.2 as *leading* the free specialist ladder while the curated
+  config had demoted it to last on its 0/22 observed record.
+- `_atomic_write` now **preserves the target's permission mode**
+  (`harness/apply.py`). `tempfile.mkstemp` creates files 0600, so every atomic
+  replace silently stripped the executable bit (and all other mode bits) from
+  the written file — breaking verify-gate scripts and artifacts rewritten by
+  an apply round. New files keep the safe 0600 default.
+- **`HARD_MAX_COST` / `HARD_TASK_MAX_COST` are now enforced**
+  (`harness/config.py`). They were defined and documented as hard ceilings but
+  never checked, so `max_cost=500` loaded silently. `load_settings` now
+  refuses any per-call ceiling above $0.10 or per-task ceiling above $0.25.
+- Removed dead code: the never-called `_validate_settings_values`
+  (`harness/config.py`; its one invariant contradicted the shipped defaults,
+  where a task ceiling larger than a call ceiling is intentional) and the
+  ledger's `_acquire_process_lock` helper (`harness/ledger.py`), which
+  referenced an uninitialized `_lockfile` attribute and would have crashed if
+  ever called — the live cross-process lock is acquired per-append in
+  `_persist`.
+- Removed a malformed `# noqa` directive (`harness/core.py`) flagged by ruff.
+- Documentation drift: README and CONTRIBUTING no longer hardcode a test
+  count that immediately went stale; bench task fixtures now end with a
+  trailing newline (ruff W292).
+
+## [0.1.0] — 2026-09-02
+
+Initial public development release. Development continued on the 0.1.0 line
+through 2026-09-05; the highlights below span that whole window.
+
+A 2026-09-18 pre-publication review verified no secrets in the tree or full
+history and noreply-only commit identity; the `audits/scmessenger/` record
+ships intentionally as AI-assisted audit evidence (caveats in its
+`CTO_REVIEW.md`).
+
+### Added
+- **Cost-bounded multi-model verification core** (`harness.core`): rotating
+  panel + structured judge over plain chat completions — no `tools` key in
+  any payload, pre-flight worst-case cost ceilings against live per-token
+  pricing (default 2¢/call, hard max 10¢), mid-batch fail-closed spend
+  checks, and BYOK route handling with learned org-prefix rotation.
+- **Sovereignty model** (`harness.consent`): an independent, cheap consent
+  probe with decline/defer/redirect all valid; parsed defers honored without
+  re-asking; fail-closed on unparseable consent; re-checked before every
+  verify round; revocable mid-task via `defer_work`.
+- **Autonomy ledger** (`harness.ledger`): append-only, hash-chained JSONL
+  with chain verification, tamper quarantine, cross-process advisory lock,
+  and a participation report with per-model confidence calibration
+  (`HARNESS_READY` verdict joined to verify outcome).
+- **Forced self-check**: the apply prompt requires an opening
+  `HARNESS_READY: confident|defer` verdict; defer rotates to the next model
+  before any code is written.
+- **Capability-deferral protocol**: models emit `HARNESS_DEFER:` with
+  remaining scope instead of guessing; partial work is preserved as a
+  continuation any subsequent model can take over (`harness continue`).
+- **Scoped apply-and-verify loop** (`harness.apply`): single-file (<500
+  line) edits with a real verification gate, retry rounds, per-round consent,
+  unified-diff and multi-file apply paths, and atomic writes inside a path
+  containment sandbox.
+- **MorphLite backend** (`harness apply --backend morph`): Morph V3 Fast
+  contract inside the same spend-governed engine; `--verify-only` previews
+  are read-only.
+- **Convergence specialist** (`harness verify --converge`): deterministic
+  per-claim tally over panel votes (5/5 unanimous == 100% at the merge gate),
+  separate responder vs gate convergence signals, defect-proposition polarity
+  convention, reassurance-claim exclusion, and a rotating, token-cap-aware
+  specialist lane with disclosed budgets.
+- **Self-grounding claims (P0)** (`harness.claims`): source-ref lint (R1
+  ungrounded assertion, R2 out-of-window ref, R3 contradicted-by-source)
+  run before any network call; verbatim transitive auto-expansion of
+  called-not-defined identifiers.
+- **Model capability layer** (`harness.capability`): declared hypothesis from
+  live `/models` metadata corrected by observed ledger/probe evidence;
+  composite reliability with neutral-prior shrink; capability-aware routing
+  used identically by CLI, core, continuation, and MCP; registry with 24h
+  TTL and schema-version stamp.
+- **`harness bench`** (`harness.bench`): manifest-driven free-tier task
+  runner (9 shipped known-answer tasks) with snapshot/restore idempotency,
+  real verify-gate ground truth, and results fed into the autonomy ledger.
+- **Native MCP server** (`harness.mcp`): hand-rolled spec-conformant JSON-RPC
+  2.0 stdio server (`panel_verify`, `apply_edit`, `offer_work`, `defer_work`,
+  `ledger_status`, `participation_report`, `spend_status`) with
+  `allow_verify`/cancel gates and structured error codes.
+- **CLI**: `verify` (with `--converge`, `--claims-file`, `--max-cost`),
+  `apply`, `continue`, `offer`, `bench`, `lint-claims`, `ledger report/verify`,
+  `models`, `spend`, `capabilities` (with `--bench` probe). Exit codes:
+  0 ok, 1 fatal, 2 verify failed, 3 deferred.
+- **CI**: hermetic tests + ruff on Python 3.9 / 3.11 / 3.13.
+- **Audit record**: SCMessenger security-audit artifacts (rounds 1–4,
+  convergence reports, CTO review) demonstrating the engine reproducing
+  round-3 verdicts claim-by-claim on the free tier at $0.00.
+
+### Hardening (late-0.1.0)
+- Sandbox path containment (absolute escapes, `..` traversal, symlink swaps
+  refused; original file mode preserved), parallel panel fan-out, MCP write
+  gate, `notifications/cancelled` aborts.
+- Config range validation with unknown-key warnings; capabilities registry
+  schema-version stamp; per-model cost reporting and `--quiet`; token-
+  estimator property tests; protocol-marker stripping from file content.
+- Consent lane preflighted against the ceiling; `--max-cost` wired
+  everywhere; consentless-apply crash fix; defer markers honored anywhere in
+  a model response; honest spend accounting for failed rotations.
+
+[0.2.0]: https://github.com/Sovereign-Communication/harness/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Sovereign-Communication/harness/commits/v0.1.0

@@ -1,0 +1,94 @@
+name: rankings-report
+
+# Weekly evidence-driven pool-candidate refresh (2026-09-13 operator
+# ruling 7). One GET for the daily rankings + the live catalog read
+# ($0.00); NO probes: this job runs unattended, and a candidate only
+# earns a billable one-vote probe from an operator run
+# (`harness rankings --probe`) or an explicitly enabled workflow input.
+# The report is an artifact, never an automatic config change.
+#
+# No `--json` flag here: `harness rankings` has no table renderer, so
+# `_emit` already writes the report as JSON to `--out` and as machine JSON on
+# a piped stdout. `--json` is a `capabilities` flag (it suppresses that
+# subcommand's table) and is not accepted here -- passing it made every run of
+# this workflow exit 2 on "unrecognized arguments", so the weekly evidence
+# artifact has been silently absent since 2026-09-21. `tests/test_rankings_cli.py`
+# pins every flag these invocations use against the real parser.
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: "Run billable one-vote probes on proposed candidates (needs OPENROUTER_API_KEY)"
+        type: boolean
+        default: false
+      max_cost:
+        description: "Session cost ceiling in dollars when probing"
+        default: "0.05"
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install -e .
+      - name: Validate shipped default model ids against the live catalog
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::warning::OPENROUTER_API_KEY not set; skipping shipped-model freshness check"
+            exit 0
+          fi
+          harness capabilities --check-shipped --json --out rankings/shipped-check.json
+      - name: Rankings candidate report (no probes)
+        if: ${{ !inputs.probe }}
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          mkdir -p rankings
+          harness economics --check-fresh --out rankings/tier-snapshot-freshness.json
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::warning::OPENROUTER_API_KEY not set; writing tier snapshot freshness report as fallback"
+            cp rankings/tier-snapshot-freshness.json "rankings/rankings-$(date -u +%Y-%m-%d).json"
+            exit 0
+          fi
+          harness rankings --top 15 --out "rankings/rankings-$(date -u +%Y-%m-%d).json"
+      - name: Rankings candidate report (with one-vote probes)
+        if: ${{ inputs.probe }}
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          mkdir -p rankings
+          harness rankings --top 15 --probe --max-cost "${{ inputs.max_cost }}" \
+            --out "rankings/rankings-$(date -u +%Y-%m-%d)-probed.json"
+      - name: Validate generated report JSON
+        run: |
+          python - <<'PY'
+          import glob
+          import json
+
+          reports = glob.glob("rankings/rankings-*.json")
+          if not reports:
+              raise SystemExit("rankings command produced no report JSON")
+          for report in reports:
+              with open(report, encoding="utf-8") as stream:
+                  json.load(stream)
+          PY
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rankings-report
+          path: |
+            rankings/
+          if-no-files-found: error
+          retention-days: 90

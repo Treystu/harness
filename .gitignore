@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+# `.harness/` is scratch (worktrees); the generated card corpus is source.
+# Ignore the children rather than the directory so cards/ can be un-ignored.
+.harness/*
+!.harness/cards/
+build/
+dist/
+.harness-backups/
+*.orig
+.freebuff/
+tmp/
+audits/*/prompts/
+audits/*/_runs/
+audits/self/_runs/
+audits/scmessenger/_runs/
+audits/scmessenger/round5/
+audits/scmessenger/round6/
+.env
+
+# Claude Code local state (skill scratch + HUL mission packs live under tmp/claude/, already ignored)
+
+.claude/settings.local.json
+.venv/
+
+# Local scratch: lockfile from uv, matrix run output
+uv.lock
+dogfood_matrix_results.json
+
+# Hermetic test env created by scripts/hermetic-env.sh (isolated HOME/TMP/ledger)
+.hermetic/

@@ -1,0 +1,793 @@
+"""The CLI's argparse surface: one owner for flag construction.
+
+cli.py keeps handlers, dispatch, and presentation; every subparser and
+flag lives here, so a surface change lands in exactly one module.
+Import note: this module needs only argparse -- it must not import
+harness.service or any face module (it is the bottom of the cli stack).
+"""
+import argparse
+
+
+def _add_engine_flags(p, *, max_tokens_default, verify_required=False,
+                      task_max_cost_help=None):
+    """Flags shared by apply, continue, and dogfood -- the dispatches into the
+    apply engine. One definition keeps the surfaces in lockstep (the historical
+    bug class: a flag or default fixed on one but not the others)."""
+    p.add_argument("--task-id", default=None)
+    p.add_argument("--model", default=None)
+    p.add_argument("--verify", required=verify_required, default=None,
+                   help="verification gate command (e.g. 'cargo check')")
+    p.add_argument("--edit-snippet", default=None)
+    p.add_argument("--max-rounds", type=int, default=3)
+    p.add_argument("--require-consent", dest="require_consent", action="store_true", default=None)
+    p.add_argument("--no-consent", dest="require_consent", action="store_false")
+    p.add_argument("--require-attestation", dest="require_diff_authorization",
+                   action="store_true", default=None,
+                   help="an independent verifier model must allow the exact "
+                        "resulting content before every write (fail-closed)")
+    p.add_argument("--renew-consent", dest="renew_consent", action="store_true", default=None)
+    p.add_argument("--no-renew-consent", dest="renew_consent", action="store_false")
+    p.add_argument("--max-tokens", type=int, default=max_tokens_default)
+    p.add_argument("--task-max-cost", type=float, default=None,
+                   help=task_max_cost_help or
+                   "per-task spend ceiling in USD (default: the session's "
+                   "configured/engine ceiling)")
+    p.add_argument("--allow-escalation", dest="allow_escalation", action="store_true", default=None,
+                   help="walk the paid escalation ladder when the cheap/free "
+                        "lane exhausts its verify budget or saturates (429s). "
+                        "Default: on automatically when a paid OpenRouter key "
+                        "is configured (free-tier runs then fail over to the "
+                        "cheapest capable paid rung with no flag needed), off "
+                        "on a free-tier-only key. Every rung is preflighted "
+                        "against the run's cost ceiling and billed + ledgered "
+                        "per attempt, never silently.")
+    p.add_argument("--no-escalation", dest="allow_escalation", action="store_false",
+                   help="prohibit walking the paid escalation ladder.")
+    p.add_argument("--reasoning-effort", default=None,
+                   choices=["auto", "off", "none", "low", "medium", "high", "on"])
+    p.add_argument("--max-rotations", type=int, default=None)
+    p.add_argument("--backend", choices=["harness", "morph", "diff"], default="harness",
+                   help="transformation backend; on continue, saved continuation "
+                        "metadata takes precedence")
+    p.add_argument("--verify-only", action="store_true",
+                   help="return the proposed content without writing or running the verification gate")
+    p.add_argument("--max-lines", type=int, default=500,
+                   help="per-file line ceiling (1-500)")
+    p.add_argument("--trial-model", default=None,
+                   help="per-run reversible model trial override (#197); never persisted to config")
+    # --keep-going deliberately diverges from this helper: it is defined on
+    # the apply parser only, because the multi-file batch is the only
+    # multi-file surface (continue is one file by construction, dogfood runs
+    # its own manifest). Do not 'fix' it back into lockstep here.
+    # See run_batch's keep_going contract (harness/batch.py).
+
+
+def _add_output_flags(p):
+    """--out (JSON report destination) + --quiet (stderr progress off), plus
+    the Phase-1 UI groundwork flags: --events (typed JSONL progress stream for
+    UI consumers) and --no-color (strip ANSI from rich stderr rendering).
+    Every subcommand that produces a report or progress output takes all."""
+    p.add_argument("--out", default=None)
+    p.add_argument("--quiet", action="store_true",
+                   help="suppress stderr progress notes; report only")
+    p.add_argument("--events", default=None, metavar="FILE",
+                   help="append typed JSONL progress events to FILE (UI telemetry; "
+                        "the JSON result is unchanged)")
+    p.add_argument("--no-color", action="store_true",
+                   help="disable ANSI color in stderr rendering (NO_COLOR is honored too)")
+
+
+def build_parser():
+    """The harness parser, built fresh per call: every subcommand and flag,
+    nothing else. Returns the configured ArgumentParser."""
+    ap = argparse.ArgumentParser(
+        prog="harness",
+        description="Cost-bounded multi-model verification & coding harness with AI sovereignty.")
+    sub = ap.add_subparsers(dest="command", required=True)
+
+    # Media generation via the sovereign-media service (adapter in
+    # harness/media_client.py; parses its own subarguments).
+    sub.add_parser("media", help="Image/video generation via sovereign-media "
+                                 "(cost-bounded, credentials stay service-side)")
+
+    # Verified extraction -> Jev decision -> deterministic action via
+    # driver-core (adapter in harness/perception_client.py; parses its own
+    # subarguments). The driver verifies an extraction BEFORE the decision,
+    # so nothing here acts on an unverified read of the machine.
+    sub.add_parser("driver", help="Run one verified-extraction/Jev-decision "
+                                  "step via driver-core (closed action "
+                                  "vocabulary, consent bound to action+params)")
+
+    # Structured so --help lists the UI faces alongside the data commands.
+    sub.add_parser("serve", help="Local web UI + JSON API over the core (loopback; "
+                                 "--auth-token optional, HARNESS_UI_AUTH_TOKEN)")
+    sub.add_parser("desktop", help="Native desktop window over the same web UI "
+                                   "(pywebview; browser fallback)")
+
+    psite_check = sub.add_parser(
+        "site-check",
+        help="Run one Jev-routed, bounded HTTPS availability check")
+    psite_check.add_argument(
+        "prompt", nargs="+",
+        help="natural-language request to check one public site's availability")
+    psite_check.add_argument("--session-id", default=None,
+                             help="optional shared chat-history session id")
+    _add_output_flags(psite_check)
+
+    pv = sub.add_parser("verify", help="Panel + judge verification (back-compat with fusion_lite.py)")
+    pv.add_argument("--prompt-file")
+    pv.add_argument("--prompt")
+    pv.add_argument("--claims-file", default=None,
+                    help="JSON claims manifest (P0 self-grounding); pairs with --source-file")
+    pv.add_argument("--source-file", default=None,
+                    help="verbatim code window the panel reviews (line numbers = source_refs)")
+    pv.add_argument("--definitions-file", default=None,
+                    help="JSON map identifier -> verbatim definition for auto-expansion")
+    pv.add_argument("--claim-context", default=None,
+                    help="context prose naming identifiers; overrides the manifest 'context' key")
+    pv.add_argument("--panel",
+                    help="comma-separated panel model ids, strongest/preferred "
+                         "first (default: configured panel_pool); forwarded "
+                         "to the verify service as the candidate pool")
+    pv.add_argument("--judge")
+    pv.add_argument("--max-tokens", type=int, default=None)
+    pv.add_argument("--max-cost", type=float, default=None,
+                    help="per-run cost ceiling in USD (default: config max_cost; "
+                         "note: paid panel/judge verify preflight reserves the worst "
+                         "case of the panel/judge/retry plan actually dispatched "
+                         "(votes + judge attempt/retry, plus a judge-fallback "
+                         "reserve only for panel pool members left undispatched "
+                         "beyond the configured max_panelists) -- headroom scales "
+                         "with that plan, not a fixed minimum)")
+    pv.add_argument("--reasoning-effort", default=None,
+                    choices=["auto", "off", "none", "low", "medium", "high", "on"])
+    pv.add_argument("--converge", action="store_true",
+                    help="run the convergence-specialist step on the panel's per-claim verdicts")
+    pv.add_argument("--convergence-model", default=None,
+                    help="primary model for the convergence specialist (default: same as --judge)")
+    pv.add_argument("--specialist-pool", default=None,
+                    help="ordered fallback models for the convergence specialist, strongest "
+                         "first (default: configured specialist_pool; live-validated free lane)")
+    pv.add_argument("--reassurance-claims", default=None,
+                    help="comma-separated claim ids phrased as reassurance ('X is correct'); "
+                         "excluded from the defect convergence gate")
+    pv.add_argument("--task-id", default=None)
+    _add_output_flags(pv)
+
+    pa = sub.add_parser("apply", help="Scoped code edit with a verification loop + consent continuation")
+    pa.add_argument("--file", action="append", default=None,
+                    help="target file; repeat the flag for a multi-file batch (one session, shared gate)")
+    pa.add_argument("--instruction", default=None)
+    _add_engine_flags(pa, max_tokens_default=4096)
+    pa.add_argument("--keep-going", dest="keep_going", action="store_true", default=False,
+                    help="multi-file batch: continue past a failed file; per-file results "
+                         "are preserved and the batch still fails honestly (fail-fast "
+                         "remains the default)")
+    pa.add_argument("--continue-from", default=None, help="resume a deferred task from state.json")
+    _add_output_flags(pa)
+
+    pp = sub.add_parser("plan", help="Decompose a goal into an executable DAG with sliding-scale tier routing")
+    pp.add_argument("--goal", required=True, help="high-level goal or instruction to decompose and execute")
+    pp.add_argument("--execute", action="store_true", default=False, help="execute the planned DAG instead of previewing")
+    pp.add_argument("--parallel", dest="parallel", action="store_true", default=None,
+                    help="execute independent subtasks concurrently (default: on)")
+    pp.add_argument("--no-parallel", dest="parallel", action="store_false",
+                    help="execute stages serially (shared-tree mutex)")
+    pp.add_argument("--max-workers", type=int, default=4, help="thread pool worker count for parallel execution")
+    pp.add_argument("--frontier-model", default=None, help="frontier model or alias for Tier 2 nodes (e.g. gpt-6, qwen-max)")
+    pp.add_argument("--file", action="append", default=None, help="constrain candidate target files")
+    pp.add_argument("--decompose-llm", dest="decompose_llm", action="store_true",
+                    default=None,
+                    help="author the DAG with the cheapest tier-appropriate model "
+                         "(schema-validated; default: on when the hourglass is "
+                         "active; on failure, decompose retries once then falls "
+                         "back to the heuristic with a loud note and orchestration event)")
+    pp.add_argument("--no-decompose-llm", dest="decompose_llm", action="store_false",
+                    help="force heuristic decomposition even when the hourglass is on")
+    pp.add_argument("--confirm", dest="confirm", action="store_true", default=None,
+                    help="confirm the plan at the frontier waist before execution: "
+                         "condensed brief + bounded file-window round-trips; "
+                         "approve/amend/split/refuse verdict (default: on; spends "
+                         "against the run's ceiling; a refused plan never executes)")
+    pp.add_argument("--no-confirm", dest="confirm", action="store_false",
+                    help="skip the frontier waist confirmation")
+    pp.add_argument("--plan-consensus", dest="plan_consensus", action="store_true",
+                    default=None,
+                    help="cheap plan-soundness check before the waist "
+                         "(governed_text + JSON sound/reasons; unsound forces "
+                         "the waist amend path; ledgered plan_consensus)")
+    pp.add_argument("--no-plan-consensus", dest="plan_consensus", action="store_false",
+                    help="skip the cheap plan-consensus pre-check")
+    pp.add_argument("--final-gate", dest="final_gate", default=None,
+                    help="command run after the whole DAG completes (default: on "
+                         "when a verify command was discovered/declared -- run-level "
+                         "gate or a discovered suite command)")
+    pp.add_argument("--no-final-gate", dest="final_gate", action="store_false",
+                    help="skip the post-DAG final verification gate")
+    pp.add_argument("--resume", dest="resume", default=None,
+                    help="path to a pyramid state JSON; re-dispatch only nodes "
+                         "that are not already completed ok")
+    pp.add_argument("--persist-state", dest="persist_state", default=None,
+                    help="path to persist pyramid state JSON even if not resuming")
+    pp.add_argument("--isolate", dest="isolate", action="store_true", default=None,
+                    help="isolate parallel-stage nodes in git worktrees + local branches "
+                         "(default: on; overlap-free concurrent nodes only -- nodes "
+                         "that share declared target files serialize under the "
+                         "shared-tree mutex; merge conflicts fail the node, never "
+                         "force-merge; unavailable git degrades to shared-tree mutex execution)")
+    pp.add_argument("--no-isolate", dest="isolate", action="store_false",
+                    help="execute parallel stages in the shared tree (mutex only)")
+    pp.add_argument("--no-attestation", dest="require_diff_authorization",
+                    action="store_false", default=None,
+                    help="skip diff-bound write attestation on node writes "
+                         "(--require-attestation, the default, asks an independent "
+                         "verifier model to allow the exact resulting content first)")
+    pp.add_argument("--stage-gate", dest="stage_gate", default=None,
+                    help="command to run after each parallel stage completes (e.g. the "
+                         "full test suite); a failing gate stops the run before "
+                         "dependent stages start")
+    pp.add_argument("--keep-going", dest="keep_going", action="store_true", default=False, help="continue past a failed subtask")
+    pp.add_argument("--max-cost", type=float, default=None,
+                    help="maximum spend ceiling for the entire plan run; "
+                         "NOT an alias of --task-max-cost -- when both are "
+                         "given, --task-max-cost takes precedence and this "
+                         "flag is ignored (see --task-max-cost)")
+    _add_engine_flags(
+        pp, max_tokens_default=4096,
+        task_max_cost_help="maximum spend ceiling for the entire plan run; "
+                           "when given, OVERRIDES --max-cost for this run "
+                           "(precedence: --task-max-cost, then --max-cost, "
+                           "then the session default) rather than aliasing it")
+    pp.add_argument("--allow-heuristic-preview", dest="allow_heuristic_preview",
+                    action="store_true", default=False,
+                    help="DF-HG-3b: permit a plan-only preview (no --execute) "
+                         "to degrade to heuristic decomposition when LLM "
+                         "decomposition fails twice, instead of the fail-closed "
+                         "default (a non-zero exit). The degraded preview is "
+                         "labeled decomposition='heuristic', prints a loud "
+                         "stderr note, and is never reported as confirmed "
+                         "(waist confirmation is skipped on the degraded path). "
+                         "--execute is unaffected: it always falls back to the "
+                         "heuristic on decomposition failure, opt-in or not.")
+    pp.add_argument("--stages", dest="stages", default=None,
+                    help="comma-separated subset of pipeline stages to run "
+                         "(context,planning,execution,verification)")
+    pp.add_argument("--brief", dest="brief", default=None,
+                    help="path to evidence-bearing brief JSON pack to use for intake")
+    pp.add_argument("--token-budget-input", dest="token_budget_input", type=int, default=None,
+                    help="maximum input token allowance for the composed run")
+    pp.add_argument("--token-budget-output", dest="token_budget_output", type=int, default=None,
+                    help="maximum output token allowance for the composed run")
+    _add_output_flags(pp)
+
+    pc = sub.add_parser("continue", help="Continue a deferred/incomplete apply task")
+    pc.add_argument("--state", required=True, help="JSON state file from a deferred/verify_failed apply")
+    pc.add_argument("--file", default=None)
+    pc.add_argument("--instruction", default=None)
+    _add_engine_flags(pc, max_tokens_default=4096)
+    _add_output_flags(pc)
+
+    po = sub.add_parser("offer", help="Ask a model for consent on a work item")
+    po.add_argument("--task", required=True)
+    po.add_argument("--task-id", default=None)
+    po.add_argument("--model", default=None)
+    po.add_argument("--context", default=None)
+    _add_output_flags(po)
+
+    pd = sub.add_parser("defer", help="Record a mid-task deferral / consent revocation")
+    pd.add_argument("--task-id", required=True)
+    pd.add_argument("--reason", default=None)
+    pd.add_argument("--category", default=None)
+
+    pis = sub.add_parser(
+        "issue-sort",
+        help="Sort an issue into an operator-declared bucket pack "
+             "(JEV-P5; never invents buckets or actions)")
+    pis.add_argument("--issue", required=True,
+                     help="issue or deferral note text to sort")
+    pis.add_argument("--pack", default="packs/issue_sort.pack.json",
+                     help="path to the operator bucket pack JSON (default: packs/issue_sort.pack.json)")
+    pis.add_argument("--max-cost", type=float, default=None,
+                     help="jev run ceiling in dollars (default: configured "
+                          "max_cost; hard cap applies)")
+    _add_output_flags(pis)
+
+    plog = sub.add_parser(
+        "log-judgment",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="JEV-LOG single-pass log analysis against a frozen operator "
+             "pack (never invents buckets, levels, or actions)",
+        description=(
+            "JEV-LOG single-pass log analysis against a frozen operator "
+            "pack (never invents buckets, levels, or actions).\n\n"
+            "Expected log line format (Rust `tracing`-style header; only "
+            "lines matching it become items -- everything else attaches as "
+            "continuation text to the previous matched item):\n\n"
+            "  <ISO-8601 timestamp>Z  LEVEL  module::path: message\n\n"
+            "example:\n"
+            "  2026-09-21T00:37:26.567713Z  WARN "
+            "scmessenger_core::store::relay_custody: msg\n\n"
+            "LEVEL is one of INFO|WARN|ERROR|DEBUG|TRACE. If a log dump has "
+            "lines but 0 items match this header shape, the run prints a "
+            "stderr note ('matched 0 log items') instead of emitting a "
+            "silently-empty analysis."))
+    plog.add_argument("--log", required=True,
+                      help="path to the raw runtime log dump")
+    plog.add_argument("--pack", required=True,
+                      help="path to the frozen operator log pack JSON")
+    plog.add_argument("--info-sample", type=int, default=0,
+                      help="also judge every Nth INFO record (default: WARN/ERROR only)")
+    plog.add_argument("--save-to", default=None,
+                      help="also write the aggregate JSON artifact to this path")
+    plog.add_argument("--max-cost", type=float, default=None,
+                      help="jev run ceiling in dollars (default: configured "
+                           "max_cost; hard cap applies)")
+    _add_output_flags(plog)
+
+    prs = sub.add_parser(
+        "repo-summary",
+        help="Whole-repo element inventory judged against an operator pack "
+             "(JEV-P6; every keyed call is governed, billed, and ledgered)")
+    prs.add_argument("--pack", required=True,
+                     help="path to the operator repo-summary pack JSON")
+    prs.add_argument("--root", default=None,
+                     help="repo root to inventory (default: current directory)")
+    prs.add_argument("--save-to", default=None,
+                     help="write the aggregate envelope JSON to this path "
+                          "(recommended: enables resumable judgments)")
+    prs.add_argument("--map", default=None,
+                     help="write the REPO-MAP markdown render to this path")
+    prs.add_argument("--state", default=None,
+                     help="judgments JSONL resume state (default: "
+                          "<--save-to>.judgments.jsonl)")
+    prs.add_argument("--limit", type=int, default=None,
+                     help="judge only the first N file elements (pilot run)")
+    prs.add_argument("--symbols", type=int, default=200,
+                     help="max centrality-ranked symbol elements to judge "
+                          "after files (default 200; 0 disables)")
+    prs.add_argument("--run-budget", type=float, default=None,
+                     help="cumulative USD ceiling for this whole run across "
+                          "governor chunks (default: one governor at "
+                          "--max-cost; hard cap applies per governor)")
+    prs.add_argument("--max-cost", type=float, default=None,
+                     help="per-governor jev ceiling in dollars (default: "
+                          "configured max_cost; hard cap applies)")
+    _add_output_flags(prs)
+
+    proute = sub.add_parser("route", help="Route a query onto the declared model ladder "
+                                           "(cheapest capable rung; unkeyed = deterministic "
+                                           "tier heuristic)")
+    proute.add_argument("--goal", required=True,
+                        help="the request to route")
+    proute.add_argument("--pack", default="packs/model_route.pack.json",
+                        help="operator route pack: {id, rungs: [{rung_id, tier, model, "
+                             "cost_class, observed_success?, samples?, guidance?, notes?}]} "
+                             "(default: packs/model_route.pack.json)")
+    proute.add_argument("--max-cost", type=float, default=None,
+                        help="jev run ceiling in dollars (default: configured "
+                             "max_cost; hard cap applies)")
+    _add_output_flags(proute)
+
+    psite = sub.add_parser("site-export", help="Verified ledger -> sanitized site-bundle-v1 "
+                                              "JSON for the Proof Bench public site "
+                                              "(fail-closed: consent + chain verify + secret scan)")
+    psite.add_argument("--ledger", required=True)
+    psite.add_argument("--consent", required=True)
+    psite.add_argument("--pricing", default=None,
+                       help="optional pricing snapshot JSON (USD per Mtok, from models --all)")
+    psite.add_argument("--economics", action="store_true",
+                       help="include sanitized model economics summary in the exported site bundle (EV-5)")
+    psite.add_argument("--yes", action="store_true",
+                       help="affirm public release of the sanitized bundle (required)")
+    _add_output_flags(psite)
+
+    pl = sub.add_parser("ledger", help="Autonomy ledger")
+    pls = pl.add_subparsers(dest="ledger_cmd", required=True)
+    for _lc in ("verify", "report"):
+        _p = pls.add_parser(_lc)
+        _add_output_flags(_p)
+    _p = pls.add_parser("tail", help="show the last N ledger entries (default 20)")
+    _p.add_argument("n", nargs="?", type=int, default=20)
+    _add_output_flags(_p)
+    _p = pls.add_parser("defer-stats", help="aggregate WHY runs deferred "
+                                            "(panel defer rate, mid-task "
+                                            "categories, consent outcomes)")
+    _p.add_argument("window", nargs="?", type=int, default=500,
+                    help="how many of the most recent entries to scan (default 500)")
+    _add_output_flags(_p)
+    _p = pls.add_parser("repair", help="truncate the ledger to its longest valid "
+                                       "hash-chain prefix (drops forked/duplicate tail)")
+    _add_output_flags(_p)
+
+    pm = sub.add_parser("models", help="List live free OpenRouter models (refreshed)")
+    pm.add_argument("--limit", type=int, default=40)
+    pm.add_argument("--all", action="store_true", help="list all live models, not just free")
+    _add_output_flags(pm)
+
+    pb = sub.add_parser("bench", help="Run a manifest of known-answer tasks through the free tier")
+    pb.add_argument("manifest", help="task manifest: a dir of task JSONs or a single JSON file")
+    pb.add_argument("--with-consent", dest="require_consent", action="store_true",
+                    help="ask consent before each task (default: off -- batch/CI mode)")
+    pb.add_argument("--max-rounds", type=int, default=None)
+    pb.add_argument("--max-cost", type=float, default=None,
+                    help="session cost ceiling in dollars (default: configured max_cost)")
+    _add_output_flags(pb)
+
+    plint = sub.add_parser("lint-claims",
+                           help="Lint a claims manifest against its quoted source "
+                                "(hermetic: no network)")
+    plint.add_argument("--claims-file", required=True)
+    plint.add_argument("--source-file", required=True)
+    plint.add_argument("--definitions-file", default=None)
+    plint.add_argument("--claim-context", default=None)
+    plint.add_argument("--show-prompt", action="store_true")
+    _add_output_flags(plint)
+
+    pbr = sub.add_parser("brief",
+                         help="Build an evidence-bearing context pack for a goal (HV-2)")
+    pbr.add_argument("goal_pos", nargs="?", default=None, metavar="goal",
+                     help="high-level goal or instruction (positional)")
+    pbr.add_argument("--goal", dest="goal_opt", default=None,
+                     help="high-level goal or instruction to contextually brief")
+    pbr.add_argument("--file", dest="files", action="append", default=[],
+                     help="source file to cite as a window (repeatable)")
+    pbr.add_argument("--files", dest="files_csv", default=None,
+                     help="comma-separated list of source files to cite")
+    pbr.add_argument("--budget", type=int, default=48000,
+                     help="maximum total window characters cap (default: 48000)")
+    pbr.add_argument("--freshness", action="store_true", default=False,
+                     help="evaluate and attach source freshness report")
+    pbr.add_argument("--render", action="store_true", default=False,
+                     help="render human-readable markdown format instead of JSON")
+    pbr.add_argument("--validate", action="store_true",
+                     help="run the grounding lint over the built pack")
+    _add_output_flags(pbr)
+
+    pcap = sub.add_parser("capabilities", help="Model capability profiles + reliability "
+                                                "(hypothesis from /models, corrected by observed evidence)")
+    pcap.add_argument("--refresh", action="store_true",
+                      help="force re-fetch of the live /models capability registry")
+    pcap.add_argument("--check-shipped", action="store_true",
+                      help="validate every shipped default pool/model id against the "
+                           "live catalog ($0.00); exit 2 if any has gone stale")
+    pcap.add_argument("--all", action="store_true", help="list all live models, not just the pools")
+    pcap.add_argument("--bench", action="store_true",
+                      help="run the empirical JSON probe on the free pool models (live, needs key)")
+    pcap.add_argument("--json", action="store_true", help="emit raw JSON only (no table)")
+    pcap.add_argument("--max-cost", type=float, default=None,
+                      help="session cost ceiling in dollars (default: configured max_cost)")
+    _add_output_flags(pcap)
+
+    # PLAT-cmd-data: the documented gates live in harness/gate_runner.py as
+    # argv data, so docs name the gate instead of carrying a
+    # platform-flavoured command string that can only be right on one OS.
+    pgates = sub.add_parser(
+        "gates", help="List the documented quality gates with this "
+                      "platform's exact command, or run one")
+    pgates.add_argument("--run", dest="run_gate", default=None, metavar="GATE",
+                        help="run one gate by name and exit with its code "
+                             "(e.g. ruff, compileall, audit, jev-phase)")
+    pgates.add_argument("--phase", default=None,
+                        help="phase id for the jev-phase gate (default JEV-P0)")
+    pgates.add_argument("--timeout", type=float, default=None,
+                        help="seconds before the gate is killed (default: per gate)")
+    pgates.add_argument("--json", action="store_true",
+                        help="emit the gate table as JSON (argv + copy-paste command)")
+    _add_output_flags(pgates)
+
+    sub.add_parser("spend", help="Key identity & spend status")
+    _add_output_flags(sub.choices["spend"])
+
+    pcost = sub.add_parser("cost", help="Track spend by tier, model, lane, and calculate savings vs. naive frontier baseline")
+    pcost.add_argument("--last", default=None,
+                       help="filter by time window (e.g. '24h', '7d', '30m') or entry count limit")
+    pcost.add_argument("--by-tier", action="store_true",
+                       help="break down spend by tier (T0..T3)")
+    pcost.add_argument("--by-model", action="store_true",
+                       help="break down spend by model")
+    pcost.add_argument("--by-lane", action="store_true",
+                       help="break down spend and token totals by lane (#196)")
+    pcost.add_argument("--savings", action="store_true",
+                       help="calculate savings vs. naive frontier-only baseline")
+    pcost.add_argument("--json", action="store_true",
+                       help="emit raw JSON output only")
+    _add_output_flags(pcost)
+
+    prank = sub.add_parser(
+        "rankings",
+        help="Daily OpenRouter rankings: top models, climbers, and "
+             "evidence-driven pool-candidate proposals")
+    prank.add_argument("--top", type=int, default=None,
+                       help="how many ranked models to report (default: 15)")
+    prank.add_argument("--probe", action="store_true",
+                       help="gate each proposed candidate through the one-vote "
+                            "probe (billable, spend-governed)")
+    prank.add_argument("--max-cost", type=float, default=None,
+                       help="session cost ceiling in dollars (default: configured max_cost)")
+    _add_output_flags(prank)
+
+    pec = sub.add_parser(
+        "economics",
+        help="Model economics: EV-0a discount-truth probe, EV-1..EV-5 report / "
+             "rotation proposals / freshness check, and EV-6 Fireworks comparison")
+    pec.add_argument("--probe-model", default=None,
+                     help="measure one tiny call on this model to settle "
+                          "whether published endpoint prices already include "
+                          "the promotion (billable, spend-governed)")
+    pec.add_argument("--record", action="store_true",
+                     help="with --probe-model, persist a conclusive verdict so "
+                          "the price gate stops refusing")
+    pec.add_argument("--verdict-path", default=None,
+                     help="override the committed discount-semantics receipt "
+                          "(default: audits/self/dogfood/"
+                          "EV0A_DISCOUNT_SEMANTICS.json in this checkout; "
+                          "repo evidence, and the price gate reads only it)")
+    pec.add_argument("--report", action="store_true",
+                     help="build the EV-1..EV-5 cost-per-capability & rotation report")
+    pec.add_argument("--propose", action="store_true",
+                     help="evaluate bounded EV-4 pool rotation proposals (propose-only)")
+    pec.add_argument("--apply", action="store_true",
+                     help="apply an approved EV-4 pool rotation proposal")
+    pec.add_argument("--allow-cost-increase", action="store_true",
+                     help="permit EV-4 rotation proposals that increase expected per-call cost")
+    pec.add_argument("--check-fresh", action="store_true",
+                     help="verify tiers.snapshot.json freshness (no API key required)")
+    pec.add_argument("--provider", choices=["openrouter", "fireworks"], default="openrouter",
+                     help="pricing source for economics view (default: openrouter; "
+                          "with --provider fireworks and --confirm-single-paid-call, "
+                          "send the single paid Fireworks verification call)")
+    pec.add_argument("--confirm-single-paid-call", action="store_true",
+                     help="confirm the one paid Fireworks verification call "
+                          "(required with --provider fireworks verification)")
+    pec.add_argument("--model", default=None,
+                     help="confirmed Fireworks model path for the single paid "
+                          "verification call (with --provider fireworks)")
+    pec.add_argument("--pack", default=None,
+                     help="optional path override for packs/fireworks.endpoints.json")
+    pec.add_argument("--json", action="store_true",
+                     help="emit raw JSON output only")
+    pec.add_argument("--max-cost", type=float, default=None,
+                     help="session cost ceiling in dollars (default: configured max_cost)")
+    _add_output_flags(pec)
+
+    ptrust = sub.add_parser("trust", help="Trust & correctness standing from ledger history "
+                                          "(read-only: no key, no network)")
+    ptrust.add_argument("--model", default=None,
+                        help="model id to score (default: host standing only)")
+    ptrust.add_argument("--caller", default=None,
+                        help="caller id to score (default: global session standing)")
+    _add_output_flags(ptrust)
+
+    pdog = sub.add_parser(
+        "dogfood", help="Self-hosting loop: ground -> live panel verify -> "
+                        "gated self-apply (exit 0 only if every phase proved "
+                        "its claim)")
+    pdog.add_argument("--claims-file", default=None,
+                      help="claims manifest naming the defect (self-audit fixture)")
+    pdog.add_argument("--from-ledger", action="store_true",
+                      help="curate the claims manifest from the ledger's own "
+                           "run evidence instead of --claims-file")
+    pdog.add_argument("--claims-out", default=None,
+                      help="with --from-ledger: path to persist the curated "
+                           "manifest (the next run's --claims-file)")
+    pdog.add_argument("--evidence-window", type=int, default=500,
+                      help="how many recent ledger entries curation scans")
+    pdog.add_argument("--max-claims", type=int, default=3,
+                      help="maximum claims to curate")
+    pdog.add_argument("--source-file", default=None,
+                      help="verbatim source window the panel reviews (not "
+                           "needed with --from-ledger)")
+    pdog.add_argument("--definitions-file", default=None)
+    pdog.add_argument("--claim-context", default=None)
+    pdog.add_argument("--file", required=True,
+                      help="target file for the gated self-apply phase")
+    pdog.add_argument("--instruction", required=True,
+                      help="edit instruction for the apply phase")
+    _add_engine_flags(pdog, max_tokens_default=None, verify_required=True)
+    pdog.add_argument("--max-cost", type=float, default=None,
+                      help="session cost ceiling for the live verify + apply phases")
+    _add_output_flags(pdog)
+
+    pjphase = sub.add_parser(
+        "jev-phase",
+        help="Dogfood the JEV bar (JEV-BAR): hard gates + full sentiment "
+             "buckets; STATUS complete only if hard gates pass, score >= "
+             "min-score, and no sentiment axis is blocking")
+    pjphase.add_argument("--phase", default=None,
+                         help="phase id (JEV-P1, P2, JEV-COMPLETION, ...); "
+                              "required unless --all is given")
+    pjphase.add_argument("--all", action="store_true",
+                         help="score every declared phase contract in one pass")
+    pjphase.add_argument("--repo-root", default=".",
+                         help="repo root containing docs/jev-roadmap.md and tests")
+    pjphase.add_argument("--evidence", default=None,
+                         help="optional JSON evidence overrides (single --phase only)")
+    pjphase.add_argument("--pack", default=None,
+                         help="operator completion-pack JSON path override "
+                              "(default packs/phase_completion.pack.json)")
+    pjphase.add_argument("--min-score", type=float, default=85.0,
+                         help="threshold for can_mark_complete (default 85)")
+    pjphase.add_argument("--local-only", action="store_true",
+                         help="skip live Jev; use code gates + heuristic sentiment")
+    pjphase.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pjphase)
+
+    pvision = sub.add_parser(
+        "jev-vision-assessment",
+        help="Assess the Hourglass vision with one bounded, typed Jev request")
+    pvision.add_argument("--repo-root", default=".",
+                         help="repo root containing the Hourglass vision and canon")
+    pvision.add_argument("--max-cost", type=float, default=None,
+                         help="per-call spend ceiling (hard-capped by Harness)")
+    pvision.add_argument("--preflight-only", action="store_true",
+                         help="measure the sanitized request without key use or dispatch")
+    pvision.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pvision)
+
+    pfreeze = sub.add_parser(
+        "jev-freeze",
+        help="Freeze the Jev model pin + min_confidence after first "
+             "calibration (JEV-P4 residual): previews by default, --persist "
+             "writes the operator config through the one config owner")
+    pfreeze.add_argument("--model", default=None, metavar="MODEL_ID",
+                         help="model id to pin (e.g. jev-1.13.0); omit to keep "
+                              "the current pin")
+    pfreeze.add_argument("--min-confidence", dest="min_confidence", type=float,
+                         default=None,
+                         help="abstain/escalate threshold in [0,1]; omit to "
+                              "keep the current value")
+    pfreeze.add_argument("--persist", action="store_true",
+                         help="write the named keys into config.json (refused "
+                              "fail-closed when the environment pins the same "
+                              "key, since the pin would not take effect)")
+    pfreeze.add_argument("--calibrate", action="store_true",
+                         help="derive recommended min_confidence from ledger calibration before freezing")
+    pfreeze.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pfreeze)
+
+    # HUL-A/D mission pack surface (run = HUL-D until-limits driver).
+    pmiss = sub.add_parser(
+        "mission",
+        help="Mission pack (HUL-A/D): init | status | resume | findings | run")
+    pms = pmiss.add_subparsers(dest="mission_cmd", required=True)
+    pmi = pms.add_parser("init", help="create missions/<id>/ pack from mission fields")
+    pmi.add_argument("--id", dest="mission_id", required=True, help="mission id")
+    pmi.add_argument("--request", required=True, help="the mission request text")
+    pmi.add_argument("--success", dest="success_definition", required=True,
+                     help="success definition (what 'done' means)")
+    pmi.add_argument("--max-cost", dest="max_cost_usd", type=float, required=True,
+                     help="limits.max_cost_usd for the mission pack")
+    pmi.add_argument("--terminal-reserve", dest="terminal_reserve_cost_usd",
+                     type=float, default=0.0,
+                     help="terminal_reserve.cost_usd stored in mission.yaml + budget.json")
+    pmi.add_argument("--in-scope", default="",
+                     help="comma-separated scope.in_scope entries")
+    pmi.add_argument("--out-of-scope", default="",
+                     help="comma-separated scope.out_of_scope entries")
+    pmi.add_argument("--root", default="missions",
+                     help="pack parent directory (default: missions)")
+    pmi.add_argument("--verifier-kind", default="unspecified",
+                     help="verifier.kind recorded in mission.yaml")
+    _add_output_flags(pmi)
+    for _sub in ("status", "findings"):
+        _p = pms.add_parser(_sub, help=f"mission {_sub}")
+        _p.add_argument("--id", dest="mission_id", required=True, help="mission id")
+        _p.add_argument("--root", default="missions",
+                        help="pack parent directory (default: missions)")
+        _add_output_flags(_p)
+    presume = pms.add_parser(
+        "resume",
+        help="mission resume: read-only status by default; --run continues "
+             "the HUL-D until-limits driver from resume.json")
+    presume.add_argument("--id", dest="mission_id", required=True, help="mission id")
+    presume.add_argument("--root", default="missions",
+                         help="pack parent directory (default: missions)")
+    presume.add_argument("--run", action="store_true",
+                         help="DF-HUL-3: continue the until-limits driver "
+                              "(same driver as `mission run`) instead of "
+                              "only reporting status")
+    presume.add_argument("--max-attempts", dest="max_attempts", type=int, default=None,
+                         help="only with --run")
+    presume.add_argument("--stall-limit", dest="stall_limit", type=int, default=5,
+                         help="only with --run")
+    presume.add_argument("--max-tokens", dest="max_tokens", type=int, default=None,
+                         help="only with --run")
+    presume.add_argument("--max-errors", dest="max_errors", type=int, default=None,
+                         help="only with --run")
+    presume.add_argument("--live-jev", action="store_true", default=False,
+                         help="enable live Jev policy evaluation for HUL-C scope determination")
+    _add_output_flags(presume)
+    prun = pms.add_parser(
+        "run",
+        help="HUL-D until-limits driver: attempts until limits/stall/success")
+    prun.add_argument("--id", dest="mission_id", required=True, help="mission id")
+    prun.add_argument("--root", default="missions",
+                      help="pack parent directory (default: missions)")
+    prun.add_argument("--max-attempts", dest="max_attempts", type=int, default=None)
+    prun.add_argument("--stall-limit", dest="stall_limit", type=int, default=5)
+    prun.add_argument("--max-tokens", dest="max_tokens", type=int, default=None)
+    prun.add_argument("--max-errors", dest="max_errors", type=int, default=None)
+    prun.add_argument("--live-jev", action="store_true", default=False,
+                      help="enable live Jev policy evaluation for HUL-C scope determination")
+    _add_output_flags(prun)
+
+    # Host provisioning (PROVISION-CORE): probe machine facts, plan setup, or dry-run/apply.
+    pprov = sub.add_parser(
+        "provision",
+        help="Host-aware provisioning: probe host facts, plan setup, or execute with approval")
+    pprov_sub = pprov.add_subparsers(dest="provision_cmd", required=True)
+
+    pp_probe = pprov_sub.add_parser("probe", help="Probe host OS, arch, interpreter, GPU, disk, package managers")
+    pp_probe.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pp_probe)
+
+    pp_plan = pprov_sub.add_parser("plan", help="Generate an ordered, typed provisioning plan for a goal")
+    pp_plan.add_argument("--goal", required=True, help="provisioning goal text (e.g. 'install ruff')")
+    pp_plan.add_argument("--root", default=".", help="approved root directory (default: current directory)")
+    pp_plan.add_argument("--json", action="store_true", help="emit raw JSON plan only")
+    _add_output_flags(pp_plan)
+
+    pp_apply = pprov_sub.add_parser("apply", help="Execute a provisioning plan with safety gates (dry-run by default)")
+    pp_apply.add_argument("--plan-file", required=True, help="path to plan JSON file")
+    pp_apply.add_argument("--dry-run", dest="dry_run", action="store_true", default=True,
+                          help="dry-run only; execute nothing (default)")
+    pp_apply.add_argument("--execute", dest="dry_run", action="store_false",
+                          help="explicit operator confirmation to execute plan mutating steps")
+    pp_apply.add_argument("--approve-all", action="store_true", default=False,
+                          help="pre-approve non-irreversible steps for convenience")
+    pp_apply.add_argument("--json", action="store_true", help="emit raw JSON report only")
+    _add_output_flags(pp_apply)
+
+    # Repo philosophy cards (REPO-CARDS): deterministic scan of committed config.
+    prc = sub.add_parser(
+        "repo-cards",
+        help="Generate or check deterministic repo philosophy cards from committed repository config")
+    prc.add_argument("--root", default=None, help="directory containing sibling repositories (default: parent)")
+    prc.add_argument("--cards", default=None, help="output directory for generated cards (default: .harness/cards)")
+    prc.add_argument("--check", action="store_true", help="report cards that would change; write nothing")
+    prc.add_argument("--repo", default=None, help="optional specific repository name to generate/check")
+    prc.add_argument("--json", action="store_true", help="emit raw JSON report only")
+    _add_output_flags(prc)
+
+    # Jev calibration analysis (JEV-P3-calibration-analysis): confidence distribution & threshold band.
+    pcal = sub.add_parser(
+        "jev-calibration",
+        help="Analyze Jev judgment confidence distribution and recommend calibration threshold bands")
+    pcal.add_argument("--ledger", default=None, help="ledger file path to scan for judgment records")
+    pcal.add_argument("--file", default=None, help="optional JSON file containing judgment records")
+    pcal.add_argument("--recommend", action="store_true", help="output threshold recommendation band")
+    pcal.add_argument("--json", action="store_true", help="emit raw JSON report only")
+    _add_output_flags(pcal)
+
+    # Refine loop (issue #239): Propose-Probe-Compose self-improvement.
+    # Phase 0 pilot: TIER 2 only, human reviews every PR, 20 cycles max.
+    prf = sub.add_parser(
+        "refine",
+        help="Propose-Probe-Compose harness refinement loop (issue #239; Phase 0 pilot)")
+    prf.add_argument("--task", default=None,
+                     help="run one refinement cycle for a failed task ID")
+    prf.add_argument("--family", default=None,
+                     help="run a refinement pass over a task family")
+    prf.add_argument("--status", action="store_true",
+                     help="show pilot status, lessons count, and tier summary")
+    prf.add_argument("--record-outcome", nargs=3, metavar=("TASK_ID", "FAMILY", "JEV_OUTCOME"),
+                     help="record a task outcome: TASK_ID FAMILY JEV_OUTCOME (0-1)")
+    prf.add_argument("--json", action="store_true", help="emit raw JSON output only")
+    _add_output_flags(prf)
+
+    pfw = sub.add_parser(
+        "fireworks-verify",
+        help="EV-8 live Fireworks verification probe (one bounded call per pool model)")
+    pfw.add_argument("--models", default=None,
+                     help="comma-separated Fireworks model paths to probe "
+                          "(default: DEFAULT_FIREWORKS_APPLY_POOL)")
+    pfw.add_argument("--max-cost", type=float, default=0.01,
+                     help="probe cost ceiling in USD (default: 0.01)")
+    pfw.add_argument("--receipt", default=None,
+                     help="write verification receipt JSON to this path")
+    pfw.add_argument("--json", action="store_true",
+                     help="emit raw JSON output only")
+    _add_output_flags(pfw)
+
+    return ap
+

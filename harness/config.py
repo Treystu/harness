@@ -1,0 +1,1173 @@
+"""Configuration, API-key resolution, and shared constants.
+
+Key resolution order (back-compatible with SCMessenger's fusion_lite.py):
+  1. ~/.config/scmorc/openrouter_fusion.env   (dedicated spend-limited fusion key)
+  2. ~/.config/scmorc/openrouter.env
+  3. ~/.config/harness/openrouter.env          (this package's home)
+  4. $OPENROUTER_API_KEY environment variable
+
+Settings come from ~/.config/harness/config.json, with $HARNESS_* env
+variables taking precedence.
+
+Free-tier routing: by default (`use_free=True`) every lane uses the best
+current free OpenRouter models. Model slugs go stale, so the pools below are
+live-validated and rotated at runtime (see harness.spend.discover_free_models and
+the rotation logic in apply/panel). `openrouter/free` is OpenRouter's own
+free router and serves as a final fallback lane.
+"""
+import json
+import os
+import re
+import tempfile
+from dataclasses import dataclass
+from types import SimpleNamespace
+
+from .errors import HarnessError
+from . import osal
+from .output import eprint
+from .validation import finite_number
+
+CONFIG_DIR = os.path.expanduser("~/.config/harness")
+
+# OpenRouter endpoints
+OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key"
+OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
+
+# Fireworks direct provider lane (EV-7)
+FIREWORKS_CHAT_URL = "https://api.fireworks.ai/inference/v1/chat/completions"
+FIREWORKS_MODEL_PREFIX = "accounts/fireworks/models/"
+FIREWORKS_PROVIDER = "fireworks"
+FIREWORKS_KEY_ENV = "FIREWORKS_API_KEY"
+FIREWORKS_KEY_FILE = os.path.join(CONFIG_DIR, "fireworks.env")
+
+
+def is_fireworks_model_path(label):
+    """True when a model id or spend label names a Fireworks serverless path."""
+    return isinstance(label, str) and label.startswith(FIREWORKS_MODEL_PREFIX)
+# Daily usage rankings (model_permaslug + total_tokens per day). The
+# evidence source for pool-candidate refresh (see harness/rankings.py).
+OPENROUTER_RANKINGS_URL = "https://openrouter.ai/api/v1/datasets/rankings-daily"
+
+# ---- EV-0..EV-5 model economics constants (see docs/jev-roadmap.md) --------
+# EV-4 automatic pool rotation safety bounds:
+EV_MIN_VALUE_RATIO = 1.15
+EV_MAX_COST_INCREASE_AUTO = 0.0
+EV_MAX_MOVES_PER_RUN = 1
+EV_COOLDOWN_DAYS = 14
+EV_MIN_OBSERVED_SAMPLES = 5
+EV_MAX_HEAD_STREAK = 3
+EV_MIN_UPTIME_1D = 0.90
+EV_AUTO_APPLY = False
+# Unified benchmark feed: Artificial Analysis (coding_index / agentic_index /
+# intelligence_index), Design Arena, and OpenRouter's own tau-bench / GPQA /
+# web-search evals (accuracy, avg_cost_per_task). Requires a key.
+OPENROUTER_BENCHMARKS_URL = "https://openrouter.ai/api/v1/benchmarks"
+# Per-provider endpoint feed. This is the only source of `discount`,
+# `overrides`, `input_cache_read`, published uptime, and the real
+# per-provider price spread -- `/models` publishes only an aggregate, which
+# is what DF-EV-2 is about. One GET per model id (see the fetch budget).
+OPENROUTER_ENDPOINTS_URL = "https://openrouter.ai/api/v1/models/{slug}/endpoints"
+
+# Benchmark sources documented by the /benchmarks endpoint.
+BENCHMARK_SOURCES = ("artificial-analysis", "design-arena", "openrouter")
+
+# Published limits on the benchmark feed are 30 requests/minute and 500
+# requests/day per account (the numbers are quoted in `fetch_endpoints`'s
+# docstring rather than held as unused constants). This is why endpoint
+# fetching is bounded rather than catalog-scoped: one GET per model means a
+# full-catalog sweep (~400 models) would nearly exhaust the daily budget by
+# itself. Catalog-wide coverage comes from /models (unmetered).
+MAX_ENDPOINT_FETCHES_PER_RUN = 40
+
+# Discount semantics. OpenRouter publishes a per-endpoint `discount` (0..1)
+# alongside `prompt`/`completion`, but does NOT document whether the listed
+# rates already have it applied. The two readings differ by exactly 2x at
+# discount=0.5, so DF-EV-2 cannot be closed on a guess: EV-0 settles it with
+# a measured probe and gates every downstream price computation on the
+# recorded answer.
+DISCOUNT_LISTED_IS_EFFECTIVE = "listed_is_effective"
+DISCOUNT_IS_MULTIPLIER = "discount_is_multiplier"
+# Neither hypothesis matched the measured charge (or both did -- provider
+# price aliasing makes that possible, see economics.run_discount_probe).
+DISCOUNT_UNRESOLVED = "unresolved"
+DISCOUNT_AMBIGUOUS = "ambiguous"
+# No endpoint carries a discount, so the question does not arise and listed
+# rates are used as-is.
+DISCOUNT_NOT_APPLICABLE = "not_applicable"
+DISCOUNT_SEMANTICS_VALUES = (
+    DISCOUNT_LISTED_IS_EFFECTIVE, DISCOUNT_IS_MULTIPLIER,
+    DISCOUNT_NOT_APPLICABLE,
+)
+# Relative tolerance when matching a measured charge against a predicted one.
+# OpenRouter computes cost deterministically, but a provider may bill a
+# different endpoint than the one priced, so this is a band, not equality.
+DISCOUNT_PROBE_TOLERANCE = 0.05
+# Probe shape: the smallest call that still returns an itemized `usage`
+# block. Reasoning is off deliberately -- hidden thinking is an unbudgeted
+# variable in a pricing measurement.
+DISCOUNT_PROBE_MAX_TOKENS = 64
+DISCOUNT_PROBE_PROMPT = "Reply with the single word: ok"
+
+# Evidence + verdict locations. BOTH are repo-committed, deliberately.
+#
+# `ECONOMICS_VERDICT_PATH` is what the price gate reads, so it is a REPO path,
+# not a machine-global one: a verdict that authorizes every downstream cost
+# decision has to be reviewable evidence that travels with the code, and two
+# checkouts must not disagree about whether the gate is satisfied. It sits
+# under audits/self/dogfood/ because that is where the DoD puts live receipts
+# and because D11 (sd_corpus_integrity) already SHA-256-pins every tracked
+# file there -- so a hand-edited verdict fails the audit deterministically and
+# the refresh is the scripted one. There is deliberately no fallback to
+# ~/.config: a verdict that exists only on one machine is not evidence, and a
+# fallback would make the gate's answer depend on whose checkout is asking.
+ECONOMICS_SCHEMA_VERSION = 1
+ECONOMICS_VERDICT_PATH = "audits/self/dogfood/EV0A_DISCOUNT_SEMANTICS.json"
+
+# MorphLite-compatible transformation backend. Selecting the `morph` backend
+# explicitly opts into this model; ordinary Harness routing remains unchanged.
+MORPH_MODEL = "morph/morph-v3-fast"
+
+# Cost ceilings. The philosophy (inherited from fusion_lite.py): worst-case
+# cost is a *guarantee*, computed before any network call, not an estimate.
+HARD_MAX_COST = 1.00        # per-call ceiling can never be raised past this
+# Default per-call (per-lane-run) ceiling. Raised from $0.02 with the verified
+# 2026-09-13 paid slates: the wider vote pool's worst-case preflight reserve is
+# ~$0.04 (actual verified cost of a 5-vote paid panel: $0.0038 -- see
+# docs/MODEL_SELECTION_HANDOFF_2026-09-13.md). HARD_MAX_COST is unchanged.
+DEFAULT_MAX_COST = 0.05
+HARD_TASK_MAX_COST = 1.00   # per-task (multi-round apply) hard ceiling
+# Raised from $0.05 with default-on paid escalation: the unknown-correctness
+# ration (0.4 of the hard cap) must fund one worst-case paid rescue call
+# (~$0.084 on the cheapest paid rung) or the saturation ladder starves the
+# rung it just stepped up to. Still 2.5x under the hard ceiling.
+DEFAULT_TASK_MAX_COST = 0.10
+# Verify token budget. On the free tier cost is $0 regardless, so this is
+# intentionally generous -- it is NOT a cost cap. It exists so long audit/
+# analysis prompts get a full answer instead of truncating (a 300-token default
+# made reasoning-heavy free models burn the budget on hidden thinking and
+# return empty content). Individual free models still impose their own hard
+# per-request output ceilings; anything above a provider's cap is simply
+# ignored/truncated by OpenRouter, so a large value here is safe.
+DEFAULT_MAX_TOKENS = 2048
+DEFAULT_APPLY_MAX_TOKENS = 4096
+
+# Run/stage TOKEN allowances (HV-3). These are not cost caps: a free model
+# bills $0.00 and can still overflow a context window. The hard caps below
+# are absolute -- like HARD_MAX_COST they cannot be raised past by config,
+# env, or a caller, so a misconfigured value is refused before any dispatch.
+# harness/token_budget.py is the one owner that enforces them.
+DEFAULT_TOKEN_BUDGET_INPUT = 200000
+DEFAULT_TOKEN_BUDGET_OUTPUT = 64000
+HARD_TOKEN_BUDGET_INPUT = 4000000
+HARD_TOKEN_BUDGET_OUTPUT = 1000000
+
+# Composable run stages (HV-4). Declared here as the *default set*; the
+# composition owner is harness/waist.py (resolve_stages), which is what
+# refuses an unknown stage name -- config only decides what an operator
+# asks for by default, and the default is every stage, which is exactly how
+# the lanes behaved before composition was selectable.
+DEFAULT_HOURGLASS_STAGES = ("context", "planning", "execution",
+                            "verification")
+
+# ---- lane budgets and reasoning modes (ONE policy owner) -------------------
+# Task-shaped token budgets (2026-09-13 operator ruling: "stop using reasoning
+# if it's not needed here, or if it is, then appropriately allocate tokens").
+# A vote is a cheap decision: hidden thinking starves the visible JSON, so
+# structured votes run with reasoning explicitly disabled and a >=4096 output
+# budget (600-700 starved even non-reasoning emitters into truncation). Judge
+# synthesis, the convergence specialist, and escalation rungs need bounded
+# depth: >=8192 with the caller's reasoning mode (auto by default; the
+# auto/low heuristic lives in chat.py). Explicit caller configuration always
+# wins over these defaults. Apply keeps its own 4096 budget untouched.
+MIN_VOTE_TOKENS = 4096
+MIN_SYNTHESIS_TOKENS = 8192
+MIN_ANSWER_TOKENS = 4096
+DEFAULT_ANSWER_TOKENS = 16384
+# Structured claim votes are frequently longer than ordinary prose; the vote
+# lane raises its floor when convergence is requested (kept next to the other
+# lane minima as the ONE policy home; convergence.py imports it back for its
+# own consumers).
+MIN_CONVERGENCE_PANEL_TOKENS = 4096
+
+
+def effective_lane_policy(role, max_tokens=None, reasoning_effort=None):
+    """The ONE owner of per-lane token budgets and reasoning modes.
+
+    role is one of "vote" (panel/claim votes), "judge" (judge synthesis and
+    the convergence specialist), "escalation" (deep rungs), "apply"
+    (unchanged historical behavior), or "answer"/"chat" (conversation and direct
+    answers: dynamically bounded default up to 16384 tokens with floor 4096).
+    Returns ``(max_tokens, reasoning_effort)`` with the lane minimum applied
+    and the reasoning mode resolved: an explicit caller effort always passes
+    through; otherwise votes disable reasoning ("off" -- an explicit
+    ``{"effort": "none"}`` payload post-patch) and synthesis/escalation/answer
+    lanes default to "auto".
+    """
+    requested = int(max_tokens or 0)
+    if role == "vote":
+        effort = reasoning_effort or "off"
+        return max(requested, MIN_VOTE_TOKENS), effort
+    if role in ("judge", "escalation"):
+        effort = reasoning_effort or "auto"
+        return max(requested, MIN_SYNTHESIS_TOKENS), effort
+    if role in ("answer", "chat"):
+        effort = reasoning_effort or "auto"
+        tokens = max(requested, MIN_ANSWER_TOKENS) if requested else DEFAULT_ANSWER_TOKENS
+        return tokens, effort
+    if role == "apply":
+        return requested, (reasoning_effort or "auto")
+    raise ValueError(f"unknown lane role: {role}")
+
+
+@dataclass(frozen=True)
+class LanePolicy:
+    """One lane's resolved spend: the max_tokens floor and reasoning effort."""
+
+    tokens: int
+    effort: str
+
+
+@dataclass(frozen=True)
+class PanelLanePolicy:
+    """Immutable resolved lane policy for one ``panel_judge`` run.
+
+    Construction applies every caller override EXACTLY ONCE through
+    :func:`effective_lane_policy` (still the single policy source); consumers
+    -- reservation computations and chat calls -- read
+    ``policy.vote.tokens`` / ``policy.judge.tokens`` /
+    ``policy.specialist.tokens`` (and ``.effort``) instead of parallel
+    token/effort locals threaded through the lane. This is the struct that
+    would have prevented the specialist reserve/call mismatch: there is one
+    place to look up what a lane spends.
+
+    Attributes (post-override):
+        vote: panel votes; when convergence is requested the vote floor is
+            the structured-claims minimum (a caller's lower bound is kept but
+            raised to avoid truncation in the vote JSON).
+        judge: judge synthesis; reserve rows use ``judge_reserve_tokens``
+            (the synthesis budget plus the fixed headroom the prompt-builder
+            adds), never a different lane's budget.
+        specialist: the convergence specialist's JSON-rendering lane -- at the
+            vote floor by ruling, NOT the synthesis floor (an 8192 budget
+            defeats the window-aware vote trim on small-window specialists).
+    """
+
+    vote: LanePolicy
+    judge: LanePolicy
+    specialist: LanePolicy
+
+    def __init__(self, *, max_tokens=None, reasoning_effort="auto",
+                 run_convergence=False):
+        vote_tokens, vote_effort = effective_lane_policy(
+            "vote", max_tokens=max_tokens, reasoning_effort=reasoning_effort)
+        if run_convergence:
+            vote_tokens = max(vote_tokens, MIN_CONVERGENCE_PANEL_TOKENS)
+        judge_tokens, judge_effort = effective_lane_policy(
+            "judge", max_tokens=max_tokens, reasoning_effort=reasoning_effort)
+        spec_tokens, spec_effort = effective_lane_policy(
+            "vote", max_tokens=max_tokens, reasoning_effort=reasoning_effort)
+        object.__setattr__(self, "vote", LanePolicy(vote_tokens, vote_effort))
+        object.__setattr__(self, "judge", LanePolicy(judge_tokens, judge_effort))
+        object.__setattr__(self, "specialist", LanePolicy(spec_tokens, spec_effort))
+
+# BYOK spend is invisible to the tracked key's balance (confirmed on the
+# SCMessenger account: mistralai/ routed via BYOK, plus the P0 block below for
+# Claude/Anthropic models reaching the paid OpenRouter path).
+#
+# HARD prefixes are never used, period (P0). Additional org-prefixes observed
+# to route via BYOK on a given account are LEARNED at runtime and persisted to
+# byok_prefixes_path, so paid BYOK models rotate away automatically while free
+# BYOK models (which cost $0 and leak nothing) are still usable.
+BYOK_DENYLIST_PREFIXES = ("mistralai/", "anthropic/")
+BYOK_PREFIXES_PATH = os.path.join(CONFIG_DIR, "byok_prefixes.json")
+
+# Model capability registry (declared /models metadata + composite reliability).
+CAPABILITIES_PATH = os.path.join(CONFIG_DIR, "capabilities.json")
+CAPABILITIES_TTL = 24 * 3600  # refresh /models capability profiles at most once / TTL
+
+
+def load_byok_prefixes(path=BYOK_PREFIXES_PATH):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return set(json.load(f))
+    except (OSError, ValueError):
+        return set()
+
+
+def save_byok_prefixes(path, prefixes):
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(sorted(prefixes), f, indent=2)
+
+# ---- Free-tier lanes (default) ----
+# Curated from the live OpenRouter free list (Sept 2026), ordered by observed
+# track record in real audits and bench probes: JSON-emission reliability,
+# willingness to defer, and truncation behavior. north-mini-code is DEMOTED
+# from the judge seat (and the panel head): as a reasoning model it burned
+# its budget on hidden thinking and returned reasoning-only output in most
+# live runs. The router rotates down the list and falls back to
+# openrouter/free. Run `harness models` or `harness capabilities --refresh` to
+# refresh against the live list.
+# DF-MS-4 (2026-09-28): the live OpenRouter catalog no longer serves
+# inclusionai/ling-3.0-flash-fin:free. Do not ship it in the free pools.
+FREE_PANEL_POOL = [
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "cohere/north-mini-code:free",
+    "openrouter/free",
+]
+# Judge must emit strict JSON. gemma is the most JSON-reliable free emitter in
+# live runs (structured claims, consent, and specialist lanes all included);
+# a reasoning-heavy judge burns its budget on hidden thinking instead.
+FREE_JUDGE = "google/gemma-4-31b-it:free"
+#
+# DF-LING-2 (operator ruling 2026-09-23): Ling may be in rotation but
+# never the default. DF-MS-4 removes the delisted free catalog id from both
+# shipped free pools; the paid Ling rung remains in DEFAULT_PANEL_PAID at a
+# non-default position. Keep all default and first-rung selections non-Ling.
+FREE_APPLY_POOL = [
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "cohere/north-mini-code:free",
+    "openrouter/free",
+]
+
+# Convergence-specialist fallback ladder, tried in order after the primary
+# (which defaults to the judge). Ordered by observed track record rather than
+# declared capability; only catalog-validated ids belong in shipped defaults.
+# Rotation happens before the next start, never after a first failure the
+# ledger already predicted. The specialist rotates down this ladder on HTTP
+# error, paid-BYOK route, reasoning-only output, truncation, or unparseable JSON.
+SPECIALIST_POOL_FREE = [
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+]
+
+# ---- Paid lanes (use_free=False) ----
+# Curated from the live OpenRouter catalog and per-call probes (2026-09-13;
+# evidence: docs/MODEL_SELECTION_HANDOFF_2026-09-13.md). Same policy as the
+# free pools -- stale ids hard-fatal at fetch_pricing, so re-validate before
+# shipping a change here (the round-1 free-pool fix is the precedent).
+# Vote pool: reasoning-OFF emitters verified parseable at 4096 budgets,
+# ordered cheapest first (gemini-3.8-flash supersedes the banned
+# gemini-2.5-pro; the V3-era deepseek ids and granite/llama-3.1-8b are
+# dropped as superseded/oldest-generation).
+DEFAULT_PANEL_PAID = [
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v4.1-flash",
+    "inclusionai/ling-3.0-flash",
+    "openai/gpt-4o-mini",
+    "openai/gpt-5-mini",
+    "openai/gpt-5.6-luna",
+    "google/gemini-3.8-flash",
+]
+# Value-oriented deep-thinking judge (operator-endorsed); its route is
+# MANDATORY-reasoning, which the chat lane supports via the param-rejection
+# retry (an explicit disable draws one free 400, then the provider default).
+DEFAULT_JUDGE_PAID = "z-ai/glm-5.3-flash"
+# Price-efficient paid frontier rung (config constant, not a lane-local string).
+# sliding_scale.resolve_frontier_model binds the unpaid default from here.
+DEFAULT_FRONTIER_PAID = "qwen/qwen3.8-max-0902"
+# Apply primary: the operator pick (rankings #3 and climbing), with verified
+# cheaper/fallback candidates.
+DEFAULT_APPLY_MODEL_PAID = "deepseek/deepseek-v4.1-flash"
+DEFAULT_APPLY_POOL_PAID = [
+    "deepseek/deepseek-v4.1-flash",
+    "deepseek/deepseek-v4-flash",
+    "openai/gpt-4o-mini",
+    "openai/gpt-5.6-luna",
+]
+
+# Paid-lane specialist fallbacks (after the primary): strong JSON emitters
+# first.
+SPECIALIST_POOL_PAID = [
+    "deepseek/deepseek-v4.1-flash",
+]
+
+# ---- Escalation ladders (judge-driven auto-escalation with de-escalation) ----
+# Ordered from cheapest to most capable. The judge condenses context and
+# directs escalation rung-by-rung; after the escalated model produces a plan,
+# the system de-escalates back to the last tier that needed escalation.
+# Each rung has an implicit per-rung cost cap enforced by SpendGovernor.
+ESCALATION_POOL_FREE = [
+    "google/gemma-4-26b-a4b-it:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "cohere/north-mini-code:free",
+]
+
+# Paid escalation ladder: cheapest -> most capable. qwen3.8-max is the
+# price-efficient frontier rung (same listed intelligence tier as the
+# anthropic/openai flagships at $2/$6 vs their $10/$50), so it slots in
+# before them: the ladder reaches frontier intelligence at frontier-price
+# first and only climbs to the $10/$50 flagships when the judge escalates
+# past it. Per-rung cost caps are advisory (enforced by SpendGovernor
+# preflight). Only catalog-validated ids belong here (stale ids hard-fatal
+# at fetch_pricing).
+ESCALATION_POOL_PAID = [
+    "z-ai/glm-5.3-flash",
+    "deepseek/deepseek-v4-pro",
+    "qwen/qwen3.8-max-0902",
+    "openai/gpt-4.1",
+    "openai/gpt-5.6-sol",
+]
+
+# The smartest judge available per tier (used when judge auto-selection is on).
+# Free tier: gemma-4-31b-it:free (already DEFAULT_JUDGE for free).
+# Paid tier: flagship-class from the verified deep-think tier.
+DEFAULT_JUDGE_PAID_TOP = "openai/gpt-5.6-sol"
+
+# Per-rung advisory cost caps (USD). Documented policy for operators and the
+# judge's worth-gating decision; the hard enforcement is still
+# HARD_TASK_MAX_COST / HARD_MAX_COST via SpendGovernor preflight.
+ESCALATION_RUNG_CAPS = {
+    "free": [0.0, 0.0, 0.0],
+    "paid": [0.03, 0.06, 0.15, 0.20, 0.25],
+}
+
+# ---- Fireworks direct lanes (EV-7: use_fireworks=True) ----
+DEFAULT_FIREWORKS_APPLY_POOL = [
+    "accounts/fireworks/models/deepseek-v3p2",
+    "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct",
+    "accounts/fireworks/models/kimi-k2p5",
+]
+DEFAULT_FIREWORKS_PANEL_POOL = [
+    "accounts/fireworks/models/gpt-oss-120b",
+    "accounts/fireworks/models/deepseek-v3p2",
+    "accounts/fireworks/models/glm-5",
+]
+DEFAULT_FIREWORKS_JUDGE_MODEL = "accounts/fireworks/models/glm-5"
+
+
+def shipped_model_ids():
+    """Every default lane model id this install ships with, across both tier
+    policies -- the complete set `capabilities --check-shipped` validates
+    against the live catalog (a stale shipped id hard-fatals at
+    fetch_pricing; the round-1 free-pool fix and the stale paid default are
+    the precedent). One enumeration: add a pool constant here, not to every
+    freshness test."""
+    return (set(FREE_PANEL_POOL) | {FREE_JUDGE} | set(FREE_APPLY_POOL)
+            | set(SPECIALIST_POOL_FREE)
+            | set(DEFAULT_PANEL_PAID) | {DEFAULT_JUDGE_PAID}
+            | set(DEFAULT_APPLY_POOL_PAID) | set(SPECIALIST_POOL_PAID)
+            | set(ESCALATION_POOL_FREE) | set(ESCALATION_POOL_PAID)
+            | {DEFAULT_JUDGE_PAID_TOP})
+
+_ENV_NAMES = {
+    "use_free": "HARNESS_USE_FREE",
+    "use_fireworks": "HARNESS_USE_FIREWORKS",
+    "fireworks_key": "FIREWORKS_API_KEY",
+    "trial_model": "HARNESS_TRIAL_MODEL",
+    "panel": "HARNESS_PANEL",
+    "panel_pool": "HARNESS_PANEL_POOL",
+    "judge": "HARNESS_JUDGE",
+    "judge_top": "HARNESS_JUDGE_TOP",
+    "convergence_model": "HARNESS_CONVERGENCE_MODEL",
+    "specialist_pool": "HARNESS_SPECIALIST_POOL",
+    "apply_model": "HARNESS_APPLY_MODEL",
+    "apply_pool": "HARNESS_APPLY_POOL",
+    "escalation_pool": "HARNESS_ESCALATION_POOL",
+    "escalation_model": "HARNESS_ESCALATION_MODEL",
+    "max_cost": "HARNESS_MAX_COST",
+    "task_max_cost": "HARNESS_TASK_MAX_COST",
+    "max_tokens": "HARNESS_MAX_TOKENS",
+    "apply_max_tokens": "HARNESS_APPLY_MAX_TOKENS",
+    "token_budget_input": "HARNESS_TOKEN_BUDGET_INPUT",
+    "token_budget_output": "HARNESS_TOKEN_BUDGET_OUTPUT",
+    "hourglass_stages": "HARNESS_HOURGLASS_STAGES",
+    "reasoning_effort": "HARNESS_REASONING_EFFORT",
+    "reasoning_token_budget": "HARNESS_REASONING_TOKEN_BUDGET",
+    "max_panelists": "HARNESS_MAX_PANELISTS",
+    "max_rotations": "HARNESS_MAX_ROTATIONS",
+    "renew_consent": "HARNESS_RENEW_CONSENT",
+    "ledger_path": "HARNESS_LEDGER",
+    "expect_key_label": "HARNESS_EXPECT_KEY_LABEL",
+    "default_require_consent": "HARNESS_DEFAULT_REQUIRE_CONSENT",
+    "allow_escalation": "HARNESS_ALLOW_ESCALATION",
+    "mcp_allow_write": "HARNESS_MCP_ALLOW_WRITE",
+    "mcp_allow_verify": "HARNESS_MCP_ALLOW_VERIFY",
+    "mcp_allowed_roots": "HARNESS_MCP_ALLOWED_ROOTS",
+    "mcp_tool_timeout": "HARNESS_MCP_TOOL_TIMEOUT",
+    "mcp_auth_token": "HARNESS_MCP_AUTH_TOKEN",
+    "frontier_model": "HARNESS_FRONTIER_MODEL",
+    "hourglass_confirm": "HARNESS_HOURGLASS_CONFIRM",
+    "hourglass_isolate": "HARNESS_HOURGLASS_ISOLATE",
+    "hourglass_parallel": "HARNESS_HOURGLASS_PARALLEL",
+    "hourglass_require_attestation": "HARNESS_HOURGLASS_REQUIRE_ATTESTATION",
+    "hourglass_decompose": "HARNESS_HOURGLASS_DECOMPOSE",
+    "openrouter_floor_default": "HARNESS_OPENROUTER_FLOOR",
+    "max_price_prompt": "HARNESS_MAX_PRICE_PROMPT",
+    "max_price_completion": "HARNESS_MAX_PRICE_COMPLETION",
+    "jev_api_key": "HARNESS_JEV_KEY",
+    "jev_endpoint": "HARNESS_JEV_ENDPOINT",
+    "jev_model": "HARNESS_JEV_MODEL",
+    "min_confidence": "HARNESS_MIN_CONFIDENCE",
+    "openrouter_enabled": "HARNESS_OPENROUTER_ENABLED",
+    "fireworks_enabled": "HARNESS_FIREWORKS_ENABLED",
+    "fireworks_budget_usd": "HARNESS_FIREWORKS_BUDGET_USD",
+}
+
+
+def _read_key_file(path, name="OPENROUTER_API_KEY"):
+    """Parse a `NAME=...` line (default OPENROUTER_API_KEY) out of an env file."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    if k.strip() == name and v.strip():
+                        return v.strip().strip('"').strip("'")
+    except OSError:
+        return None
+    return None
+
+
+def _warn_insecure_keyfile(path):
+    """Loudly warn when a key file is group/world readable (POSIX only).
+
+    A leaked OpenRouter key spends real money, so a permissive key file is a
+    silent credential hazard. We warn rather than refuse: the user's working
+    setup must not break, but the failure mode must not be silent.
+
+    PLAT-osal: the permission question belongs to osal, which answers
+    "not modelled" on Windows (there the ACL is the real control) instead of
+    asking ``os.name`` here and pretending a mode exists.
+    """
+    if osal.keyfile_is_insecure(path):
+        mode = osal.keyfile_mode(path)
+        eprint(f"[warn] key file {path} is group/world readable (mode "
+               f"{oct(mode)}); restrict it with chmod 600.")
+
+
+def resolve_api_key():
+    """Resolve the OpenRouter key: env file first, then the environment.
+
+    Key identity is enforced by SpendGovernor.verify_key (exact match of
+    the live /key label, never echoed into errors). An earlier revision
+    tried to pre-check the label here by splitting the key string itself,
+    which can never yield a label -- that dead guard is gone rather than
+    left to reject every real key the day someone passes it a label.
+    """
+    key = None
+    for p in (
+        os.path.join(os.path.expanduser("~/.config/scmorc"), "openrouter_fusion.env"),
+        os.path.join(os.path.expanduser("~/.config/scmorc"), "openrouter.env"),
+        os.path.join(CONFIG_DIR, "openrouter.env"),
+    ):
+        k = _read_key_file(p)
+        if k:
+            _warn_insecure_keyfile(p)
+            key = k
+            break
+    if key is None:
+        key = os.environ.get("OPENROUTER_API_KEY")
+        if key:
+            eprint("[warn] using OPENROUTER_API_KEY from the process environment; "
+                   "prefer a 0600 key file for interactive use.")
+    return key
+
+
+def resolve_jev_key():
+    """Resolve the Jev / System One API key: env file first, then environment.
+
+    Checks ~/.config/scmorc/jev.env, ~/.config/harness/jev.env, and environment
+    variables HARNESS_JEV_KEY, TYPESAFE_API_KEY, and JEV_API_KEY.
+    """
+    for p in (
+        os.path.join(os.path.expanduser("~/.config/scmorc"), "jev.env"),
+        os.path.join(CONFIG_DIR, "jev.env"),
+    ):
+        try:
+            with open(p, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.split("=", 1)
+                        if k.strip() in ("HARNESS_JEV_KEY", "JEV_API_KEY", "TYPESAFE_API_KEY") and v.strip():
+                            _warn_insecure_keyfile(p)
+                            return v.strip().strip('"').strip("'")
+        except OSError:
+            pass
+    return (os.environ.get("HARNESS_JEV_KEY")
+            or os.environ.get("TYPESAFE_API_KEY")
+            or os.environ.get("JEV_API_KEY"))
+
+
+def resolve_fireworks_key(key_file=None):
+    """Resolve the Fireworks key: scmorc file, harness file, then the env var.
+
+    Only presence is ever logged; the value is returned to the caller and
+    never echoed. Windows ACL hardening is a setup-time concern and is not
+    performed here.
+    """
+    candidates = ([key_file] if key_file else [
+        os.path.join(os.path.expanduser("~/.config/scmorc"), "fireworks.env"),
+        os.path.join(CONFIG_DIR, "fireworks.env"),
+    ])
+    for p in candidates:
+        k = _read_key_file(p, "FIREWORKS_API_KEY") or _read_key_file(p, "HARNESS_FIREWORKS_KEY")
+        if k:
+            _warn_insecure_keyfile(p)
+            return k
+    key = os.environ.get("FIREWORKS_API_KEY") or os.environ.get("HARNESS_FIREWORKS_KEY")
+    if key:
+        eprint("[warn] using FIREWORKS_API_KEY from the process environment; "
+               "prefer a 0600 key file for interactive use.")
+    return key or None
+
+
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _split_list(value):
+    return [x.strip() for x in value.split(",") if x.strip()]
+
+
+def _dedup(seq):
+    out = []
+    for x in seq:
+        if x not in out:
+            out.append(x)
+    return out
+
+
+class Settings:
+    def __init__(self, use_free, panel, panel_pool, judge, judge_top, convergence_model, specialist_pool,
+                 apply_model, apply_pool, escalation_pool, escalation_model, max_cost, task_max_cost, max_tokens,
+                 apply_max_tokens, reasoning_effort, reasoning_token_budget,
+                 max_panelists, max_rotations, renew_consent, ledger_path,
+                  expect_key_label, default_require_consent, allow_escalation,
+                  mcp_allow_write=False, mcp_allow_verify=False, mcp_allowed_roots=None,
+                  mcp_tool_timeout=1800, mcp_auth_token=None, frontier_model=None,
+                  hourglass_confirm=True, hourglass_isolate=True,
+                  hourglass_parallel=True, hourglass_require_attestation=True,
+                  hourglass_decompose=None,
+                  hourglass_stages=None,
+                  openrouter_floor_default=True, max_price_prompt=None,
+                  max_price_completion=None, jev_api_key=None,
+                  jev_disabled=False,
+                  jev_endpoint="https://api.typesafe.ai/v1/systemone",
+                  jev_model="jev-latest", min_confidence=0.70,
+                  token_budget_input=DEFAULT_TOKEN_BUDGET_INPUT,
+                  token_budget_output=DEFAULT_TOKEN_BUDGET_OUTPUT,
+                  openrouter_enabled=True, fireworks_enabled=False,
+                  fireworks_budget_usd=0.0,
+                  use_fireworks=False, fireworks_key="", trial_model=""):
+        self.use_free = use_free
+        self.openrouter_enabled = bool(openrouter_enabled)
+        self.fireworks_enabled = bool(fireworks_enabled or use_fireworks)
+        self.fireworks_budget_usd = float(fireworks_budget_usd)
+        if not self.openrouter_enabled and not self.fireworks_enabled:
+            raise HarnessError(
+                "at least one provider must be enabled: set openrouter_enabled "
+                "or fireworks_enabled (both off leaves no route for any model)")
+        self.use_fireworks = self.fireworks_enabled
+        self.fireworks_key = str(fireworks_key or "")
+        # Per-run reversible model trial override (#197) -- never persisted by update_config.
+        self.trial_model = str(trial_model or "")
+        self.panel = list(panel)
+        self.panel_pool = list(panel_pool)
+        self.judge = judge
+        # The smartest judge available for the current tier (free or paid).
+        self.judge_top = judge_top
+        # Convergence specialist defaults to the same model as the judge.
+        self.convergence_model = convergence_model or judge
+        # Ordered fallback ladder for the specialist: the primary is tried
+        # first, then these, strongest first.
+        self.specialist_pool = list(specialist_pool or [])
+        self.apply_model = apply_model
+        self.apply_pool = list(apply_pool)
+        # Escalation ladder (ordered cheapest->most capable). Used by the
+        # auto-escalation driver for judge-driven rung stepping.
+        self.escalation_pool = list(escalation_pool or [])
+        # Single escalation_model retained for backward-compat (single-rung mode).
+        self.escalation_model = escalation_model
+        self.max_cost = max_cost
+        self.task_max_cost = task_max_cost
+        self.max_tokens = max_tokens
+        self.apply_max_tokens = apply_max_tokens
+        self.reasoning_effort = reasoning_effort
+        self.reasoning_token_budget = reasoning_token_budget
+        self.max_panelists = max_panelists
+        self.max_rotations = max_rotations
+        self.renew_consent = renew_consent
+        self.ledger_path = ledger_path
+        self.expect_key_label = expect_key_label
+        self.default_require_consent = default_require_consent
+        self.allow_escalation = allow_escalation
+        self.mcp_allow_write = mcp_allow_write
+        self.mcp_allow_verify = mcp_allow_verify
+        self.mcp_allowed_roots = list(mcp_allowed_roots or [])
+        self.mcp_tool_timeout = mcp_tool_timeout
+        # Shared secret for the stdio MCP peer. Empty/None = no token check
+        # (stdio inherits host authority; documented trust model). When set,
+        # every tools/call must present matching params._meta.harness_token.
+        self.mcp_auth_token = mcp_auth_token or None
+        self.frontier_model = frontier_model
+        # Auto-scaling hourglass defaults (CLI plan lane + MCP/GUI
+        # plan_and_execute): waist confirmation, parallel stages, worktree
+        # isolation, and diff-bound write attestation are ON by default;
+        # each is opt-out via its flag (--no-*) or this settings file.
+        self.hourglass_confirm = hourglass_confirm
+        self.hourglass_isolate = hourglass_isolate
+        self.hourglass_parallel = hourglass_parallel
+        self.hourglass_require_attestation = hourglass_require_attestation
+        # None = resolve_hourglass derives the default (True when the
+        # hourglass is active: confirm and/or parallel on).
+        self.hourglass_decompose = hourglass_decompose
+        self.openrouter_floor_default = openrouter_floor_default
+        self.max_price_prompt = max_price_prompt
+        self.max_price_completion = max_price_completion
+        self.jev_api_key = jev_api_key
+        self.jev_disabled = bool(jev_disabled)
+        self.jev_endpoint = jev_endpoint
+        self.jev_model = jev_model or "jev-latest"
+        self.min_confidence = min_confidence
+        self.token_budget_input = token_budget_input
+        self.token_budget_output = token_budget_output
+        # The stages this run composes. None means "the Hourglass default",
+        # i.e. every stage; the composition owner validates any subset.
+        self.hourglass_stages = (list(hourglass_stages)
+                                 if hourglass_stages else None)
+
+    def to_dict(self):
+        return {k: getattr(self, k) for k in (
+            "use_free", "trial_model",
+            "panel", "panel_pool", "judge", "judge_top", "convergence_model",
+            "specialist_pool",
+            "apply_model", "apply_pool", "escalation_pool", "escalation_model", "max_cost",
+            "task_max_cost", "max_tokens", "apply_max_tokens",
+            "reasoning_effort", "reasoning_token_budget", "max_panelists",
+            "max_rotations", "renew_consent", "ledger_path", "expect_key_label",
+            "default_require_consent", "allow_escalation", "mcp_allow_write",
+            "mcp_allow_verify", "mcp_allowed_roots", "mcp_tool_timeout",
+            "mcp_auth_token", "frontier_model", "hourglass_confirm",
+            "hourglass_isolate", "hourglass_parallel",
+            "hourglass_require_attestation", "hourglass_decompose",
+            "openrouter_floor_default",
+            "max_price_prompt", "max_price_completion", "jev_api_key", "jev_disabled",
+            "jev_endpoint", "jev_model", "min_confidence",
+            "token_budget_input", "token_budget_output",
+            "hourglass_stages", "openrouter_enabled", "fireworks_enabled",
+            "fireworks_budget_usd")}
+
+
+# JEV-P4 freeze: the two settings an operator pins after first calibration,
+# and the only keys beyond the original runtime set whose writes the freeze
+# face is allowed to make. They are declared here, next to ``_ENV_NAMES``,
+# so the write allow-list and the freeze face cannot drift apart.
+JEV_FREEZE_KEYS = ("jev_model", "min_confidence")
+
+# A pinned model id is data, never free text. Anything with whitespace, a
+# control character, or JSON-ish punctuation is rejected rather than being
+# coerced to a string and written into the operator's config file.
+_JEV_MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$")
+
+
+def validate_jev_model_id(value):
+    """Return ``value`` if it can be a model id, else raise HarnessError."""
+    if not isinstance(value, str) or not _JEV_MODEL_ID_RE.match(value):
+        raise HarnessError(
+            "jev_model must be a model id (letters, digits and . _ : / @ + -, "
+            "starting alphanumeric, max 128 chars)")
+    return value
+
+
+def update_config(values):
+    """Persist runtime-updatable settings into config.json (the ONE owner of
+    config I/O). Each value is validated by a full ``load_settings`` round
+    trip BEFORE any write: a hostile or out-of-range value raises and nothing
+    is written (fail closed). Reads honor the same precedence the loader
+    does -- an env-pinned variable always wins over config.json -- so the
+    returned settings are exactly what the next ``load_settings()`` yields.
+    The write is atomic (temp file + os.replace) and preserves every key the
+    file already carried.
+    """
+    unknown = set(values) - set(_ENV_NAMES)
+    if unknown:
+        raise HarnessError(
+            "unknown setting(s): " + ", ".join(sorted(unknown)))
+    allowed = {"use_free", "allow_escalation", "max_cost", "task_max_cost",
+               "hourglass_stages", "token_budget_input", "token_budget_output",
+               "openrouter_enabled", "fireworks_enabled", "fireworks_budget_usd"}
+    allowed |= set(JEV_FREEZE_KEYS)
+    disallowed = set(values) - allowed
+    if disallowed:
+        raise HarnessError(
+            "setting(s) not runtime-updatable: " + ", ".join(sorted(disallowed)))
+    if "jev_model" in values:
+        validate_jev_model_id(values["jev_model"])
+    if "hourglass_stages" in values:
+        raw_stages = values["hourglass_stages"]
+        if isinstance(raw_stages, str):
+            stage_list = [s.strip() for s in raw_stages.split(",") if s.strip()]
+        elif isinstance(raw_stages, (list, tuple)):
+            stage_list = list(raw_stages)
+        else:
+            raise HarnessError(
+                "hourglass_stages must be a list or comma-separated string")
+        from .waist import resolve_stages
+        resolve_stages(stage_list)
+
+    cfg_path = os.path.join(CONFIG_DIR, "config.json")
+    cfg = {}
+    if os.path.exists(cfg_path):
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    cfg.update(values)
+
+    # Validate the merged config through the real loader before committing:
+    # out-of-range numbers or malformed booleans raise here and nothing is
+    # written (fail closed). The returned settings carry the same values the
+    # next load_settings() will read, modulo env precedence noted above.
+    updated = load_settings(overrides=dict(cfg))
+
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=CONFIG_DIR, prefix=".config-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, sort_keys=True)
+            f.write("\n")
+        os.replace(tmp, cfg_path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return updated
+
+
+def load_settings(overrides=None):
+    cfg = {}
+    cfg_path = os.path.join(CONFIG_DIR, "config.json")
+    if os.path.exists(cfg_path):
+        with open(cfg_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    unknown = set(cfg) - set(_ENV_NAMES)
+    if unknown:
+        eprint("[warn] unknown config keys ignored: " + ", ".join(sorted(unknown))
+               + f" (valid keys are in {cfg_path})")
+
+    def get(key, default):
+        if overrides and key in overrides:
+            return overrides[key]
+        env = os.environ.get(_ENV_NAMES[key])
+        if env is not None:
+            return env
+        return cfg.get(key, default)
+
+    use_free = _as_bool(get("use_free", True))
+    use_fireworks = _as_bool(get("use_fireworks", False))
+    fireworks_key = str(get("fireworks_key", "") or "").strip() or resolve_fireworks_key()
+    trial_model = str(get("trial_model", "") or "").strip()
+    if use_fireworks and not fireworks_key:
+        raise HarnessError(
+            "HARNESS_USE_FIREWORKS=true requires a Fireworks API key "
+            f"(set ${FIREWORKS_KEY_ENV} or write {FIREWORKS_KEY_FILE}).")
+    # Auto-escalation defaults ON when a paid key is connected: when the
+    # cheap tier saturates (429 across the pool) or exhausts its verify
+    # budget, the judge walks the escalation ladder into the lowest paid
+    # rung instead of failing the task. An explicit allow_escalation=false
+    # (config/env/overrides) still disarms it, and with no paid key there
+    # is nothing to walk into -- the default stays off.
+    paid_key = (
+        (overrides or {}).get("openrouter_api_key")
+        or (overrides or {}).get("api_key")
+        or resolve_api_key()
+    )
+    if use_fireworks:
+        default_panel = list(DEFAULT_FIREWORKS_PANEL_POOL)
+        default_judge = DEFAULT_FIREWORKS_JUDGE_MODEL
+        default_judge_top = DEFAULT_FIREWORKS_JUDGE_MODEL
+        default_apply_pool = list(DEFAULT_FIREWORKS_APPLY_POOL)
+        default_specialist_pool = list(DEFAULT_FIREWORKS_APPLY_POOL[:1])
+        default_escalation_pool = list(DEFAULT_FIREWORKS_APPLY_POOL)
+    elif use_free:
+        default_panel = list(FREE_PANEL_POOL)
+        default_judge = FREE_JUDGE
+        default_judge_top = FREE_JUDGE
+        default_apply_pool = list(FREE_APPLY_POOL)
+        default_specialist_pool = list(SPECIALIST_POOL_FREE)
+        default_escalation_pool = list(ESCALATION_POOL_FREE)
+        # Saturation ladder: free rungs first (they cost nothing), then the
+        # paid ladder cheapest-first -- a busy free rung rotates onward.
+        # Auto paid failover: when free tier exhausts (429 across pool),
+        # rotate seamlessly into the cheapest capable paid models.
+        if paid_key:
+            default_escalation_pool = (ESCALATION_POOL_FREE
+                                       + ESCALATION_POOL_PAID)
+            default_apply_pool = list(FREE_APPLY_POOL) + list(DEFAULT_APPLY_POOL_PAID)
+            default_panel = list(FREE_PANEL_POOL) + list(DEFAULT_PANEL_PAID)
+            default_specialist_pool = list(SPECIALIST_POOL_FREE) + list(SPECIALIST_POOL_PAID)
+    else:
+        default_panel = DEFAULT_PANEL_PAID
+        default_judge = DEFAULT_JUDGE_PAID
+        default_judge_top = DEFAULT_JUDGE_PAID_TOP
+        default_apply_pool = list(DEFAULT_APPLY_POOL_PAID)
+        default_specialist_pool = SPECIALIST_POOL_PAID
+        default_escalation_pool = ESCALATION_POOL_PAID
+
+    panel = _split_list(str(get("panel", ",".join(default_panel)))) or default_panel
+    panel_pool = _split_list(str(get("panel_pool", ",".join(panel)))) or panel
+    apply_model = str(get("apply_model", default_apply_pool[0]))
+    apply_pool = _split_list(str(get("apply_pool", ",".join(
+        _dedup([apply_model] + default_apply_pool))))) or [apply_model]
+    if trial_model:
+        apply_model = trial_model
+        apply_pool = _dedup([trial_model] + apply_pool)
+    judge_top = str(get("judge_top", default_judge_top))
+    escalation_pool = _split_list(str(get("escalation_pool", ",".join(default_escalation_pool)))) or default_escalation_pool
+
+    # -- numeric range validation (fail closed on nonsense) ------------------
+    # Cost ceilings are HARD: HARD_MAX_COST / HARD_TASK_MAX_COST are absolute
+    # per-call / per-task ceilings that no configuration (config.json, env, or
+    # CLI override) can raise past. A hostile or misconfigured value must be
+    # refused before any network call, not silently applied.
+    def _num(key, cast, lo, hi, default):
+        raw = get(key, default)
+        try:
+            value = cast(raw)
+        except (TypeError, ValueError, OverflowError):
+            raise HarnessError(key + " must be a valid number") from None
+        value = finite_number(value, key, lo, hi)
+        # finite_number always returns float: integer settings (panelists,
+        # tokens, rotations) must go back to int, or range()/max_workers
+        # crash the live lanes the hermetic suite never exercises.
+        return int(value) if cast is int else value
+
+    max_cost = _num("max_cost", float, 0, HARD_MAX_COST, DEFAULT_MAX_COST)
+    task_max_cost = _num("task_max_cost", float, 0, HARD_TASK_MAX_COST, DEFAULT_TASK_MAX_COST)
+    max_tokens = _num("max_tokens", int, 64, 200000, DEFAULT_MAX_TOKENS)
+    apply_max_tokens = _num("apply_max_tokens", int, 64, 200000, DEFAULT_APPLY_MAX_TOKENS)
+    reasoning_token_budget = _num("reasoning_token_budget", float, 0.05, 1, 0.4)
+    max_panelists = _num("max_panelists", int, 1, 10, 3)
+    max_rotations = _num("max_rotations", int, 0, 20, 3)
+    # Per-tool deadline for the MCP server: cooperative (trips cancel_check,
+    # same path as notifications/cancelled), so an uncancelled-but-overdue
+    # run still stops at the next poll point instead of holding a lane.
+    mcp_tool_timeout = _num("mcp_tool_timeout", int, 60, 7200, 1800)
+    token_budget_input = _num("token_budget_input", int, 1024,
+                              HARD_TOKEN_BUDGET_INPUT,
+                              DEFAULT_TOKEN_BUDGET_INPUT)
+    token_budget_output = _num("token_budget_output", int, 256,
+                               HARD_TOKEN_BUDGET_OUTPUT,
+                               DEFAULT_TOKEN_BUDGET_OUTPUT)
+
+    return Settings(
+        use_free=use_free,
+        use_fireworks=use_fireworks,
+        fireworks_key=fireworks_key,
+        trial_model=trial_model,
+        panel=panel,
+        panel_pool=panel_pool,
+        judge=str(get("judge", default_judge)),
+        judge_top=judge_top,
+        convergence_model=get("convergence_model", None),
+        specialist_pool=_split_list(str(get("specialist_pool", ",".join(default_specialist_pool)))) or default_specialist_pool,
+        apply_model=apply_model,
+        apply_pool=apply_pool,
+        escalation_pool=escalation_pool,
+        escalation_model=get("escalation_model", None),
+        max_cost=max_cost,
+        task_max_cost=task_max_cost,
+        max_tokens=max_tokens,
+        apply_max_tokens=apply_max_tokens,
+        token_budget_input=token_budget_input,
+        token_budget_output=token_budget_output,
+        reasoning_effort=str(get("reasoning_effort", "auto")),
+        reasoning_token_budget=reasoning_token_budget,
+        max_panelists=max_panelists,
+        max_rotations=max_rotations,
+        renew_consent=_as_bool(get("renew_consent", True)),
+        ledger_path=str(get("ledger_path", os.path.join(CONFIG_DIR, "ledger.jsonl"))),
+        expect_key_label=get("expect_key_label", os.environ.get("FUSIONLITE_EXPECT_KEY_LABEL")),
+        default_require_consent=_as_bool(get("default_require_consent", True)),
+        allow_escalation=_as_bool(get("allow_escalation", bool(paid_key))),
+        mcp_allow_write=_as_bool(get("mcp_allow_write", False)),
+        mcp_allow_verify=_as_bool(get("mcp_allow_verify", False)),
+        mcp_allowed_roots=_split_list(str(get("mcp_allowed_roots", ""))),
+        hourglass_stages=(_split_list(str(get(
+            "hourglass_stages", ",".join(DEFAULT_HOURGLASS_STAGES))))
+            or None),
+        mcp_tool_timeout=mcp_tool_timeout,
+        mcp_auth_token=get("mcp_auth_token", None) or None,
+        frontier_model=get("frontier_model", None),
+        hourglass_confirm=_as_bool(get("hourglass_confirm", True)),
+        hourglass_isolate=_as_bool(get("hourglass_isolate", True)),
+        hourglass_parallel=_as_bool(get("hourglass_parallel", True)),
+        hourglass_require_attestation=_as_bool(
+            get("hourglass_require_attestation", True)),
+        hourglass_decompose=(None if get("hourglass_decompose", None) is None
+                             else _as_bool(get("hourglass_decompose", None))),
+        openrouter_floor_default=_as_bool(get("openrouter_floor_default", True)),
+        max_price_prompt=(float(get("max_price_prompt", None))
+                          if get("max_price_prompt", None) is not None else None),
+        max_price_completion=(float(get("max_price_completion", None))
+                              if get("max_price_completion", None) is not None else None),
+        jev_disabled=(os.environ.get("HARNESS_JEV_DISABLE") == "1"),
+        jev_api_key=(None if os.environ.get("HARNESS_JEV_DISABLE") == "1"
+                     else (get("jev_api_key", None) or resolve_jev_key())),
+        jev_endpoint=str(get("jev_endpoint", "https://api.typesafe.ai/v1/systemone")),
+        jev_model=str(get("jev_model", "jev-latest")),
+        min_confidence=_num("min_confidence", float, 0.0, 1.0, 0.70),
+        openrouter_enabled=_as_bool(get("openrouter_enabled", True)),
+        fireworks_enabled=_as_bool(get("fireworks_enabled", use_fireworks)),
+        fireworks_budget_usd=_num("fireworks_budget_usd", float, 0.0, 1_000_000.0, 0.0),
+    )
+
+
+def load_vision_preflight_settings(*, max_cost_override=None):
+    """Load only the fields required by HV-0's no-dispatch preflight.
+
+    This path does not resolve, inspect, or use provider credentials. The
+    normal settings loader remains for commands that may dispatch work.
+    """
+    cfg_path = os.path.join(CONFIG_DIR, "config.json")
+    cfg = {}
+    if os.path.exists(cfg_path):
+        try:
+            with open(cfg_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            raise HarnessError(
+                "could not read no-key vision preflight settings") from None
+        if not isinstance(cfg, dict):
+            raise HarnessError("config.json must contain a JSON object")
+
+    model = os.environ.get("HARNESS_JEV_MODEL", cfg.get("jev_model", "jev-latest"))
+    model = str(model or "jev-latest").strip() or "jev-latest"
+    raw_limit = os.environ.get(
+        "HARNESS_MAX_COST", cfg.get("max_cost", DEFAULT_MAX_COST))
+    max_cost = finite_number(raw_limit, "max_cost", 0.0, HARD_MAX_COST)
+    if max_cost_override is not None:
+        max_cost = finite_number(
+            max_cost_override, "max_cost", 0.0, HARD_MAX_COST)
+    return SimpleNamespace(jev_model=model, max_cost=max_cost)
+
+
+def freeze_jev_settings(settings, *, jev_model=None, min_confidence=None,
+                        persist=False):
+    """JEV-P4 model pin + threshold freeze path.
+
+    Operators freeze after calibration by writing the observed model id and
+    the chosen ``min_confidence`` into settings (config.json / env). This
+    helper applies one freeze snapshot onto an existing Settings object and
+    returns the frozen fields for ledger/docs evidence. It never invents a
+    model: omit ``jev_model`` to keep the current pin; omit
+    ``min_confidence`` to keep the current threshold.
+
+    ``persist=True`` additionally writes the named keys through
+    ``update_config`` -- the ONE config-I/O owner -- so the freeze survives
+    the process. Two rules make a persisted freeze honest:
+
+    * an env-pinned key wins over config.json, so persisting a freeze the
+      environment overrides would produce a file that *looks* frozen and is
+      not; the write is refused before it happens, not after;
+    * the returned ``effective`` block is read back with ``load_settings()``,
+      so evidence reports what the next run will actually use rather than
+      what this call hoped it wrote.
+
+    The returned mapping is the same shape on both paths -- ``persisted``
+    says which one ran and ``freeze_keys`` names what was (or would be)
+    written -- so a preview and a write are never confusable evidence.
+    """
+    pending = {}
+    if jev_model is not None:
+        pending["jev_model"] = validate_jev_model_id(str(jev_model))
+    if min_confidence is not None:
+        pending["min_confidence"] = finite_number(
+            min_confidence, "min_confidence", 0.0, 1.0)
+
+    frozen = {
+        "jev_model": settings.jev_model,
+        "min_confidence": settings.min_confidence,
+        "freeze_keys": sorted(pending),
+        "persisted": False,
+    }
+    for key, value in pending.items():
+        setattr(settings, key, value)
+        frozen[key] = value
+    frozen["jev_model_is_pinned"] = settings.jev_model not in (None, "", "jev-latest")
+
+    if not persist:
+        return frozen
+
+    if not pending:
+        raise HarnessError(
+            "a persisted freeze must name jev_model and/or min_confidence; "
+            "nothing to write")
+    overridden = sorted(k for k in pending
+                        if os.environ.get(_ENV_NAMES[k]) is not None)
+    if overridden:
+        raise HarnessError(
+            "refusing to persist a freeze the environment overrides: "
+            + ", ".join(f"{k} via {_ENV_NAMES[k]}" for k in overridden)
+            + "; unset it and re-run so the pin is the one that takes effect")
+
+    update_config(dict(pending))
+    effective = load_settings()
+    frozen["persisted"] = True
+    frozen["config_path"] = os.path.join(CONFIG_DIR, "config.json")
+    frozen["effective"] = {k: getattr(effective, k) for k in pending}
+    return frozen
+
+
+def resolve_hourglass(settings, opts=None):
+    """The effective hourglass switches -- ONE owner of this mapping.
+
+    An explicit per-request flag wins (tri-state: ``None`` means "no
+    opinion"), otherwise the settings-file default (the auto-scaling
+    hourglass is on by default). Interfaces (CLI/MCP) pass their parsed
+    ``opts``; a lane with no per-request knobs -- the agent's edit lane --
+    passes ``opts=None`` and inherits exactly what the same settings file
+    resolves to for the CLI and MCP lanes, so no lane re-derives the
+    switches or silently diverges from them.
+    """
+    def resolve(flag, key, default=True):
+        value = getattr(opts, flag, None) if opts is not None else None
+        return getattr(settings, key, default) if value is None else value
+
+    confirm = resolve("confirm", "hourglass_confirm")
+    parallel = resolve("parallel", "hourglass_parallel")
+    isolate = resolve("isolate", "hourglass_isolate")
+    require_diff_authorization = resolve(
+        "require_diff_authorization", "hourglass_require_attestation")
+
+    # HG-decompose-default: LLM decomposition rides the hourglass. An explicit
+    # flag/settings value wins; otherwise it defaults True whenever the
+    # hourglass is active (confirm and/or parallel on) so CLI/MCP/agent share
+    # one mapping instead of each hardcoding decompose_llm=False.
+    decompose_value = None
+    if opts is not None:
+        decompose_value = getattr(opts, "decompose", None)
+        if decompose_value is None:
+            decompose_value = getattr(opts, "decompose_llm", None)
+    if decompose_value is None:
+        settings_default = getattr(settings, "hourglass_decompose", None)
+        if settings_default is not None:
+            decompose_value = bool(settings_default)
+        else:
+            decompose_value = bool(confirm or parallel)
+
+    return {
+        "confirm": confirm,
+        "parallel": parallel,
+        "isolate": isolate,
+        "require_diff_authorization": require_diff_authorization,
+        "decompose": bool(decompose_value),
+    }
+
+
+def apply_pool_rotation(proposed_pool):
+    """Persist a bounded apply_pool rotation proposal via update_config."""
+    return update_config({"apply_pool": list(proposed_pool)})
+

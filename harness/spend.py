@@ -1,0 +1,863 @@
+"""Cost-bounded spend: the governor that makes ceilings guarantees, not hopes.
+
+Everything billable passes through :class:`SpendGovernor`: pre-flight
+worst-case math against live per-token pricing, mid-batch fail-closed checks,
+BYOK denylist/learning, and the key-identity gate. Free-model discovery also
+lives here because it is pricing policy over the same live catalog.
+
+HUL-B dual envelope (ONE owner of the dollar formula and enforcement)::
+
+    working_remaining = max_cost_usd - spent - terminal_reserve.cost_usd
+
+Non-terminal *attempt* work never spends into ``terminal_reserve``. Terminal
+FINDINGS may spend up to the reserve only when the mission is already
+terminal. Mission packs store the same numbers via :mod:`harness.mission_record`
+which delegates the formula here — no second governor.
+"""
+import threading
+from contextlib import contextmanager
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
+import time
+
+from .config import (
+    OPENROUTER_KEY_URL, OPENROUTER_MODELS_URL,
+    BYOK_DENYLIST_PREFIXES, BYOK_PREFIXES_PATH, load_byok_prefixes,
+    save_byok_prefixes, DEFAULT_MAX_COST, is_fireworks_model_path,
+)
+from .errors import HarnessError, ToolCancelled
+from .provider_errors import ProviderSpendLimitError
+from .output import eprint
+from .tokens import estimate_prompt_tokens
+from .validation import finite_number
+
+# Dual-budget phases. Attempts are the default and never eat the reserve.
+PHASE_ATTEMPT = "attempt"
+PHASE_TERMINAL = "terminal"
+_PHASES = frozenset((PHASE_ATTEMPT, PHASE_TERMINAL))
+
+
+def normalize_phase(phase):
+    """Validate a dual-budget phase name (attempt | terminal)."""
+    if phase is None:
+        return PHASE_ATTEMPT
+    text = str(phase).strip().lower()
+    if text not in _PHASES:
+        raise HarnessError(
+            f"spend phase must be one of {sorted(_PHASES)}; got {phase!r}")
+    return text
+
+
+def working_remaining(max_cost_usd, spent, terminal_reserve_cost_usd):
+    """HOLY remaining attempt budget after spent and terminal reserve.
+
+    ``working_remaining = max(0, max_cost - spent - terminal_reserve)``.
+
+    This is the ONE formula owner. Mission ``budget.json`` and
+    :class:`SpendGovernor` both call here so the dual envelope cannot drift.
+    """
+    max_cost = finite_number(max_cost_usd, "max_cost_usd", 0.0)
+    spent_f = finite_number(spent, "spent", 0.0)
+    reserve = finite_number(terminal_reserve_cost_usd,
+                            "terminal_reserve_cost_usd", 0.0)
+    return max(0.0, max_cost - spent_f - reserve)
+
+
+def dual_budget_envelope(max_cost_usd, spent, terminal_reserve_cost_usd,
+                         *, phase=PHASE_ATTEMPT, outstanding=0.0):
+    """Honest dual-envelope numbers for budget.json / governor snapshots.
+
+    ``working_remaining`` always uses the attempt formula (reserve excluded).
+    ``phase_remaining`` is what the current phase may still commit:
+    attempts exclude the reserve; terminal findings may spend into it.
+    """
+    max_cost = finite_number(max_cost_usd, "max_cost_usd", 0.0)
+    spent_f = finite_number(spent, "spent", 0.0)
+    reserve = finite_number(terminal_reserve_cost_usd,
+                            "terminal_reserve_cost_usd", 0.0)
+    outstanding_f = finite_number(outstanding, "outstanding", 0.0)
+    if reserve > max_cost:
+        raise HarnessError(
+            "terminal_reserve.cost_usd must not exceed max_cost_usd")
+    phase_n = normalize_phase(phase)
+    work = max(0.0, max_cost - spent_f - reserve)
+    if phase_n == PHASE_TERMINAL:
+        phase_ceiling = max_cost
+        terminal_available = max(0.0, max_cost - spent_f - outstanding_f)
+    else:
+        phase_ceiling = max(0.0, max_cost - reserve)
+        terminal_available = max(0.0, max_cost - spent_f - outstanding_f)
+    phase_rem = max(0.0, phase_ceiling - spent_f - outstanding_f)
+    return {
+        "max_cost_usd": max_cost,
+        "spent": spent_f,
+        "outstanding": outstanding_f,
+        "terminal_reserve_cost_usd": reserve,
+        "working_remaining": work,
+        "phase": phase_n,
+        "phase_ceiling": phase_ceiling,
+        "phase_remaining": phase_rem,
+        "terminal_available": terminal_available,
+    }
+
+
+def assert_spend_allowed(max_cost_usd, spent, amount, terminal_reserve_cost_usd,
+                         *, phase=PHASE_ATTEMPT, outstanding=0.0, label="spend"):
+    """Fail-closed dual-budget check. Returns the validated amount.
+
+    Attempt phase refuses any worst-case/actual that would eat into
+    ``terminal_reserve``. Terminal phase may spend up to ``max_cost``
+    (reserve unlocked only for terminal findings / terminal mission work).
+    """
+    env = dual_budget_envelope(
+        max_cost_usd, spent, terminal_reserve_cost_usd,
+        phase=phase, outstanding=outstanding)
+    amount_f = finite_number(amount, "amount", 0.0)
+    if amount_f == 0.0:
+        # $0 (free-tier / unkeyed fallback) never eats the reserve; keep the
+        # numbers honest instead of inventing a refusal for a non-spend.
+        return amount_f
+    ceiling = env["phase_ceiling"]
+    if env["spent"] + env["outstanding"] + amount_f > ceiling:
+        if env["phase"] == PHASE_ATTEMPT and env["terminal_reserve_cost_usd"] > 0.0:
+            raise HarnessError(
+                f"{label} worst-case ${amount_f:.6f} would eat terminal_reserve "
+                f"${env['terminal_reserve_cost_usd']:.6f}; attempt working remaining "
+                f"is ${env['phase_remaining']:.6f} "
+                f"(max=${env['max_cost_usd']:.6f}, spent=${env['spent']:.6f}, "
+                f"outstanding=${env['outstanding']:.6f}). Refusing.")
+        raise HarnessError(
+            f"{label} ${amount_f:.6f} would exceed phase ceiling ${ceiling:.6f} "
+            f"(spent=${env['spent']:.6f}, outstanding=${env['outstanding']:.6f}, "
+            f"phase={env['phase']}). Refusing.")
+    return amount_f
+
+
+class SpendGovernor:
+    """Enforces the guarantees that make sub-cent runs a *guarantee*, not a hope."""
+
+    def __init__(self, transport, api_key, expect_key_label=None,
+                 max_cost=DEFAULT_MAX_COST, byok_prefixes_path=BYOK_PREFIXES_PATH,
+                 terminal_reserve=0.0, fireworks_budget_usd=0.0):
+        self.transport = transport
+        self.api_key = api_key
+        self.expect_key_label = expect_key_label
+        self.max_cost = finite_number(max_cost, "max_cost", 0.0)
+        self.fireworks_budget_usd = finite_number(
+            fireworks_budget_usd, "fireworks_budget_usd", 0.0)
+        self.terminal_reserve = finite_number(
+            terminal_reserve, "terminal_reserve", 0.0)
+        if self.terminal_reserve > self.max_cost:
+            raise HarnessError(
+                "terminal_reserve must not exceed max_cost")
+        self._phase = PHASE_ATTEMPT
+        # Nested per-task scopes; the innermost one narrows _phase_ceiling.
+        self._task_scopes = []
+        self.spent = 0.0
+        self.overruns = 0  # billed calls booked past the ceiling
+        self._outstanding = 0.0
+        self._unknown_liability = 0.0
+        self._reservations = []
+        self._cost_by_model = {}
+        self._cost_by_lane = {}
+        # Fan-out safety (#10): spend mutations happen from panel threads.
+        self._spend_lock = threading.RLock()
+        self.key_info = None
+        self._pricing_cache = {}
+        self._pricing_fetched_at = 0.0
+        self._models_fetched_at = 0.0
+        self._CATALOG_TTL = 900.0  # refresh the live catalog mid-run every 15 min
+        self._models = None
+        self._byok_path = byok_prefixes_path
+        self._learned_byok = set(load_byok_prefixes(byok_prefixes_path))
+
+    # 4 + 6
+    def verify_key(self):
+        try:
+            info = self.transport.get(OPENROUTER_KEY_URL, self.api_key)
+        except ToolCancelled:
+            raise
+        except ProviderSpendLimitError:
+            raise
+        except Exception as e:
+            raise HarnessError(f"could not verify key limit: {e}") from e
+        data = info.get("data", {})
+        limit = data.get("limit")
+        label = data.get("label", "<no label>")
+        if limit is None:
+            raise HarnessError(
+                f"key '{label}' has NO spend limit configured. Refusing to run.")
+        remaining = data.get("limit_remaining")
+        if isinstance(remaining, (int, float)) and not isinstance(remaining, bool) \
+                and remaining <= 0:
+            raise ProviderSpendLimitError(
+                "provider key status reports no remaining spend allowance")
+        remaining_display = (f"${remaining:.6f}"
+                             if isinstance(remaining, (int, float))
+                             and not isinstance(remaining, bool)
+                             else "unknown")
+        eprint(f"[OK] using key '{label}', limit=${limit}, remaining={remaining_display} "
+               f"(resets: {data.get('limit_reset')})")
+        from . import events as _events
+        _events.emit("spend_check", lane="key", limit=limit, remaining=remaining,
+                     reset=data.get("limit_reset"), expect_label=bool(self.expect_key_label))
+        if self.expect_key_label is not None and label != self.expect_key_label:
+            # Exact match (audit #9b): a substring match let a wrong-but-
+            # similarly-named key through, and echoing labels into errors is
+            # needless exposure. Only a binary match/mismatch is reported.
+            raise HarnessError(
+                "resolved key label does not exactly match --expect-key-label. "
+                "Refusing to run -- fix the key source, or drop --expect-key-label "
+                "if this key is actually correct.")
+        self.key_info = {
+            "label": label, "limit": limit, "remaining": remaining,
+            "limit_reset": data.get("limit_reset"),
+        }
+        return self.key_info
+
+    def key_status(self):
+        if not self.key_info:
+            self.verify_key()
+        out = dict(self.key_info, session_spent=self.spent)
+        if self.overruns:
+            out["overruns"] = self.overruns
+        return out
+
+    def set_phase(self, phase):
+        """Set the dual-budget phase: attempt (default) or terminal.
+
+        Terminal unlocks spending into ``terminal_reserve``. Mission packs
+        additionally require the pack itself to be terminal before they
+        record findings spend (mission_record owns that gate).
+        """
+        self._phase = normalize_phase(phase)
+        return self._phase
+
+    @property
+    def phase(self):
+        return self._phase
+
+    def dual_envelope(self):
+        """Honest dual-budget snapshot from the one formula owner."""
+        with self._spend_lock:
+            return dual_budget_envelope(
+                self.max_cost, self.spent, self.terminal_reserve,
+                phase=self._phase, outstanding=self._outstanding)
+
+    def working_remaining(self):
+        """Attempt budget still available — reserve never included."""
+        with self._spend_lock:
+            return working_remaining(
+                self.max_cost, self.spent + self._outstanding,
+                self.terminal_reserve)
+
+    def _phase_ceiling(self):
+        """Dollar ceiling the current phase may spend up to.
+
+        A task scope (see :meth:`task_scope`) narrows this without forking the
+        governor: the effective ceiling is the lower of the phase ceiling and
+        the task's own allowance measured from where the task started, so a
+        per-task cap holds no matter how much the session spent before it.
+        Every accessor that bounds spend already funnels through here, so one
+        change makes preflight, reserve, remaining and reconcile agree.
+        """
+        with self._spend_lock:
+            if self._phase == PHASE_TERMINAL:
+                ceiling = float(self.max_cost)
+            else:
+                ceiling = max(0.0, float(self.max_cost) - float(self.terminal_reserve))
+            scope = self._task_scopes[-1] if self._task_scopes else None
+            if scope is not None:
+                ceiling = min(ceiling, scope.baseline + scope.max_cost)
+            return ceiling
+
+    @contextmanager
+    def task_scope(self, task_max_cost, label="task"):
+        """Bound this block of work to its own per-task ceiling.
+
+        The dual-budget contract is "extend the one governor, not fork it", so
+        a per-task cap is a scope on the SAME governor rather than a second
+        class: session accounting, ``cost_by_model``, the envelope and the
+        chain all keep reading one truth, and the cap simply refuses earlier.
+        """
+        cap = finite_number(task_max_cost, "task_max_cost", 0.0)
+        if cap <= 0.0:
+            raise HarnessError("task_max_cost must be greater than zero")
+        scope = _TaskScope(self, cap, label)
+        with self._spend_lock:
+            self._task_scopes.append(scope)
+        try:
+            yield scope
+        finally:
+            with self._spend_lock:
+                if scope in self._task_scopes:
+                    self._task_scopes.remove(scope)
+
+    def snapshot(self):
+        """Return the synchronized spend state for result envelopes.
+
+        Dual-envelope fields appear only when a terminal reserve or a
+        non-default phase is in force, so non-mission runs keep the
+        historical spent/outstanding/ceiling shape.
+        """
+        with self._spend_lock:
+            out = {
+                "spent": round(float(self.spent), 6),
+                "outstanding": round(float(self._outstanding), 6),
+                "ceiling": round(float(self.max_cost), 6),
+            }
+            if self._unknown_liability > 0.0:
+                out["unknown_liability"] = round(
+                    float(self._unknown_liability), 6)
+            if self.overruns:
+                out["overruns"] = self.overruns
+            if self.terminal_reserve != 0.0 or self._phase != PHASE_ATTEMPT:
+                env = dual_budget_envelope(
+                    self.max_cost, self.spent, self.terminal_reserve,
+                    phase=self._phase, outstanding=self._outstanding)
+                out["terminal_reserve"] = round(env["terminal_reserve_cost_usd"], 6)
+                out["working_remaining"] = round(env["working_remaining"], 6)
+                out["phase"] = env["phase"]
+                out["phase_remaining"] = round(env["phase_remaining"], 6)
+            return out
+
+    def cost_by_model(self):
+        """Actual session spend per model label, for per-run cost reports."""
+        return dict(sorted(self._cost_by_model.items(), key=lambda kv: -kv[1]))
+
+    def cost_by_lane(self):
+        """Actual session spend per lane (#196), sorted descending by spend."""
+        return dict(sorted(self._cost_by_lane.items(), key=lambda kv: -kv[1]))
+
+    # 3
+    def check_byok(self, model_id):
+        """Hard block: raises for prefixes that must NEVER run (P0)."""
+        for prefix in BYOK_DENYLIST_PREFIXES:
+            if model_id.startswith(prefix):
+                raise HarnessError(
+                    f"model '{model_id}' matches BYOK denylist prefix '{prefix}'. Refusing.")
+
+    def learned_blocked(self, model_id):
+        """True if this org-prefix was observed routing via BYOK on this account."""
+        return any(model_id.startswith(p) for p in self._learned_byok)
+
+    def record_byok(self, model_id):
+        """Persist an observed BYOK org-prefix so future runs skip it."""
+        prefix = model_id.split("/", 1)[0] + "/"
+        self._learned_byok.add(prefix)
+        try:
+            save_byok_prefixes(self._byok_path, self._learned_byok)
+        except OSError:
+            pass
+
+    def is_free(self, model_id):
+        """True if the model's per-token pricing is zero (no spend to leak)."""
+        pp, cp = self.fetch_pricing([model_id])[model_id]
+        return pp == 0.0 and cp == 0.0
+
+    # 1
+    def assert_no_tools(self, payload, label):
+        if "tools" in payload:
+            raise HarnessError(
+                f"payload for {label} contains a 'tools' key -- refusing to send.")
+
+    # 2
+    def fetch_pricing(self, model_ids):
+        missing = [m_ for m_ in model_ids if m_ not in self._pricing_cache
+                   or time.time() - self._pricing_fetched_at > self._CATALOG_TTL]
+        if missing:
+            from .fireworks import is_fireworks_model_path
+            fw_missing = [m_ for m_ in missing if is_fireworks_model_path(m_)]
+            or_missing = [m_ for m_ in missing if not is_fireworks_model_path(m_)]
+            if fw_missing:
+                from .endpoint_pricing import load_fireworks_endpoints
+                fw_pack = load_fireworks_endpoints()
+                fw_eps = fw_pack["endpoints"]
+                for mid in fw_missing:
+                    if mid not in fw_eps:
+                        raise HarnessError(
+                            f"model '{mid}' not found in fireworks endpoints pack.")
+                    ep = fw_eps[mid]
+                    self._pricing_cache[mid] = (ep.prompt, ep.completion)
+            if or_missing:
+                models = self.fetch_models(refresh=True)
+                by_id = {m_["id"]: m_ for m_ in models}
+                for mid in or_missing:
+                    if mid in ("openrouter/free", "openrouter/auto"):
+                        self._pricing_cache[mid] = (0.0, 0.0)
+                        continue
+                    if mid not in by_id:
+                        raise HarnessError(f"model '{mid}' not found in live OpenRouter model list.")
+                    p = by_id[mid].get("pricing", {})
+                    try:
+                        # OpenRouter pricing fields are already PER-TOKEN dollar prices
+                        # (e.g. "0.00000001" = $0.01/M). Do NOT divide by 1e6 again —
+                        # an earlier version did and undercounted cost ~1,000,000x.
+                        prompt_price = finite_number(p.get("prompt", "0"),
+                                                       f"pricing.prompt for '{mid}'", 0.0)
+                        completion_price = finite_number(p.get("completion", "0"),
+                                                          f"pricing.completion for '{mid}'", 0.0)
+                        self._pricing_cache[mid] = (prompt_price, completion_price)
+                    except (TypeError, ValueError):
+                        raise HarnessError(f"could not parse pricing for '{mid}': {p}") from None
+            self._pricing_fetched_at = time.time()
+        return {m_: self._pricing_cache[m_] for m_ in model_ids}
+
+    def supports_reasoning(self, model_id):
+        """Check if a model in the catalog advertises reasoning support."""
+        if not model_id:
+            return True
+        from .fireworks import is_fireworks_model_path
+        if is_fireworks_model_path(model_id):
+            return True
+        from .routing_table import strip_variant_suffix
+        canonical = strip_variant_suffix(model_id)
+        if canonical in ("openrouter/free", "openrouter/auto"):
+            return False
+        if self._models is None:
+            return True
+        by_id = {m_["id"]: m_ for m_ in self._models}
+        entry = by_id.get(model_id) or by_id.get(canonical)
+        if entry is None:
+            return True
+        supported = entry.get("supported_parameters")
+        if supported is None:
+            return True
+        return "reasoning" in supported
+
+    def fetch_models(self, refresh=False):
+        """Live GET /models, cached per governor instance. The cache expires
+        after _CATALOG_TTL so a long run picks up pricing/pool changes
+        mid-run instead of trusting a stale snapshot forever (#18)."""
+        stale = (self._models is None
+                 or time.time() - self._models_fetched_at > self._CATALOG_TTL)
+        if refresh or stale:
+            try:
+                self._models = self.transport.get(OPENROUTER_MODELS_URL, self.api_key,
+                                                  timeout=20).get("data", [])
+                self._models_fetched_at = time.time()
+            except ToolCancelled:
+                raise
+            except ProviderSpendLimitError:
+                raise
+            except Exception as e:
+                if self._models is not None:
+                    eprint(f"[warn] model list refresh failed, using cached catalog: {e}")
+                else:
+                    raise HarnessError(f"could not fetch model list: {e}") from e
+        return self._models
+
+    def preflight_jev(self, input_tokens, label="jev"):
+        """Preflight a TypeSafe call at its fixed input-token price.
+
+        Dual-budget aware: attempt-phase preflight never spends into
+        terminal_reserve; terminal phase may use the full remaining ceiling.
+        """
+        from .jev import jev_cost
+        worst = jev_cost(input_tokens)
+        with self._spend_lock:
+            ceiling = self._phase_ceiling()
+            if self.spent + self._outstanding + worst > ceiling:
+                raise HarnessError(
+                    f"Jev worst-case ${worst:.6f} for {label} exceeds remaining "
+                    f"budget ${self.remaining():.6f} "
+                    f"(phase={self._phase}, ceiling=${ceiling:.6f}); refusing.")
+        return worst
+
+    def preflight(self, prompt_text, calls):
+        """calls = [(label, model, max_tokens, extra_input)] -> (total, breakdown).
+
+        Worst-case: every call maxes its max_tokens. extra_input accounts for
+        tokens a later call consumes beyond the base prompt (e.g. the judge
+        reading panel outputs). The estimate is checked against the *remaining*
+        phase ceiling (attempt ceiling excludes terminal_reserve), so a later
+        rotation cannot spend through an earlier call's budget or into the
+        terminal reserve. Callers should include every bounded replacement they
+        may try in ``calls``.
+        """
+        if not calls:
+            # Pre-guard kept for clarity: an empty call list costs nothing.
+            return 0.0, []
+        models = [m_ for _, m_, _, _ in calls]
+        pricing = self.fetch_pricing(models)
+        prompt_tokens = estimate_prompt_tokens(prompt_text)
+        total = 0.0
+        breakdown = []
+        for label, model, max_tokens, extra in calls:
+            pp, cp = pricing[model]
+            cost = (prompt_tokens + extra) * pp + max_tokens * cp
+            breakdown.append((label, model, cost))
+            total += cost
+        with self._spend_lock:
+            ceiling = self._phase_ceiling()
+            if self.spent + self._outstanding + total > ceiling:
+                if (self._phase == PHASE_ATTEMPT
+                        and self.terminal_reserve > 0.0):
+                    raise HarnessError(
+                        f"worst-case estimate ${total:.6f} would eat "
+                        f"terminal_reserve ${self.terminal_reserve:.6f}; "
+                        f"attempt working remaining is ${self.remaining():.6f}. "
+                        f"Refusing.")
+                raise HarnessError(
+                    f"worst-case estimate ${self.spent + self._outstanding + total:.6f} "
+                    f"exceeds remaining ceiling ${ceiling:.6f} "
+                    f"(outstanding reservations: ${self._outstanding:.6f}; "
+                    f"phase={self._phase}). Refusing.")
+        return total, breakdown
+
+    # 4b
+    def reserve(self, amount, label):
+        """Atomically reserve worst-case spend for an in-flight call.
+
+        Parallel dispatch (the DAG executor) cannot rely on per-call
+        preflight alone: W workers can each preflight against the full
+        remaining ceiling before any of them records, and the billed sum
+        overspends. A reservation is real liability: ``spent +
+        outstanding + new`` must stay under the ceiling or the reserve is
+        refused, and every preflight sees outstanding reservations.
+        Returns a reservation token for :meth:`reconcile`.
+        """
+        amount = finite_number(amount or 0.0, "reservation", 0.0)
+        with self._spend_lock:
+            ceiling = self._phase_ceiling()
+            if self.spent + self._outstanding + amount > ceiling:
+                if (self._phase == PHASE_ATTEMPT
+                        and self.terminal_reserve > 0.0):
+                    raise HarnessError(
+                        f"reservation ${amount:.6f} ({label}) would eat "
+                        f"terminal_reserve ${self.terminal_reserve:.6f}; "
+                        f"attempt working remaining is ${self.remaining():.6f}. "
+                        f"Refusing.")
+                raise HarnessError(
+                    f"reservation ${amount:.6f} would put spent+outstanding at "
+                    f"${self.spent + self._outstanding + amount:.6f}, over ceiling "
+                    f"${ceiling:.6f} "
+                    f"(${self.remaining():.6f} still unreserved; "
+                    f"phase={self._phase}). Refusing.")
+            self._outstanding += amount
+            token = (label, amount)
+            self._reservations.append(token)
+            return token
+
+    def retain_unknown(self, amount, label):
+        """Keep conservative liability after dispatch loses its usage reply.
+
+        A provider may have accepted and billed the request. This cannot be a
+        normal ceiling-checked reservation because dispatch already happened;
+        retain the amount even if it puts the run over budget so every later
+        preflight sees the unresolved liability and refuses further spend.
+        """
+        amount = finite_number(amount or 0.0, "unknown liability", 0.0)
+        if amount <= 0.0:
+            return 0.0
+        with self._spend_lock:
+            self._outstanding += amount
+            self._unknown_liability += amount
+            self._reservations.append((f"{label} (usage unknown)", amount))
+        return amount
+
+    def reclassify_unknown(self, token):
+        """Convert an existing dispatch reservation into unknown liability.
+
+        This is the atomic form for callers that reserved before dispatch. The
+        amount stays outstanding, but it is surfaced separately so snapshots
+        and later budget decisions can identify unresolved provider usage.
+        """
+        with self._spend_lock:
+            try:
+                index = self._reservations.index(token)
+            except ValueError:
+                raise HarnessError(
+                    "reclassify of an unknown reservation token") from None
+            amount = token[1]
+            self._reservations[index] = (
+                f"{token[0]} (usage unknown)", amount)
+            self._unknown_liability += amount
+            return amount
+
+    def reconcile(self, token, actual, lane="apply"):
+        """Settle a reservation: release the worst-case liability, record
+        the billed actual. The reservation is released even when ``actual``
+        would fail the ceiling check (the liability was already counted)."""
+        with self._spend_lock:
+            try:
+                self._reservations.remove(token)
+            except ValueError:
+                raise HarnessError(
+                    "reconcile of an unknown reservation token") from None
+            self._outstanding = max(0.0, self._outstanding - token[1])
+        label = token[0]
+        try:
+            actual_f = finite_number(actual or 0.0, "reported cost", 0.0)
+        except HarnessError:
+            raise HarnessError(f"invalid reported cost {actual!r} (after '{label}').") from None
+        with self._spend_lock:
+            ceiling = self._phase_ceiling()
+            # A zero settlement can never breach a ceiling (even one already
+            # exceeded by a booked overrun), so it is never refused.
+            if actual_f > 0.0 and self.spent + actual_f > ceiling:
+                if (self._phase == PHASE_ATTEMPT
+                        and self.terminal_reserve > 0.0):
+                    raise HarnessError(
+                        f"actual running cost ${self.spent + actual_f:.6f} would "
+                        f"exceed ceiling ${ceiling:.6f} by eating terminal_reserve "
+                        f"${self.terminal_reserve:.6f} (after '{label}'). Aborting.")
+                raise HarnessError(
+                    f"actual running cost ${self.spent + actual_f:.6f} would exceed ceiling "
+                    f"${ceiling:.6f} (after '{label}'; phase={self._phase}). Aborting.")
+            self.spent += actual_f
+            self._cost_by_model[label] = (self._cost_by_model.get(label, 0.0) + actual_f)
+            lane_key = str(lane or "apply")
+            self._cost_by_lane[lane_key] = (
+                self._cost_by_lane.get(lane_key, 0.0) + actual_f)
+
+    def record_overrun(self, cost, label, lane="apply"):
+        """Book a billed amount that no longer fits the ceiling.
+
+        The provider already charged it, so ``spent`` must reflect it even
+        though :meth:`reconcile`/:meth:`record_actual` refuse to cross the
+        ceiling. Counted in ``overruns`` so the breach is visible, and the
+        next preflight sees the true (over-ceiling) spend and refuses.
+        """
+        actual = finite_number(cost or 0.0, "reported cost", 0.0)
+        with self._spend_lock:
+            self.spent += actual
+            self.overruns += 1
+            self._cost_by_model[label] = (
+                self._cost_by_model.get(label, 0.0) + actual)
+            lane_key = str(lane or "apply")
+            self._cost_by_lane[lane_key] = (
+                self._cost_by_lane.get(lane_key, 0.0) + actual)
+
+    @property
+    def outstanding(self):
+        """Worst-case liability currently reserved by in-flight calls."""
+        return self._outstanding
+
+    def remaining(self):
+        """The budget this run can still commit under the current phase, in dollars.
+
+        ``spent`` and outstanding reservations both count, because a
+        reservation is real liability. Attempt phase additionally excludes
+        ``terminal_reserve`` (dual envelope); terminal phase may still spend
+        the reserve. This is the ONE accessor for "what can this run still
+        afford", so a lane that bounds a dispatch by the remaining budget
+        (the DAG reserver) does not re-derive the arithmetic from three
+        public fields.
+        """
+        with self._spend_lock:
+            ceiling = self._phase_ceiling()
+            return max(0.0, ceiling - (self.spent + self._outstanding))
+
+    def fireworks_spent(self):
+        """Recorded spend on Fireworks labels (see is_fireworks_model_path)."""
+        with self._spend_lock:
+            return sum(v for k, v in self._cost_by_model.items()
+                       if is_fireworks_model_path(k))
+
+    def assert_fireworks_budget(self, amount, label):
+        """Refuse a Fireworks call whose worst case would pass the local cap.
+
+        Called before dispatch with the worst-case estimate, so a call that
+        cannot fit is never sent. A cap of zero refuses every Fireworks call.
+        """
+        projected = self.fireworks_spent() + float(amount)
+        if projected > self.fireworks_budget_usd:
+            raise HarnessError(
+                f"Fireworks spend ${projected:.6f} would exceed the local budget "
+                f"${self.fireworks_budget_usd:.6f} (HARNESS_FIREWORKS_BUDGET_USD) "
+                f"for '{label}'; refusing to send.")
+
+    # 5
+    def record_actual(self, cost, label, lane="apply"):
+        """Record a billable response without ever moving ``spent`` over the
+        phase ceiling (attempt ceiling excludes terminal_reserve)."""
+        try:
+            actual = finite_number(cost or 0.0, "reported cost", 0.0)
+        except HarnessError:
+            raise HarnessError(f"invalid reported cost {cost!r} (after '{label}').") from None
+        with self._spend_lock:
+            ceiling = self._phase_ceiling()
+            if is_fireworks_model_path(label) and actual > 0.0:
+                projected = self.fireworks_spent() + actual
+                if projected > self.fireworks_budget_usd:
+                    raise HarnessError(
+                        f"Fireworks spend ${projected:.6f} would exceed the local "
+                        f"budget ${self.fireworks_budget_usd:.6f} after '{label}'. "
+                        "Aborting.")
+            if actual > 0.0 and self.spent + self._outstanding + actual > ceiling:
+                if (self._phase == PHASE_ATTEMPT
+                        and self.terminal_reserve > 0.0):
+                    raise HarnessError(
+                        f"actual running cost ${self.spent + self._outstanding + actual:.6f} "
+                        f"would exceed ceiling ${ceiling:.6f} by eating terminal_reserve "
+                        f"${self.terminal_reserve:.6f} (after '{label}'). Aborting.")
+                raise HarnessError(
+                    f"actual running cost ${self.spent + self._outstanding + actual:.6f} "
+                    f"would exceed ceiling ${ceiling:.6f} "
+                    f"(outstanding reservations: ${self._outstanding:.6f}; "
+                    f"after '{label}'; phase={self._phase}). Aborting.")
+            self.spent += actual
+            self._cost_by_model[label] = (self._cost_by_model.get(label, 0.0) + actual)
+            lane_key = str(lane or "apply")
+            self._cost_by_lane[lane_key] = (
+                self._cost_by_lane.get(lane_key, 0.0) + actual)
+
+
+# ------------------------- live discovery -------------------------
+
+@dataclass(frozen=True)
+class _TaskScope:
+    """The record a :meth:`SpendGovernor.task_scope` block carries.
+
+    Deliberately NOT a governor: it holds no ledger, no transport and no
+    spend of its own. It only remembers where the task started and what it is
+    allowed to spend, so ``_phase_ceiling`` can narrow the ONE governor for
+    the duration of the block.
+    """
+
+    governor: "SpendGovernor"
+    max_cost: float
+    label: str
+    # Where the session stood when this task began: the task's allowance is
+    # independent of what the session already spent before it.
+    baseline: float = dataclass_field(default=0.0)
+
+    def __post_init__(self):
+        if self.baseline == 0.0 and self.governor is not None:
+            object.__setattr__(self, "baseline", self.governor.spent)
+
+
+class NodeReserver:
+    """Cost-liability seam for parallel DAG dispatch (MR-6 verdict): each
+    node's worst case is reserved before dispatch and reconciled against the
+    billed actual, so W concurrent preflights can never overspend the shared
+    ceiling.
+
+    The amount is the node's OWN worst case, read from its plan route:
+
+    * a declared route ceiling is used verbatim -- including a $0.00
+      free-tier ceiling, which is a real ceiling (every rung on that ladder
+      bills $0.00). Passing $0.00 as a request's ``task_max_cost`` is
+      deliberately suppressed by :func:`harness.waist.node_apply_kwargs`
+      (a zero task budget would refuse the escalation ladder), so reading
+      the route's declared ceiling *here* is what keeps a free node
+      reserving $0.00 instead of the nominal default;
+    * a node with no declared ceiling falls back to ``default_amount``,
+      itself bounded by ``run_ceiling`` -- the budget the lane is really
+      running under. An unrelated default ($0.10) larger than the run
+      ceiling ($0.05) used to refuse every node before any work, free nodes
+      included: a fallback is only ever a bound, so it is capped by the
+      run's own ceiling rather than trusted as a cost.
+    * the reservation is never more than what the run can still afford, and
+      an amount larger than that remaining budget is REFUSED rather than
+      trimmed to fit: trimming would let a call that may bill its full
+      ceiling dispatch while only part of it is reserved, and the overspend
+      would surface at reconcile time -- after the money was spent.
+      Fail-closed means refuse before dispatch (MR-6).
+    """
+
+    def __init__(self, governor, node_routes, default_amount,
+                 route_kwargs_fn=None, run_ceiling=None):
+        self.governor = governor
+        self.node_routes = node_routes or {}
+        self._route_kwargs_fn = route_kwargs_fn
+        ceiling = run_ceiling
+        if ceiling is None:
+            ceiling = getattr(governor, "max_cost", None)
+        ceiling = _dollar_amount(ceiling)
+        fallback = _dollar_amount(default_amount)
+        if fallback is not None and ceiling is not None:
+            fallback = min(fallback, ceiling)
+        self.run_ceiling = ceiling
+        self.default_amount = fallback
+
+    def declared_ceiling(self, node):
+        """This node's own worst case from its plan route, or None.
+
+        A route's cost ceiling is the tier ceiling the planner computed, so
+        $0.00 is returned as $0.00 (free tier) and is NOT confused with
+        "unknown". Routes the plan never classified (or a lane running an
+        unplanned node) return None and fall back to ``default_amount``.
+        """
+        detail = self.node_routes.get(node.node_id)
+        route = detail.get("route") if isinstance(detail, dict) else None
+        if isinstance(route, dict):
+            declared = _dollar_amount(route.get("cost_ceiling"))
+            if declared is not None:
+                return declared
+        if self._route_kwargs_fn is not None:
+            kwargs = self._route_kwargs_fn(detail) or {}
+            if "task_max_cost" in kwargs:
+                return _dollar_amount(kwargs.get("task_max_cost"))
+        return None
+
+    def reserve(self, node):
+        amount = self.declared_ceiling(node)
+        reason = "planned route ceiling"
+        if amount is None:
+            amount = self.default_amount
+            reason = "fallback bound"
+        if amount is None:
+            # No route and no usable nominal bound (a test fake engine): the
+            # reservation is zero and the governor's own ceiling check at
+            # preflight/reconcile stays the gate.
+            amount = 0.0
+        remaining = _dollar_amount(self.remaining())
+        if remaining is not None and amount > remaining:
+            ceiling = "?" if self.run_ceiling is None else f"${self.run_ceiling:.6f}"
+            raise HarnessError(
+                f"node '{node.node_id}' worst case ${amount:.6f} ({reason}) does not "
+                f"fit the ${remaining:.6f} this run can still afford (ceiling "
+                f"{ceiling}). Refusing to dispatch it.")
+        return self.governor.reserve(amount, node.node_id)
+
+    def remaining(self):
+        """What this run can still commit, or None if the governor cannot say."""
+        remaining = getattr(self.governor, "remaining", None)
+        if callable(remaining):
+            return remaining()
+        return None
+
+    def reconcile(self, token, actual):
+        self.governor.reconcile(token, actual)
+
+
+def _dollar_amount(value):
+    """``value`` as a non-negative finite dollar amount, or None.
+
+    Advisory boundary: a caller (or a test fake) may hand over something
+    that is not a number at all, which is "unknown", never "zero" and never
+    a crash -- the governor's ceiling check remains the gate either way.
+    """
+    try:
+        return finite_number(value, "amount", 0.0)
+    except HarnessError:
+        return None
+
+
+def _is_free_model(m):
+    mid = m.get("id", "")
+    p = m.get("pricing", {})
+    return mid.endswith(":free") or (str(p.get("prompt")) == "0" and str(p.get("completion")) == "0")
+
+
+def discover_free_models(transport, api_key, prefer=None, limit=40):
+    """Return the ordered list of free model ids, curated preference first.
+
+    prefer is an ordered list of ids to rank highest; other free models are
+    appended after. Any prefer entry that is no longer free/existing is
+    dropped. Sorted by name for a stable tail.
+    """
+    gov = SpendGovernor(transport, api_key)
+    models = gov.fetch_models()
+    free = [m_["id"] for m_ in models if _is_free_model(m_)]
+    free_set = set(free)
+    ordered = []
+    for pid in (prefer or []):
+        if pid in free_set and pid not in ordered:
+            ordered.append(pid)
+    for mid in sorted(free):
+        if mid not in ordered:
+            ordered.append(mid)
+    return ordered[:limit]
