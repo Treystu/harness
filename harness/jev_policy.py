@@ -3505,7 +3505,9 @@ class JevPolicy:
                 "min_score": min(evaluated_scores) if evaluated_scores else 0.0,
                 "is_fallback": True,
                 "reasons": list(reasons),
-                "model": model or model_name,
+                # The report and the ledger row describe one judgment, so they
+                # carry one identity; a caller-supplied live model wins (#332).
+                "model": fallback_result.model,
                 "cost": cost,
                 "input_tokens": input_tokens,
                 "output_tokens": output_tokens,
