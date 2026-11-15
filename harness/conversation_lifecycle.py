@@ -41,6 +41,15 @@ class ConversationLifecycleMixin:
         r"i (?:do not|don't) have (?:access|tools|internet|a browser|file|compute))\b",
         re.IGNORECASE,
     )
+    # A capability caveat is only a deferral when it IS the answer (#543).
+    # A turn that says "I can't generate an image, but here is the scale you
+    # asked for ..." and then delivers the scale completed the request; the
+    # caveat belongs in the answer body. The line between the two is how much
+    # substance the turn carries outside the caveat sentence: below this many
+    # words it is a deferral with padding, at or above it the user got an
+    # answer. Stated as a constant so the tradeoff is visible and testable
+    # rather than buried in a regex.
+    _REFUSAL_SUBSTANCE_WORDS = 40
 
     def _handle_conversation(
         self,
@@ -432,7 +441,18 @@ class ConversationLifecycleMixin:
 
     @classmethod
     def _refusal_reason(cls, response_text: str) -> Optional[str]:
-        for sentence in re.split(r"(?<=[.!?])\s+", response_text.strip()):
-            if cls._REFUSAL_RE.search(sentence):
-                return " ".join(sentence.split())[:200]
+        """The refusal sentence, when the turn is a deferral rather than an answer.
+
+        Returns ``None`` when a refusal-shaped sentence sits inside delivered
+        content: a completed answer may carry a capability caveat without
+        being reported as Deferred (#543).
+        """
+        text = (response_text or "").strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", text):
+            if not cls._REFUSAL_RE.search(sentence):
+                continue
+            rest = " ".join(text.replace(sentence, " ", 1).split())
+            if len(rest.split()) >= cls._REFUSAL_SUBSTANCE_WORDS:
+                return None
+            return " ".join(sentence.split())[:200]
         return None
