@@ -280,6 +280,28 @@ class EvaluateAuditDimensionsUnkeyedTests(unittest.TestCase):
         result = policy.evaluate_audit_dimensions(self._evidence())
         self.assertTrue(result["is_fallback"])
 
+    def test_unkeyed_report_and_ledger_carry_one_fallback_identity(self):
+        # #332 (Codex 536 P2): the returned report and the ledger row describe
+        # one judgment, so a reader must not see jev-latest in one and
+        # local-heuristic in the other.
+        from harness.jev import LOCAL_HEURISTIC_MODEL
+
+        settings = load_settings()
+        settings.jev_api_key = None
+        ledger_entries = []
+
+        class _Ledger:
+            def append(self, *args, **kwargs):
+                ledger_entries.append(kwargs)
+
+            def ensure_offered_task_id(self, *args, **kwargs):
+                return None
+
+        policy = policy_for(settings, evaluator=None, ledger=_Ledger())
+        result = policy.evaluate_audit_dimensions(self._evidence())
+        self.assertEqual(result["model"], LOCAL_HEURISTIC_MODEL)
+        self.assertEqual(ledger_entries[-1]["model"], LOCAL_HEURISTIC_MODEL)
+
     def test_unkeyed_zero_cost(self):
         settings = load_settings()
         settings.jev_api_key = None

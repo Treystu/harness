@@ -73,6 +73,23 @@ class JevPolicyTests(unittest.TestCase):
         self.assertEqual(structural["input_tokens"], 0)
         self.assertEqual(structural["site"], "apply")
 
+    def test_no_live_call_reports_the_one_local_fallback_label(self):
+        # #332: the fallback model identity is the code-owned label, not the
+        # configured evaluator name. Nothing answered, so nothing may claim to
+        # have; the phase-completion report already said the same word, and
+        # both now come from one constant.
+        from harness.jev import LOCAL_HEURISTIC_MODEL
+
+        settings = self._unkeyed_settings()
+        self.assertNotEqual(settings.jev_model, LOCAL_HEURISTIC_MODEL)
+        policy = policy_for(settings, evaluator=None)
+        result, structural = policy.evaluate_diff(
+            "--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n",
+            "change x", "x.py", site="apply")
+        self.assertTrue(result.is_fallback)
+        self.assertEqual(result.model, LOCAL_HEURISTIC_MODEL)
+        self.assertEqual(structural["model"], LOCAL_HEURISTIC_MODEL)
+
     def test_explicit_disable_ignores_injected_keyed_evaluator(self):
         class KeyedEvaluator:
             api_key = "separately-supplied"
