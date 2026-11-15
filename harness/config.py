@@ -485,17 +485,23 @@ ESCALATION_RUNG_CAPS = {
 }
 
 # ---- Fireworks direct lanes (EV-7: use_fireworks=True) ----
+# Every id here must be a row WITH a dispatch path and a committed rate in
+# packs/fireworks.endpoints.json (#512): the laptop-local pool prices each
+# candidate from that pack and drops an unpriced id, so a shipped id the pack
+# no longer carries makes its whole backend half inert by skew. The pack is
+# generated from the priced snapshot, so these lists move only with it, and
+# tests/test_direct_compat.py pins the agreement.
 DEFAULT_FIREWORKS_APPLY_POOL = [
-    "accounts/fireworks/models/deepseek-v3p2",
-    "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct",
-    "accounts/fireworks/models/kimi-k2p5",
+    "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
+    "accounts/fireworks/models/deepseek-v4p1-flash",
+    "accounts/fireworks/models/kimi-k3",
 ]
 DEFAULT_FIREWORKS_PANEL_POOL = [
-    "accounts/fireworks/models/gpt-oss-120b",
-    "accounts/fireworks/models/deepseek-v3p2",
-    "accounts/fireworks/models/glm-5",
+    "accounts/fireworks/models/deepseek-v4p1-flash",
+    "accounts/fireworks/models/glm-5p3",
+    "accounts/fireworks/models/kimi-k3",
 ]
-DEFAULT_FIREWORKS_JUDGE_MODEL = "accounts/fireworks/models/glm-5"
+DEFAULT_FIREWORKS_JUDGE_MODEL = "accounts/fireworks/models/glm-5p3"
 
 # ---- Meta direct lanes (use_meta=True / model_preset="muse") ----
 # The Muse-only preset: every surface pinned to Meta's Muse models, served
