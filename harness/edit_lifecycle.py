@@ -190,9 +190,7 @@ class AutoEditLifecycleMixin:
             if generated.get("status") in ("ok", "deferred"):
                 return generated
             return self._handle_conversation(
-                prompt, session_id, cancel_check,
-                max_tokens=max_tokens, reasoning_effort=reasoning_effort,
-                token_budget=token_budget)
+                prompt, session_id, cancel_check)
 
         if root_dir is None:
             # The plan reaches a file operation but no workspace is selected:

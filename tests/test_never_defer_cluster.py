@@ -4,7 +4,6 @@ One file per cluster because the four cures share the same acceptance shape:
 the run continues (repair, build path, completed Response, generation path)
 instead of stopping early for a reason that does not apply.
 """
-import os
 import tempfile
 import unittest
 from pathlib import Path
