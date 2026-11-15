@@ -41,6 +41,15 @@ class ConversationLifecycleMixin:
         r"i (?:do not|don't) have (?:access|tools|internet|a browser|file|compute))\b",
         re.IGNORECASE,
     )
+    # A capability caveat is only a deferral when it IS the answer (#543).
+    # A turn that says "I can't generate an image, but here is the scale you
+    # asked for ..." and then delivers the scale completed the request; the
+    # caveat belongs in the answer body. The line between the two is how much
+    # substance the turn carries outside the caveat sentence: below this many
+    # words it is a deferral with padding, at or above it the user got an
+    # answer. Stated as a constant so the tradeoff is visible and testable
+    # rather than buried in a regex.
+    _REFUSAL_SUBSTANCE_WORDS = 40
 
     def _handle_conversation(
         self,
@@ -449,42 +458,20 @@ class ConversationLifecycleMixin:
 
         return _chat_ladder(settings)
 
-    @staticmethod
-    def _answer_is_substantive(remainder: str) -> bool:
-        """True when what is left after a caveat is a real answer (#543).
-
-        A capability caveat ("I can't generate an actual image, but ...") is
-        content inside a completed answer, not a non-completion. The test is
-        deliberately about the BODY, not about politeness: a structured block,
-        or a substantive amount of prose the caveat does not cover.
-        """
-        body = (remainder or "").strip()
-        if len(body) < 120:
-            return False
-        if "```" in body:
-            return True
-        if re.search(r"(?m)^\s*(?:[-*]|\d+[.)])\s+\S", body):
-            return True
-        if re.search(r"(?m)^\s*#{1,6}\s+\S", body):
-            return True
-        return len(body) >= 240
-
     @classmethod
     def _refusal_reason(cls, response_text: str) -> Optional[str]:
-        """The blocking reason for a non-completed answer, or ``None``.
+        """The refusal sentence, when the turn is a deferral rather than an answer.
 
-        Deferred is reserved for requests that did not complete (#543). A
-        completed answer carrying a capability caveat closes as a Response,
-        with the caveat left in the answer body where it belongs: the caveat
-        sentence is only returned as a defer reason when the rest of the
-        answer is not substantive.
+        Returns ``None`` when a refusal-shaped sentence sits inside delivered
+        content: a completed answer may carry a capability caveat without
+        being reported as Deferred (#543).
         """
         text = (response_text or "").strip()
         for sentence in re.split(r"(?<=[.!?])\s+", text):
             if not cls._REFUSAL_RE.search(sentence):
                 continue
-            remainder = text.replace(sentence, "", 1).strip()
-            if cls._answer_is_substantive(remainder):
-                continue
+            rest = " ".join(text.replace(sentence, " ", 1).split())
+            if len(rest.split()) >= cls._REFUSAL_SUBSTANCE_WORDS:
+                return None
             return " ".join(sentence.split())[:200]
         return None
