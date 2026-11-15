@@ -797,16 +797,33 @@ _PROBE_CONNECT_TIMEOUT = 5.0
 _PROBE_READ_TIMEOUT = 4.0
 _PROBE_MAX_BYTES = 8192
 
+# An explicit scheme anywhere in the prompt, with the target that follows it.
+# Used so a prompt naming a target this probe cannot fetch keeps the scheme it
+# named instead of having the bare-host pattern rewrite it to https (#303).
+_EXPLICIT_SCHEME_RE = re.compile(
+    r"(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*)://(?P<rest>[^\s)>\]'\"]+)")
+
 
 def extract_site_target(prompt):
-    """Return a normalized ``https://host[/path]`` for an uptime-check prompt.
+    """Return the site target an uptime-check prompt names.
 
     Prefers an explicit URL from :func:`find_urls`; otherwise accepts a bare
     public hostname (``example.com``, ``www.example.com/path``). Returns
-    ``None`` when no candidate is present. Never raises for prompt text."""
+    ``None`` when no candidate is present. Never raises for prompt text.
+
+    A prompt whose only target is named with a scheme this probe cannot fetch
+    (``ftp://``, ``file://``, ``gopher://``) keeps that scheme, so
+    :func:`preflight_public_site` refuses it by name. Rewriting it to
+    ``https://`` first would probe something the operator did not ask for and
+    make the scheme gate unreachable for that whole input class (#303)."""
     urls = find_urls(prompt or "")
     if urls:
         return urls[0][:500]
+    scheme_match = _EXPLICIT_SCHEME_RE.search(prompt or "")
+    if scheme_match and scheme_match.group("scheme").lower() not in (
+            "http", "https"):
+        scheme = scheme_match.group("scheme").lower()
+        return "{}://{}".format(scheme, scheme_match.group("rest"))[:500]
     m = _SITE_TARGET_RE.search(prompt or "")
     if not m:
         return None
