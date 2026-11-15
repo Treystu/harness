@@ -27,6 +27,16 @@ from .provider_errors import ProviderSpendLimitError
 # Output tokens are free ($0.00). Monthly included account credit: $5.00 (~119M input tokens).
 JEV_INPUT_PRICE_PER_MILLION = 0.042
 JEV_MONTHLY_CREDIT_USD = 5.00
+
+# The model identity a judgment reports when no model produced it (#332).
+# Two honest-fallback paths labelled the same local heuristic differently -- the
+# audit gate borrowed the configured evaluator name (``jev-latest``) while the
+# phase-completion report said ``local-heuristic`` -- so a reader comparing two
+# reports could not tell both were the same code-owned fallback. This is the
+# one label. It applies only where no live call happened: a billed call whose
+# answer was discarded keeps the answering model's identity, because the ledger
+# has to say who was paid.
+LOCAL_HEURISTIC_MODEL = "local-heuristic"
 _PRIMITIVES = frozenset(("noul", "choice", "score"))
 
 
@@ -1085,7 +1095,8 @@ class JevEvaluator:
             cost=(jev_cost(input_tokens) if cost is None
                   else max(0.0, float(cost))), input_tokens=input_tokens,
             output_tokens=output_tokens, is_fallback=fallback,
-            model=model or self.model, usage_observed=usage_observed,
+            model=model or (LOCAL_HEURISTIC_MODEL if fallback else self.model),
+            usage_observed=usage_observed,
             model_observed=model_observed,
             input_tokens_observed=input_tokens_observed,
             output_tokens_observed=output_tokens_observed,
@@ -1161,12 +1172,12 @@ class JevEvaluator:
                 checks.append(("ast_parse_ok", bool(facts["ast_parse_ok"]), "AST parse"))
             for _, ok, label in checks:
                 if not ok:
-                    return JevEvaluationResult("fail", 0.0, 0.0, {}, [f"Code-owned {label} check failed."], is_fallback=fallback, model=self.model, fallback_reason=fallback_reason if fallback else None)
+                    return JevEvaluationResult("fail", 0.0, 0.0, {}, [f"Code-owned {label} check failed."], is_fallback=fallback, model=(LOCAL_HEURISTIC_MODEL if fallback else self.model), fallback_reason=fallback_reason if fallback else None)
         elif not code and not json_content and not state.get("response") and not state.get("prompt"):
             return self._failure("Empty candidate state returned.", fallback, fallback_reason=fallback_reason if fallback else None)
         return JevEvaluationResult("pass", 0.0, 1.0,
                                    {"mechanical_checks": "passed"},
-                                   ["All local code-owned structural checks passed."], is_fallback=fallback, model=self.model, fallback_reason=fallback_reason if fallback else None)
+                                   ["All local code-owned structural checks passed."], is_fallback=fallback, model=(LOCAL_HEURISTIC_MODEL if fallback else self.model), fallback_reason=fallback_reason if fallback else None)
 
     def check_diff_mechanics(self, diff: str, instruction: str = "", file_path: str = "",
                              candidate: Optional[str] = None):

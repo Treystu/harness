@@ -24,8 +24,8 @@ from .provider_errors import ProviderSpendLimitError
 from .config import HARD_MAX_COST
 from .jev import (ACTIVE_GUARD, ACTIVE_RESERVER, ACTIVE_SITE, BREAKER_COOLDOWN_SECONDS,
                   BREAKER_FAILURE_THRESHOLD, CircuitBreakers,
-                  JevEvaluationResult, JevEvaluator, _digest, jev_cost,
-                  triage_question_pack)
+                  LOCAL_HEURISTIC_MODEL, JevEvaluationResult, JevEvaluator,
+                  _digest, jev_cost, triage_question_pack)
 from .output import eprint
 from .route_pack import (ROUTE_QUERY_SITE, choose_rung_for_tier, fallback_route,
                          route_combo,
@@ -2887,7 +2887,7 @@ class JevPolicy:
                 {"axes": axes}, evidence,
                 cost=cost, input_tokens=input_tokens,
                 output_tokens=output_tokens, is_fallback=True,
-                model=model or self.evaluator.model, discarded=discarded)
+                model=model or LOCAL_HEURISTIC_MODEL, discarded=discarded)
             result = self._with_reason(result, reason, text)
             structural = self._account(
                 result, site=site, task_id=task_id, node_id=node_id,
@@ -3285,7 +3285,7 @@ class JevPolicy:
                 {"primary_gap": bucket_id}, evidence_refs,
                 cost=cost, input_tokens=input_tokens,
                 output_tokens=output_tokens, is_fallback=True,
-                model=model or self.evaluator.model, discarded=discarded)
+                model=model or LOCAL_HEURISTIC_MODEL, discarded=discarded)
             result = self._with_reason(result, reason, text)
             # ONE ledger jev_eval per evaluate_phase_completion call.
             structural = self._account(
@@ -3492,7 +3492,7 @@ class JevPolicy:
                 {f"dim_{dim}": dim_results[dim] for dim in dim_ids},
                 list(reasons), cost=cost, input_tokens=input_tokens,
                 output_tokens=output_tokens, is_fallback=True,
-                model=model or model_name)
+                model=model or LOCAL_HEURISTIC_MODEL)
             fallback_result = self._with_reason(
                 fallback_result, reason,
                 self._audit_dimension_text(dimension_evidence))

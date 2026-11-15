@@ -502,6 +502,15 @@ class CompletionScoreTests(unittest.TestCase):
             self.assertEqual(
                 result2["sentiment"]["axes"]["status_honesty"]["source"], "code")
 
+            # #332: with no policy at all the report's fallback identity is the
+            # one shared label, not a string typed in this module.
+            from harness.jev import LOCAL_HEURISTIC_MODEL
+
+            result3 = score_phase_completion(evidence, jev_policy=None)
+            self.assertTrue(result3["semantic"]["is_fallback"])
+            self.assertEqual(
+                result3["semantic"]["model"], LOCAL_HEURISTIC_MODEL)
+
     def test_collect_phase_evidence_missing_roadmap_note(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

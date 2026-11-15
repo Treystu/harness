@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 from .errors import HarnessError
+from .jev import LOCAL_HEURISTIC_MODEL
 from . import osal
 from .jev_packs import (
     DEFAULT_PHASE_COMPLETION_PACK,
@@ -1532,7 +1533,7 @@ def score_phase_completion(
         semantic = {
             "score": round(semantic_score, 2),
             "is_fallback": True,
-            "model": "local-heuristic",
+            "model": LOCAL_HEURISTIC_MODEL,
             "site": PHASE_COMPLETION_SITE,
             "verdict": "fallback",
         }
