@@ -12,6 +12,7 @@ from harness.dag import (
 from harness.errors import HarnessError
 from harness.waist import (
     DecompositionParseError,
+    _requote_single_quoted_json,
     record_decomposition_parse_failure,
 )
 
@@ -277,6 +278,26 @@ class DecompositionRepairTests(unittest.TestCase):
         self.assertEqual(args[0], "decomposition_parse_failure")
         self.assertEqual(kwargs["raw_excerpt"], "{oops")
         self.assertEqual(kwargs["raw_chars"], len("{oops"))
+
+
+    def test_escaped_apostrophe_survives_the_repair(self):
+        # Codex P2 on #546: a blind quote swap turned ' into \", rewriting
+        # the instruction the executor would receive. The conversion must
+        # preserve string contents, and a JSON literal like null must survive
+        # alongside Python-style quoting.
+        raw = ("{'nodes': [{'node_id': 't1', "
+               "'instruction': 'Preserve don\\'t in the message', "
+               "'local_gate': null, 'dependencies': []}]}")
+        dag = parse_decomposition_response(raw)
+        self.assertEqual(dag.nodes["t1"].instruction,
+                         "Preserve don't in the message")
+
+    def test_ambiguous_quoting_is_refused_not_guessed(self):
+        # A bare double quote outside a string, or an unterminated string,
+        # means the payload is not simply single-quoted: refuse to rewrite it.
+        self.assertIsNone(_requote_single_quoted_json("{'a': 'b', \"c\": 1}"))
+        self.assertIsNone(_requote_single_quoted_json("{'a': 'unterminated}"))
+        self.assertEqual(_requote_single_quoted_json("{'a': 1}"), '{"a": 1}')
 
     def test_recording_failure_never_masks_the_original_error(self):
         ledger = MagicMock()

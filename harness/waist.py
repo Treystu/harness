@@ -572,12 +572,14 @@ def _parse_json_object(response_text: str, what: str) -> Dict[str, Any]:
         # 4. Single-quoted payload (#541): a model that emits Python-style
         # quoting throughout fails JSON at the first key, which is the
         # "Expecting property name enclosed in double quotes: line 1 column 3"
-        # shape seen in the Studio transcript. Only applied when the candidate
-        # contains no double quote at all, so apostrophes in prose and
-        # correctly-quoted payloads are never rewritten.
-        if '"' not in cleaned and "'" in cleaned:
+        # shape seen in the Studio transcript. The conversion is quote-aware:
+        # a blind swap would turn an escaped \' into \" and rewrite the
+        # string's contents (a corrupted instruction reaches the executor),
+        # so anything ambiguous is refused rather than guessed.
+        requoted = _requote_single_quoted_json(cleaned)
+        if requoted is not None:
             try:
-                data = json.loads(cleaned.replace("'", '"'))
+                data = json.loads(requoted)
                 if isinstance(data, dict):
                     return data
             except (json.JSONDecodeError, UnicodeDecodeError):
@@ -613,6 +615,56 @@ def parse_decomposition_response(response_text: str) -> TaskDAG:
         return TaskDAG.from_dict(data)
     except HarnessError as exc:
         raise DecompositionParseError(str(exc), response_text) from exc
+
+
+def _requote_single_quoted_json(text: str) -> Optional[str]:
+    """Rewrite a payload quoted entirely in single quotes as JSON.
+
+    Returns ``None`` whenever the input is ambiguous - a bare double quote
+    outside a string, or an unterminated string - so the caller falls through
+    to the remaining salvage steps instead of guessing at contents. Inside a
+    string, ``\\'`` becomes a plain apostrophe and ``\\"`` stays a literal
+    quote, which is what each meant in the original payload; a blind character
+    swap would turn an escaped apostrophe into a double quote and silently
+    change the instruction the executor receives.
+    """
+    out: List[str] = []
+    in_string = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if in_string:
+            if ch == "\\" and i + 1 < len(text):
+                nxt = text[i + 1]
+                if nxt == "'":
+                    out.append("'")
+                elif nxt == '"':
+                    out.append('\\"')
+                else:
+                    out.append(ch)
+                    out.append(nxt)
+                i += 2
+                continue
+            if ch == '"':
+                out.append('\\"')
+            elif ch == "'":
+                out.append('"')
+                in_string = False
+            else:
+                out.append(ch)
+            i += 1
+            continue
+        if ch == "'":
+            out.append('"')
+            in_string = True
+        elif ch == '"':
+            return None          # already double-quoted somewhere: ambiguous
+        else:
+            out.append(ch)
+        i += 1
+    if in_string:
+        return None              # unterminated: never invent a close
+    return "".join(out)
 
 
 _DECOMPOSITION_RAW_EXCERPT_CHARS = 1200
