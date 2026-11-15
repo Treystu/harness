@@ -124,6 +124,24 @@ def check_close_keywords(pr_text, diff_text):
     return _close_reference_findings(pr_text, diff_text, negated=False)
 
 
+def strip_close_references(text):
+    """Remove auto-close references from text that is a commit message.
+
+    The close-reference rules are about a *pull-request body*: that is the
+    text GitHub acts on when it auto-closes an issue at merge. A commit
+    message is never such a claim -- GitHub closes nothing from one -- so
+    evaluating commit prose against those rules reports a claim nobody made.
+    It also reddens `main` permanently: a squash-merged PR legitimately
+    carries its `Closes #N` line into the commit message, and there is no
+    remedy short of a force-push, which this repo forbids on `main`.
+
+    Only the auto-close phrase is removed. Everything else in the text still
+    reaches the credential and planning-structure rules unchanged, so this
+drops no other check.
+    """
+    return _CLOSING_REFERENCE.sub("", text or "")
+
+
 def check_credentials(pr_text, diff_text):
     """Find credential-like values without echoing matched material."""
     findings = []

@@ -14,6 +14,13 @@ wrapper synthesizes an equivalent one from the checkout itself:
   the PR's own commits; on main the single merge commit carries the
   PR text.
 
+On main the scanned text is a commit message, not a PR body, so its
+auto-close references are stripped before the close-reference rules run
+(see `driving_hygiene.strip_close_references`): a squash message that
+repeats a PR's `Closes #N` is not a new claim, and evaluating it as one
+reddens main with no non-force-push remedy. The credential and
+planning-structure rules still see the full text.
+
 Deterministic, standard library only, no network calls beyond the git
 fetch of origin/main that other jobs in this config already perform,
 and no secrets -- the same contract as the checker itself.
@@ -45,10 +52,18 @@ def main():
     head_sha = os.environ.get("CIRCLE_SHA1") or _git(repo_root, "rev-parse", "HEAD")
     _git(repo_root, "fetch", "origin", "main", "--quiet")
     base_sha = _git(repo_root, "merge-base", "origin/main", "HEAD")
-    if base_sha == head_sha:
+    on_main = base_sha == head_sha
+    if on_main:
         base_sha = _git(repo_root, "rev-parse", "HEAD~1")
     pr_text = _git(repo_root, "log", "--format=%B%x1e",
                    "{}..{}".format(base_sha, head_sha))
+    if on_main:
+        # A merge commit on main carries a PR's `Closes #N` line, which is
+        # not a claim this text makes. Strip it so the close-reference rules
+        # keep full force on real PR text and stop rejecting squash messages.
+        pr_text = driving_hygiene.strip_close_references(pr_text)
+        print("NOTE driving-hygiene: merge commit on main; auto-close "
+              "references in the commit message are not scanned as PR text.")
     event = {"pull_request": {
         "base": {"sha": base_sha}, "title": "", "body": pr_text}}
     with tempfile.NamedTemporaryFile(
