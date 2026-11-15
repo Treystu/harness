@@ -32,7 +32,10 @@ from .session import (
 )
 from .token_budget import budget_from_settings
 from .waist import STAGE_EXECUTION
-from .workspace import require_workspace
+from .workspace import (
+    WORKSPACE_GATE_MESSAGE,
+    require_workspace,
+)
 
 
 EXECUTION_PHRASES = frozenset({
@@ -68,7 +71,11 @@ class AutoEditLifecycleMixin:
         # workers, per-node cost reservations, worktree isolation, diff
         # attestation), then a completion judge round that re-plans remaining
         # scope until the goal is met or the round budget is spent.
-        root_dir = require_workspace(self.root_dir)
+        # #544: the workspace gate is NOT task start. A request with no
+        # scoped file operation can finish without one; the gate fires at the
+        # first step that cannot proceed (a file read/write or a dispatch).
+        root_dir = (require_workspace(self.root_dir)
+                    if self.root_dir is not None else None)
         agent_ledger = ledger_for(self.settings, caller="agent")
         ensure_offered_task_id(
             agent_ledger,
@@ -164,13 +171,33 @@ class AutoEditLifecycleMixin:
             if prior_goal and prior_goal.lower() not in prompt.lower():
                 prompt = f"{prior_goal}\n\n[EXECUTION DIRECTIVE]: {prompt}"
 
-        if not target_files:
+        if not target_files and root_dir is not None:
             # Fallback for execution requests without explicit files:
             # discover candidate test/verification targets in the workspace.
-            repo_files = enumerate_repo_files(self.root_dir)
+            repo_files = enumerate_repo_files(root_dir)
             test_files = [f for f in repo_files if "test" in f.lower() or f.endswith(".py")]
             if test_files:
                 target_files = test_files[:3]
+
+        if root_dir is None and not target_files:
+            # No file scope was planned, so nothing needs a workspace: answer
+            # the request on the generation lane instead of refusing it at
+            # task start (#544).
+            emit("workspace_gate_deferred", focus="generation",
+                 note="no scoped file operation; answering without a workspace")
+            generated = self.run_simple_request(
+                prompt, session_id=session_id, cancel_check=cancel_check)
+            if generated.get("status") in ("ok", "deferred"):
+                return generated
+            return self._handle_conversation(
+                prompt, session_id, cancel_check,
+                max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+                token_budget=token_budget)
+
+        if root_dir is None:
+            # The plan reaches a file operation but no workspace is selected:
+            # stop HERE, at that operation, with the canonical gate message.
+            raise HarnessError(WORKSPACE_GATE_MESSAGE)
 
         emit("files_discovered", target_files=target_files)
 

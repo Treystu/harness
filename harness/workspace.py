@@ -40,6 +40,24 @@ def is_sensitive_path(path) -> bool:
     return any(token in stem for token in ("secret", "credential", "password", "private_key", "private-key"))
 
 
+#: The one message the desktop and CLI show when a workspace is needed (#544).
+WORKSPACE_GATE_MESSAGE = (
+    "Select a workspace folder before requesting file or provisioning work")
+
+
+def require_workspace_for_operation(raw) -> Path:
+    """The workspace gate, fired at the operation that actually needs one.
+
+    Task start must not hard-error while no scoped file operation is planned
+    (#544); the lane calls this when it reaches a step that cannot proceed
+    without a root, and the message stays identical to the one the desktop
+    already shows.
+    """
+    if raw is None or not str(raw).strip():
+        raise HarnessError(WORKSPACE_GATE_MESSAGE)
+    return require_workspace(raw)
+
+
 def require_workspace(raw) -> Path:
     """Resolve an explicit existing absolute workspace directory."""
     if raw is None or not str(raw).strip():

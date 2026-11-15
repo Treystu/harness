@@ -64,6 +64,7 @@ from .conversation_context import (
     referential,
     sole_site,
 )
+from .chat_policy import research_detour_blocked
 from .jev_identity import jev_identity_block, jev_mentioned
 from .session import (
     ensure_offered_task_id, governor_for, maybe_ledger_for as ledger_for,
@@ -163,6 +164,16 @@ class HourglassLifecycleMixin:
             request_ledger.append("brief_built", **event)
         context = brief.to_prompt_context()[:context_limit]
         web_sources = []
+        detour_note = None
+        if web and research_detour_blocked(prompt):
+            # #542: the request's end state is an artifact, so web-research
+            # planning adds nothing and would consume the run. Record the
+            # block and continue on the direct/build path.
+            emit("research_detour_blocked", lane="hourglass",
+                 note="request ends in an artifact; direct path")
+            web = False
+            detour_note = ("blocked: request ends in an artifact; "
+                           "answered on the direct path")
         if web:
             try:
                 web_sources = self._gather_web_context(web_prompt or prompt)
@@ -193,11 +204,24 @@ class HourglassLifecycleMixin:
                             "note": ("site drive unavailable: "
                                      f"{type(exc).__name__}: {exc}"),
                         })
+            if web_sources and not any(
+                    source.get("ok")
+                    and str(source.get("text") or "").strip()
+                    for source in web_sources):
+                # #542: no usable text means the detour bought nothing. Abort
+                # it in the record instead of continuing the plan around it.
+                emit("research_detour_aborted", lane="hourglass",
+                     note="every gathered source was empty")
+                detour_note = ("aborted: every gathered source returned "
+                               "0 chars")
             for source in web_sources:
                 if source.get("ok"):
                     body = str(source.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
                     context += "\n\nWEB EVIDENCE:\n" + body
             context = context[:context_limit]
+        if detour_note is not None:
+            web_sources.append({"kind": "detour", "ok": False,
+                                "note": detour_note})
         emit("context_condensed", estimated_tokens=brief.estimated_tokens,
              files=list(files), web_sources=len(web_sources),
              scope=("repository-review" if broad_review else

@@ -258,11 +258,15 @@ class RequestRoutingMixin:
             # workspace reviews take the local inspection lane below.
             intent = classify_prompt_intent(prompt)
             emit("intent_classified", intent=intent, prompt=prompt)
-            needs_workspace = intent == "provision" or (intent == "edit" and auto_apply)
-            if needs_workspace and self.root_dir is None:
-                raise HarnessError(
-                    "Select a workspace folder before requesting file or provisioning work"
-                )
+            # #544: no hard error at task start. A request whose end state is
+            # an artifact is routed to the build path, and the workspace gate
+            # fires at the first operation that actually needs a root.
+            if (self.root_dir is None
+                    and (intent == "provision"
+                         or (intent == "edit" and auto_apply))):
+                emit("workspace_gate_deferred", focus="intent",
+                     note="no workspace selected; gate follows the first "
+                          "operation that needs one")
             if cancel_check and cancel_check():
                 raise ToolCancelled("Prompt execution was cancelled by user")
             if is_workspace_inspection_request(prompt):
@@ -345,9 +349,11 @@ class RequestRoutingMixin:
         intent = classify_prompt_intent(prompt)
         emit("intent_classified", intent=intent, prompt=prompt)
         if intent in ("edit", "provision") and self.root_dir is None:
-            raise HarnessError(
-                "Select a workspace folder before requesting file or provisioning work"
-            )
+            # #544: recorded, not raised. The lane's own first workspace-
+            # needing operation raises the canonical gate message.
+            emit("workspace_gate_deferred", focus="intent",
+                 note="no workspace selected; gate follows the first "
+                      "operation that needs one")
 
         if cancel_check and cancel_check():
             raise ToolCancelled("Prompt execution was cancelled by user")

@@ -449,9 +449,42 @@ class ConversationLifecycleMixin:
 
         return _chat_ladder(settings)
 
+    @staticmethod
+    def _answer_is_substantive(remainder: str) -> bool:
+        """True when what is left after a caveat is a real answer (#543).
+
+        A capability caveat ("I can't generate an actual image, but ...") is
+        content inside a completed answer, not a non-completion. The test is
+        deliberately about the BODY, not about politeness: a structured block,
+        or a substantive amount of prose the caveat does not cover.
+        """
+        body = (remainder or "").strip()
+        if len(body) < 120:
+            return False
+        if "```" in body:
+            return True
+        if re.search(r"(?m)^\s*(?:[-*]|\d+[.)])\s+\S", body):
+            return True
+        if re.search(r"(?m)^\s*#{1,6}\s+\S", body):
+            return True
+        return len(body) >= 240
+
     @classmethod
     def _refusal_reason(cls, response_text: str) -> Optional[str]:
-        for sentence in re.split(r"(?<=[.!?])\s+", response_text.strip()):
-            if cls._REFUSAL_RE.search(sentence):
-                return " ".join(sentence.split())[:200]
+        """The blocking reason for a non-completed answer, or ``None``.
+
+        Deferred is reserved for requests that did not complete (#543). A
+        completed answer carrying a capability caveat closes as a Response,
+        with the caveat left in the answer body where it belongs: the caveat
+        sentence is only returned as a defer reason when the rest of the
+        answer is not substantive.
+        """
+        text = (response_text or "").strip()
+        for sentence in re.split(r"(?<=[.!?])\s+", text):
+            if not cls._REFUSAL_RE.search(sentence):
+                continue
+            remainder = text.replace(sentence, "", 1).strip()
+            if cls._answer_is_substantive(remainder):
+                continue
+            return " ".join(sentence.split())[:200]
         return None

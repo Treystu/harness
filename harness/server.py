@@ -294,11 +294,19 @@ def validate_dispatch(kind, args):
         _opt_str(args, "prompt", required=True)
         args["auto_apply"] = _opt_bool(args, "auto_apply") if "auto_apply" in args else False
         _opt_str(args, "session_id")
+        # #544: the workspace is optional at intake. Task start no longer
+        # hard-errors when no scoped file operation is planned; the run stops
+        # at the first operation that needs a root, with the same message.
+        # Provisioning and a file-scoped auto-apply ARE such operations, so
+        # they keep the gate here rather than pretending to plan.
         root = _dispatch_workspace(args, required=False)
         intent = classify_prompt_intent(args["prompt"])
-        needs_workspace = (intent == "provision"
-                           or (intent == "edit" and args["auto_apply"]))
-        if needs_workspace and root is None:
+        scoped_edit = (intent == "edit" and args["auto_apply"]
+                       and bool(re.search(
+                           r"\b[\w./-]+\.(?:py|js|ts|tsx|jsx|go|rs|java|rb|"
+                           r"md|json|yaml|yml|toml|txt|csv|html|css)\b",
+                           args["prompt"])))
+        if root is None and (intent == "provision" or scoped_edit):
             raise HarnessError(
                 "Select a workspace folder before requesting file or provisioning work")
         _opt_bool(args, "web")

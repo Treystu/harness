@@ -585,6 +585,83 @@ def parse_decomposition_response(response_text: str) -> TaskDAG:
     return TaskDAG.from_dict(data)
 
 
+def _salvage_decomposition(response_text: str) -> Optional[TaskDAG]:
+    """Deterministic salvage of a malformed decomposition body (#541).
+
+    The bounded repair for a parse failure: recover the structure the model
+    already produced instead of spending a second full decomposition call.
+    Two shapes are recovered, both schema-checked through ``TaskDAG.from_dict``
+    so a salvage can never admit a node the strict parser would reject:
+
+    1. individual node objects that survived the truncation (``node_id`` +
+       ``instruction``), assembled into one DAG; and
+    2. the legacy ``nodes`` mapping, which may be the only thing that parsed.
+
+    Returns ``None`` when nothing usable is present -- the caller then falls
+    back to the heuristic plan with the raw body preserved.
+    """
+    text = str(response_text or "")
+    if not text.strip():
+        return None
+    recovered: Dict[str, Any] = {}
+    for span in _balanced_object_spans(text):
+        data = None
+        try:
+            data = json.loads(span)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            try:
+                literal = ast.literal_eval(span)
+                data = literal if isinstance(literal, dict) else None
+            except Exception:
+                data = None
+        if not isinstance(data, dict):
+            continue
+        if isinstance(data.get("nodes"), (dict, list)):
+            payload = data
+            if isinstance(payload.get("nodes"), dict):
+                # A models sometimes emit ``nodes`` as a mapping; the strict
+                # DAG contract takes a list, so normalise before validating.
+                payload = dict(payload)
+                payload["nodes"] = list(payload["nodes"].values())
+            try:
+                dag = TaskDAG.from_dict(payload)
+            except HarnessError:
+                dag = None
+            if dag is not None and dag.nodes:
+                return dag
+        node_id = data.get("node_id") or data.get("id")
+        instruction = data.get("instruction") or data.get("description")
+        if (isinstance(node_id, str) and node_id.strip()
+                and isinstance(instruction, str) and instruction.strip()):
+            recovered.setdefault(node_id.strip(), data)
+    if recovered:
+        try:
+            dag = TaskDAG.from_dict({"nodes": list(recovered.values())})
+        except HarnessError:
+            dag = None
+        if dag is not None and dag.nodes:
+            return dag
+    return None
+
+
+def decomposition_repair_record(exc: Exception, raw: str) -> Dict[str, Any]:
+    """The run-record evidence for one decomposition repair attempt (#541).
+
+    Carries the parse error and the exact raw body (bounded) so a malformed
+    decomposition is diagnosable after the fact instead of being discarded.
+    """
+    body = str(raw or "")
+    return {
+        "path": "deterministic_salvage",
+        "cost": 0.0,
+        "parse_error": str(exc)[:400],
+        "raw_output": body[:4000],
+        "raw_output_chars": len(body),
+        "raw_output_sha256": hashlib.sha256(
+            body.encode("utf-8", "replace")).hexdigest(),
+    }
+
+
 
 def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]] = None,
                              *, root_dir: Optional[str] = None) -> TaskDAG:
@@ -1630,6 +1707,7 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
 
     decomposed = None
     decomposition = "heuristic"
+    decomposition_repair = None
     last_exc = None
     # DF-HG-3b: set only when a plan-only preview degraded to the heuristic
     # after an opted-in LLM decomposition failure -- the waist confirmation
@@ -1666,6 +1744,7 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
 
         # DF-HG-3: one strict retry on LLM decomposition failure, then loud heuristic fallback in preview too
         last_exc = None
+        raw_output = ""
         for attempt in (1, 2):
             active_model = scout[min(attempt - 1, len(scout) - 1)] if scout else decompose_model
             try:
@@ -1682,7 +1761,15 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
                     repo_context = decision_ctx + "\n\n" + str(sig_ctx).strip()
                 else:
                     repo_context = decision_ctx
-                decomposed = decompose_via_llm(lambda p: _extract_caller_text(chat_caller(p, active_model)), plan_goal,
+                def _chat_capture(p, _model=active_model):
+                    # #541: keep the exact body so a parse failure can be
+                    # repaired from what the model already produced, and the
+                    # raw output survives in the run record either way.
+                    nonlocal raw_output
+                    raw_output = _extract_caller_text(chat_caller(p, _model))
+                    return raw_output
+
+                decomposed = decompose_via_llm(_chat_capture, plan_goal,
                                                candidate_files=candidate_files,
                                                repo_context=repo_context)
                 decomposition = (f"llm:{active_model}"
@@ -1693,6 +1780,21 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
                 last_exc = exc
                 if attempt == 1:
                     eprint(f"[plan] LLM decomposition attempt 1 failed ({exc}); retrying")
+        if last_exc is not None and raw_output:
+            # ONE bounded repair before the heuristic (#541): salvage the
+            # structure already paid for, at strictly less cost than a second
+            # full decomposition call.
+            salvaged = _salvage_decomposition(raw_output)
+            if salvaged is not None and salvaged.nodes:
+                decomposed = salvaged
+                decomposition = (f"llm-salvage:{active_model}"
+                                 if active_model else "llm-salvage:injected")
+                decomposition_repair = decomposition_repair_record(
+                    last_exc, raw_output)
+                decomposition_repair["outcome"] = "salvaged"
+                eprint("[plan] decomposition parse failed; salvaged the "
+                       "partial structure instead of a second full call")
+                last_exc = None
         if last_exc is not None:
             # DF-HG-3b (Board ruling on PR #68): a plan-only preview stays
             # FAIL-CLOSED by default -- the operator asked for LLM planning,
@@ -1701,12 +1803,19 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
             # run spends anyway); a preview only degrades when the operator
             # opted in with allow_heuristic_preview.
             if not execute and not allow_heuristic_preview:
-                raise HarnessError(
+                refusal = HarnessError(
                     f"LLM decomposition failed twice ({last_exc}); refusing "
                     "to silently degrade a plan-only preview to the "
                     "heuristic decomposition. Pass --allow-heuristic-preview "
                     "to opt into a loud heuristic fallback, or rerun with "
-                    "--execute.") from last_exc
+                    "--execute.")
+                if raw_output:
+                    # #541: even a fail-closed stop carries the evidence.
+                    repair = decomposition_repair_record(last_exc, raw_output)
+                    refusal.raw_output = repair["raw_output"]
+                    refusal.raw_output_sha256 = repair["raw_output_sha256"]
+                    refusal.parse_error = repair["parse_error"]
+                raise refusal from last_exc
             from . import events as _events
             _events.emit(
                 "orchestration_note",
@@ -1723,9 +1832,22 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
         decomposed_dag=decomposed, root=root, run_gate=run_gate,
         allow_escalation=allow_escalation, jev_route=jev_route_feed)
     plan_result["decomposition"] = decomposition
+    if decomposition_repair is not None:
+        plan_result["decomposition_repair"] = decomposition_repair
     if last_exc is not None:
         plan_result["degraded"] = True
-        plan_result["degrade_reason"] = "decomposition_unavailable"
+        _unparseable = any(marker in str(last_exc) for marker in (
+            "failed to parse JSON", "must be a JSON object",
+            "no valid JSON object", "returned no nodes"))
+        plan_result["degrade_reason"] = (
+            "decomposition_unparseable" if _unparseable
+            else "decomposition_unavailable")
+        if raw_output:
+            # The heuristic engaged loudly, with its evidence attached: the
+            # parse error and a reference to the preserved raw output (#541).
+            repair = decomposition_repair_record(last_exc, raw_output)
+            repair["outcome"] = "heuristic"
+            plan_result["decomposition_repair"] = repair
     if plan_triage is not None:
         plan_result["triage"] = plan_triage
     if plan_structural is not None:

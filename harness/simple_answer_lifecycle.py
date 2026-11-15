@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Optional
 
-from .chat_policy import is_research_question
+from .chat_policy import is_research_question, research_detour_blocked
 from .chat import governed_completion
 from .config import effective_lane_policy
 from .conversation_context import (
@@ -267,6 +267,13 @@ class SimpleAnswerLifecycleMixin:
                         strategy in {"needs_tool", "web_research"}
                         or is_research_question(prompt)
                         or is_current_information_request(prompt))
+                    # #542: an artifact request routes to the build path. A
+                    # Jev-suggested research detour must not consume the run.
+                    if needs_web and research_detour_blocked(prompt):
+                        emit("research_detour_blocked", lane="simple-answer",
+                             strategy=strategy,
+                             note="request ends in an artifact; build path")
+                        needs_web = False
                     if self._live_jev_available():
                         return self.run_hourglass_request(
                             prompt, session_id=sid, cancel_check=cancel_check,
