@@ -1,0 +1,12 @@
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index 10db8fb..e2be15f 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -295,6 +295,7 @@ cheap; losing either is not.
+ | `harness/execution_stages.py` | planning-stage composition, stage judgments, and restart guards |
+ | `harness/lifecycle_types.py` | discriminated chat/audit/auto-edit/driver/provisioning states and their cross-field invariants |
+ | `harness/lifecycle.py` | the single persisted request-state owner: Jev rounds, continuation, usage liability, side-effect receipts, and terminal transitions; lane adapters do not own duplicate state |
++| `harness/availability.py` | #538 per-(provider, model) availability verdicts: typed causes, TTL, bounded probe budget, `order()`, and `live_backends()` — the one owner of "which backends may be tried next", so lanes rotate to a healthy backend instead of deferring |
+ | `harness/restart_policy.py` | the one owner of post-refusal terminal state for a validated restart or consent refusal (#430): binds request/assignment/checkpoint, records once, never dispatches or spends, and keeps resume distinct from restart |
+ | `harness/chat_policy.py` | chat intent and route policy shared by the answer lanes |
+ | `harness/chat_lifecycle.py` | chat checkpoints, workspace hand-off, and continuation restoration |

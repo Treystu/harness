@@ -1,0 +1,2210 @@
+
+===== harness/availability.py =====
+    53: META_PREFIX = "muse-"
+    54: 
+    55: 
+    56: def provider_of(model: str) -> str:
+    57:     """The provider a model id routes through (no brand hardcoding in lanes)."""
+    58:     label = str(model or "")
+    59:     if label.startswith(FIREWORKS_PREFIX):
+    60:         return "fireworks"
+    61:     if label.startswith(META_PREFIX):
+    62:         return "meta"
+    63:     lowered = label.lower()
+    64:     if lowered.startswith("groq/"):
+    65:         return "groq"
+    66:     if lowered.startswith("cerebras/"):
+*   67:         return "cerebras"
+    68:     return "openrouter"
+    69: 
+    70: 
+    71: def is_free_model(model: str) -> bool:
+    72:     """True when a model is a $0 route that a dry balance does not disable."""
+    73:     label = str(model or "")
+    74:     return label.endswith(":free") or label == "openrouter/free"
+    75: 
+    76: 
+    77: @dataclass
+    78: class AvailabilityEntry:
+    79:     """One recorded provider verdict for a model."""
+    80: 
+    81:     model: str
+    82:     provider: str
+    83:     kind: str
+    84:     cause: str
+    85:     reason: str = ""
+    86:     http_status: Optional[int] = None
+    87:     recorded_at: float = 0.0
+    88:     expires_at: float = 0.0
+    89:     probes: int = 0
+    90:     probe_cost: float = 0.0
+    91: 
+    92:     def expired(self, now: float) -> bool:
+    93:         return now >= float(self.expires_at or 0.0)
+    94: 
+    95:     def as_dict(self) -> Dict[str, object]:
+    96:         return asdict(self)
+    97: 
+    98: 
+    99: class AvailabilityLedger:
+   100:     """Persisted map of model -> latest classified availability outcome.
+   101: 
+   102:     ``path=None`` keeps the ledger in memory (hermetic tests, and any lane
+   103:     that has no config dir). A failed read or write degrades to memory: a
+   104:     bookkeeping outage must never stop a request.
+   105:     """
+   106: 
+   107:     def __init__(self, path: Optional[str] = None, *,
+   108:                  ttl: float = DEFAULT_TTL_SECONDS,
+   109:                  rate_limit_ttl: float = RATE_LIMIT_TTL_SECONDS,
+   110:                  clock=None,
+   111:                  probe_budget: int = DEFAULT_PROBE_BUDGET):
+   112:         self.path = path
+   113:         self.ttl = max(0.0, float(ttl))
+   114:         self.rate_limit_ttl = max(0.0, float(rate_limit_ttl))
+   115:         self._clock = clock or time.time
+   116:         self.probe_budget = max(0, int(probe_budget))
+   117:         self._entries: Dict[str, AvailabilityEntry] = {}
+   118:         self.load()
+   119: 
+   120:     # -- persistence -----------------------------------------------------
+   121:     def load(self) -> None:
+   122:         if not self.path or not os.path.exists(self.path):
+   123:             return
+   124:         try:
+   125:             with open(self.path, encoding="utf-8") as handle:
+   126:                 payload = json.load(handle)
+   127:         except (OSError, ValueError):
+*  128:             return
+   129:         raw = payload.get("entries") if isinstance(payload, dict) else None
+   130:         if not isinstance(raw, dict):
+*  131:             return
+   132:         now = self._clock()
+   133:         for model, item in raw.items():
+   134:             if not isinstance(item, dict):
+*  135:                 continue
+   136:             try:
+   137:                 entry = AvailabilityEntry(
+   138:                     model=str(item.get("model") or model),
+   139:                     provider=str(item.get("provider") or provider_of(model)),
+   140:                     kind=str(item.get("kind") or "unknown"),
+   141:                     cause=str(item.get("cause") or UNKNOWN_CAUSE),
+   142:                     reason=str(item.get("reason") or "")[:400],
+   143:                     http_status=item.get("http_status"),
+   144:                     recorded_at=float(item.get("recorded_at") or 0.0),
+   145:                     expires_at=float(item.get("expires_at") or 0.0),
+   146:                     probes=int(item.get("probes") or 0),
+   147:                     probe_cost=float(item.get("probe_cost") or 0.0),
+   148:                 )
+   149:             except (TypeError, ValueError):
+*  150:                 continue
+   151:             if not entry.expired(now):
+   152:                 self._entries[entry.model] = entry
+   153: 
+   154:     def save(self) -> None:
+   155:         if not self.path:
+   156:             return
+   157:         payload = {
+   158:             "version": 1,
+   159:             "entries": {m: e.as_dict() for m, e in self._entries.items()},
+   160:         }
+   161:         try:
+   162:             directory = os.path.dirname(os.path.abspath(self.path))
+   163:             os.makedirs(directory, exist_ok=True)
+   164:             fd, tmp = tempfile.mkstemp(dir=directory, prefix=".availability-",
+   165:                                        suffix=".json")
+   166:             with os.fdopen(fd, "w", encoding="utf-8") as handle:
+   167:                 json.dump(payload, handle, indent=2, sort_keys=True)
+   168:             os.replace(tmp, self.path)
+   169:         except OSError:
+   170:             # Best effort: memory still holds this run's verdicts.
+*  171:             return
+   172: 
+   173:     # -- recording -------------------------------------------------------
+   174:     def _ttl_for(self, kind: str) -> float:
+   175:         # ``ttl`` is the ledger's window for every verdict; a rate limit may
+   176:         # be shorter, never longer (a test or an operator turning the window
+   177:         # off must turn ALL of it off, including the rate-limit cooldown).
+   178:         if str(kind) == "rate_limited":
+   179:             return min(self.rate_limit_ttl, self.ttl)
+   180:         return self.ttl
+   181: 
+   182:     def record_failure(self, model: str, *, kind: str = "unknown",
+   183:                        cause: str = UNKNOWN_CAUSE, reason: str = "",
+   184:                        http_status: Optional[int] = None,
+   185:                        ttl: Optional[float] = None) -> AvailabilityEntry:
+   186:         """Record that ``model`` could not serve, with its classified cause."""
+   187:         now = self._clock()
+   188:         window = self._ttl_for(kind) if ttl is None else max(0.0, float(ttl))
+   189:         prior = self._entries.get(str(model))
+   190:         entry = AvailabilityEntry(
+   191:             model=str(model),
+   192:             provider=provider_of(model),
+   193:             kind=str(kind or "unknown"),
+   194:             cause=cause if cause in (ACCOUNT_FUNDING, ROUTE_OR_MODEL_RESTRICTION,
+   195:                                      UNKNOWN_CAUSE) else UNKNOWN_CAUSE,
+   196:             reason=str(reason or "")[:400],
+   197:             http_status=http_status,
+   198:             recorded_at=now,
+   199:             expires_at=now + window,
+   200:             probes=int(prior.probes) if prior is not None else 0,
+   201:             probe_cost=float(prior.probe_cost) if prior is not None else 0.0,
+   202:         )
+   203:         self._entries[entry.model] = entry
+   204:         self.save()
+   205:         return entry
+   206: 
+   207:     def record_success(self, model: str) -> None:
+   208:         """A servable answer clears the pair's verdict."""
+   209:         if self._entries.pop(str(model), None) is not None:
+   210:             self.save()
+   211: 
+   212:     def note_probe(self, model: str, cost: float = 0.0) -> None:
+   213:         """Record one bounded revalidation attempt and its spend."""
+   214:         entry = self._entries.get(str(model))
+   215:         if entry is None:
+*  216:             return
+   217:         entry.probes += 1
+   218:         try:
+   219:             entry.probe_cost += max(0.0, float(cost or 0.0))
+   220:         except (TypeError, ValueError):
+*  221:             pass
+   222:         self.save()
+   223: 
+   224:     # -- queries ---------------------------------------------------------
+   225:     def entry(self, model: str) -> Optional[AvailabilityEntry]:
+   226:         entry = self._entries.get(str(model))
+   227:         if entry is None:
+   228:             return None
+   229:         if entry.expired(self._clock()):
+   230:             self._entries.pop(entry.model, None)
+   231:             return None
+   232:         return entry
+   233: 
+   234:     def probe_budget_left(self, model: str) -> int:
+   235:         entry = self.entry(model)
+   236:         if entry is None:
+*  237:             return 0
+   238:         return max(0, self.probe_budget - int(entry.probes))
+   239: 
+   240:     def is_unservable(self, model: str) -> bool:
+   241:         """True when this model's own or provider-wide verdict excludes it."""
+   242:         entry = self.entry(model)
+   243:         if entry is None:
+   244:             return False
+   245:         if entry.cause in MODEL_SCOPED_CAUSES:
+   246:             return entry.model == str(model)
+   247:         if entry.cause in PROVIDER_SCOPED_CAUSES:
+   248:             # A dry provider balance disables its paid routes only; its $0
+   249:             # routes cost nothing and stay selectable (#539).
+   250:             return not is_free_model(model)
+*  251:         return True
+   252: 
+   253:     def is_excluded(self, model: str) -> bool:
+   254:         """True when any live verdict in this ledger excludes ``model``."""
+   255:         if self.is_unservable(model):
+   256:             return True
+   257:         provider = provider_of(model)
+   258:         paid = not is_free_model(model)
+   259:         for entry in list(self._entries.values()):
+   260:             if entry.expired(self._clock()):
+   261:                 continue
+   262:             if entry.provider != provider:
+   263:                 continue
+   264:             if entry.cause in PROVIDER_SCOPED_CAUSES and paid:
+   265:                 return True
+   266:         return False
+   267: 
+   268:     def order(self, models: Iterable[str], *, prefer_free: bool = True) -> List[str]:
+   269:         """Servable models in the caller's order, free routes first (#540).
+   270: 
+   271:         Excluded pairs are dropped rather than merely demoted: dispatching to
+   272:         a backend already known to be unservable spends a call to relearn it.
+   273:         When every model is excluded the caller's order is returned unchanged
+   274:         -- a ladder must never become empty because of bookkeeping.
+   275:         """
+   276:         ordered: List[str] = []
+   277:         seen = set()
+   278:         for model in models or []:
+   279:             key = str(model)
+   280:             if key in seen:
+   281:                 continue
+   282:             seen.add(key)
+   283:             if not self.is_excluded(key):
+   284:                 ordered.append(key)
+   285:         if not ordered:
+   286:             return [str(m) for m in (models or [])]
+   287:         if prefer_free:
+   288:             ordered.sort(key=lambda m: 0 if is_free_model(m) else 1)
+   289:         return ordered
+   290: 
+   291:     def live_backends(self, models: Iterable[str]) -> List[Dict[str, object]]:
+   292:         """Which configured backends are currently selectable, and why not."""
+   293:         report = []
+   294:         for model in models or []:
+   295:             entry = self.entry(model)
+   296:             report.append({
+   297:                 "model": str(model),
+   298:                 "provider": provider_of(model),
+   299:                 "free": is_free_model(model),
+   300:                 "live": not self.is_excluded(model),
+   301:                 "reason": (entry.reason if entry is not None else ""),
+   302:                 "cause": (entry.cause if entry is not None else ""),
+   303:             })
+   304:         return report
+   305: 
+   306:     def snapshot(self) -> Dict[str, object]:
+   307:         now = self._clock()
+   308:         return {
+   309:             m: e.as_dict() for m, e in self._entries.items()
+   310:             if not e.expired(now)
+   311:         }
+   312: 
+   313: 
+   314: # ---------------------------------------------------------------------------
+   315: # Process-wide ledger used by the lanes that have no explicit instance.
+   316: # ---------------------------------------------------------------------------
+   317: 
+   318: _DEFAULT: Optional[AvailabilityLedger] = None
+   319: 
+   320: 
+   321: def _default_path() -> Optional[str]:
+   322:     """Where verdicts persist between runs (env override wins)."""
+   323:     if os.environ.get("HARNESS_AVAILABILITY_OFF", "").strip().lower() in (
+   324:             "1", "true", "yes", "on"):
+*  325:         return None
+   326:     explicit = os.environ.get("HARNESS_AVAILABILITY_PATH")
+   327:     if explicit:
+   328:         return explicit
+*  329:     try:
+*  330:         from .paths import get_config_dir
+   331: 
+*  332:         return os.path.join(get_config_dir(), "availability.json")
+   333:     except Exception:
+*  334:         return None
+   335: 
+   336: 
+   337: def default_ledger() -> AvailabilityLedger:
+   338:     """One ledger per process so every lane shares this run's verdicts."""
+*  339:     global _DEFAULT
+   340:     if _DEFAULT is None:
+   341:         try:
+   342:             ttl = float(os.environ.get("HARNESS_AVAILABILITY_TTL",
+   343:                                        DEFAULT_TTL_SECONDS))
+   344:         except (TypeError, ValueError):
+*  345:             ttl = DEFAULT_TTL_SECONDS
+   346:         _DEFAULT = AvailabilityLedger(_default_path(), ttl=ttl)
+   347:     return _DEFAULT
+   348: 
+   349: 
+   350: def reset_default_ledger(ledger: Optional[AvailabilityLedger] = None) -> None:
+   351:     """Replace/clear the process ledger (tests, and a fresh process run)."""
+*  352:     global _DEFAULT
+   353:     _DEFAULT = ledger
+   354: 
+   355: 
+   356: def record_error(model: str, error: Exception, *, kind: str = "unknown") -> None:
+   357:     """Record a provider error against ``model`` with its classified cause."""
+   358:     cause = getattr(error, "cause", None) or UNKNOWN_CAUSE
+   359:     default_ledger().record_failure(
+   360:         model, kind=kind, cause=cause, reason=str(error),
+
+===== harness/chat_policy.py =====
+   128:     "config", "template", "report file",
+   129: )
+   130: 
+   131: #: Verbs whose direct object is something the run will author.
+   132: _ARTIFACT_VERBS = (
+   133:     "make", "create", "write", "generate", "build", "produce", "draft",
+   134:     "code", "implement", "save", "export", "render", "compose", "assemble",
+   135: )
+   136: 
+   137: #: A prompt that names a real external target may still research.
+   138: _EXTERNAL_REF_RE = None
+   139: 
+   140: 
+   141: def _names_external_source(cleaned: str) -> bool:
+*  142:     global _EXTERNAL_REF_RE
+   143:     if _EXTERNAL_REF_RE is None:
+   144:         import re
+   145: 
+   146:         _EXTERNAL_REF_RE = re.compile(
+   147:             r"(https?://|www\.|\b[a-z0-9-]+\.(?:com|org|net|io|ai|dev|gov|edu|"
+   148:             r"co|uk|de|jp)\b)", re.IGNORECASE)
+   149:     return bool(_EXTERNAL_REF_RE.search(cleaned))
+   150: 
+   151: 
+   152: def is_artifact_request(prompt: str) -> bool:
+   153:     """True when the request's end state is something the run must author.
+   154: 
+   155:     "make a script that runs in windows to generate the image" is an artifact
+   156:     request: the deliverable is the script, not knowledge about the world.
+   157:     The predicate is deliberately conservative -- it needs BOTH an artifact
+   158:     noun and an authoring verb -- because a false positive would suppress a
+   159:     genuine lookup.
+   160:     """
+   161:     cleaned = (prompt or "").strip().lower()
+   162:     if not cleaned:
+*  163:         return False
+   164:     import re
+   165: 
+   166:     nouns = "|".join(re.escape(n) for n in _ARTIFACT_NOUNS)
+   167:     verbs = "|".join(re.escape(v) for v in _ARTIFACT_VERBS)
+   168:     return bool(re.search(rf"\b(?:{verbs})\b", cleaned)) and bool(
+   169:         re.search(rf"\b(?:{nouns})\b", cleaned))
+   170: 
+   171: 
+
+===== harness/conversation_lifecycle.py =====
+   202:                     messages=messages,
+   203:                     max_tokens=allocated_tokens,
+   204:                     reasoning_effort=lane_effort,
+   205:                     governor=gov,
+   206:                 )
+   207:             except HarnessError as e:
+   208:                 note = str(e)
+   209:                 from .lifecycle_guards import (
+   210:                     classify_harness_error,
+   211:                     is_availability_failure,
+   212:                 )
+   213: 
+   214:                 _kind = classify_harness_error(note)
+   215:                 if is_availability_failure(_kind):
+*  216:                     from .availability import record_error
+   217: 
+*  218:                     record_error(model, e, kind=_kind)
+   219:             else:
+   220:                 if status != 200:
+   221:                     note = _http_error(status, resp)
+   222:                 else:
+   223:                     content, finish_reason, cost, is_byok = extract_content_and_cost(resp)
+   224:                     if is_byok:
+   225:                         gov.record_byok(model)
+   226:                         note = (
+
+===== harness/edit_lifecycle.py =====
+   178:             test_files = [f for f in repo_files if "test" in f.lower() or f.endswith(".py")]
+   179:             if test_files:
+   180:                 target_files = test_files[:3]
+   181: 
+   182:         if root_dir is None and not target_files:
+   183:             # No file scope was planned, so nothing needs a workspace: answer
+   184:             # the request on the generation lane instead of refusing it at
+   185:             # task start (#544).
+   186:             emit("workspace_gate_deferred", focus="generation",
+   187:                  note="no scoped file operation; answering without a workspace")
+   188:             generated = self.run_simple_request(
+   189:                 prompt, session_id=session_id, cancel_check=cancel_check)
+   190:             if generated.get("status") in ("ok", "deferred"):
+   191:                 return generated
+*  192:             return self._handle_conversation(
+   193:                 prompt, session_id, cancel_check)
+   194: 
+   195:         if root_dir is None:
+   196:             # The plan reaches a file operation but no workspace is selected:
+   197:             # stop HERE, at that operation, with the canonical gate message.
+   198:             raise HarnessError(WORKSPACE_GATE_MESSAGE)
+   199: 
+   200:         emit("files_discovered", target_files=target_files)
+   201: 
+   202:         # Condense candidate file contexts
+   203:         file_contents: Dict[str, str] = {}
+   204:         original_contents: Dict[str, str] = {}
+   205:         for tf in target_files:
+   206:             fp = self.root_dir / tf
+   207:             if fp.exists():
+   208:                 try:
+   209:                     text = fp.read_text(encoding="utf-8")
+   210:                     file_contents[tf] = text
+   211:                     original_contents[tf] = text
+   212:                 except Exception:
+   213:                     pass
+   214: 
+   215:         if saved_plan and isinstance(state["context"].get("original_contents"), dict):
+   216:             original_contents = dict(state["context"]["original_contents"])
+   217:         brief = distill_context(files=file_contents, summary=prompt)
+   218:         if agent_ledger is not None:
+   219:             agent_ledger.append(
+   220:                 "brief_built", task_id=session_id, site="hourglass", schema=2,
+   221:                 **brief.ledger_fields())
+   222:         emit("context_condensed", estimated_tokens=brief.estimated_tokens)
+   223: 
+   224:         # Formulate the FIRST-round DAG plan (LLM decomposition when the
+   225:         # orchestration ladder answers; heuristic fallback) and gate.
+   226:         # The generative plan lane still requires the normal Harness
+   227:         # governor. Jev's own key controls only the typed structural call;
+   228:         # an unkeyed Jev evaluator remains the explicit local fallback.
+   229:         _, gov = governor_for(self.settings)
+   230:         run_token_budget = budget_from_settings(self.settings, label="edit")
+   231:         plan_policy = policy_for(
+   232:             self.settings, transport=self.transport, governor=gov,
+   233:             ledger=ledger_for(self.settings, caller="agent"))
+   234:         policy_ledger = getattr(plan_policy, "ledger", None)
+   235:         ensure_offered_task_id(
+   236:             policy_ledger, state["request_id"], model="(agent)",
+   237:             required=False, source="agent_edit_request")
+   238:         plan_prompt = prompt
+   239:         if saved_plan:
+   240:             plan = dict(saved_plan)
+   241:             plan_structural = plan.get("structural")
+   242:         else:
+   243:             def provider_once(call_id, invoke, *, result_cost=None):
+   244:                 from .provider_errors import ProviderSpendLimitError
+   245: 
+   246:                 calls = state["usage"]["provider_calls"]
+   247:                 previous = calls.get(call_id)
+   248:                 if previous is not None and previous.get("status") == "refused":
+   249:                     # #538: an availability refusal returned no completion, so
+   250:                     # the step is replayable on the next available backend.
+*  251:                     calls.pop(call_id, None)
+*  252:                     previous = None
+   253:                 if previous is not None:
+   254:                     if previous.get("status") == "completed":
+   255:                         return previous.get("result")
+   256:                     raise HarnessError(
+   257:                         "a prior provider call has unknown completion; it was not replayed")
+   258:                 self.lifecycle.provider_started(state, call_id)
+   259:                 try:
+   260:                     value = invoke()
+   261:                 except (ToolCancelled, ProviderUsageUnknown) as exc:
+   262:                     self.lifecycle.interrupt(state, exc, call_id=call_id)
+   263:                     raise
+   264:                 except ProviderSpendLimitError as exc:
+*  265:                     call = calls.get(call_id)
+*  266:                     if call is not None:
+*  267:                         call["status"] = "refused"
+*  268:                         call["actual_cost"] = max(
+   269:                             0.0, float(getattr(exc, "known_cost", 0.0) or 0.0))
+*  270:                         call["refused_model"] = getattr(exc, "model", None)
+*  271:                         self.lifecycle.save(state)
+*  272:                     raise
+   273:                 cost = float(result_cost(value) if result_cost else 0.0)
+   274:                 self.lifecycle.provider_completed(state, call_id, value, cost)
+   275:                 return value
+   276: 
+   277:             def evaluate_plan_once():
+   278:                 evaluation, structural = plan_policy.evaluate_plan(
+   279:                     prompt, target_files, site="agent-plan",
+   280:                     task_id=state["request_id"])
+   281:                 answers = getattr(evaluation, "answers", None)
+   282:                 verdict = getattr(evaluation, "verdict", "fail")
+   283:                 return {
+   284:                     "requires_iteration": bool(answers.get(
+   285:                         "requires_iteration")) if isinstance(answers, dict)
+   286:                         else False,
+   287:                     "verdict": (verdict if verdict in ("pass", "fail")
+   288:                                 else "fail"),
+   289:                     "native": not bool(getattr(
+   290:                         evaluation, "is_fallback", True)),
+   291:                     "supported": review_probability(getattr(
+   292:                         evaluation, "supported", None)),
+   293:                     "confidence": review_probability(getattr(
+   294:                         evaluation, "confidence", None)),
+   295:                     "structural": dict(structural or {}),
+   296:                 }
+   297: 
+   298:             state["stage"] = "plan"
+   299:             self.lifecycle.save(state)
+   300:             try:
+   301:                 plan_review = provider_once(
+   302:                     state["request_id"] + ":edit-plan-review",
+   303:                     evaluate_plan_once,
+   304:                     result_cost=lambda value: float(
+   305:                         value.get("structural", {}).get("cost") or 0.0))
+   306:                 if not isinstance(plan_review, dict):
+   307:                     raise HarnessError("saved Jev plan review is invalid")
+   308:                 plan_structural = plan_review.get("structural")
+   309:                 review_transition = self.lifecycle.review(
+   310:                     state, state["request_id"] + ":edit-plan-review", {
+   311:                         "verdict": plan_review.get("verdict", "fail"),
+   312:                         "native": bool(plan_review.get(
+   313:                             "native", (plan_structural or {}).get("native"))),
+   314:                         "supported": plan_review.get("supported"),
+   315:                         "confidence": plan_review.get("confidence"),
+   316:                         "iteration_required": bool(
+   317:                             plan_review.get("requires_iteration")),
+   318:                         "cost": (plan_structural or {}).get("cost", 0.0),
+   319:                     }, confidence_threshold=float(getattr(
+   320:                         self.settings, "min_confidence", 0.70) or 0.70),
+   321:                     final=True)
+   322:                 emit("lifecycle_review", lane="auto_edit",
+   323:                      request_id=state["request_id"],
+   324:                      decision=review_transition.decision,
+   325:                      rounds=review_transition.rounds)
+   326:                 if review_transition.should_continue:
+   327:                     emit("orchestration_note",
+   328:                          note="Jev structural analysis detected algorithmic iteration; injecting DAG loop directive")
+   329:                     plan_prompt = (
+   330:                         f"{prompt}\n\n[STRUCTURAL GUIDELINE]: This goal requires iterative "
+   331:                         "control flow, conditional branching, or multi-step execution. "
+   332:                         "Ensure the decomposed DAG explicitly breaks down the iterative "
+   333:                         "loop and discrete steps into executable nodes.")
+   334: 
+   335:                 def make_plan():
+   336:                     try:
+   337:                         return self._plan_round(
+   338:                             plan_prompt, target_files, gov,
+   339:                             confirm=hourglass["confirm"],
+   340:                             token_budget=run_token_budget)
+   341:                     except TypeError:
+   342:                         return self._plan_round(
+   343:                             plan_prompt, target_files, gov,
+   344:                             confirm=hourglass["confirm"])
+   345: 
+   346:                 # #538: a provider-availability outcome is not an un-replayable
+   347:                 # planning result. The plan is re-derived on the next
+   348:                 # available backend (bounded), instead of stopping the request
+   349:                 # while a funded backend is still unprobed.
+   350:                 plan_attempts = 0
+*  351:                 while True:
+   352:                     try:
+   353:                         plan = provider_once(
+   354:                             state["request_id"] + ":edit-initial-plan",
+   355:                             make_plan,
+   356:                             result_cost=lambda value: float(
+   357:                                 value.get("cost") or 0.0)
+   358:                             if isinstance(value, dict) else 0.0)
+   359:                         break
+   360:                     except ToolCancelled:
+*  361:                         raise
+   362:                     except HarnessError as exc:
+*  363:                         from .availability import record_error
+*  364:                         from .lifecycle_guards import (
+   365:                             classify_harness_error,
+   366:                             is_availability_failure,
+   367:                         )
+   368: 
+*  369:                         kind = classify_harness_error(str(exc))
+*  370:                         if not is_availability_failure(kind):
+*  371:                             raise
+*  372:                         record_error(
+   373:                             str(getattr(exc, "model", "") or "plan-lane"),
+   374:                             exc, kind=kind)
+*  375:                         plan_attempts += 1
+*  376:                         emit("rotation", model=getattr(exc, "model", None),
+   377:                              reason="edit_plan_availability_retry",
+   378:                              note=(f"plan re-derived on the next available "
+   379:                                    f"backend (attempt {plan_attempts}) "
+   380:                                    f"after: {exc}"))
+   381:                         if plan_attempts >= 2:
+   382:                             raise
+   383:                 if not isinstance(plan, dict):
+   384:                     raise HarnessError("saved edit plan is invalid")
+
+===== harness/hourglass_lifecycle.py =====
+   158:         request_ledger = ledger_for(self.settings, caller="agent")
+   159:         if request_ledger is not None:
+   160:             event = {"site": "hourglass", "schema": 2,
+   161:                      **brief.ledger_fields()}
+   162:             if session_id is not None:
+   163:                 event["task_id"] = session_id
+   164:             request_ledger.append("brief_built", **event)
+   165:         context = brief.to_prompt_context()[:context_limit]
+   166:         web_sources = []
+   167:         detour_note = None
+   168:         if web and research_detour_blocked(prompt):
+   169:             # #542: the request's end state is an artifact, so web-research
+   170:             # planning adds nothing and would consume the run. Record the
+   171:             # block and continue on the direct/build path.
+*  172:             emit("research_detour_blocked", lane="hourglass",
+   173:                  note="request ends in an artifact; direct path")
+*  174:             web = False
+*  175:             detour_note = ("blocked: request ends in an artifact; "
+   176:                            "answered on the direct path")
+   177:         if web:
+   178:             try:
+   179:                 web_sources = self._gather_web_context(web_prompt or prompt)
+   180:             except (ToolCancelled, ProviderSpendLimitError):
+   181:                 raise
+   182:             except Exception as exc:  # context failure must not kill the lane
+   183:                 web_sources = [{"kind": "web", "ok": False,
+   184:                                 "note": f"web tools error: {type(exc).__name__}"}]
+   185:             if (is_site_audit_request(web_prompt or prompt)
+   186:                     or referential(prompt)):
+   187:                 target = extract_site_target(web_prompt or prompt)
+   188:                 if target:
+   189:                     try:
+   190:                         evidence = render_site_evidence(
+   191:                             target,
+   192:                             screenshot_dir=(
+   193:                                 Path(self.history_dir) / "site_evidence"
+   194:                                 if self.history_dir else None))
+   195:                         web_sources.append({
+   196:                             "kind": "browser", "ok": True,
+   197:                             "url": evidence.get("final_url") or target,
+   198:                             "title": evidence.get("title") or "",
+   199:                             "text": evidence_summary(evidence),
+   200:                         })
+   201:                     except Exception as exc:  # noqa: BLE001
+   202:                         web_sources.append({
+   203:                             "kind": "browser", "ok": False, "url": target,
+   204:                             "note": ("site drive unavailable: "
+   205:                                      f"{type(exc).__name__}: {exc}"),
+   206:                         })
+   207:             if (any(source.get("ok") for source in web_sources)
+   208:                     and not any(
+   209:                         source.get("ok")
+   210:                         and str(source.get("text") or "").strip()
+   211:                         for source in web_sources)):
+   212:                 # #542: no usable text means the detour bought nothing. Abort
+   213:                 # it in the record instead of continuing the plan around it.
+*  214:                 emit("research_detour_aborted", lane="hourglass",
+   215:                      note="every gathered source was empty")
+*  216:                 detour_note = ("aborted: every gathered source returned "
+   217:                                "0 chars")
+   218:             for source in web_sources:
+   219:                 if source.get("ok"):
+   220:                     body = str(source.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
+   221:                     context += "\n\nWEB EVIDENCE:\n" + body
+   222:             context = context[:context_limit]
+   223:         if detour_note is not None:
+*  224:             web_sources.append({"kind": "detour", "ok": False,
+   225:                                 "note": detour_note})
+   226:         emit("context_condensed", estimated_tokens=brief.estimated_tokens,
+   227:              files=list(files), web_sources=len(web_sources),
+   228:              scope=("repository-review" if broad_review else
+   229:                     "targeted-workspace" if workspace else "none"))
+   230:         return context, files, brief, web_sources
+   231:     def _hourglass_answer_once(self, prompt: str, context: str,
+   232:                                prior: Optional[Dict[str, Any]] = None,
+
+===== harness/panel.py =====
+    98:     None. BYOK-routed paid responses are recorded via record_byok only
+    99:     (their spend is invisible to the tracked key).
+   100:     """
+   101:     if cancel_check and cancel_check():
+   102:         from .errors import ToolCancelled
+   103:         raise ToolCancelled()
+   104:     try:
+   105:         status, resp = chat_routed(transport, api_key, model,
+   106:                                    [{"role": "user", "content": judge_prompt}],
+   107:                                    judge_reserve_tokens, reasoning_effort,
+   108:                                    reasoning_token_budget, governor)
+   109:     except ProviderSpendLimitError as exc:
+   110:         # #538: another judge seat may still serve. Return a named status so
+   111:         # the existing fallback rotation runs instead of aborting the panel.
+*  112:         from .availability import record_error
+   113: 
+*  114:         record_error(model, exc, kind="spend_exhausted")
+*  115:         _events.emit("rotation", task_id=task_id, model=model,
+   116:                      reason="judge_provider_unavailable", note=str(exc))
+*  117:         if ledger and task_id:
+*  118:             ledger.append("model_result", task_id=task_id, event_note="judge",
+   119:                           model=model, task_type=task_type, json_expected=True,
+   120:                           json_ok=False, status="error", error=str(exc))
+*  121:         return "provider_unavailable", None, 0.0
+   122:     cost = _reported_cost(resp)
+   123:     err = (resp.get("error", {}).get("message", str(resp))
+   124:            if isinstance(resp, dict) else str(resp))
+   125:     note = f"http_{status}" if status != 200 else "unparseable"
+   126:     content = None
+   127:     paid_byok = False
+   128:     if status == 200:
+   129:         content, _, cost, is_byok = extract_content_and_cost(resp)
+   130:         paid_byok = bool(is_byok and not governor.is_free(model))
+   131:         if paid_byok:
+   132:             governor.record_byok(model)
+   133:             note = "byok_blocked"
+   134:         elif content and content.startswith(REASONING_FALLBACK_PREFIX):
+   135:             note = "reasoning_only"
+   136:             content = None
+   137:         else:
+   138:             note = ("parseable" if _extract_json(content) is not None
+   139:                     else ("truncated" if looks_truncated(content)
+   140:                           else "unparseable"))
+   141:     if cost and not paid_byok:
+   142:         governor.record_actual(cost, model)
+   143:     if ledger and task_id:
+   144:         fields = dict(event_note="judge", model=model, task_type=task_type,
+   145:                       json_expected=True, json_ok=note == "parseable",
+   146:                       status="ok" if note == "parseable" else "error",
+   147:                       cost=0.0 if paid_byok else cost,
+   148:                       synthesis_status=note)
+   149:         if retry:
+   150:             fields["retry"] = True
+   151:         ledger.append("model_result", task_id=task_id, **fields)
+   152:     eprint(f"[judge] {model}: {note}" + (f" ({err})" if status != 200 else ""))
+   153:     _events.emit("judge_result", task_id=task_id, model=model,
+   154:                  status=note, cost=cost,
+   155:                  **({"error": err} if status != 200 else {}))
+   156:     return note, content, cost
+   157: 
+   158: 
+   159: def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_tokens=None,
+   160:                 reasoning_effort="auto", reasoning_token_budget=0.4, task_id=None,
+   161:                 ledger=None, max_panelists=3, run_convergence=False,
+   162:                 convergence_model=None, specialist_pool=None, claim_polarity=None,
+   163:                 free_tier=False, cancel_check=None,
+   164:                 jev_policy=None, jev_claim_support=False,
+   165:                 claim_texts=None, claim_evidence=None,
+   166:                 jev_primary_mode=False):
+   167:     """Rotating panel of independent cheap takes + 1 structured judge verdict.
+   168: 
+   169:     panel is an ordered pool; members that fail are replaced by the next model
+   170:     in the pool until max_panelists succeed or the pool is exhausted.
+   171: 
+   172:     JEV-P3-claims: optional lean claim-support checks before judge synthesis.
+   173:     Flag-gated (``jev_claim_support``, default off). Does not replace or
+   174:     weaken :mod:`harness.claims` lint ownership — advisory typed flags only.
+   175:     """
+   176:     max_tokens = max_tokens or DEFAULT_MAX_TOKENS
+   177:     # Lane policy (ONE owner: config). Construction applies the caller's
+   178:     # --max-tokens/--reasoning-effort overrides exactly once, per lane:
+   179:     #   * votes are cheap decisions -- a >=4096 output budget with reasoning
+   180:     #     explicitly disabled ({"effort": "none"}) keeps hidden thinking from
+   181:     #     starving the visible JSON (the 2026-09-13 BoD failures:
+   182:     #     reasoning-only output at 600-token vote budgets);
+   183:     #   * judge synthesis needs bounded depth, not a starved vote budget:
+   184:     #     >=8192 with "auto" reasoning (low for reasoning-named models);
+   185:     #   * the specialist renders per-claim JSON from the votes -- the
+   186:     #     handoff's "JSON extraction" row (4096, like votes). Resolving it at
+   187:     #     the judge's 8192 synthesis floor would defeat the window-aware vote
+   188:     #     trim for small-window specialists (budget <= 0 disables the guard)
+   189:     #     and rotate a workable lane on truncation.
+   190:     policy = PanelLanePolicy(max_tokens=max_tokens,
+   191:                              reasoning_effort=reasoning_effort,
+   192:                              run_convergence=run_convergence)
+   193:     panel_pool = list(panel)
+   194:     # Declared once, up front: every rotation/filtering step below (BYOK,
+   195:     # capability hard gate, catalog-unknown) that removes a REQUESTED
+   196:     # panelist before dispatch appends here too, not just the live dispatch
+   197:     # loop's HTTP/output failures. DF-BOD-1: a panelist silently vanishing
+   198:     # pre-dispatch made `max_panelists=5` seat only 4 with no evidence why.
+   199:     panel_failures = []
+   200: 
+   201:     claim_support = None
+   202:     # #453 S3a: under jev_primary_mode the Jev claim-support path is the
+   203:     # primary judgment route, not an opt-in advisory — it runs whenever a
+   204:     # policy is wired. The route taken is recorded on the result envelope
+   205:     # below; an absent policy or a Jev failure is a NAMED fallback, never a
+   206:     # silent LLM-only judgment.
+   207:     if jev_policy is not None and (jev_claim_support or jev_primary_mode):
+   208:         try:
+   209:             _cs_result, claim_support = jev_policy.evaluate_claim_support(
+   210:                 claim_texts if claim_texts is not None else [],
+   211:                 claim_evidence if claim_evidence is not None else prompt,
+   212:                 enabled=True, site="claims", task_id=task_id)
+   213:         except (ToolCancelled, ProviderUsageUnknown):
+   214:             raise
+   215:         except ProviderSpendLimitError as exc:
+   216:             # #538: the claim-support seat is advisory. A dry backend must not
+   217:             # take the whole panel (and its real votes) down with it; record
+   218:             # the named skip and let the panel rotate.
+   219:             from .availability import record_error
+   220: 
+   221:             record_error(str(getattr(exc, "model", "") or "jev-claim-support"),
+   222:                          exc, kind="spend_exhausted")
+   223:             claim_support = {"skipped": True, "error": str(exc),
+   224:                              "claim_flags": [], "provider_unavailable": True}
+   225:         except Exception as exc:  # advisory only — never break panel dispatch
+   226:             claim_support = {"skipped": True, "error": str(exc), "claim_flags": []}
+   227: 
+   228:     spec_model = convergence_model or judge
+   229:     for _m in panel_pool + [judge, spec_model]:
+   230:         governor.check_byok(_m)  # P0: raise on mistralai//anthropic/
+   231: 
+   232:     # Capability-aware ordering: order the panel so the MORE capable model is
+   233:     # tried first (cost is equal on the free tier), using reliability as the
+   234:     # tiebreaker. Uses the ONE ordering owner; degrades to the caller's order
+   235:     # when capability data is unavailable or ordering empties the pool (e.g.
+   236:     # all hard-gated out). call_lane="panel" distinguishes this internal
+   237:     # request from an engine's apply-lane request.
+   238:     _pre_order_pool = panel_pool
+   239:     ordered, _profiles = ordered_pool(
+   240:         panel_pool, governor=governor, ledger=ledger,
+   241:         task="structured" if run_convergence else "default",
+   242:         free_tier=bool(free_tier), call_lane="panel")
+   243:     if _profiles is not None:
+   244:         panel_pool = ordered
+   245:     # Strike/demotion visibility: order_pool drops (hard capability gate,
+   246:     # catalog-unknown id) or demotes members on ledger evidence; the dispatch
+   247:     # log names every dropped id so callers can reconcile "why did my pool
+   248:     # lose/reorder members?" (2026-09-13 handoff, section 4.2: strike gating
+   249:     # must not be opaque). DF-BOD-1: this must compare the pool BEFORE
+   250:     # ordered_pool ran against its result -- comparing the already-reassigned
+   251:     # `panel_pool` (== `ordered`) against itself always yields an empty diff,
+   252:     # which is exactly how a requested panelist (e.g. a hard-gated or
+   253:     # catalog-unknown model) vanished from `max_panelists` seating with zero
+   254:     # evidence in panel_failures.
+   255:     _demoted = ([m_ for m_ in _pre_order_pool if m_ not in ordered]
+   256:                 if _profiles is not None else [])
+   257:     if _demoted:
+   258:         eprint("[panel] strike/demotion gating removed from dispatch: "
+   259:                + ", ".join(_demoted))
+   260:         _events.emit("pool_filtered", task_id=task_id, lane="panel",
+   261:                      reason="demotion_strike", models=_demoted)
+   262:         panel_failures.extend(
+   263:             {"model": m_, "reason": "removed pre-dispatch: hard capability "
+   264:                                      "gate or not in the live model catalog",
+   265:              "status": "pool_filtered"}
+   266:             for m_ in _demoted)
+   267: 
+   268:     # Rotate out any org-prefix previously observed routing via BYOK (paid).
+   269:     # VISIBLE (2026-09-13 handoff, section 4.1): silent filtering shrank a
+   270:     # 6-model pool to 4 seats and confused dispatch accounting.
+   271:     _byok_removed = [m_ for m_ in panel_pool if governor.learned_blocked(m_)]
+   272:     if _byok_removed:
+   273:         eprint("[panel] " + ", ".join(_byok_removed)
+   274:                + " skipped: learned-BYOK org filter (paid route)"
+   275:                " -- widen the pool or clear byok_prefixes.json to restore.")
+   276:         _events.emit("pool_filtered", task_id=task_id, lane="panel",
+   277:                      reason="learned_byok", models=_byok_removed)
+   278:         panel_failures.extend(
+   279:             {"model": m_, "reason": "removed pre-dispatch: learned-BYOK "
+   280:                                      "org filter (paid route)",
+   281:              "status": "pool_filtered"}
+   282:             for m_ in _byok_removed)
+   283:     panel_pool = [m_ for m_ in panel_pool if not governor.learned_blocked(m_)]
+   284:     judge_blocked = governor.learned_blocked(judge)
+   285:     if not panel_pool:
+   286:         raise HarnessError("no available panel models after BYOK filtering")
+   287:     target = max(1, min(int(max_panelists), len(panel_pool)))
+   288: 
+   289:     judge_reserve_tokens = max(768, policy.judge.tokens + 200)
+   290:     # Reserve for every candidate, bounded 429 retries, and provider reasoning
+   291:     # fallbacks. A malformed/rate-limited member may consume a call before a
+   292:     # replacement fills its slot; a reasoning rejection may consume a fallback
+   293:     # request before the same logical call succeeds.
+   294:     calls = []
+   295:     for m_ in panel_pool:
+   296:         slots = _chat_reservation_slots(m_, policy.vote.effort, MAX_429_RETRIES)
+   297:         for i in range(slots):
+   298:             calls.append((f"{m_} (panel attempt {i + 1}/{slots})", m_,
+   299:                           policy.vote.tokens, 0))
+   300:     judge_slots = _chat_reservation_slots(judge, policy.judge.effort)
+   301:     # +1: the primary seat's bounded transient retry (http_5xx/408/429) is a
+   302:     # real extra attempt the loop below can make; without its row the ceiling
+   303:     # is approximate exactly when the provider is failing.
+   304:     for i in range(judge_slots + 1):
+   305:         calls.append((f"{judge} (judge attempt {i + 1}/{judge_slots + 1})", judge,
+   306:                       judge_reserve_tokens, target * policy.vote.tokens + 100))
+   307:     # Judge fallback reserve (P0 handoff fix): a judge seat with no second
+   308:     # attempt turned one bad judge body (truncation, http_502, reasoning-only)
+   309:     # into a lost verdict despite a converged panel -- three proven modes in
+   310:     # the SCMessenger handoff. Same predicate the rotation uses, so the
+   311:     # worst-case ceiling always covers every call rotation can make.
+   312:     # DF-MS-2b: sized to the dispatch tail (``pool[target:]``) that can
+   313:     # actually go undispatched, not the whole pool -- when the pool is no
+   314:     # bigger than ``target`` (the common 3-panel/max_panelists=3 shape),
+   315:     # every panelist is guaranteed to be attempted as a vote, so none of them
+   316:     # can ever also be a judge fallback candidate and the reserve is $0.
+   317:     calls.extend(_judge_fallback_reserve(
+   318:         panel_pool, judge, governor, judge_reserve_tokens,
+   319:         target * policy.vote.tokens + 100, target,
+   320:         judge_effort=policy.judge.effort))
+   321:     if run_convergence:
+   322:         # Reserve what the call can actually spend (the specialist lane's own
+   323:         # lane's own resolved budget), not the judge synthesis budget -- a
+   324:         # reserve that exceeds the call's worst case overstates the ceiling.
+   325:         # The specialist consumes the panel votes just like the judge does, so
+   326:         # the same extra_input applies.
+   327:         spec_slots = _chat_reservation_slots(spec_model, policy.specialist.effort)
+   328:         for i in range(spec_slots):
+   329:             calls.append((f"{spec_model} (convergence attempt {i + 1}/{spec_slots})",
+   330:                           spec_model, policy.specialist.tokens,
+   331:                           target * policy.vote.tokens + 100))
+   332:     total_estimate, breakdown = governor.preflight(prompt, calls)
+   333:     _events.emit("preflight", task_id=task_id, lane="panel",
+   334:                  worst_case=total_estimate, ceiling=governor.max_cost,
+   335:                  calls=[{"label": label, "model": model, "cost": cost}
+   336:                         for label, model, cost in breakdown])
+   337:     eprint("[preflight] worst-case cost breakdown:")
+   338:     for label, _model, cost in breakdown:
+   339:         eprint(f"  {label}: ${cost:.6f}")
+   340:     eprint(f"[preflight] TOTAL worst-case: ${total_estimate:.6f} "
+   341:            f"(ceiling: ${governor.max_cost:.6f})")
+   342: 
+   343:     def _run_panel_slot(model):
+   344:         # One panel seat: call, gate, bill, ledger. Thread-safe: the only
+   345:         # shared mutable state (governor spend, ledger appends) locks.
+   346:         if cancel_check and cancel_check():
+   347:             from .errors import ToolCancelled
+   348:             raise ToolCancelled()
+   349:         eprint(f"[panel] calling {model} ...")
+   350:         _events.emit("panel_call", task_id=task_id, model=model,
+   351:                      structured=run_convergence)
+   352:         t0 = time.time()
+   353:         retry_count = 0
+   354:         response_cost = 0.0
+   355:         response_cost_recorded = False
+   356:         while True:
+   357:             try:
+   358:                 status, resp = chat_routed(
+   359:                     transport, api_key, model,
+   360:                     [{"role": "user", "content": prompt}],
+   361:                     policy.vote.tokens, policy.vote.effort,
+   362:                     reasoning_token_budget, governor)
+   363:             except ProviderSpendLimitError as exc:
+   364:                 # #538: a refusal on this seat is an availability outcome, not
+   365:                 # the end of the panel. Record it and let the caller rotate in
+   366:                 # the next pool member.
+*  367:                 from .availability import record_error
+   368: 
+*  369:                 record_error(model, exc, kind="spend_exhausted")
+*  370:                 if ledger and task_id:
+*  371:                     ledger.append("model_result", task_id=task_id,
+   372:                                   event_note="panel", model=model,
+   373:                                   task_type=("structured" if run_convergence
+   374:                                              else "panel"),
+   375:                                   json_expected=run_convergence,
+   376:                                   json_ok=False, status="error",
+   377:                                   error=str(exc))
+*  378:                 panel_failures.append({
+   379:                     "model": model, "reason": str(exc),
+   380:                     "status": "provider_unavailable", "cost": 0.0,
+   381:                     "retries": retry_count})
+*  382:                 eprint(f"[panel] {model} unavailable ({exc}) -- rotating.")
+*  383:                 _events.emit("rotation", task_id=task_id, model=model,
+   384:                              reason="provider_unavailable", note=str(exc))
+*  385:                 return None
+   386:             response_cost = _reported_cost(resp)
+   387:             if cancel_check and cancel_check():
+   388:                 from .errors import ToolCancelled
+   389:                 if response_cost:
+   390:                     governor.record_actual(response_cost, model)
+   391:                 raise ToolCancelled()
+   392:             response_cost_recorded = False
+   393:             if status != 429 or retry_count >= MAX_429_RETRIES:
+
+===== harness/simple_answer_lifecycle.py =====
+   259:             if bool(pre.get("native")) and strategy != "direct_answer":
+   260:                 if strategy in {
+   261:                         "needs_tool", "web_research",
+   262:                         "workspace_inspection"}:
+   263:                     if (strategy == "workspace_inspection"
+   264:                             and self.root_dir is None):
+   265:                         return self._workspace_context_deferred(prompt, sid)
+   266:                     needs_web = bool(
+   267:                         strategy in {"needs_tool", "web_research"}
+   268:                         or is_research_question(prompt)
+   269:                         or is_current_information_request(prompt))
+   270:                     # #542: an artifact request routes to the build path. A
+   271:                     # Jev-suggested research detour must not consume the run.
+   272:                     if needs_web and research_detour_blocked(prompt):
+*  273:                         emit("research_detour_blocked", lane="simple-answer",
+   274:                              strategy=strategy,
+   275:                              note="request ends in an artifact; build path")
+*  276:                         needs_web = False
+   277:                     if self._live_jev_available():
+   278:                         return self.run_hourglass_request(
+   279:                             prompt, session_id=sid, cancel_check=cancel_check,
+   280:                             web=needs_web,
+   281:                             request_preflight={
+   282:                                 "source": "simple_strategy",
+   283:                                 "choice": strategy,
+   284:                                 "native": bool(pre.get("native")),
+
+===== harness/waist.py =====
+   591:     The bounded repair for a parse failure: recover the structure the model
+   592:     already produced instead of spending a second full decomposition call.
+   593:     Two shapes are recovered, both schema-checked through ``TaskDAG.from_dict``
+   594:     so a salvage can never admit a node the strict parser would reject:
+   595: 
+   596:     1. individual node objects that survived the truncation (``node_id`` +
+   597:        ``instruction``), assembled into one DAG; and
+   598:     2. the legacy ``nodes`` mapping, which may be the only thing that parsed.
+   599: 
+   600:     Returns ``None`` when nothing usable is present -- the caller then falls
+   601:     back to the heuristic plan with the raw body preserved.
+   602:     """
+   603:     text = str(response_text or "")
+   604:     if not text.strip():
+*  605:         return None
+   606:     recovered: Dict[str, Any] = {}
+   607:     for span in _balanced_object_spans(text):
+   608:         data = None
+   609:         try:
+   610:             data = json.loads(span)
+   611:         except (json.JSONDecodeError, UnicodeDecodeError):
+*  612:             try:
+*  613:                 literal = ast.literal_eval(span)
+*  614:                 data = literal if isinstance(literal, dict) else None
+   615:             except Exception:
+*  616:                 data = None
+   617:         if not isinstance(data, dict):
+*  618:             continue
+   619:         if isinstance(data.get("nodes"), (dict, list)):
+*  620:             payload = data
+*  621:             if isinstance(payload.get("nodes"), dict):
+   622:                 # A models sometimes emit ``nodes`` as a mapping; the strict
+   623:                 # DAG contract takes a list, so normalise before validating.
+*  624:                 payload = dict(payload)
+*  625:                 payload["nodes"] = list(payload["nodes"].values())
+*  626:             try:
+*  627:                 dag = TaskDAG.from_dict(payload)
+   628:             except HarnessError:
+*  629:                 dag = None
+*  630:             if dag is not None and dag.nodes:
+*  631:                 return dag
+   632:         node_id = data.get("node_id") or data.get("id")
+   633:         instruction = data.get("instruction") or data.get("description")
+   634:         if (isinstance(node_id, str) and node_id.strip()
+   635:                 and isinstance(instruction, str) and instruction.strip()):
+   636:             recovered.setdefault(node_id.strip(), data)
+   637:     if recovered:
+   638:         try:
+   639:             dag = TaskDAG.from_dict({"nodes": list(recovered.values())})
+   640:         except HarnessError:
+*  641:             dag = None
+   642:         if dag is not None and dag.nodes:
+   643:             return dag
+   644:     return None
+   645: 
+   646: 
+   647: def decomposition_repair_record(exc: Exception, raw: str) -> Dict[str, Any]:
+   648:     """The run-record evidence for one decomposition repair attempt (#541).
+   649: 
+   650:     Carries the parse error and the exact raw body (bounded) so a malformed
+   651:     decomposition is diagnosable after the fact instead of being discarded.
+   652:     """
+   653:     body = str(raw or "")
+   654:     return {
+   655:         "path": "deterministic_salvage",
+   656:         "cost": 0.0,
+   657:         "parse_error": str(exc)[:400],
+   658:         "raw_output": body[:4000],
+   659:         "raw_output_chars": len(body),
+   660:         "raw_output_sha256": hashlib.sha256(
+   661:             body.encode("utf-8", "replace")).hexdigest(),
+   662:     }
+   663: 
+   664: 
+   665: 
+   666: def heuristic_decompose_goal(goal: str, candidate_files: Optional[Sequence[str]] = None,
+   667:                              *, root_dir: Optional[str] = None) -> TaskDAG:
+   668:     # Deterministic heuristic decomposition into a TaskDAG.
+   669:     # #456 greenfield creation: candidate files that do not exist under
+   670:     # root_dir are marked create_files, so the executor creates (not edits)
+   671:     # them. Without root_dir every candidate is assumed to exist.
+   672:     if not goal or not goal.strip():
+   673:         raise HarnessError("goal cannot be empty")
+   674: 
+   675:     files = [f.strip() for f in (candidate_files or []) if str(f).strip()]
+   676:     nodes: Dict[str, DAGNode] = {}
+   677: 
+   678:     def _creates(targets):
+   679:         if root_dir is None:
+   680:             return ()
+   681:         missing = []
+   682:         for rel in targets:
+   683:             full = rel if os.path.isabs(rel) else os.path.join(root_dir, rel)
+   684:             if not os.path.exists(full):
+   685:                 missing.append(rel)
+   686:         return tuple(missing)
+   687: 
+   688:     # Check for numbered or bulleted steps in goal
+   689:     steps = [s.strip() for s in re.split(r"(?:^|\n)\s*(?:\d+[\.\)]|[-*])\s+", goal.strip()) if s.strip()]
+   690: 
+   691:     if len(steps) > 1:
+   692:         # Multi-step goal
+   693:         prev_id = None
+   694:         for i, step in enumerate(steps, 1):
+   695:             node_id = f"task_{i}"
+   696:             deps = (prev_id,) if prev_id else ()
+   697:             target = (files[i - 1],) if i - 1 < len(files) else ()
+   698:             nodes[node_id] = DAGNode(
+   699:                 node_id=node_id,
+   700:                 instruction=step,
+   701:                 target_files=target,
+   702:                 create_files=_creates(target),
+   703:                 dependencies=deps,
+   704:                 complexity_tier=1,
+   705:             )
+   706:             prev_id = node_id
+   707:     elif len(files) > 1:
+   708:         # Multi-file goal: one subtask per file
+   709:         test_files = [f for f in files if "test" in f.lower()]
+   710:         impl_files = [f for f in files if f not in test_files]
+   711: 
+   712:         impl_ids = []
+   713:         for i, f in enumerate(impl_files, 1):
+   714:             node_id = f"task_{i}"
+   715:             impl_ids.append(node_id)
+   716:             nodes[node_id] = DAGNode(
+   717:                 node_id=node_id,
+   718:                 instruction=f"{goal.strip()} for {f}",
+   719:                 target_files=(f,),
+   720:                 create_files=_creates((f,)),
+   721:                 dependencies=(),
+   722:                 complexity_tier=1,
+   723:             )
+   724: 
+   725:         start_test_idx = len(impl_files) + 1
+   726:         for j, f in enumerate(test_files, start_test_idx):
+   727:             node_id = f"task_{j}"
+   728:             nodes[node_id] = DAGNode(
+   729:                 node_id=node_id,
+   730:                 instruction=f"Update tests in {f} for {goal.strip()}",
+   731:                 target_files=(f,),
+   732:                 create_files=_creates((f,)),
+   733:                 dependencies=tuple(impl_ids),
+   734:                 complexity_tier=1,
+   735:             )
+   736:     else:
+   737:         # Single node goal
+   738:         target = tuple(files)
+   739:         if not target:
+   740:             # If no files were provided, check if the goal mentions a specific file
+   741:             found = re.findall(r"\b[\w-]+\.(?:py|rs|go|ts|js|md|json|toml|yaml|yml|c|cpp|h)\b", goal)
+   742:             if found:
+   743:                 target = (found[0],)
+   744:             else:
+   745:                 # Default deliverable target for analytical / open-ended tasks
+   746:                 target = ("docs/reports/analysis.md",)
+   747:         nodes["task_1"] = DAGNode(
+   748:             node_id="task_1",
+   749:             instruction=goal.strip(),
+   750:             target_files=target,
+   751:             create_files=_creates(target),
+   752:             dependencies=(),
+   753:             complexity_tier=1,
+   754:         )
+   755: 
+   756:     return TaskDAG(nodes=nodes)
+   757: 
+   758: 
+   759: 
+   760: def decompose_via_llm(
+   761:     chat_fn,
+   762:     goal: str,
+   763:     candidate_files: Optional[Sequence[str]] = None,
+   764:     repo_context: Optional[str] = None,
+   765: ) -> TaskDAG:
+   766:     """M1 seam: a cheap model authors the DAG; strict schema validation.
+   767: 
+   768:     ``chat_fn(prompt) -> response text`` is injected (governed upstream via
+   769:     ``chat.governed_text``), so this stays pure and hermetically testable.
+   770:     Raises HarnessError on empty/invalid responses, an empty node set, or
+   771:     nodes that would fail apply-time validation (instruction length). The
+   772:     heuristic decomposition stays the caller's fallback: planning may
+   773:     degrade loudly, spending may not degrade silently.
+   774:     """
+   775:     prompt = build_decomposition_prompt(
+   776:         goal, repo_context=repo_context, candidate_files=candidate_files)
+   777:     raw = chat_fn(prompt)
+   778:     if not raw or not str(raw).strip():
+   779:         raise HarnessError("LLM decomposition returned empty response")
+   780:     dag = parse_decomposition_response(raw)
+   781:     if not dag.nodes:
+   782:         raise HarnessError("LLM decomposition returned no nodes")
+   783:     for node in dag.nodes.values():
+   784:         if len(node.instruction) > MAX_INSTRUCTION_CHARS:
+   785:             raise HarnessError(
+   786:                 f"LLM decomposition node {node.node_id!r} instruction exceeds "
+   787:                 f"{MAX_INSTRUCTION_CHARS} chars (would fail apply validation)")
+   788:     return dag
+   789: 
+   790: 
+   791: 
+   792: def _call_worst_case(governor, model, max_tokens) -> float:
+   793:     """Worst-case dollar cost of ONE bounded chat call on ``model``.
+   794: 
+   795:     Completion-side only (prompt tokens are typically small relative to the
+   796:     pinned output budget for plan-lane calls). Free / unpriceable models
+   797:     contribute $0.0 -- the node ceilings still bind the run.
+   798:     """
+   799:     if governor is None or not model:
+   800:         return 0.0
+   801:     try:
+   802:         pricing = governor.fetch_pricing([model])
+   803:         _pp, cp = pricing[model]
+   804:     except Exception:
+   805:         return 0.0
+   806:     try:
+   807:         return max(0.0, float(max_tokens) * float(cp))
+   808:     except (TypeError, ValueError):
+   809:         return 0.0
+   810: 
+   811: 
+   812: def composed_worst_case(
+   813:     plan_result: Dict[str, Any],
+   814:     *,
+   815:     governor=None,
+   816:     decompose_llm: bool = False,
+   817:     confirm: bool = False,
+   818:     decompose_model: Optional[str] = None,
+   819:     frontier_model: Optional[str] = None,
+   820:     use_free: bool = True,
+   821:     allow_escalation: bool = False,
+   822:     plan_consensus: bool = False,
+   823: ) -> Dict[str, Any]:
+   824:     """Composed pyramid ceiling: decompose + consensus + waist + node sum.
+   825: 
+   826:     ONE owner of the pre-execute worst-case budget. Called before execute
+   827:     spend when a governor is present; if the composed total exceeds
+   828:     ``governor.remaining()`` the plan lane REFUSES instead of dispatching
+   829:     into an unfunded pyramid. The envelope always carries the breakdown so
+   830:     an operator can see which rung would blow the ceiling.
+   831:     """
+   832:     node_ceiling = 0.0
+   833:     try:
+   834:         node_ceiling = float(plan_result.get("total_cost_ceiling") or 0.0)
+   835:     except (TypeError, ValueError):
+   836:         node_ceiling = 0.0
+   837:     if node_ceiling <= 0.0:
+   838:         for detail in plan_result.get("nodes") or ():
+   839:             if not isinstance(detail, dict):
+   840:                 continue
+   841:             route = detail.get("route") if isinstance(detail.get("route"), dict) else {}
+   842:             try:
+   843:                 node_ceiling += float(route.get("cost_ceiling") or detail.get("cost_ceiling") or 0.0)
+   844:             except (TypeError, ValueError):
+   845:                 continue
+   846: 
+   847:     decompose_cost = 0.0
+   848:     waist_cost = 0.0
+   849:     consensus_cost = 0.0
+   850:     if governor is not None:
+   851:         if decompose_llm:
+   852:             model = decompose_model
+   853:             if not model:
+   854:                 try:
+   855:                     model = resolve_scout_ladder(use_free=use_free,
+   856:                                                  custom_frontier=frontier_model)[0]
+   857:                 except Exception:
+   858:                     model = None
+   859:             decompose_cost = _call_worst_case(governor, model, DECOMPOSE_MAX_TOKENS)
+   860:         if plan_consensus:
+   861:             model = decompose_model
+   862:             if not model:
+   863:                 try:
+   864:                     model = resolve_scout_ladder(use_free=use_free,
+   865:                                                  custom_frontier=frontier_model)[0]
+   866:                 except Exception:
+   867:                     model = None
+   868:             consensus_cost = _call_worst_case(governor, model, 256)
+   869:         if confirm:
+   870:             try:
+   871:                 ladder = resolve_waist_ladder(
+   872:                     use_free=use_free, custom_frontier=frontier_model,
+   873:                     allow_escalation=allow_escalation)
+   874:             except Exception:
+   875:                 ladder = [frontier_model] if frontier_model else []
+   876:             # Worst-case: every ladder rung could be attempted across the
+   877:             # window-round budget before one lands.
+   878:             for rung in ladder[:4]:
+   879:                 waist_cost += _call_worst_case(
+   880:                     governor, rung, WAIST_MAX_TOKENS * MAX_WAIST_ROUNDS)
+   881: 
+   882:     composed = round(node_ceiling + decompose_cost + waist_cost + consensus_cost, 6)
+   883:     remaining = None
+   884:     if governor is not None and callable(getattr(governor, "remaining", None)):
+   885:         try:
+   886:             remaining = float(governor.remaining())
+   887:         except Exception:
+   888:             remaining = None
+   889:     plan_ceiling = None
+   890:     if governor is not None and getattr(governor, "max_cost", None) is not None:
+   891:         try:
+   892:             plan_ceiling = round(float(governor.max_cost), 6)
+   893:         except (TypeError, ValueError):
+   894:             plan_ceiling = None
+   895:     return {
+   896:         "composed_worst_case": composed,
+   897:         "node_ceiling": round(node_ceiling, 6),
+   898:         "decompose": round(decompose_cost, 6),
+   899:         "waist": round(waist_cost, 6),
+   900:         "consensus": round(consensus_cost, 6),
+   901:         "remaining": remaining,
+   902:         "plan_ceiling": plan_ceiling,
+   903:         "exceeds_remaining": (
+   904:             None if remaining is None else bool(composed > remaining + 1e-12)),
+   905:     }
+   906: 
+   907: 
+   908: def _refuse_composed_ceiling(plan_result: Dict[str, Any], composed: Dict[str, Any]) -> Dict[str, Any]:
+   909:     """Fail-closed envelope when the composed pyramid ceiling cannot fit."""
+   910:     refused = dict(plan_result)
+   911:     refused["status"] = "refused"
+   912:     refused["composed_worst_case"] = composed
+   913:     reason = (
+   914:         f"composed worst-case ${composed['composed_worst_case']:.6f} exceeds "
+   915:         f"remaining budget ${composed['remaining']:.6f}")
+   916:     refused["confirmation"] = {
+   917:         "verdict": "refused",
+   918:         "model": "composed-ceiling",
+   919:         "rounds": 0,
+   920:         "reason": reason,
+   921:         "evidence": (
+   922:             f"nodes={composed['node_ceiling']:.6f} "
+   923:             f"decompose={composed['decompose']:.6f} "
+   924:             f"waist={composed['waist']:.6f} "
+   925:             f"consensus={composed['consensus']:.6f}"),
+   926:         "cost": 0.0,
+   927:     }
+   928:     return refused
+   929: 
+   930: 
+   931: def _decompose_repo_context(goal: str,
+   932:                             candidate_files: Optional[Sequence[str]],
+   933:                             root: Optional[str] = None,
+   934:                             ledger=None, task_id: Optional[str] = None,
+   935:                             ) -> Optional[str]:
+   936:     """Condensed signatures for the decompose prompt (HG-condense-decompose).
+   937: 
+   938:     ``decompose_via_llm`` / ``build_decomposition_prompt`` already accept
+   939:     ``repo_context``; this is the plan lane's producer: distill candidate
+   940:     files into signatures so the cheap decomposer never sees raw bodies.
+   941:     When a ledger is supplied the condensation is recorded as HV-2
+   942:     evidence (``brief_built``, site=hourglass) like every other lane.
+   943:     """
+   944:     if not candidate_files:
+   945:         return None
+   946:     files: Dict[str, str] = {}
+   947:     for rel in candidate_files:
+   948:         rel_s = str(rel)
+   949:         path = rel_s if os.path.isabs(rel_s) else os.path.join(root or os.getcwd(), rel_s)
+   950:         try:
+   951:             with open(path, encoding="utf-8", errors="replace") as handle:
+   952:                 files[rel_s] = handle.read()
+   953:         except OSError:
+   954:             continue
+   955:     if not files:
+   956:         return None
+   957:     brief = distill_context(files, summary=goal or "")
+   958:     if ledger is not None:
+   959:         ledger.append("brief_built", task_id=task_id, site="hourglass",
+   960:                       schema=2, **brief.ledger_fields())
+   961:     return brief.to_prompt_context()
+   962: 
+   963: 
+   964: def build_consensus_prompt(plan_result: Dict[str, Any]) -> str:
+   965:     """Cheap plan-soundness prompt (HG-plan-consensus)."""
+   966:     nodes = [
+   967:         {k: n[k] for k in ("node_id", "instruction", "target_files",
+   968:                            "create_files",
+   969:                            "dependencies", "local_gate", "complexity_tier")
+   970:          if k in n}
+   971:         for n in plan_result.get("nodes", [])
+   972:         if isinstance(n, dict)
+   973:     ]
+   974:     return "\n".join([
+   975:         "You are a cheap soundness checker for an autonomous coding plan.",
+   976:         "Decide whether this DAG can actually achieve the goal. You do NOT",
+   977:         "confirm routing quality (the waist does that); you only catch",
+   978:         "structurally unsound plans before confirmation spend grows.",
+   979:         "",
+   980:         "GOAL:",
+   981:         (plan_result.get("goal") or "").strip(),
+   982:         "",
+   983:         "PLANNED DAG (JSON):",
+   984:         json.dumps({"nodes": nodes}, indent=2),
+   985:         "",
+   986:         "Respond with ONLY one JSON object:",
+   987:         '  {"sound": true, "reasons": []}',
+   988:         '  {"sound": false, "reasons": ["..."]}',
+   989:         "sound=false when the DAG cannot achieve the goal, has cycles,",
+   990:         "omits critical write steps, or targets files unrelated to the work.",
+   991:     ])
+   992: 
+   993: 
+   994: def parse_plan_consensus(response_text: str) -> Dict[str, Any]:
+   995:     """Parse the plan-consensus verdict (strict; fail-closed)."""
+   996:     data = _parse_json_object(response_text, "plan consensus")
+   997:     if "sound" not in data:
+   998:         raise HarnessError("plan consensus verdict requires 'sound'")
+   999:     reasons = data.get("reasons") or []
+  1000:     if not isinstance(reasons, list):
+  1001:         reasons = [reasons]
+  1002:     return {"sound": bool(data["sound"]), "reasons": [str(r) for r in reasons]}
+  1003: 
+  1004: 
+  1005: def plan_consensus(*, transport, api_key, governor, ledger, plan_result,
+  1006:                    model, chat_fn=None) -> Dict[str, Any]:
+  1007:     """Optional cheap soundness check that runs BEFORE the waist.
+  1008: 
+  1009:     Returns ``{sound, reasons, cost, model}``. Ledger event:
+  1010:     ``plan_consensus``. Cost is accounted on the governor (when the default
+  1011:     governed chat_fn runs) and reported in the envelope.
+  1012:     """
+  1013:     if not model:
+  1014:         raise HarnessError("plan consensus requires a model")
+  1015:     if chat_fn is None:
+  1016:         def chat_fn(prompt):
+  1017:             return governed_text(transport, api_key, governor, model, prompt,
+  1018:                                  256, label="plan_consensus")
+  1019:     task_id = plan_task_id(plan_result)
+  1020:     if ledger is not None:
+  1021:         ledger.ensure_offered_task_id(
+  1022:             task_id, model=model, required=False, source="plan_consensus")
+  1023:     spent_before = governor.spent if governor is not None else 0.0
+  1024:     raw = chat_fn(build_consensus_prompt(plan_result))
+  1025:     if isinstance(raw, tuple):
+  1026:         text = raw[0]
+  1027:     else:
+  1028:         text = raw
+  1029:     verdict = parse_plan_consensus(text)
+  1030:     cost = _verdict_cost(governor, spent_before)
+  1031:     verdict["cost"] = cost
+  1032:     verdict["model"] = model
+  1033:     if ledger is not None:
+  1034:         ledger.append(
+  1035:             "plan_consensus", task_id=task_id,
+  1036:             sound=verdict["sound"], reasons=verdict["reasons"],
+  1037:             model=model, cost=cost)
+  1038:     return verdict
+  1039: 
+  1040: 
+  1041: # Alias: compose_plan's boolean arm shares the public name ``plan_consensus``.
+  1042: plan_consensus_check = plan_consensus
+  1043: 
+  1044: 
+  1045: def plan_task(
+  1046:     goal: str,
+  1047:     candidate_files: Optional[Sequence[str]] = None,
+  1048:     repo_context: Optional[str] = None,
+  1049:     custom_frontier: Optional[str] = None,
+  1050:     use_free: bool = True,
+  1051:     decomposed_dag: Optional[TaskDAG] = None,
+  1052:     root: Optional[str] = None,
+  1053:     run_gate: Optional[str] = None,
+  1054:     allow_escalation: bool = False,
+  1055:     jev_route: Optional[str] = None,
+  1056: ) -> Dict[str, Any]:
+  1057:     # Formulate a TaskDAG and classify sliding-scale tiers for each node.
+  1058:     # decomposed_dag: a pre-built DAG (LLM-authored via decompose_via_llm or
+  1059:     # waist-amended) replacing the heuristic decomposition; tier
+  1060:     # classification and ceiling math are identical for either origin.
+  1061:     # root/run_gate feed the ONE gate rule (repo_scope.gate_for_targets):
+  1062:     # every node leaves this function with a verification gate derived from
+  1063:     # its OWN declared target, so cli, mcp and the agent lane all dispatch
+  1064:     # gated nodes instead of each lane re-deriving the rule (or omitting
+  1065:     # it: an ungated write is refused at unknown trust, so the MCP lane's
+  1066:     # plan_and_execute could not land anything at all).
+  1067:     # jev_route: optional JEV-P3 typed route (vocabulary only) used as a
+  1068:     # tier floor when keyed; unkeyed callers leave it None.
+  1069:     dag = (decomposed_dag if decomposed_dag is not None
+  1070:            else heuristic_decompose_goal(goal, candidate_files,
+  1071:                                          root_dir=root))
+  1072:     node_details: List[Dict[str, Any]] = []
+  1073:     total_ceiling = 0.0
+  1074: 
+  1075:     classified_nodes: Dict[str, DAGNode] = {}
+  1076:     batches = dag.topological_batches()
+  1077:     depth_map: Dict[str, int] = {}
+  1078:     for depth, batch in enumerate(batches):
+  1079:         for n in batch:
+  1080:             depth_map[n.node_id] = depth
+  1081: 
+  1082:     for node_id, node in dag.nodes.items():
+  1083:         is_leaf = len(node.dependencies) == 0
+  1084:         depth = depth_map.get(node_id, 0)
+  1085:         gate = gate_for_targets(node.target_files, root,
+  1086:                                declared=node.local_gate, run_gate=run_gate)
+  1087:         route = resolve_sliding_scale_route(
+  1088:             instruction=node.instruction,
+  1089:             target_files=node.target_files,
+  1090:             dependency_depth=depth,
+  1091:             is_leaf=is_leaf,
+  1092:             use_free=use_free,
+  1093:             custom_frontier=custom_frontier,
+  1094:             allow_escalation=allow_escalation,
+  1095:             jev_route=jev_route,
+  1096:         )
+  1097:         total_ceiling += route.cost_ceiling
+  1098:         classified_nodes[node_id] = DAGNode(
+  1099:             node_id=node.node_id,
+  1100:             instruction=node.instruction,
+  1101:             target_files=node.target_files,
+  1102:             create_files=node.create_files,
+  1103:             dependencies=node.dependencies,
+  1104:             local_gate=gate,
+  1105:             complexity_tier=route.classification.tier,
+  1106:             backend=node.backend,
+  1107:         )
+  1108:         node_details.append({
+  1109:             "node_id": node.node_id,
+  1110:             "instruction": node.instruction,
+  1111:             "target_files": list(node.target_files),
+  1112:             "create_files": list(node.create_files),
+  1113:             "dependencies": list(node.dependencies),
+  1114:             "local_gate": gate,
+  1115:             "complexity_tier": route.classification.tier,
+  1116:             "recommended_model": route.classification.recommended_model,
+  1117:             "cost_ceiling": route.cost_ceiling,
+  1118:             "backend": node.backend,
+  1119:             "classification": {
+  1120:                 "tier": route.classification.tier,
+  1121:                 "score": route.classification.score,
+  1122:                 "reasons": list(route.classification.reasons),
+  1123:                 "estimated_cost_tier": route.classification.estimated_cost_tier,
+  1124:             },
+  1125:             "route": {
+  1126:                 "ladder": list(route.ladder),
+  1127:                 "cost_ceiling": route.cost_ceiling,
+  1128:             },
+  1129:         })
+  1130: 
+  1131:     enriched_dag = TaskDAG(nodes=classified_nodes)
+  1132:     return {
+  1133:         "status": "planned",
+  1134:         "goal": goal.strip(),
+  1135:         "total_nodes": len(enriched_dag.nodes),
+  1136:         "batches": [[n.node_id for n in b] for b in enriched_dag.topological_batches()],
+  1137:         "nodes": node_details,
+  1138:         "total_cost_ceiling": round(total_ceiling, 4),
+  1139:         "dag": enriched_dag.to_dict(),
+  1140:     }
+  1141: 
+  1142: 
+  1143: 
+  1144: def node_apply_kwargs(
+  1145:     node_detail: Optional[Dict[str, Any]] = None,
+  1146:     explicit_model: Optional[str] = None,
+  1147:     explicit_task_max_cost: Optional[float] = None,
+  1148:     allow_escalation: Optional[bool] = None,
+  1149:     attest_model: Optional[str] = None,
+  1150: ) -> Dict[str, Any]:
+  1151:     """Per-request apply kwargs for executing one planned DAG node.
+  1152: 
+  1153:     Threads a node's sliding-scale route (from :func:`plan_task`'s
+  1154:     ``nodes`` entries) into :meth:`harness.apply.ApplyEngine.apply_edit`:
+  1155:     the tier ladder becomes the request's ``apply_pool`` -- the engine
+  1156:     orders it at the routing boundary via ``capability.ordered_pool``
+  1157:     (interfaces never pre-order a pool) and rotation stays inside the
+  1158:     tier-appropriate models. The tier cost ceiling becomes the per-task
+  1159:     ceiling only when it is a real bound (paid tiers): a $0 free-tier
+  1160:     ceiling is deliberately NOT passed, because a zero task budget would
+  1161:     refuse the escalation ladder before it could rescue a hard node
+  1162:     (``spent - start < 0.0`` is never true); free-tier cost discipline is
+  1163:     the governor's job (every attempted model bills $0.0).
+  1164: 
+  1165:     An explicit model pin wins outright (manual routing, no pool override);
+  1166:     an explicit ``task_max_cost`` pin suppresses only the ceiling.
+  1167:     Unknown, missing, or MALFORMED route detail degrades to today's
+  1168:     defaults ({}): non-mapping detail/route, a non-sequence ladder (a
+  1169:     string would otherwise become per-character "model ids"), and
+  1170:     non-finite ceilings are all refused silently -- the governor's
+  1171:     key-level ceiling still binds, so degradation never fails open.
+  1172: 
+  1173:     ``allow_escalation`` and ``attest_model`` are threaded verbatim when the
+  1174:     caller supplies them, so a lane whose node can fail a gate carries the
+  1175:     escalation arming and the verifier identity explicitly instead of
+  1176:     inheriting them silently from the session defaults. ``None`` omits the
+  1177:     key, leaving the engine/settings default in charge.
+  1178:     """
+  1179:     if explicit_model is not None:
+  1180:         return {}
+  1181:     detail = node_detail if isinstance(node_detail, dict) else {}
+  1182:     route = detail.get("route")
+  1183:     if not isinstance(route, dict):
+  1184:         route = {}
+  1185:     kwargs = {}
+  1186:     raw_ladder = route.get("ladder")
+  1187:     if isinstance(raw_ladder, (list, tuple)):
+  1188:         ladder = [str(m).strip() for m in raw_ladder if str(m).strip()]
+  1189:         if ladder:
+  1190:             kwargs["apply_pool"] = ladder
+  1191:     if explicit_task_max_cost is None:
+  1192:         try:
+  1193:             ceiling = float(route.get("cost_ceiling"))
+  1194:         except (TypeError, ValueError):
+  1195:             ceiling = 0.0
+  1196:         if ceiling > 0.0 and math.isfinite(ceiling):
+  1197:             kwargs["task_max_cost"] = ceiling
+  1198:     if allow_escalation is not None:
+  1199:         kwargs["allow_escalation"] = bool(allow_escalation)
+  1200:     if attest_model:
+  1201:         kwargs["attest_model"] = str(attest_model)
+  1202:     # A chunked large-file node carries the engine's own backend vocabulary;
+  1203:     # anything else stays out (the engine validates it again at the boundary).
+  1204:     backend = detail.get("backend")
+  1205:     if backend in ("harness", "morph", "diff"):
+  1206:         kwargs["backend"] = backend
+  1207:     return kwargs
+  1208: 
+  1209: 
+  1210: 
+  1211: 
+  1212: def build_waist_prompt(
+  1213:     plan_result: Dict[str, Any],
+  1214:     brief_context: str = "",
+  1215:     window_context: str = "",
+  1216:     consensus: Optional[Dict[str, Any]] = None,
+  1217: ) -> str:
+  1218:     """Build the frontier waist-confirmation prompt (M2).
+  1219: 
+  1220:     The brief (file signatures + bounded windows + failure evidence) is the
+  1221:     confirming model's ONLY repo access: bounded file-window round-trips
+  1222:     replace open-ended reading. The verdict contract is strict JSON, one of::
+  1223: 
+  1224:         {"verdict": "approve"}
+  1225:         {"verdict": "amend", "nodes": [ ...same node schema as decomposition... ]}
+  1226:         {"verdict": "refuse", "reason": "...", "evidence": "cited brief section"}
+  1227:         {"verdict": "request_windows",
+  1228:          "file_window_requests": [{"path": "p/x.py", "start_line": 1, "end_line": 80}]}
+  1229: 
+  1230:     ``amend`` replaces the whole node set (subdividing a node is just an
+  1231:     amend), and the replacement re-validates through the same schema as the
+  1232:     original plan. A refusal must cite the brief section that fails --
+  1233:     honest evidence, not vibes.
+  1234:     """
+  1235:     nodes = [
+  1236:         {k: n[k] for k in ("node_id", "instruction", "target_files",
+  1237:                            "create_files",
+  1238:                            "dependencies", "local_gate", "complexity_tier")
+  1239:          if k in n}
+  1240:         for n in plan_result.get("nodes", [])
+  1241:     ]
+  1242:     lines = [
+  1243:         "You are the plan-confirmation gate for an autonomous coding harness.",
+  1244:         "A cheaper model decomposed the goal below into an executable DAG.",
+  1245:         "Confirm the plan BEFORE execution spend: check decomposition quality,",
+  1246:         "tier assignments (0=scout/simple, 1=standard, 2=deep/frontier),",
+  1247:         "dependency ordering, and target-file scoping.",
+  1248:         "",
+  1249:         "GOAL:",
+  1250:         plan_result.get("goal", "").strip(),
+  1251:         "",
+  1252:         "PLANNED DAG (JSON):",
+  1253:         json.dumps({"nodes": nodes}, indent=2),
+  1254:         "",
+  1255:     ]
+  1256:     if brief_context:
+  1257:         lines.extend(["REPOSITORY BRIEF (signatures; your only repo access):",
+  1258:                       brief_context.strip(), ""])
+  1259:     if window_context:
+  1260:         lines.extend(["REQUESTED FILE WINDOWS (attached this round):",
+  1261:                       window_context.strip(), ""])
+  1262:     if consensus is not None and not consensus.get("sound", True):
+  1263:         lines.extend([
+  1264:             "PLAN CONSENSUS (cheap pre-check marked this plan UNSOUND):",
+  1265:             json.dumps({"sound": False,
+  1266:                         "reasons": list(consensus.get("reasons") or [])}, indent=2),
+  1267:             "You MUST return 'amend' with a corrected replacement DAG. Do not",
+  1268:             "approve an unsound plan.",
+  1269:             "",
+  1270:         ])
+  1271:     lines.extend([
+  1272:         "VERDICT CONTRACT -- respond with ONLY one JSON object:",
+  1273:         '  {"verdict": "approve"}                                   plan is sound as routed',
+  1274:         '  {"verdict": "amend", "nodes": [...]}                     full replacement node set,',
+  1275:         '                                                           same schema, re-validated;',
+  1276:         '                                                           subdividing a node is an amend',
+  1277:         '  {"verdict": "refuse", "reason": "...", "evidence": "..."}  cite the brief section',
+  1278:         '                                                           that fails; evidence required',
+  1279:         '  {"verdict": "request_windows", "file_window_requests": [...]}  need bounded source',
+  1280:         '                                                           windows before deciding',
+  1281:         '                                                            ({"path", "start_line",',
+  1282:         '                                                              "end_line"}; 1-based,',
+  1283:         '                                                              end inclusive)',
+  1284:         "Rules: the DAG must stay acyclic; node instructions must be precise and",
+  1285:         "scoped (they are executed verbatim by cheaper models); do not request",
+  1286:         "more windows than you need -- round-trips are budgeted.",
+  1287:         "AMENDMENT vs REFUSAL POLICY:",
+  1288:         "- DO NOT REFUSE simply because the planned DAG is incomplete, lacks iteration loops,",
+  1289:         "  has missing steps, or needs different granularity/ordering. If the planned DAG is",
+  1290:         "  suboptimal, REPAIR IT: return 'amend' with the complete, corrected replacement DAG nodes.",
+  1291:         "- 'refuse' is STRICTLY reserved for requests that are genuinely impossible, out of scope,",
+  1292:         "  destructive, or malicious. Refusing an executable coding task is a failure.",
+  1293:     ])
+  1294:     return "\n".join(lines)
+  1295: 
+  1296: 
+  1297: 
+  1298: def _waist_window_request(raw) -> Dict[str, Any]:
+  1299:     if not isinstance(raw, dict):
+  1300:         raise HarnessError("waist file_window_requests entries must be objects")
+  1301:     path = str(raw.get("path") or "").strip()
+  1302:     if not path:
+  1303:         raise HarnessError("waist file_window_request missing 'path'")
+  1304:     request: Dict[str, Any] = {"path": path}
+  1305:     for key in ("start_line", "end_line"):
+  1306:         value = raw.get(key)
+  1307:         if value is None:
+  1308:             continue
+  1309:         try:
+  1310:             line = int(value)
+  1311:         except (TypeError, ValueError):
+  1312:             raise HarnessError(
+  1313:                 f"waist file_window_request {key} must be an integer") from None
+  1314:         if line < 1:
+  1315:             raise HarnessError(f"waist file_window_request {key} must be >= 1")
+  1316:         request[key] = line
+  1317:     if ("start_line" in request or "end_line" in request) and \
+  1318:             request.get("start_line", 1) > request.get("end_line", 1 << 30):
+  1319:         raise HarnessError("waist file_window_request start_line exceeds end_line")
+  1320:     return request
+  1321: 
+  1322: 
+  1323: 
+  1324: # Verdict spellings models actually emit, mapped to the four canonical kinds.
+  1325: # Deliberately a closed set: an unknown verdict must still fail closed rather
+  1326: # than be coerced into an approval.
+  1327: _VERDICT_ALIASES = {
+  1328:     "approve": "approve", "approved": "approve", "approval": "approve",
+  1329:     "accept": "approve", "accepted": "approve", "ok": "approve",
+  1330:     "refuse": "refuse", "refused": "refuse", "reject": "refuse",
+  1331:     "rejected": "refuse", "deny": "refuse", "denied": "refuse",
+  1332:     "amend": "amend", "amended": "amend", "amendment": "amend",
+  1333:     "revise": "amend", "revised": "amend",
+  1334:     "split": "split", "subdivide": "split", "subdivided": "split",
+  1335:     "request_windows": "request_windows", "request-windows": "request_windows",
+  1336:     "requestwindows": "request_windows", "need_windows": "request_windows",
+  1337:     "need-windows": "request_windows", "windows": "request_windows",
+  1338: }
+  1339: 
+  1340: 
+  1341: def _canonical_verdict(data: Dict[str, Any]) -> str:
+  1342:     """The canonical verdict kind for a parsed verdict body.
+  1343: 
+  1344:     Tolerates the spelling and envelope differences models produce --
+  1345:     ``APPROVED``, ``Approved.``, ``{"result": {"verdict": ...}}`` -- while
+  1346:     keeping the decision set closed. An unrecognised or absent verdict
+  1347:     returns ``""`` and the caller fails closed.
+  1348:     """
+  1349:     body = data
+  1350:     if "verdict" not in body:
+  1351:         # One level of envelope: {"result": {...}} / {"plan": {...}} / ...
+  1352:         for key in ("result", "plan", "response", "output", "decision"):
+  1353:             nested = body.get(key)
+  1354:             if isinstance(nested, dict) and "verdict" in nested:
+  1355:                 body = nested
+  1356:                 break
+  1357:     raw = body.get("verdict")
+  1358:     if isinstance(raw, dict):
+  1359:         raw = raw.get("verdict") or raw.get("kind") or raw.get("decision")
+  1360:     # Models append their own sentence punctuation: "Approved.", "Approve!".
+  1361:     key = str(raw or "").strip().strip(".!?").strip().lower().replace(" ", "_")
+  1362:     return _VERDICT_ALIASES.get(key, "")
+  1363: 
+  1364: 
+  1365: def parse_waist_verdict(response_text: str) -> Dict[str, Any]:
+  1366:     """Parse and validate a waist verdict (strict; fail-closed).
+  1367: 
+  1368:     Returns one of ``{"verdict": "approve"}``, ``{"verdict": "amend",
+  1369:     "dag": TaskDAG}`` (the replacement node set, re-validated for unique
+  1370:     ids, unknown dependencies, cycles, and apply-time instruction
+  1371:     length), ``{"verdict": "split", "dag": TaskDAG}`` (same shape and
+  1372:     re-validation as amend; recorded distinctly so a planner that
+  1373:     subdivides a node gets its own ledgered kind -- MR-4's four-way
+  1374:     enum), ``{"verdict": "refuse", "reason", "evidence"}``, or
+  1375:     ``{"verdict": "request_windows", "file_window_requests": [...]}``.
+  1376:     """
+  1377:     data = _parse_json_object(response_text, "waist plan verdict")
+  1378:     verdict = _canonical_verdict(data)
+  1379:     if verdict == "approve":
+  1380:         return {"verdict": "approve"}
+  1381:     if verdict in ("amend", "split"):
+  1382:         nodes = data.get("nodes")
+  1383:         if not isinstance(nodes, list) or not nodes:
+  1384:             raise HarnessError(
+  1385:                 f"waist {verdict} verdict requires a non-empty 'nodes' list")
+  1386:         amended = TaskDAG.from_dict({"nodes": nodes})
+  1387:         for node in amended.nodes.values():
+  1388:             if len(node.instruction) > MAX_INSTRUCTION_CHARS:
+  1389:                 raise HarnessError(
+  1390:                     f"amended node {node.node_id!r} instruction exceeds "
+  1391:                     f"{MAX_INSTRUCTION_CHARS} chars (would fail apply validation)")
+  1392:         return {"verdict": verdict, "dag": amended}
+  1393:     if verdict == "refuse":
+  1394:         reason = str(data.get("reason") or "").strip()
+  1395:         evidence = str(data.get("evidence") or "").strip()
+  1396:         if not reason or not evidence:
+  1397:             raise HarnessError(
+  1398:                 "waist refuse verdict requires non-empty 'reason' and "
+  1399:                 "'evidence' (cite the brief section that fails)")
+  1400:         return {"verdict": "refuse", "reason": reason, "evidence": evidence}
+  1401:     if verdict == "request_windows":
+  1402:         requests = data.get("file_window_requests")
+  1403:         if not isinstance(requests, list) or not requests:
+  1404:             raise HarnessError(
+  1405:                 "waist request_windows verdict requires a non-empty "
+  1406:                 "'file_window_requests' list")
+  1407:         return {"verdict": "request_windows",
+  1408:                 "file_window_requests": [_waist_window_request(r) for r in requests]}
+  1409:     raw = str((data.get("verdict") if not isinstance(data.get("verdict"), dict)
+  1410:                else data["verdict"].get("verdict")) or "").strip()
+  1411:     raise HarnessError(f"unknown waist verdict {raw or '<missing>'!r}")
+  1412: 
+  1413: 
+  1414: 
+  1415: def plan_task_id(plan_result: Dict[str, Any]) -> str:
+  1416:     """Deterministic ledger task id for a plan confirmation."""
+  1417:     digest = hashlib.sha256(
+  1418:         (plan_result.get("goal") or "").encode("utf-8")).hexdigest()[:12]
+  1419:     return f"plan_{digest}"
+  1420: 
+  1421: 
+  1422: def read_window(path: str, start_line=None, end_line=None) -> str:
+  1423:     """Bounded source-window read for the brief (cwd-contained).
+  1424: 
+  1425:     Model-chosen paths are contained to the working tree (absolute paths
+  1426:     and traversal outside the cwd are refused in-band, as an honest
+  1427:     "refused" note the model can react to); missing files answer in-band
+  1428:     too -- the window round-trip stays cheap and non-fatal.
+  1429:     """
+  1430:     raw = str(path)
+  1431:     refused = "WINDOW REFUSED: only paths inside the working tree are readable"
+  1432:     if os.path.isabs(raw) or ".." in raw.split(os.sep) or ".." in raw.split("/"):
+  1433:         return refused
+  1434:     root = os.path.realpath(os.getcwd())
+  1435:     full = os.path.realpath(os.path.join(root, raw))
+  1436:     if full != root and not full.startswith(root + os.sep):
+  1437:         return refused
+  1438:     try:
+  1439:         with open(full, encoding="utf-8", errors="replace") as f:
+  1440:             lines = f.readlines()
+  1441:     except OSError:
+  1442:         return f"FILE NOT FOUND: {raw}"
+  1443:     total = len(lines)
+  1444:     start = max(int(start_line or 1), 1)
+  1445:     if start > total:
+  1446:         return f"WINDOW EMPTY: {raw} has {total} lines (requested start {start})"
+  1447:     end = min(int(end_line or total), total, start + MAX_WINDOW_LINES - 1)
+  1448:     body = "".join(lines[start - 1:end])
+  1449:     return f"--- WINDOW: {raw} lines {start}-{end} of {total} ---\n{body}"
+  1450: 
+  1451: 
+  1452: def _brief_for(plan_result: Dict[str, Any]) -> str:
+  1453:     """Condensed signatures for the planned target files (the ONE brief)."""
+  1454:     files: Dict[str, str] = {}
+  1455:     for node in plan_result.get("nodes", []):
+  1456:         for path in node.get("target_files", ()):
+  1457:             if path in files or len(files) >= MAX_BRIEF_FILES:
+  1458:                 continue
+  1459:             try:
+  1460:                 with open(path, encoding="utf-8", errors="replace") as f:
+  1461:                     files[path] = f.read()
+  1462:             except OSError:
+  1463:                 continue
+  1464:     if not files:
+  1465:         return "(no readable target files; the plan names files that do not exist yet)"
+  1466:     brief = distill_context(files, summary=plan_result.get("goal", ""))
+  1467:     return brief.to_prompt_context()
+  1468: 
+  1469: 
+  1470: def _verdict_cost(governor, spent_before: float) -> float:
+  1471:     try:
+  1472:         return round(governor.spent - spent_before, 6)
+  1473:     except AttributeError:
+  1474:         return 0.0
+  1475: 
+  1476: 
+  1477: def confirm_plan(*, transport, api_key, governor, ledger, plan_result,
+  1478:                  model, use_free=True, custom_frontier=None,
+  1479:                  chat_fn=None, reader=read_window,
+  1480:                  root=None, run_gate=None,
+  1481:                  consensus=None,
+  1482:                  max_rounds=MAX_WAIST_ROUNDS) -> Dict[str, Any]:
+  1483:     """Run the waist: frontier confirms/repairs the plan; return the plan.
+  1484: 
+  1485:     Returns the (possibly amended) plan_result with a ``confirmation``
+  1486:     field, or a ``status: "refused"`` envelope when the model refuses
+  1487:     (callers must not execute it -- ``terminal_exit_code`` maps the
+  1488:     unknown status to 2 fail-closed). Raises HarnessError when the model
+  1489:     keeps requesting windows past ``max_rounds`` (the plan stays
+  1490:     unconfirmed and unexecuted), on any transport/parse failure, or when
+  1491:     ``model`` is unset (confirmation cannot silently skip itself).
+  1492: 
+  1493:     ``chat_fn(prompt) -> (text, cost)`` and ``reader(path, start, end) ->
+  1494:     str`` are injectable seams for hermetic tests.
+  1495:     """
+  1496:     if not model:
+  1497:         raise HarnessError(
+  1498:             "waist confirmation requires a frontier model "
+  1499:             "(--frontier-model or HARNESS_FRONTIER_MODEL)")
+  1500:     if chat_fn is None:
+  1501:         def chat_fn(prompt):
+  1502:             return governed_text(transport, api_key, governor, model, prompt,
+  1503:                                  WAIST_MAX_TOKENS, label="waist")
+  1504:     brief = _brief_for(plan_result)
+  1505:     task_id = plan_task_id(plan_result)
+  1506:     if ledger is not None:
+  1507:         ledger.ensure_offered_task_id(
+  1508:             task_id, model=model, required=False, source="plan_confirmation")
+  1509:     window_context = ""
+  1510:     spent_before = governor.spent if governor is not None else 0.0
+  1511: 
+  1512:     for round_no in range(1, max_rounds + 1):
+  1513:         prompt = build_waist_prompt(plan_result, brief, window_context,
+  1514:                                     consensus=consensus)
+  1515:         text, _cost = chat_fn(prompt)
+  1516:         try:
+  1517:             verdict = parse_waist_verdict(text)
+  1518:         except HarnessError:
+  1519:             # Fail closed on a malformed verdict: the spend already happened,
+  1520:             # the plan stays unconfirmed, and the raw body is the evidence.
+  1521:             if ledger is not None:
+  1522:                 ledger.append("plan_verdict", task_id=task_id, verdict="unparseable",
+  1523:                               model=model, round=round_no)
+  1524:             raise
+  1525: 
+  1526:         kind = verdict["verdict"]
+  1527:         cost = _verdict_cost(governor, spent_before)
+  1528:         if kind == "approve":
+  1529:             plan_result["confirmation"] = {
+  1530:                 "verdict": "approved", "model": model, "rounds": round_no,
+  1531:                 "cost": cost}
+  1532:             if ledger is not None:
+  1533:                 ledger.append("plan_verdict", task_id=task_id, verdict="approved",
+  1534:                               model=model, rounds=round_no, cost=cost)
+  1535:             return plan_result
+  1536:         if kind == "refuse":
+  1537:             refused = dict(plan_result)
+  1538:             refused["status"] = "refused"
+  1539:             refused["confirmation"] = {
+  1540:                 "verdict": "refused", "model": model, "rounds": round_no,
+  1541:                 "reason": verdict["reason"], "evidence": verdict["evidence"],
+  1542:                 "cost": cost}
+  1543:             if ledger is not None:
+  1544:                 ledger.append("plan_verdict", task_id=task_id, verdict="refused",
+  1545:                               model=model, rounds=round_no, cost=cost,
+  1546:                               reason=verdict["reason"])
+  1547:             return refused
+  1548:         if kind in ("amend", "split"):
+  1549:             amended = plan_task(
+  1550:                 plan_result.get("goal", ""),
+  1551:                 custom_frontier=custom_frontier, use_free=use_free,
+  1552:                 decomposed_dag=verdict["dag"], root=root, run_gate=run_gate)
+  1553:             confirmed_kind = "amended" if kind == "amend" else "split"
+  1554:             amended["confirmation"] = {
+  1555:                 "verdict": confirmed_kind, "model": model, "rounds": round_no,
+  1556:                 "cost": cost}
+  1557:             if ledger is not None:
+  1558:                 ledger.append("plan_verdict", task_id=task_id, verdict=confirmed_kind,
+  1559:                               model=model, rounds=round_no, cost=cost)
+  1560:             return amended
+  1561: 
+  1562:         # request_windows: attach the bounded windows and spend another round
+  1563:         blocks = [reader(req["path"], req.get("start_line"), req.get("end_line"))
+  1564:                   for req in verdict["file_window_requests"][:MAX_WINDOWS_PER_ROUND]]
+  1565:         window_context = "\n\n".join(blocks)
+  1566:         if ledger is not None:
+  1567:             ledger.append("plan_verdict", task_id=task_id,
+  1568:                           verdict="request_windows", model=model, round=round_no,
+  1569:                           windows=len(verdict["file_window_requests"]))
+  1570:     raise HarnessError(
+  1571:         f"waist requested file windows beyond the {max_rounds}-round budget; "
+  1572:         "plan stays unconfirmed and will not execute")
+  1573: 
+  1574: 
+  1575: def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
+  1576:                  candidate_files=None, frontier_model=None, use_free=True,
+  1577:                  decompose_llm=False, confirm=False, decompose_model=None,
+  1578:                  chat_fn=None, max_cost=None, keep_going=False, out=None,
+  1579:                  execute=False, root=None, max_tokens=None,
+  1580:                  allow_escalation: bool = False,
+  1581:                  plan_consensus: bool = False,
+  1582:                  jev_policy=None,
+  1583:                  issue_sort_pack=None,
+  1584:                  allow_heuristic_preview: bool = False,
+  1585:                  token_budget=None,
+  1586:                  stages: Optional[Sequence[str]] = None,
+  1587:                  supplied_brief: bool = False,
+  1588:                  supplied_plan: bool = False,
+  1589:                  brief: Optional[Dict[str, Any]] = None,
+  1590:                  brief_tokens: Optional[int] = None,
+  1591:                  reader=None,
+  1592:                  context_judgment: Optional[Dict[str, Any]] = None,
+  1593:                  **kwargs) -> Dict[str, Any]:
+  1594:     """ONE owner of the plan-lane flow (CLI and MCP call this).
+  1595: 
+  1596:     Order: optional cheap-LLM decomposition (M1, condensed signatures) ->
+  1597:     tier classification -> single-pass chunking -> optional cheap plan
+  1598:     consensus -> optional waist confirmation (M2) over the plan that will
+  1599:     actually run -> composed pyramid ceiling check before execute spend.
+  1600: 
+  1601:     Decomposition failures retry once, then:
+  1602:     * ``execute=True`` -- always fall back loudly to the heuristic
+  1603:       (decomposition='heuristic'; an orchestration event + stderr note).
+  1604:       The run spends anyway, so a loud fallback keeps it going.
+  1605:     * ``execute=False`` (plan-only preview) -- FAILS CLOSED by default: the
+  1606:       operator asked for LLM planning, and silently handing back the
+  1607:       heuristic plan would be dishonest (raises HarnessError, non-zero
+  1608:       exit). Passing ``allow_heuristic_preview=True`` (CLI:
+  1609:       ``--allow-heuristic-preview``) opts into the same loud heuristic
+  1610:       fallback as execute mode instead -- decomposition='heuristic', a
+  1611:       loud stderr note, and the waist confirmation step (``confirm``) is
+  1612:       skipped rather than confirming a plan the operator never got the
+  1613:       LLM decomposition they asked for: the envelope's ``confirmation``
+  1614:       is explicitly ``verdict: "skipped"``, never ``"approved"``.
+  1615: 
+  1616:     Fail-closed rules (hourglass composition):
+  1617:     * confirm=True and EVERY waist rung unreachable on execute -> REFUSE
+  1618:       (never proceed under the local gate silently).
+  1619:     * composed_worst_case exceeds governor.remaining() -> REFUSE before
+  1620:       execute dispatch (spend stays 0 on that path when planning itself
+  1621:       was injected/hermetic).
+  1622: 
+  1623:     ``root`` is the tree the plan edits (defaults to the process CWD, which
+  1624:     is what the CLI/MCP lanes edit); ``max_tokens`` is the lane's pinned
+  1625:     output budget when it has one -- both feed the chunk policy's real
+  1626:     per-pass budget, none of them add a budget of their own.
+  1627: 
+  1628:     ``issue_sort_pack`` (optional operator bucket pack): when provided with
+  1629:     a ``jev_policy``, attach the issue-sort combo on the plan envelope as
+  1630:     ``issue_sort`` via the ONE policy owner (path_id from pack only).
+  1631: 
+  1632:     ``token_budget`` + ``stages`` (HV-4): when the caller supplies the run's
+  1633:     ``TokenBudget``, the plan lane composes its stages against it and records
+  1634:     the decision on the envelope as ``composition`` -- which stages ran, what
+  1635:     each was allowed to spend, and which were bypassed and why. With no
+  1636:     budget the lane behaves exactly as before (no composition key), because
+  1637:     composition may not invent an allowance. ``brief_tokens`` is the measured
+  1638:     size of a brief the caller already curated; supplying it preflights the
+  1639:     later stages against the evidence they will actually read.
+  1640: 
+  1641:     ``brief`` (HV-2-use) is that brief itself: the ``context`` stage's
+  1642:     artifact, handed in by the run's caller as its intake evidence. Passing
+  1643:     the pack rather than only the ``supplied_brief`` flag is what lets the
+  1644:     ``context`` bypass be decided on real evidence -- the pack's own
+  1645:     freshness, and the re-condense trigger whenever the caller also reports
+  1646:     stage evidence -- instead of on a boolean the caller asserts. It is also
+  1647:     reported as ``completed``, not ``skipped``: composition budgets stages,
+  1648:     it does not perform them, so a caller that actually produced the
+  1649:     artifact is the one that can say the stage is done.
+  1650:     """
+  1651:     if (decompose_llm or confirm or plan_consensus) and governor is None:
+  1652:         raise HarnessError("LLM plan features require a governor")
+  1653: 
+  1654:     plan_goal = opts_goal
+  1655:     plan_structural = None
+  1656:     plan_triage = None
+  1657:     plan_issue_sort = None
+  1658:     jev_route_feed = None
+  1659:     repo_context = None
+  1660:     if isinstance(jev_policy, JevPolicy):
+  1661:         # JEV-P3-route: one typed route choice through the policy owner.
+  1662:         # Route, plan and issue-sort judge the same state independently, so
+  1663:         # they fan out in parallel (order-stable; each fails closed alone).
+  1664:         jobs = [
+  1665:             ("route", lambda: jev_policy.evaluate_route(
+  1666:                 opts_goal, candidate_files, site="route")),
+  1667:             ("waist", lambda: jev_policy.evaluate_plan(
+  1668:                 opts_goal, candidate_files, site="waist")),
+  1669:         ]
+  1670:         if issue_sort_pack is not None:
+  1671:             jobs.append((
+  1672:                 "issue_sort",
+  1673:                 lambda: jev_policy.evaluate_issue_sort(
+  1674:                     {"issue": opts_goal}, issue_sort_pack, site="issue_sort"),
+  1675:                 lambda result, structural: (
+  1676:                     result, structural, JevPolicy._issue_sort_empty_combo(
+  1677:                         structural=structural, evidence=result.reasons))))
+  1678:         fanned = jev_policy.fan_out(jobs)
+  1679:         route_eval, route_envelope = fanned[0]
+  1680:         plan_eval, plan_structural = fanned[1]
+  1681:         plan_triage = dict(route_envelope)
+  1682:         plan_triage["route"] = route_eval.answers.get("route", "free-distill")
+  1683:         plan_triage["route_is_fallback"] = bool(route_eval.is_fallback)
+  1684:         plan_triage["requires_iteration"] = bool(
+  1685:             plan_eval.answers.get("requires_iteration")
+  1686:             or route_eval.answers.get("requires_iteration", False))
+  1687:         if not route_eval.is_fallback:
+  1688:             jev_route_feed = plan_triage["route"]
+  1689:         if plan_eval.answers.get("requires_iteration") or plan_triage["requires_iteration"]:
+  1690:             plan_goal = (
+  1691:                 f"{opts_goal}\n\n[STRUCTURAL GUIDELINE]: This goal requires iterative "
+  1692:                 "control flow, conditional branching, or multi-step execution. "
+  1693:                 "Represent those dependencies explicitly in the executable DAG.")
+  1694:         if issue_sort_pack is not None:
+  1695:             _sort_result, _sort_structural, plan_issue_sort = fanned[2]
+  1696:     # JEV-P3-context-pack: distilled decision-relevant state before generative
+  1697:     # seats that lack a pack. Smallest seam — pass into LLM decompose.
+  1698:     if decompose_llm and not repo_context:
+  1699:         repo_context = build_context_pack(
+  1700:             opts_goal, candidate_files=candidate_files)
+  1701: 
+  1702:     # The run-level gate: the goal's own candidate files. It is the
+  1703:     # last-resort arm of the ONE gate rule (repo_scope.gate_for_targets),
+  1704:     # so a node whose own target yields no gate still inherits the run's
+  1705:     # verification instead of dispatching an unverifiable write.
+  1706:     run_gate = discover_verification_gate(list(candidate_files or []), root)
+  1707: 
+  1708:     decomposed = None
+  1709:     decomposition = "heuristic"
+  1710:     decomposition_repair = None
+  1711:     last_exc = None
+  1712:     # DF-HG-3b: set only when a plan-only preview degraded to the heuristic
+  1713:     # after an opted-in LLM decomposition failure -- the waist confirmation
+  1714:     # step is then skipped rather than confirming (and reporting as
+  1715:     # approved) a plan the operator never got the LLM decomposition for.
+  1716:     _degraded_preview_heuristic = False
+  1717:     if decompose_llm:
+  1718:         if chat_fn is None:
+  1719:             if not decompose_model:
+  1720:                 scout = resolve_scout_ladder(use_free=use_free,
+  1721:                                              custom_frontier=frontier_model,
+  1722:                                              allow_escalation=allow_escalation)
+  1723:                 decompose_model = scout[0]
+  1724:             else:
+  1725:                 scout = [decompose_model]
+  1726: 
+  1727:             def _caller_gov(p, m):
+  1728:                 return governed_text(transport, api_key, governor, m,
+  1729:                                      p, DECOMPOSE_MAX_TOKENS, label="decompose")
+  1730: 
+  1731:             chat_caller = _caller_gov
+  1732:         else:
+  1733:             scout = [decompose_model] if decompose_model else []
+  1734:             def _caller_fn(p, m):
+  1735:                 return chat_fn(p)
+  1736:             chat_caller = _caller_fn
+  1737: 
+  1738:         def _extract_caller_text(res):
+  1739:             if isinstance(res, (tuple, list)):
+  1740:                 return res[0]
+  1741:             if isinstance(res, dict):
+  1742:                 return res.get("content", "")
+  1743:             return str(res)
+  1744: 
+  1745:         # DF-HG-3: one strict retry on LLM decomposition failure, then loud heuristic fallback in preview too
+  1746:         last_exc = None
+  1747:         raw_output = ""
+  1748:         for attempt in (1, 2):
+  1749:             active_model = scout[min(attempt - 1, len(scout) - 1)] if scout else decompose_model
+  1750:             try:
+  1751:                 # chat_fn's contract is (text, cost) -- decomposition consumes
+  1752:                 # the text only; the cost stays on the governor/caller side.
+  1753:                 # HG-condense-decompose + JEV-P3-context-pack: signatures AND
+  1754:                 # decision pack; never raw file bodies; prompt still labels
+  1755:                 # REPOSITORY CONTEXT: via build_decomposition_prompt.
+  1756:                 sig_ctx = _decompose_repo_context(
+  1757:                     plan_goal, candidate_files, root=root, ledger=ledger)
+  1758:                 decision_ctx = build_context_pack(
+  1759:                     opts_goal, candidate_files=candidate_files)
+  1760:                 if sig_ctx and str(sig_ctx).strip():
+  1761:                     repo_context = decision_ctx + "\n\n" + str(sig_ctx).strip()
+  1762:                 else:
+  1763:                     repo_context = decision_ctx
+  1764:                 def _chat_capture(p, _model=active_model):
+  1765:                     # #541: keep the exact body so a parse failure can be
+  1766:                     # repaired from what the model already produced, and the
+  1767:                     # raw output survives in the run record either way.
+* 1768:                     nonlocal raw_output
+  1769:                     raw_output = _extract_caller_text(chat_caller(p, _model))
+  1770:                     return raw_output
+  1771: 
+  1772:                 decomposed = decompose_via_llm(_chat_capture, plan_goal,
+  1773:                                                candidate_files=candidate_files,
+  1774:                                                repo_context=repo_context)
+  1775:                 decomposition = (f"llm:{active_model}"
+  1776:                                  if active_model else "llm:injected")
+
+===== harness/workspace.py =====
+    42: 
+    43: #: The one message the desktop and CLI show when a workspace is needed (#544).
+    44: WORKSPACE_GATE_MESSAGE = (
+    45:     "Select a workspace folder before requesting file or provisioning work")
+    46: 
+    47: 
+    48: def require_workspace_for_operation(raw) -> Path:
+    49:     """The workspace gate, fired at the operation that actually needs one.
+    50: 
+    51:     Task start must not hard-error while no scoped file operation is planned
+    52:     (#544); the lane calls this when it reaches a step that cannot proceed
+    53:     without a root, and the message stays identical to the one the desktop
+    54:     already shows.
+    55:     """
+*   56:     if raw is None or not str(raw).strip():
+*   57:         raise HarnessError(WORKSPACE_GATE_MESSAGE)
+*   58:     return require_workspace(raw)
+    59: 
+    60: 
+    61: def require_workspace(raw) -> Path:
+    62:     """Resolve an explicit existing absolute workspace directory."""
+    63:     if raw is None or not str(raw).strip():
+    64:         raise HarnessError("Select a workspace folder before using files")
+    65:     path = Path(os.fspath(raw)).expanduser()
+    66:     if not path.is_absolute():

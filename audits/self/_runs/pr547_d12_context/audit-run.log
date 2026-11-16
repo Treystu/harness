@@ -1,0 +1,91 @@
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpbsj7jxsh\ledger.jsonl; run `harness ledger verify` for status.
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmpbsj7jxsh\ledger.jsonl; run `harness ledger verify` for status.
+[warn] D12: D12 cannot obtain current-tree coverage (traced battery exited 1: ing: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it); changed-line coverage was not measured [platform gap, not a code verdict] -- SKIP (fail-open) locally
+
+[OK ] A — Security: 10.00/10 (13/13 checks fully satisfied)
+     A1 pass no-tools payload guard at the one chat seam
+     A2 pass preflight covers reasoning/429 retry slots
+     A3 pass ceiling is a hard raise, lock-guarded
+     A4 pass BYOK denylist + paid-BYOK fail-closed + learned rotation
+     A5 pass key label exact-match gate, no label echo
+     A6 pass gate runner shell-free + timeout
+     A7 pass verify gate preflighted before spend
+     A8 pass atomic write: symlink refusal + mode preservation
+     A9 pass failed-run rewind
+    A10 pass MCP allow_verify/allow_write + allowed_roots
+    A11 pass consent fail-closed on unparseable
+    A12 pass continuation tamper gates before key setup
+    A13 pass hard config ceilings + fail-clean load
+
+[LOW] R — Reliability: 9.29/10 (13/14 checks fully satisfied)
+     R1 pass HTTP transient retry (429/5xx, Retry-After)
+     R2 pass reasoning param policy + cost-carrying retry
+     R3 pass output usability is one verdict, protocol conditions
+     R4 pass panel seat rotation + judge fallback + honest tally
+     R5 pass apply rotation on all failure classes + readiness deferral
+     R6 pass broken-gate detector on identical REAL outputs only
+     R7 pass ungated partials never land in the tree
+     R8 pass batch envelope + fail-fast + real shared verdict
+     R9 pass ledger chain: no fork, quarantine, repair (dynamic)
+    R10 pass spend ceiling under concurrency (dynamic)
+    R11 pass config validation ranges + unknown-key warning
+    R12 pass continuation contract refuses all tamper classes (dynamic)
+    R13 FAIL full suite green hermetically
+         -> Traceback (most recent call last):; FAIL: test_completed_answer_with_a_caveat_is_a_response (test_never_defer_cluster.OutcomeClassificationTests.test_completed_answer_with_a_caveat_is_a_response); Traceback (most recent call last):; FAILED (failures=1, skipped=76) || t this run: $0.000003 (ceiling: $0.050000)
+[jev-freeze] calibration recommended min_confidence: 0.850
+[jev-freeze] preview only (no write); pass --persist to pin
+[repo-cards] stale: TestRepo
+[ui] "GET /api/cards?repo_root=C%3A%5CUsers%5CSCM%5CAppData%5CLocal%5CTemp%5Ctmpgfyt1j5c HTTP/1.1" 200 -
+[ui] "GET /api/jev-calibration HTTP/
+    R14 pass R13 classifier self-verifies its contract
+
+[OK ] SM — Structural hygiene & maintainability: 10.00/10 (8/8 checks fully satisfied)
+     S1 pass import direction (interfaces on top)
+     S2 pass no re-export facades
+     S3 pass result vocabulary one def site
+     S4 pass engine/router construction one owner
+     S5 pass ruff clean
+     S6 pass test tree mirrors product tree
+     S7 pass one owner per policy (8 sampled)
+     S8 pass no dead validators
+
+[OK ] SD — Documentation & release integrity: 10.00/10 (12/12 checks fully satisfied; 1 skipped)
+     D1 pass MCP tool parity with README
+     D2 pass CLI surface documented
+     D3 pass exit codes consistent
+     D4 pass config table keys real
+     D5 pass version single-sourced
+     D6 pass changelog discipline
+     D7 pass docs reference only real modules
+     D8 pass shipped model freshness guard (live: opt-in)
+     D9 pass dogfood loop documented + wired
+    D10 pass CONTRIBUTING current
+    D11 pass corpus integrity (SHA-256 pinned)
+    D12 skip changed lines suite-executed (coverage)
+         -> SKIP (fail-open): D12 cannot obtain current-tree coverage (traced battery exited 1: ing: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF
+    D13 pass flush-loop canary suite passes as a gate
+
+=================================================================
+JEV 4-DIMENSION TRUE GATE (authoritative bar >= 9.50/10 on ALL 4 dimensions):
+  jev_level = declared level; deterministic_mean = arithmetic on the
+  checks above; level_source = live | heuristic | not_evaluated.
+  [LOW] A — Security: jev_level 9.00/10 (90.0%) [approaching — minor non-safety gap below threshold (8.5-9.4)] | level_source=live | deterministic_mean 10.00/10
+  [LOW] R — Reliability: jev_level 9.00/10 (90.0%) [approaching — minor non-safety gap below threshold (8.5-9.4)] | level_source=live | deterministic_mean 9.29/10
+  [LOW] SM — Structural hygiene & maintainability: jev_level 9.00/10 (90.0%) [approaching — minor non-safety gap below threshold (8.5-9.4)] | level_source=live | deterministic_mean 10.00/10
+  [OK ] SD — Documentation & release integrity: jev_level 10.00/10 (100.0%) [exemplary — 100% defect-free across all checks (10.0)] | level_source=live | deterministic_mean 10.00/10
+  Jev Gate Result: FAIL (<95% on one or more dimensions) (is_fallback=False, model=jev-1.14.0)
+=================================================================
+
+scores: {'A': 10.0, 'R': 9.29, 'SM': 10.0, 'SD': 10.0}  (written to audits\self\round2_scores.json)
+verdict: BAR NOT MET — iterate on the failing checks above
+AUDIT_EXIT=1

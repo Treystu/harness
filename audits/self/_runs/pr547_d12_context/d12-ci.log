@@ -1,0 +1,13 @@
+IN_CI True
+[FATAL] D12: D12 cannot obtain current-tree coverage (traced battery exited 1: ing: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it); changed-line coverage was not measured [platform gap, not a code verdict] -- failing closed
+[
+  0.0,
+  "FAIL: D12 cannot obtain current-tree coverage (traced battery exited 1: ing: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it); changed-line coverage was not measured [platform gap, not a code verdict]"
+]
+D12_EXIT=0

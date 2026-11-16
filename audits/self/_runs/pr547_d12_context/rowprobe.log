@@ -1,0 +1,53 @@
+OK  A.A1 no-tools payload guard at the one chat seam :: spend.assert_no_tools exists; chat() guards every payload; all 0 billable lanes (apply/panel/consent/capability/convergence) dispatch through chat()
+OK  A.A2 preflight covers reasoning/429 retry slots :: reasoning/429 retry slots counted via _chat_reservation_slots (panel wired); convergence binds retry slots into its governor preflight; apply/consent preflight before calls
+OK  A.A3 ceiling is a hard raise, lock-guarded :: record_actual raises (never clamps) past max_cost under the spend lock; load_settings bounds max_cost to [0, HARD_MAX_COST]
+OK  A.A4 BYOK denylist + paid-BYOK fail-closed + learned rota :: denylist prefixes hard-block in chat(); consent rejects paid-BYOK routes and records the learned prefix
+OK  A.A5 key label exact-match gate, no label echo :: expect-key-label is an exact binary match; the error reports mismatch only, never the resolved label
+OK  A.A6 gate runner shell-free + timeout :: one shell-free run_gate (argv list, no shell, timeout kill) with {python} from sys.executable; the verify gate delegates to it and apply_gate runs gates through it
+OK  A.A7 verify gate preflighted before spend :: validate_verify_command preflights --verify (tokenizable + executable resolvable) at the CLI boundary
+OK  A.A8 atomic write: symlink refusal + mode preservation :: osal.atomic_write_text: temp staged in target dir, os.replace, mode preserved, symlink refused; filesafety delegates and apply_gate writes only through it
+OK  A.A9 failed-run rewind :: terminal_failure rewinds the target to pre-run content when the run dies without a passed gate
+OK  A.A10 MCP allow_verify/allow_write + allowed_roots :: apply_edit refuses without allow_write/allow_verify and confines every target to allowed_roots (realpath'd)
+OK  A.A11 consent fail-closed on unparseable :: unparseable consent => synthetic defer with dispatched:false, never dispatched (ladder-exhaustion path included)
+OK  A.A12 continuation tamper gates before key setup :: validate_continuation refuses tampered/mismatched state; 2 resume commands validate before session assembly (no key lookup first)
+OK  A.A13 hard config ceilings + fail-clean load :: 14 numeric settings range-validated; hard ceilings enforced in load_settings; unknown keys warned; load inside CLI try
+OK  R.R1 HTTP transient retry (429/5xx, Retry-After) :: HttpTransport retries transient 429/5xx with Retry-After honor and capped exponential backoff
+OK  R.R2 reasoning param policy + cost-carrying retry :: auto/omit/cap + retry-once-without + rejected-attempt cost merged into retry usage
+OK  R.R3 output usability is one verdict, protocol conditions :: assess_output is the one usability verdict (assess=chat-owned, 2 lanes consume it)
+OK  R.R4 panel seat rotation + judge fallback + honest tally :: failed panel seats refill from the candidate iterator; judge and specialist fall back; tally counts usable votes only
+OK  R.R5 apply rotation on all failure classes + readiness de :: rotation covers error/BYOK/reasoning-only/readiness; ladder exhaustion => readiness deferral with continuation
+OK  R.R6 broken-gate detector on identical REAL outputs only :: broken-gate detector filters to real verify_failed rounds (merge errors / api_error cannot trigger it)
+OK  R.R7 ungated partials never land in the tree :: partial_content persists only inside the continuation state; apply.py holds no direct tree writer (all writes via apply_gate)
+OK  R.R8 batch envelope + fail-fast + real shared verdict :: batch loops engine.apply_edit per file, breaks on first non-success, always returns the envelope, derives verify.passed from the last file's verdict
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmphwfq_9ke\ledger.jsonl; run `harness ledger verify` for status.
+[ledger] corrupt line quarantined in C:\Users\SCM\AppData\Local\Temp\tmphwfq_9ke\ledger.jsonl; run `harness ledger verify` for status.
+OK  R.R9 ledger chain: no fork, quarantine, repair (dynamic) :: chain_ok=True; quarantined=1; tamper_found=True@4 repair_kept=3 dropped=1 repaired_ok=True
+OK  R.R10 spend ceiling under concurrency (dynamic) :: 8x200 concurrent record_actual: spent=0.010000 <= 0.01, no lost updates (errors=0)
+OK  R.R11 config validation ranges + unknown-key warning :: range-validated: ['apply_max_tokens', 'fireworks_budget_usd', 'max_cost', 'max_orch_rounds', 'max_panelists', 'max_rotations', 'max_tokens', 'mcp_tool_timeout', 'meta_budget_usd', 'min_confidence', 'reasoning_token_budget', 'task_max_cost',
+OK  R.R12 continuation contract refuses all tamper classes (dy :: all 5 refusals hold: {'schema': True, 'no_gate': True, 'verify_flip': True, 'gate_id': True, 'bad_hash': True}
+OK  R.R13 full suite green hermetically :: unittest: Ran 6491 tests in 404.093s
+
+OK (env clean; empty home)
+OK  R.R14 R13 classifier self-verifies its contract :: R13 classifier: clean->PASS, planted->FAIL, each signature load-bearing, old-rule diverges
+OK  SM.S1 import direction (interfaces on top) :: import direction clean (0 upward edges)
+OK  SM.S2 no re-export facades :: no re-export shims (harness/core.py cannot regrow)
+OK  SM.S3 result vocabulary one def site :: result vocabulary owned by results.py only
+OK  SM.S4 engine/router construction one owner :: engine/router construction owned by session.py
+OK  SM.S5 ruff clean :: ruff check harness tests: clean via shared resolver `C:\Python314\python.exe -m ruff check harness tests`
+OK  SM.S6 test tree mirrors product tree :: 132/132 modules imported by tests
+OK  SM.S7 one owner per policy (8 sampled) :: all 8 sampled policies have exactly one definition site
+OK  SM.S8 no dead validators :: no dead validators (all wired or tested)
+OK  SD.D1 MCP tool parity with README :: README documents all 33 MCP tools, no stale names
+OK  SD.D2 CLI surface documented :: 12 top-level subcommands documented with the harness <cmd> form
+OK  SD.D3 exit codes consistent :: 0 ok/preview, 3 deferred, 2 failed (+1 fatal, 130 SIGINT) consistent between results.py, cli.py and README
+OK  SD.D4 config table keys real :: 24 README config keys all resolve to real settings (59 configurable)
+OK  SD.D5 version single-sourced :: pyproject=0.5.1 __version__=0.5.1 (one source)
+OK  SD.D6 changelog discipline :: format statement + [Unreleased] section present
+OK  SD.D7 docs reference only real modules :: all module references across 34 docs resolve to real files
+SD.D8 SKIPPED(by probe)
+OK  SD.D9 dogfood loop documented + wired :: dogfood loop documented (README) + wired (CLI) + round-1 report present in audits/self/
+OK  SD.D10 CONTRIBUTING current :: CONTRIBUTING covers every public module; layering rules present
+OK  SD.D11 corpus integrity (SHA-256 pinned) :: evidence corpus matches its SHA-256 manifest
+SD.D12 SKIPPED(by probe)
+OK  SD.D13 flush-loop canary suite passes as a gate :: shipped canary suite passes as a gate; score 1.00 on 3 held-out case(s)
+EXIT=0
