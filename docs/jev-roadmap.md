@@ -52,6 +52,9 @@ true while issues close.
 | [#456](https://github.com/Treystu/harness/issues/456) | PR #486 (`3f05a80`) |
 | [#458](https://github.com/Treystu/harness/issues/458) | PR #498 (`546d62f`) |
 | [#465](https://github.com/Treystu/harness/issues/465) | gate record `dispatch/gates/2026-11-11-465-statuses-are-the-rail.md` |
+| [#538](https://github.com/Treystu/harness/issues/538)–[#544](https://github.com/Treystu/harness/issues/544) | PR #545 (`9959b16`) + PR #547 (`6e2a698`) + live failover self-correction |
+| [#454](https://github.com/Treystu/harness/issues/454) | PR #501 (`bf2348f`) + environment-true trace/audit completion |
+| [#425](https://github.com/Treystu/harness/issues/425), [#427](https://github.com/Treystu/harness/issues/427), [#428](https://github.com/Treystu/harness/issues/428), [#429](https://github.com/Treystu/harness/issues/429), [#430](https://github.com/Treystu/harness/issues/430) | evidence close: shipped & regression-pinned on `main` |
 
 ### Waves - live counts
 
@@ -76,7 +79,7 @@ true while issues close.
 | [#433](https://github.com/Treystu/harness/issues/433) [gate] Lucas Gate v2 in the driving-agent loop is not on main (runner unlanded, profile absent, MCP catalog gap) | OPEN | no declared prerequisite |
 | [#434](https://github.com/Treystu/harness/issues/434) [verification] Overlay-style verification (run a suite against a composed tree) has no named surface on main | OPEN | no declared prerequisite |
 | [#445](https://github.com/Treystu/harness/issues/445) Baseline pyright debt in core modules makes the changed-file typecheck leg fail on any PR that touches them (40 errors, identical on main) | OPEN | no declared prerequisite |
-| [#454](https://github.com/Treystu/harness/issues/454) [hardening] Environment-true checks: no gate may pass or fail on the shape of the machine it runs on | OPEN | no declared prerequisite |
+| [#454](https://github.com/Treystu/harness/issues/454) [hardening] Environment-true checks: no gate may pass or fail on the shape of the machine it runs on | CLOSED | `audits/self/refresh_coverage_baseline.py`, `audits/self/audit.py`, `tests/test_perception_client.py`, `tests/test_source_audit.py` |
 
 ### W1 - Active queue - the filed order - 2 open
 
@@ -106,12 +109,12 @@ true while issues close.
 | [#422](https://github.com/Treystu/harness/issues/422) [research] Verify citation metadata and claim-to-source support | OPEN | register: #342/#344 lifecycle |
 | [#423](https://github.com/Treystu/harness/issues/423) [audit] Add a resumable full-source Jev audit command | OPEN | none |
 | [#424](https://github.com/Treystu/harness/issues/424) [docs] Align System One feature claims with shipped status | OPEN | none |
-| [#425](https://github.com/Treystu/harness/issues/425) [driver-core] Refuse append when an existing audit chain is invalid | OPEN | none |
+| [#425](https://github.com/Treystu/harness/issues/425) [driver-core] Refuse append when an existing audit chain is invalid | CLOSED | `driver_core/audit.py`, `tests/test_driver_core/test_budget_audit.py` |
 | [#426](https://github.com/Treystu/harness/issues/426) [security] Enforce public-network policy for browser evidence rendering | OPEN | none |
-| [#427](https://github.com/Treystu/harness/issues/427) [mission] Surface malformed receipt and Jev-evaluation records | OPEN | none |
-| [#428](https://github.com/Treystu/harness/issues/428) [economics] Reject negative endpoint override and cache prices | OPEN | none |
-| [#429](https://github.com/Treystu/harness/issues/429) [audit] Refuse or recover truncated JEV judgment state before append | OPEN | none |
-| [#430](https://github.com/Treystu/harness/issues/430) [lifecycle] Stop repeated retries after validated restart or consent refusal | OPEN | none |
+| [#427](https://github.com/Treystu/harness/issues/427) [mission] Surface malformed receipt and Jev-evaluation records | CLOSED | `harness/mission_record.py`, `tests/test_hul_mission_record.py` |
+| [#428](https://github.com/Treystu/harness/issues/428) [economics] Reject negative endpoint override and cache prices | CLOSED | `harness/endpoint_pricing.py`, `tests/test_economics_index.py` |
+| [#429](https://github.com/Treystu/harness/issues/429) [audit] Refuse or recover truncated JEV judgment state before append | CLOSED | `harness/repo_summary.py`, `tests/test_jev_repo_envelope.py` |
+| [#430](https://github.com/Treystu/harness/issues/430) [lifecycle] Stop repeated retries after validated restart or consent refusal | CLOSED | `harness/restart_policy.py`, `tests/test_hourglass_stage_judgments.py` |
 | [#448](https://github.com/Treystu/harness/issues/448) [desktop] Honor read-only workspace audits and preflight the full scope | OPEN | none |
 | [#463](https://github.com/Treystu/harness/issues/463) [found-in-use:submission] harness-oc MCP server fails to start over ssh stdio (transport); error text truncates the failing command | OPEN | none |
 

@@ -364,3 +364,39 @@ def record_error(model: str, error: Exception, *, kind: str = "unknown") -> None
 def order_models(models: Iterable[str], *, prefer_free: bool = True) -> List[str]:
     """Availability-ordered ladder (see ``AvailabilityLedger.order``)."""
     return default_ledger().order(models, prefer_free=prefer_free)
+
+
+def failover_models(
+    primary: Iterable[str],
+    fallback: Optional[Iterable[str]] = None,
+    *,
+    prefer_free: bool = False,
+) -> List[str]:
+    """Servable models from ``fallback`` when ``primary`` is provider-exhausted.
+
+    Used when a single-provider primary pool hits ``account_funding`` while
+    another funded direct backend (or $0 route) is configured in ``local_pool``
+    (#538, #539). Returns only models not already in ``primary`` and not
+    excluded in the default ledger.
+    """
+    ledger = default_ledger()
+    primary_list = [str(m) for m in (primary or []) if m]
+    if not any("/" in m for m in primary_list):
+        return []
+    if primary_list and not all(ledger.is_excluded(m) for m in primary_list):
+        return []
+    now = ledger._clock()
+    if not any(
+        not e.expired(now) and e.cause in PROVIDER_SCOPED_CAUSES
+        for e in ledger._entries.values()
+    ):
+        return []
+    seen = set(primary_list)
+    extras = [
+        str(m) for m in (fallback or [])
+        if m and str(m) not in seen and not ledger.is_excluded(str(m))
+    ]
+    if not extras:
+        return []
+    return ledger.order(extras, prefer_free=prefer_free)
+

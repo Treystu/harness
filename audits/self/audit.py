@@ -1260,9 +1260,12 @@ def sd_shipped_freshness():
     n_free = len({p for p in pools if p.endswith(":free")})
     live_ev = "live check skipped (HARNESS_AUDIT_LIVE unset)"
     if LIVE:
-        r = subprocess.run(
-            [sys.executable, "-m", "harness.cli", "capabilities", "--check-shipped"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=180)
+        try:
+            r = subprocess.run(
+                [sys.executable, "-m", "harness.cli", "capabilities", "--check-shipped"],
+                cwd=str(ROOT), capture_output=True, text=True, timeout=180)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return platform_gap("live OpenRouter network access", str(exc))
         live_ev = f"live --check-shipped exit={r.returncode}"
         wired = wired and r.returncode == 0
     # This checks that freshness enforcement is wired, not that a provider
@@ -1344,9 +1347,16 @@ def sd_corpus_integrity():
         return 0.0, ("corpus_manifest.json missing -- run "
                      "refresh_corpus_manifest.py")
     pinned = json.loads(mf.read_text(encoding="utf-8"))["files"]
-    tracked = subprocess.run(
-        ["git", "ls-files", "audits/self"], cwd=str(ROOT),
-        capture_output=True, text=True, encoding="utf-8", errors="replace").stdout.split()
+    try:
+        ls = subprocess.run(
+            ["git", "ls-files", "audits/self"], cwd=str(ROOT),
+            capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return platform_gap("git on PATH in a repository checkout", str(exc))
+    if ls.returncode != 0:
+        return platform_gap("a git checkout at ROOT",
+                            (ls.stderr or ls.stdout or "").strip())
+    tracked = ls.stdout.split()
     corpus = {f for f in tracked
               if f.startswith("audits/self/dogfood/")
               or f in {"audits/self/audit_report.md",
@@ -1396,7 +1406,7 @@ def d12_unreachable(ref, *, in_ci):
     closed. Locally the same condition returns a visible SKIP.
     """
     reason = (f"merge-base {ref[:12]} cannot be diffed in this checkout, "
-              f"so D12 cannot compute a changed-line ratio")
+              f"so D12 cannot compute a changed-line ratio [{PLATFORM_GAP}]")
     if in_ci:
         _audible(f"[FATAL] D12: {reason} -- failing closed")
         return 0.0, f"FAIL: {reason}"

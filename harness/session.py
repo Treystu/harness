@@ -115,10 +115,13 @@ def governor_for(settings, max_cost_override=None):
         # explicit --max-cost can never raise the ceiling past hard.
         max_cost = finite_number(max_cost_override, "max_cost", 0.0,
                                  HARD_MAX_COST)
+    fw_budget = _budget(settings, "fireworks_budget_usd")
+    fw_key = getattr(settings, "fireworks_key", None)
+    if fw_budget <= 0.0 and isinstance(fw_key, str) and fw_key.strip():
+        fw_budget = max_cost
     gov = SpendGovernor(HttpTransport(), api_key, settings.expect_key_label,
                         max_cost,
-                        fireworks_budget_usd=getattr(
-                            settings, "fireworks_budget_usd", 0.0),
+                        fireworks_budget_usd=fw_budget,
                         meta_budget_usd=_budget(
                             settings, "meta_budget_usd"))
     gov.verify_key()

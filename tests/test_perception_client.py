@@ -395,9 +395,15 @@ class NonInterferenceTests(unittest.TestCase):
 
     def test_no_harness_state_file_is_written(self):
         adapter, _ = _adapter([_ok_envelope()])
-        before = sorted(os.listdir("."))
-        adapter.step("file-manager")
-        self.assertEqual(sorted(os.listdir(".")), before)
+        with tempfile.TemporaryDirectory() as tmp:
+            old_cwd = os.getcwd()
+            os.chdir(tmp)
+            try:
+                before = sorted(os.listdir("."))
+                adapter.step("file-manager")
+                self.assertEqual(sorted(os.listdir(".")), before)
+            finally:
+                os.chdir(old_cwd)
 
 
 class SummarizeTests(unittest.TestCase):

@@ -89,6 +89,9 @@ class FakePolicy:
 
 class SourceAuditTests(unittest.TestCase):
     def setUp(self):
+        import shutil
+        if shutil.which("git") is None:
+            self.skipTest("[platform gap, not a code verdict] needs git on PATH")
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name) / "repo"
         self.root.mkdir()

@@ -46,8 +46,34 @@ class ExecutionStageMixin:
         def chat_fn(prompt_text):
             # governed_text returns (content, cost); every orchestration
             # consumer (decompose/triage/judge) wants the text alone.
+            from .availability import (
+                default_ledger as _availability,
+                failover_models as _failover_models,
+                record_error as _record_error,
+            )
+            from .lifecycle_guards import (
+                classify_harness_error,
+                is_availability_failure,
+            )
+
+            _ledger = _availability()
+            _prefer_free = bool(getattr(self.settings, "use_free", False))
+            _local_pool = getattr(self.settings, "local_pool", None)
+            _candidates = self._rate_circuit.available(ladder) or ladder
+            active_ladder = list(
+                _failover_models(_candidates, _local_pool, prefer_free=_prefer_free)
+                or _ledger.order(_candidates, prefer_free=_prefer_free)
+            )
+            _failover_extended = False
             last = None
-            for model in self._rate_circuit.available(ladder) or ladder:
+            for model in active_ladder:
+                if (
+                    _failover_extended
+                    and model in _candidates
+                    and "/" in str(model)
+                    and _ledger.is_excluded(model)
+                ):
+                    continue
                 try:
                     content, _ = governed_text(
                         self.transport, api_key, gov, model, prompt_text, 2048, label="orchestrate"
@@ -55,6 +81,18 @@ class ExecutionStageMixin:
                     return content
                 except HarnessError as e:
                     last = e
+                    _kind = classify_harness_error(str(e))
+                    if is_availability_failure(_kind):
+                        _record_error(model, e, kind=_kind)
+                        if not _failover_extended:
+                            _extra = _failover_models(
+                                _candidates, _local_pool, prefer_free=_prefer_free
+                            )
+                            if _extra:
+                                _failover_extended = True
+                                for _m in _extra:
+                                    if _m not in active_ladder:
+                                        active_ladder.append(_m)
                     if "429" in str(e) or "rate limit" in str(e).lower():
                         self._rate_circuit.note_rate_limited(model)
             raise last or HarnessError("orchestration ladder empty")

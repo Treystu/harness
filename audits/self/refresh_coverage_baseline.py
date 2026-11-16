@@ -25,6 +25,7 @@ stay in-memory; nothing is written except the coverage JSON.
 import inspect
 import io
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -144,6 +145,25 @@ def main():
     tests_dir = str(ROOT / "tests")
     tr = trace.Trace(count=1, trace=0,
                      ignoredirs=[sys.prefix, sys.exec_prefix, tests_dir])
+    # stdlib trace._Ignore.names caches ignore decisions by basename
+    # (modulename), so an ignored stdlib/__init__.py caches _ignore['__init__']=1
+    # and suppresses harness/__init__.py on Windows (#454). Cache by normalized
+    # full path instead so only files under ignoredirs are ignored.
+    _ignore_dirs = tuple(
+        os.path.normcase(os.path.abspath(d)) + os.sep
+        for d in (sys.prefix, sys.exec_prefix, tests_dir)
+    )
+    _ignore_cache = {}
+
+    def _names_by_path(filename, modulename):
+        res = _ignore_cache.get(filename)
+        if res is None:
+            norm = os.path.normcase(os.path.abspath(filename))
+            res = 1 if any(norm.startswith(d) for d in _ignore_dirs) else 0
+            _ignore_cache[filename] = res
+        return res
+
+    tr.ignore.names = _names_by_path
     t0 = time.time()
     # trace.runfunc installs only sys.settrace; worker threads (the
     # executor's parallel dispatch) would run untraced and D12 would

@@ -493,5 +493,263 @@ class EditPlanReplayTests(unittest.TestCase):
         convo.assert_called_once()
 
 
+class CrossProviderFailoverTests(unittest.TestCase):
+    """D-2026-11-13-013: OpenRouter daily token/spend 402 fails over to local_pool."""
+
+    def setUp(self):
+        reset_default_ledger(AvailabilityLedger(None))
+
+    def tearDown(self):
+        reset_default_ledger(None)
+
+    def test_daily_token_limit_402_classifies_as_account_funding(self):
+        from harness.provider_errors import provider_spend_limit_error
+
+        err = provider_spend_limit_error(
+            402,
+            {
+                "error": {
+                    "message": (
+                        "Prompt tokens limit exceeded: 8770 > 3614. "
+                        "To increase, visit https://openrouter.ai/keys and "
+                        "adjust the key's daily limit"
+                    )
+                }
+            },
+            model="z-ai/glm-5.3-flash",
+        )
+        self.assertEqual(err.cause, ACCOUNT_FUNDING)
+
+    def test_failover_models_branches_and_session_fireworks_budget(self):
+        from harness.availability import failover_models
+        from harness.session import governor_for
+
+        # Bare synthetic names without "/" never trigger cross-provider failover.
+        self.assertEqual(failover_models(["rung-a"], ["groq/openai/gpt-oss-20b"]), [])
+        # Not all primary models excluded -> [].
+        self.assertEqual(
+            failover_models(
+                ["deepseek/deepseek-v4-flash"], ["groq/openai/gpt-oss-20b"]
+            ),
+            [],
+        )
+        # Excluded only by non-provider-scoped cause -> [].
+        default_ledger().record_failure("deepseek/deepseek-v4-flash", cause="unknown")
+        self.assertEqual(
+            failover_models(
+                ["deepseek/deepseek-v4-flash"], ["groq/openai/gpt-oss-20b"]
+            ),
+            [],
+        )
+        # Provider-scoped ACCOUNT_FUNDING with empty fallback -> [].
+        default_ledger().record_failure(
+            "deepseek/deepseek-v4-flash", cause=ACCOUNT_FUNDING
+        )
+        self.assertEqual(failover_models(["deepseek/deepseek-v4-flash"], []), [])
+        # Provider-scoped ACCOUNT_FUNDING with servable direct fallback -> ordered extras.
+        self.assertEqual(
+            failover_models(
+                ["deepseek/deepseek-v4-flash"],
+                ["groq/openai/gpt-oss-20b", "accounts/fireworks/models/glm-5p3"],
+            ),
+            ["groq/openai/gpt-oss-20b", "accounts/fireworks/models/glm-5p3"],
+        )
+
+        # governor_for arms fireworks_budget_usd = max_cost when fireworks_key is present.
+        with mock.patch("harness.session.resolve_api_key", return_value="or-k"), \
+                mock.patch("harness.spend.SpendGovernor.verify_key", return_value={}):
+            settings = SimpleNamespace(
+                use_meta=False,
+                use_fireworks=False,
+                fireworks_key="fw-k",
+                fireworks_budget_usd=0.0,
+                meta_budget_usd=0.0,
+                max_cost=0.15,
+                expect_key_label=None,
+            )
+            _, gov = governor_for(settings)
+            self.assertEqual(gov.fireworks_budget_usd, 0.15)
+
+    def test_conversation_hourglass_simple_exec_and_waist_failover_to_local_pool(self):
+        from harness.agent import AutonomousAgent
+        from harness.waist import compose_plan
+
+        fw_model = "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b"
+        or_a = "deepseek/deepseek-v4-flash"
+        or_b = "z-ai/glm-5.3-flash"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = load_settings({
+                "panel_pool": f"{or_a},{or_b}",
+                "ledger_path": str(Path(tmp) / "l.jsonl"),
+                "max_cost": 0.05,
+                "use_free": False,
+            })
+            settings.local_pool = [fw_model]
+            agent = AutonomousAgent(
+                settings=settings, root_dir=Path(tmp), history_dir=Path(tmp)
+            )
+            gov = _gov(FakeTransport(models=[m(or_a), m(or_b), m(fw_model)]))
+            gov.fireworks_budget_usd = 0.05
+
+            # 1. Conversation lane fails over mid-walk and skips remaining excluded OR model.
+            reset_default_ledger(AvailabilityLedger(None))
+            conv_calls = []
+
+            def conv_routed(transport, api_key, model, messages, *a, **kw):
+                conv_calls.append(model)
+                if model == or_a:
+                    raise _refusal(or_a)
+                return 200, comp("Answered via Fireworks direct.")
+
+            with mock.patch("harness.conversation_lifecycle.governor_for",
+                            return_value=("k", gov)), \
+                    mock.patch.object(agent, "_chat_ladder",
+                                      return_value=[or_a, or_b]), \
+                    mock.patch("harness.conversation_lifecycle.chat_routed",
+                               side_effect=conv_routed):
+                out = agent._handle_conversation("Hello", "s-fw-conv", web=False)
+            self.assertEqual(out["status"], "ok")
+            self.assertEqual(out["model"], fw_model)
+            self.assertEqual(conv_calls, [or_a, fw_model])
+
+            # 2. Hourglass answer lane fails over mid-walk and skips remaining excluded OR model.
+            reset_default_ledger(AvailabilityLedger(None))
+            hg_calls = []
+
+            def hg_routed(transport, api_key, model, messages, *a, **kw):
+                hg_calls.append(model)
+                if model == or_a:
+                    raise _refusal(or_a)
+                return 200, comp("Hourglass answered via Fireworks.")
+
+            with mock.patch("harness.hourglass_lifecycle.chat_routed",
+                            side_effect=hg_routed):
+                hg_out = agent._hourglass_answer_once(
+                    "Explain", "", None,
+                    governor=gov, api_key="k",
+                )
+            self.assertEqual(hg_out["model"], fw_model)
+            self.assertEqual(hg_calls, [or_a, fw_model])
+
+            # 3. Simple answer lane fails over mid-walk and skips remaining excluded OR model.
+            reset_default_ledger(AvailabilityLedger(None))
+            sa_calls = []
+
+            def sa_comp(transport, api_key, governor, model, *a, **kw):
+                sa_calls.append(model)
+                if model == or_a:
+                    raise _refusal(or_a)
+                return {
+                    "content": "Simple answer via Fireworks.",
+                    "model": model,
+                    "cost": 0.0001,
+                    "input_tokens": 5,
+                    "output_tokens": 5,
+                    "cost_estimated": False,
+                }
+
+            policy = mock.MagicMock()
+            policy.evaluate_simple_strategy.return_value = (
+                SimpleNamespace(is_fallback=False),
+                {
+                    "native": True,
+                    "strategy": "direct_answer",
+                    "probabilities": {"direct_answer": 1.0},
+                    "concentration": 1.0,
+                    "cost": 0.0,
+                },
+            )
+            policy.evaluate_answer.return_value = (
+                SimpleNamespace(is_fallback=False, verdict="pass"),
+                {
+                    "native": True,
+                    "verdict": "pass",
+                    "answer_sufficient": 0.95,
+                    "iteration_required": False,
+                    "plan_required": False,
+                    "cost": 0.0,
+                },
+            )
+            with mock.patch("harness.simple_answer_lifecycle.governor_for",
+                            return_value=("k", gov)), \
+                    mock.patch("harness.simple_answer_lifecycle.policy_for",
+                               return_value=policy), \
+                    mock.patch.object(agent, "_live_jev_available",
+                                      return_value=False), \
+                    mock.patch("harness.simple_answer_lifecycle.governed_completion",
+                               side_effect=sa_comp):
+                sa_out = agent.run_simple_request(
+                    "What is 2 + 2?", session_id="s-fw-sa"
+                )
+            self.assertEqual(sa_out["status"], "ok")
+            self.assertEqual(sa_out["model"], fw_model)
+            self.assertEqual(sa_calls, [or_a, fw_model])
+
+            # 4. Execution stages _orchestrator_chat_fn fails over and skips excluded OR model.
+            reset_default_ledger(AvailabilityLedger(None))
+            orch_calls = []
+
+            def orch_gov_text(transport, api_key, governor, model, *a, **kw):
+                orch_calls.append(model)
+                if model == or_a:
+                    raise _refusal(or_a)
+                return ("orchestrated text", 0.0001)
+
+            with mock.patch(
+                "harness.execution_stages.resolve_scout_ladder",
+                return_value=[or_a, or_b],
+            ), mock.patch(
+                "harness.execution_stages.governed_text",
+                side_effect=orch_gov_text,
+            ):
+                fn = agent._orchestrator_chat_fn(gov)
+                self.assertEqual(fn("decompose this"), "orchestrated text")
+            self.assertEqual(orch_calls, [or_a, fw_model])
+
+            # 5. Waist confirm_plan loop fails over and skips excluded OR model.
+            reset_default_ledger(AvailabilityLedger(None))
+            waist_calls = []
+
+            def fake_confirm(*, model, plan_result, **kw):
+                waist_calls.append(model)
+                if model == or_a:
+                    raise _refusal(or_a)
+                out_plan = dict(plan_result)
+                out_plan["confirmation"] = {
+                    "verdict": "approved",
+                    "model": model,
+                    "rounds": 1,
+                    "cost": 0.0,
+                }
+                return out_plan
+
+            Path(tmp, "a.py").write_text("x = 1\n", encoding="utf-8")
+            with mock.patch(
+                "harness.waist.resolve_waist_ladder",
+                return_value=[or_a, or_b],
+            ), mock.patch(
+                "harness.config.laptop_local_pool",
+                return_value=[fw_model],
+            ), mock.patch(
+                "harness.waist.confirm_plan",
+                side_effect=fake_confirm,
+            ):
+                plan_out = compose_plan(
+                    transport=FakeTransport(),
+                    api_key="k",
+                    governor=gov,
+                    ledger=None,
+                    opts_goal="Update a.py",
+                    candidate_files=["a.py"],
+                    use_free=False,
+                    decompose_llm=False,
+                    confirm=True,
+                    root=tmp,
+                )
+            self.assertEqual(plan_out["confirmation"]["model"], fw_model)
+            self.assertEqual(waist_calls, [or_a, fw_model])
+
+
 if __name__ == "__main__":
     unittest.main()
