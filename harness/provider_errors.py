@@ -38,8 +38,13 @@ class ProviderSpendLimitError(HarnessError):
     next_step: Optional[str]
 
     def __init__(self, detail: str, *, http_status: Optional[int] = None,
-                 known_cost: float = 0.0, cause: str = "account_funding"):
+                 known_cost: float = 0.0, cause: str = "account_funding",
+                 model: Optional[str] = None):
         self.detail = str(detail or "")
+        # The model that could not serve (#538): the terminal latch and the
+        # availability ledger both need to know WHICH backend refused, or a
+        # dry account on one model stops every other backend too.
+        self.model = str(model) if model else None
         self.http_status = http_status
         self.cause = cause if cause in self.CAUSES else "unknown"
         try:
@@ -50,6 +55,8 @@ class ProviderSpendLimitError(HarnessError):
         self.ledger_recorded = False
         # The mutable state is shared with sibling executor workers, so a
         # queued request can stop before it reaches the upstream provider.
+        # Since #538 the latch is backend-scoped: see
+        # ``events.raise_if_provider_spend_limited``.
         from .events import mark_provider_spend_limit
         mark_provider_spend_limit(self)
         status = f" (HTTP {http_status})" if http_status is not None else ""
@@ -194,7 +201,9 @@ def _response_fingerprint(value: Any, depth: int = 0) -> str:
     return str(value or "")
 
 
-def provider_spend_limit_error(status: Any, response: Any, *, known_cost: float = 0.0):
+def provider_spend_limit_error(status: Any, response: Any, *,
+                               known_cost: float = 0.0,
+                               model: Optional[str] = None):
     """Return a typed terminal error for known billing exhaustion responses.
 
     Generic 429 quota/rate-limit responses deliberately do not match. They
@@ -218,7 +227,8 @@ def provider_spend_limit_error(status: Any, response: Any, *, known_cost: float 
                 hint in fingerprint for hint in _SPEND_HINTS):
             cause = "unknown"
         return ProviderSpendLimitError(detail, http_status=http_status,
-                                       known_cost=known_cost, cause=cause)
+                                       known_cost=known_cost, cause=cause,
+                                       model=model)
     # Error phrases can appear in ordinary model text. Only inspect an actual
     # error envelope on a failed HTTP response; a 200 assistant answer that
     # discusses billing is not evidence that the caller's key is exhausted.
@@ -228,7 +238,7 @@ def provider_spend_limit_error(status: Any, response: Any, *, known_cost: float 
     lowered = _response_fingerprint(error).lower()
     if code in _SPEND_CODES or any(hint in lowered for hint in _SPEND_HINTS):
         return ProviderSpendLimitError(detail, http_status=http_status,
-                                       known_cost=known_cost)
+                                       known_cost=known_cost, model=model)
     return None
 
 
@@ -250,11 +260,13 @@ def edge_block_error(status: Any, response: Any, *, known_cost: float = 0.0):
 
 
 def raise_for_provider_spend_limit(status: Any, response: Any, *,
-                                   known_cost: float = 0.0) -> None:
+                                   known_cost: float = 0.0,
+                                   model: Optional[str] = None) -> None:
     blocked = edge_block_error(status, response, known_cost=known_cost)
     if blocked is not None:
         raise blocked
-    error = provider_spend_limit_error(status, response, known_cost=known_cost)
+    error = provider_spend_limit_error(status, response, known_cost=known_cost,
+                                       model=model)
     if error is not None:
         raise error
 

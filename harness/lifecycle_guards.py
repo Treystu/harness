@@ -22,7 +22,21 @@ MODEL_UNAVAILABLE = "model_unavailable"
 UNKNOWN_FAILURE = "unknown"
 
 #: Terminal failures: stop with no retry and no model rotation.
-TERMINAL_FAILURES = frozenset({SPEND_EXHAUSTED, BUDGET_REFUSED})
+#:
+#: Only the RUN's own budget cap is terminal (#538). A provider's spend limit
+#: says nothing about the other configured backends, so treating it as
+#: terminal deferred a request while funded backends sat unprobed. Provider
+#: exhaustion now rotates (see ``AVAILABILITY_FAILURES``) and the run stops
+#: only when no servable backend is left.
+TERMINAL_FAILURES = frozenset({BUDGET_REFUSED})
+
+#: Provider-availability failures: rotate to another backend, never defer.
+AVAILABILITY_FAILURES = frozenset({
+    SPEND_EXHAUSTED,
+    RATE_LIMITED,
+    AUTH_FAILED,
+    MODEL_UNAVAILABLE,
+})
 
 _SPEND_HINTS = (
     "spend", "credit", "quota", "billing", "payment", "insufficient",
@@ -75,7 +89,8 @@ def classify_provider_failure(status, resp=None):
 
     ``status`` is the HTTP status int (or ``None``); ``resp`` the parsed
     body or raw text. Spend-cap is checked BEFORE 429 on purpose: quota
-exhaustion reported as 429 must stop terminally, not rotate.
+    exhaustion reported as 429 must be seen as spend, not a transient rate
+    limit. Since #538 that is a rotation signal, not a terminal stop.
     """
     text = _body_text(resp)
     if _has_any(text, _SPEND_HINTS):
@@ -129,8 +144,17 @@ def classify_harness_error(message):
 
 
 def is_terminal_failure(kind):
-    """True when the run must stop with no retry and no model rotation."""
+    """True when the run must stop with no retry and no model rotation.
+
+    Only the run's own budget cap qualifies (#538). Provider availability
+    outcomes rotate instead; see ``is_availability_failure``.
+    """
     return kind in TERMINAL_FAILURES
+
+
+def is_availability_failure(kind):
+    """True when the failure is about a backend, not about this run's cap."""
+    return kind in AVAILABILITY_FAILURES
 
 
 def is_missing_tool_refusal(reason):
@@ -153,8 +177,10 @@ class RateCircuit:
     """Remember 429'd models for a cooldown and cap total retry waiting.
 
     One instance per run: later rungs and attempts share the memory, so
-a throttled model is skipped, not stormed. Spend exhaustion never
-enters the circuit -- it is terminal (see ``is_terminal_failure``).
+    a throttled model is skipped, not stormed. Spend exhaustion does not
+    enter THIS circuit (its cooldown is the availability ledger's TTL), and
+    it is no longer terminal -- ``is_terminal_failure`` is the run's budget
+    cap only (#538).
     """
 
     def __init__(self, cooldown_s=RATE_LIMIT_COOLDOWN_SECONDS,

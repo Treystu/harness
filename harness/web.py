@@ -697,10 +697,34 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
                                     allow_any_public=True)
                 else:
                     page = fetch_fn(u, allowed_hosts=allowed_hosts)
-                sources.append({"kind": "fetch", "ok": True, "url": page["url"], "title": page["title"], "text": page["text"]})
+                body = str(page.get("text") or "")
+                if body.strip():
+                    sources.append({"kind": "fetch", "ok": True,
+                                    "url": page["url"],
+                                    "title": page["title"], "text": body})
+                else:
+                    # A 0-char body is not evidence (#542). It must not count
+                    # as a successful fetch, or the detour continues on it.
+                    sources.append({"kind": "fetch", "ok": False,
+                                    "url": page["url"],
+                                    "title": page["title"],
+                                    "note": "empty page (0 chars)"})
             except HarnessError as e:
                 sources.append({"kind": "fetch", "ok": False, "url": u, "note": str(e)})
         if any(s["ok"] for s in sources):
+            return sources
+        empty_pages = [s for s in sources
+                       if s.get("note") == "empty page (0 chars)"]
+        if (urls and empty_pages
+                and not any(s.get("ok") for s in sources)):
+            # #542: a named source that was fetched but returned 0 chars
+            # terminates the research detour here. Running a generic search
+            # next spends the run on a question the user did not ask. A fetch
+            # that FAILED is different: the existing search fallback stands.
+            sources.append({
+                "kind": "detour", "ok": False,
+                "note": "aborted: every named source returned 0 chars",
+            })
             return sources
     try:
         results = search_fn(extract_fn(prompt))

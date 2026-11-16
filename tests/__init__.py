@@ -39,6 +39,18 @@ LEDGER_ISOLATION_PATH = os.path.join(LEDGER_ISOLATION_DIR, "ledger.jsonl")
 
 os.environ["HARNESS_LEDGER"] = LEDGER_ISOLATION_PATH
 
+#: Provider availability is real cross-run state (harness/availability.py).
+#: Two rules keep the suite hermetic: never resolve the operator's
+#: ~/.config/harness/availability.json, and never let one test's HTTP 402
+#: reorder a later test's ladder. The TTL is pinned to 0 so a recorded verdict
+#: expires on arrival; a test that needs live exclusion constructs its own
+#: ``AvailabilityLedger`` with a real TTL.
+AVAILABILITY_ISOLATION_DIR = tempfile.mkdtemp(
+    prefix="harness-test-availability-")
+os.environ["HARNESS_AVAILABILITY_PATH"] = os.path.join(
+    AVAILABILITY_ISOLATION_DIR, "availability.json")
+os.environ["HARNESS_AVAILABILITY_TTL"] = "0"
+
 
 # ---------------------------------------------------------------------------
 # Network guard: the suite is hermetic, so it may talk to loopback and nothing

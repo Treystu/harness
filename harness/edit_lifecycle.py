@@ -32,7 +32,10 @@ from .session import (
 )
 from .token_budget import budget_from_settings
 from .waist import STAGE_EXECUTION
-from .workspace import require_workspace
+from .workspace import (
+    WORKSPACE_GATE_MESSAGE,
+    require_workspace,
+)
 
 
 EXECUTION_PHRASES = frozenset({
@@ -68,7 +71,11 @@ class AutoEditLifecycleMixin:
         # workers, per-node cost reservations, worktree isolation, diff
         # attestation), then a completion judge round that re-plans remaining
         # scope until the goal is met or the round budget is spent.
-        root_dir = require_workspace(self.root_dir)
+        # #544: the workspace gate is NOT task start. A request with no
+        # scoped file operation can finish without one; the gate fires at the
+        # first step that cannot proceed (a file read/write or a dispatch).
+        root_dir = (require_workspace(self.root_dir)
+                    if self.root_dir is not None else None)
         agent_ledger = ledger_for(self.settings, caller="agent")
         ensure_offered_task_id(
             agent_ledger,
@@ -164,13 +171,31 @@ class AutoEditLifecycleMixin:
             if prior_goal and prior_goal.lower() not in prompt.lower():
                 prompt = f"{prior_goal}\n\n[EXECUTION DIRECTIVE]: {prompt}"
 
-        if not target_files:
+        if not target_files and root_dir is not None:
             # Fallback for execution requests without explicit files:
             # discover candidate test/verification targets in the workspace.
-            repo_files = enumerate_repo_files(self.root_dir)
+            repo_files = enumerate_repo_files(root_dir)
             test_files = [f for f in repo_files if "test" in f.lower() or f.endswith(".py")]
             if test_files:
                 target_files = test_files[:3]
+
+        if root_dir is None and not target_files:
+            # No file scope was planned, so nothing needs a workspace: answer
+            # the request on the generation lane instead of refusing it at
+            # task start (#544).
+            emit("workspace_gate_deferred", focus="generation",
+                 note="no scoped file operation; answering without a workspace")
+            generated = self.run_simple_request(
+                prompt, session_id=session_id, cancel_check=cancel_check)
+            if generated.get("status") in ("ok", "deferred"):
+                return generated
+            return self._handle_conversation(
+                prompt, session_id, cancel_check)
+
+        if root_dir is None:
+            # The plan reaches a file operation but no workspace is selected:
+            # stop HERE, at that operation, with the canonical gate message.
+            raise HarnessError(WORKSPACE_GATE_MESSAGE)
 
         emit("files_discovered", target_files=target_files)
 
@@ -216,7 +241,15 @@ class AutoEditLifecycleMixin:
             plan_structural = plan.get("structural")
         else:
             def provider_once(call_id, invoke, *, result_cost=None):
-                previous = state["usage"]["provider_calls"].get(call_id)
+                from .provider_errors import ProviderSpendLimitError
+
+                calls = state["usage"]["provider_calls"]
+                previous = calls.get(call_id)
+                if previous is not None and previous.get("status") == "refused":
+                    # #538: an availability refusal returned no completion, so
+                    # the step is replayable on the next available backend.
+                    calls.pop(call_id, None)
+                    previous = None
                 if previous is not None:
                     if previous.get("status") == "completed":
                         return previous.get("result")
@@ -227,6 +260,15 @@ class AutoEditLifecycleMixin:
                     value = invoke()
                 except (ToolCancelled, ProviderUsageUnknown) as exc:
                     self.lifecycle.interrupt(state, exc, call_id=call_id)
+                    raise
+                except ProviderSpendLimitError as exc:
+                    call = calls.get(call_id)
+                    if call is not None:
+                        call["status"] = "refused"
+                        call["actual_cost"] = max(
+                            0.0, float(getattr(exc, "known_cost", 0.0) or 0.0))
+                        call["refused_model"] = getattr(exc, "model", None)
+                        self.lifecycle.save(state)
                     raise
                 cost = float(result_cost(value) if result_cost else 0.0)
                 self.lifecycle.provider_completed(state, call_id, value, cost)
@@ -301,10 +343,43 @@ class AutoEditLifecycleMixin:
                             plan_prompt, target_files, gov,
                             confirm=hourglass["confirm"])
 
-                plan = provider_once(
-                    state["request_id"] + ":edit-initial-plan", make_plan,
-                    result_cost=lambda value: float(value.get("cost") or 0.0)
-                    if isinstance(value, dict) else 0.0)
+                # #538: a provider-availability outcome is not an un-replayable
+                # planning result. The plan is re-derived on the next
+                # available backend (bounded), instead of stopping the request
+                # while a funded backend is still unprobed.
+                plan_attempts = 0
+                while True:
+                    try:
+                        plan = provider_once(
+                            state["request_id"] + ":edit-initial-plan",
+                            make_plan,
+                            result_cost=lambda value: float(
+                                value.get("cost") or 0.0)
+                            if isinstance(value, dict) else 0.0)
+                        break
+                    except ToolCancelled:
+                        raise
+                    except HarnessError as exc:
+                        from .availability import record_error
+                        from .lifecycle_guards import (
+                            classify_harness_error,
+                            is_availability_failure,
+                        )
+
+                        kind = classify_harness_error(str(exc))
+                        if not is_availability_failure(kind):
+                            raise
+                        record_error(
+                            str(getattr(exc, "model", "") or "plan-lane"),
+                            exc, kind=kind)
+                        plan_attempts += 1
+                        emit("rotation", model=getattr(exc, "model", None),
+                             reason="edit_plan_availability_retry",
+                             note=(f"plan re-derived on the next available "
+                                   f"backend (attempt {plan_attempts}) "
+                                   f"after: {exc}"))
+                        if plan_attempts >= 2:
+                            raise
                 if not isinstance(plan, dict):
                     raise HarnessError("saved edit plan is invalid")
                 if isinstance(plan_structural, dict):
@@ -349,12 +424,27 @@ class AutoEditLifecycleMixin:
                     self.lifecycle.interrupt(state, exc)
                 if isinstance(exc, ToolCancelled):
                     raise
+                from .lifecycle_guards import (
+                    classify_harness_error,
+                    is_availability_failure,
+                )
+
+                availability_stop = is_availability_failure(
+                    classify_harness_error(str(exc)))
                 result = {
                     "status": "deferred", "intent": "edit",
                     "prompt": prompt,
-                    "response": "Edit planning stopped because an earlier provider outcome cannot be safely replayed.",
+                    "response": (
+                        "Edit planning stopped after every configured "
+                        "backend refused to serve. "
+                        if availability_stop else
+                        "Edit planning stopped because an earlier provider "
+                        "outcome cannot be safely replayed."
+                    ),
                     "cost": state["usage"]["known_cost"],
                     "defer_reason": str(exc),
+                    **({"unservable_backends": True}
+                       if availability_stop else {}),
                 }
                 if state["status"] == "interrupted":
                     self.lifecycle.finish(state, "deferred", result=result,

@@ -96,23 +96,61 @@ def current_task_id():
 
 
 def mark_provider_spend_limit(error):
-    """Latch terminal provider exhaustion for this operation and its workers."""
+    """Latch provider exhaustion for this operation and its workers.
+
+    The latch names the backend that refused (#538): one dry account must
+    not stop a request that has another configured backend to fail over to.
+    """
     state = _terminal_spend_limit.get()
     if state is not None and "error" not in state:
         state["error"] = {
             "http_status": getattr(error, "http_status", None),
+            "model": getattr(error, "model", None),
+            "cause": getattr(error, "cause", None),
         }
 
 
-def raise_if_provider_spend_limited(*, known_cost=0.0):
-    """Prevent queued or retrying worker calls after a sibling hits the cap."""
+def _latch_blocks(latched: dict, model) -> bool:
+    """True when a latched refusal also applies to the requested ``model``.
+
+    Different providers never block each other. Within one provider, a
+    funding refusal blocks only its paid routes (a $0 route still serves)
+    and a route/model restriction blocks only that model.
+    """
+    from .availability import ACCOUNT_FUNDING, is_free_model, provider_of
+
+    latched_model = latched.get("model")
+    if not latched_model or not model:
+        # No backend identity was recorded: keep the whole-run stop, which is
+        # the pre-#538 conservative behaviour.
+        return True
+    if str(latched_model) == str(model):
+        return True
+    if provider_of(latched_model) != provider_of(model):
+        return False
+    if latched.get("cause") == ACCOUNT_FUNDING and not is_free_model(model):
+        return True
+    return False
+
+
+def raise_if_provider_spend_limited(*, known_cost=0.0, model=None):
+    """Prevent queued or retrying calls to a backend that already refused."""
     state = _terminal_spend_limit.get()
     if state is not None and "error" in state:
+        if model is not None and not _latch_blocks(state["error"], model):
+            # A different backend is still worth trying: this is failover,
+            # not a re-dispatch into the refused account (#538).
+            return
         from .provider_errors import ProviderSpendLimitError
         raise ProviderSpendLimitError(
             "a sibling request already exhausted the provider spend limit",
             http_status=state["error"].get("http_status"),
             known_cost=known_cost,
+            model=state["error"].get("model"),
+            # Forward the latched cause: reconstructing a restriction as the
+            # default account-funding cause would widen it to every paid model
+            # on the provider in the availability ledger.
+            cause=state["error"].get("cause") or "unknown",
         )
 
 

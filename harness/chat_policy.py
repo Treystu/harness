@@ -114,6 +114,75 @@ _QUESTION_OPENERS = ("what", "who", "when", "where", "which", "why", "how",
                      "is ", "are ", "does ", "do ", "did ", "can you",
                      "could you", "any news", "has there")
 
+# ---------------------------------------------------------------------------
+# #542: artifact requests do not divert into web-research planning
+# ---------------------------------------------------------------------------
+
+#: End states that are produced, not looked up.
+_ARTIFACT_NOUNS = (
+    "script", "program", "app", "application", "file", "files", "document",
+    "docx", "spreadsheet", "csv", "json", "html page", "webpage", "page",
+    "markdown", "readme", "pdf", "deck", "slides", "presentation", "image",
+    "picture", "photo", "diagram", "chart", "graphic", "logo", "banner",
+    "installer", "batch file", "powershell script", "shell script",
+    "config", "template", "report file",
+)
+
+#: Verbs whose direct object is something the run will author.
+_ARTIFACT_VERBS = (
+    "make", "create", "write", "generate", "build", "produce", "draft",
+    "code", "implement", "save", "export", "render", "compose", "assemble",
+)
+
+#: A prompt that names a real external target may still research.
+_EXTERNAL_REF_RE = None
+
+
+def _names_external_source(cleaned: str) -> bool:
+    global _EXTERNAL_REF_RE
+    if _EXTERNAL_REF_RE is None:
+        import re
+
+        _EXTERNAL_REF_RE = re.compile(
+            r"(https?://|www\.|\b[a-z0-9-]+\.(?:com|org|net|io|ai|dev|gov|edu|"
+            r"co|uk|de|jp)\b)", re.IGNORECASE)
+    return bool(_EXTERNAL_REF_RE.search(cleaned))
+
+
+def is_artifact_request(prompt: str) -> bool:
+    """True when the request's end state is something the run must author.
+
+    "make a script that runs in windows to generate the image" is an artifact
+    request: the deliverable is the script, not knowledge about the world.
+    The predicate is deliberately conservative -- it needs BOTH an artifact
+    noun and an authoring verb -- because a false positive would suppress a
+    genuine lookup.
+    """
+    cleaned = (prompt or "").strip().lower()
+    if not cleaned:
+        return False
+    import re
+
+    nouns = "|".join(re.escape(n) for n in _ARTIFACT_NOUNS)
+    verbs = "|".join(re.escape(v) for v in _ARTIFACT_VERBS)
+    return bool(re.search(rf"\b(?:{verbs})\b", cleaned)) and bool(
+        re.search(rf"\b(?:{nouns})\b", cleaned))
+
+
+def research_detour_blocked(prompt: str) -> bool:
+    """True when a web-research detour would add nothing to this request.
+
+    The build path owns artifact requests. Research stays available when the
+    prompt is itself a lookup (``is_research_question``) or names an external
+    source, which is the issue's "names, or demonstrably needs" test.
+    """
+    if not is_artifact_request(prompt):
+        return False
+    if is_research_question(prompt):
+        return False
+    return not _names_external_source(prompt)
+
+
 def is_research_question(prompt: str) -> bool:
     """True when a prompt is asking what is currently true in the world.
 
