@@ -73,6 +73,8 @@ class LaunchDispatchTests(unittest.TestCase):
         action = DEFAULT_VOCABULARY.resolve("launch_app")
         with mock.patch.object(osal, "platform_name",
                                return_value=platform), \
+                mock.patch.object(osal.shutil, "which",
+                                  lambda name: "C:\\Windows\\" + name), \
                 mock.patch.object(subprocess, "Popen", popen):
             output = _launch_app(action, {"app_name": app})
         return output, calls

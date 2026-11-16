@@ -62,6 +62,9 @@ class BoundedTargetTests(unittest.TestCase):
             "schema": targeting.TARGET_SCHEMA,
             "window": "Notes",
             "rect": [10, 20, 300, 40],
+            # #481: the record names its pixel space, and the default is the
+            # space capture produces, never an inference at read time.
+            "space": targeting.DEFAULT_SPACE,
         })
         self.assertTrue(targeting.is_bounded(resolved))
 

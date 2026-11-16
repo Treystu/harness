@@ -1,0 +1,21 @@
+{
+  "schema": "agent-eval-transcript@1",
+  "set": "mcp-selection",
+  "model": "recorded/baseline-2026-11-14",
+  "cost_usd": 0.0,
+  "notes": "A recorded selection trace, not a live model run: 10 of 12 chains are correct, mcp-apply-edit selected a second tool it did not need, and mcp-negative-control shows the wrong tool, which is what makes it a control.",
+  "calls": {
+    "mcp-ask-plain": ["ask"],
+    "mcp-site-check": ["site_check"],
+    "mcp-panel-verify": ["panel_verify"],
+    "mcp-apply-edit": ["apply_edit", "ledger_status"],
+    "mcp-ledger-chain": ["ledger_status", "participation_report"],
+    "mcp-spend-standing": ["spend_status"],
+    "mcp-trust-standing": ["trust_status"],
+    "mcp-driver-step": ["driver_step"],
+    "mcp-mission-status": ["mission_status"],
+    "mcp-route-query": ["route_query"],
+    "mcp-plan-prefix": ["plan_and_execute", "apply_edit", "driver_step"],
+    "mcp-negative-control": ["ledger_status"]
+  }
+}

@@ -1,0 +1,378 @@
+{
+ "schema": "mcp-tool-surface@1",
+ "tools": {
+  "apply_edit": {
+   "properties": {
+    "allow_escalation": "boolean",
+    "allow_verify": "boolean",
+    "allow_write": "boolean",
+    "backend": "string",
+    "continuation": "object",
+    "edit_snippet": "string",
+    "file": "untyped",
+    "instruction": "string",
+    "max_lines": "integer",
+    "max_rotations": "integer",
+    "max_rounds": "integer",
+    "max_tokens": "integer",
+    "model": "string",
+    "reasoning_effort": "string",
+    "renew_consent": "boolean",
+    "require_consent": "boolean",
+    "require_diff_authorization": "boolean",
+    "task_id": "string",
+    "task_max_cost": "number",
+    "verify_cmd": "string",
+    "verify_only": "boolean"
+   },
+   "required": []
+  },
+  "ask": {
+   "properties": {
+    "prompt": "string",
+    "session_id": "string"
+   },
+   "required": [
+    "prompt"
+   ]
+  },
+  "continue_work": {
+   "properties": {
+    "allow_verify": "boolean",
+    "allow_write": "boolean",
+    "continuation": "object",
+    "instruction": "string",
+    "max_rounds": "integer",
+    "task_id": "string",
+    "verify_cmd": "string"
+   },
+   "required": [
+    "continuation"
+   ]
+  },
+  "defer_work": {
+   "properties": {
+    "category": "string",
+    "reason": "string",
+    "task_id": "string"
+   },
+   "required": [
+    "task_id"
+   ]
+  },
+  "dogfood": {
+   "properties": {
+    "allow_write": "boolean",
+    "claim_context": "string",
+    "claims_file": "string",
+    "definitions_file": "string",
+    "file": "string",
+    "instruction": "string",
+    "max_cost": "number",
+    "max_rounds": "integer",
+    "root": "string",
+    "source_file": "string",
+    "task_id": "string",
+    "verify": "string"
+   },
+   "required": [
+    "file",
+    "instruction"
+   ]
+  },
+  "driver_health": {
+   "properties": {
+    "task_id": "string"
+   },
+   "required": []
+  },
+  "driver_step": {
+   "properties": {
+    "action": "string",
+    "by": "string",
+    "params": "object",
+    "require_stable": "boolean",
+    "schema": "string",
+    "target": "string",
+    "task_id": "string"
+   },
+   "required": [
+    "target"
+   ]
+  },
+  "driver_verify": {
+   "properties": {
+    "task_id": "string"
+   },
+   "required": []
+  },
+  "driver_vocabulary": {
+   "properties": {
+    "task_id": "string"
+   },
+   "required": []
+  },
+  "economics_report": {
+   "properties": {
+    "allow_cost_increase": "boolean"
+   },
+   "required": []
+  },
+  "flush_run": {
+   "properties": {
+    "allow_write": "boolean",
+    "campaign": "string",
+    "canary_suite": "string",
+    "cold_run": "boolean",
+    "extended_instruments": "boolean",
+    "ledger": "string",
+    "root": "string"
+   },
+   "required": []
+  },
+  "generate_brief": {
+   "properties": {
+    "budget": "integer",
+    "files": "array",
+    "freshness": "boolean",
+    "goal": "string",
+    "render": "boolean",
+    "root": "string"
+   },
+   "required": [
+    "goal"
+   ]
+  },
+  "host_provision_plan": {
+   "properties": {
+    "goal": "string",
+    "root": "string"
+   },
+   "required": [
+    "goal"
+   ]
+  },
+  "host_provision_probe": {
+   "properties": {},
+   "required": []
+  },
+  "issue_sort": {
+   "properties": {
+    "issue": "string",
+    "pack": "object",
+    "task_id": "string"
+   },
+   "required": [
+    "issue",
+    "pack"
+   ]
+  },
+  "jev_calibration": {
+   "properties": {
+    "window": "integer"
+   },
+   "required": []
+  },
+  "jev_freeze": {
+   "properties": {
+    "allow_write": "boolean",
+    "min_confidence": "number",
+    "model": "string",
+    "persist": "boolean",
+    "task_id": "string"
+   },
+   "required": []
+  },
+  "jev_phase": {
+   "properties": {
+    "all": "boolean",
+    "min_score": "number",
+    "phase": "string",
+    "repo_root": "string"
+   },
+   "required": []
+  },
+  "ledger_status": {
+   "properties": {
+    "limit": "integer"
+   },
+   "required": []
+  },
+  "log_judgment": {
+   "properties": {
+    "info_sample": "integer",
+    "log_text": "string",
+    "pack": "object",
+    "task_id": "string"
+   },
+   "required": [
+    "log_text",
+    "pack"
+   ]
+  },
+  "lucas_gate_v2": {
+   "properties": {
+    "actual_risk": "boolean",
+    "artifact_text": "string",
+    "bias_checks": "array",
+    "category_scores": "array",
+    "investigated_reason": "string",
+    "overall_average": "number",
+    "track": "string"
+   },
+   "required": [
+    "actual_risk",
+    "artifact_text",
+    "bias_checks",
+    "category_scores",
+    "track"
+   ]
+  },
+  "mission_status": {
+   "properties": {
+    "mission_id": "string",
+    "root": "string"
+   },
+   "required": [
+    "mission_id"
+   ]
+  },
+  "offer_work": {
+   "properties": {
+    "context": "string",
+    "model": "string",
+    "task": "string",
+    "task_id": "string"
+   },
+   "required": [
+    "task"
+   ]
+  },
+  "panel_verify": {
+   "properties": {
+    "converge": "boolean",
+    "convergence_model": "string",
+    "judge": "string",
+    "max_tokens": "integer",
+    "panel": "string",
+    "prompt": "string",
+    "reasoning_effort": "string",
+    "specialist_pool": "string",
+    "task_id": "string",
+    "task_max_cost": "number"
+   },
+   "required": [
+    "prompt"
+   ]
+  },
+  "participation_report": {
+   "properties": {},
+   "required": []
+  },
+  "plan_and_execute": {
+   "properties": {
+    "allow_write": "boolean",
+    "brief": "untyped",
+    "confirm": "boolean",
+    "decompose_llm": "boolean",
+    "execute": "boolean",
+    "file": "untyped",
+    "final_gate": "untyped",
+    "frontier_model": "string",
+    "goal": "string",
+    "max_cost": "number",
+    "max_workers": "integer",
+    "parallel": "boolean",
+    "plan_consensus": "boolean",
+    "require_diff_authorization": "boolean",
+    "root": "string",
+    "stages": "untyped",
+    "token_budget_input": "integer",
+    "token_budget_output": "integer"
+   },
+   "required": [
+    "goal"
+   ]
+  },
+  "repo_cards": {
+   "properties": {
+    "allow_write": "boolean",
+    "check": "boolean",
+    "repo": "string",
+    "root": "string"
+   },
+   "required": []
+  },
+  "route_query": {
+   "properties": {
+    "goal": "string",
+    "pack": "object",
+    "task_id": "string"
+   },
+   "required": [
+    "goal",
+    "pack"
+   ]
+  },
+  "script_run": {
+   "properties": {
+    "allow_exec": "boolean",
+    "consent_sha": "string",
+    "goal": "string",
+    "root": "string",
+    "score": "boolean",
+    "source": "string",
+    "task_id": "string",
+    "timeout_s": "integer"
+   },
+   "required": [
+    "allow_exec",
+    "consent_sha",
+    "root",
+    "source"
+   ]
+  },
+  "site_check": {
+   "properties": {
+    "prompt": "string",
+    "session_id": "string"
+   },
+   "required": [
+    "prompt"
+   ]
+  },
+  "source_audit": {
+   "properties": {
+    "allow_write": "boolean",
+    "chunk_chars": "integer",
+    "code_pack": "object",
+    "dispositions": "object",
+    "docs_pack": "object",
+    "evidence_pack": "object",
+    "report_path": "string",
+    "root": "string",
+    "run_budget": "number",
+    "state_path": "string",
+    "task_id": "string"
+   },
+   "required": [
+    "allow_write",
+    "code_pack",
+    "docs_pack",
+    "evidence_pack",
+    "run_budget",
+    "state_path"
+   ]
+  },
+  "spend_status": {
+   "properties": {},
+   "required": []
+  },
+  "trust_status": {
+   "properties": {
+    "model": "string"
+   },
+   "required": []
+  }
+ }
+}

@@ -120,7 +120,7 @@ TOOL_SCHEMAS = [
         "description": (
             "When: a work item needs a model's accept, decline, defer, or "
             "redirect decision. "
-            "In: the work-item fields declared by the schema. "
+            "In: task plus the work-item fields below. "
             "Out: the model's choice; dispatch is allowed only on accept."),
         "inputSchema": {"type": "object", "properties": {
             "task": {"type": "string", "description": "Work item description"},
@@ -134,7 +134,7 @@ TOOL_SCHEMAS = [
         "title": "Revoke consent mid-task",
         "description": (
             "When: a model or operator defers or revokes consent mid-task. "
-            "In: the task and reason fields declared by the schema. "
+            "In: task_id plus the task and reason fields below. "
             "Out: partial work preserved, the task returned to the queue with "
             "the reason recorded, and work stopped."),
         "inputSchema": {"type": "object", "properties": {
@@ -281,8 +281,8 @@ TOOL_SCHEMAS = [
         "description": (
             "When: an opt-in, cost-capped full-source audit over a Git "
             "snapshot is requested. "
-            "In: operator code, documentation, and evidence/data packs plus "
-            "the cost ceiling and resume options. "
+            "In: code_pack, docs_pack, evidence_pack, run_budget, state_path, and "
+            "allow_write, with the cost ceiling and resume options. "
             "Out: a resumable manifest of paths, hashes, line ranges, typed "
             "results, usage receipts, and lead dispositions; never source "
             "text."),
@@ -318,7 +318,7 @@ TOOL_SCHEMAS = [
         "description": (
             "When: a request needs the cheapest capable rung from the "
             "declared ladder. "
-            "In: the request plus the declared rung ladder. "
+            "In: goal plus pack (the declared rung ladder). "
             "Out: a declared rung id, or rung=null when unsatisfiable; "
             "unkeyed, transport-failed, or out-of-ladder results are marked "
             "is_fallback and never invent rungs or model ids."),
@@ -337,7 +337,7 @@ TOOL_SCHEMAS = [
         "title": "Mission pack status (read-only)",
         "description": (
             "When: a caller needs machine-readable HUL-A mission pack state. "
-            "In: the mission pack selector declared by the schema. "
+            "In: mission_id (the mission pack selector). "
             "Out: regenerated STATUS.md and INDEX.md summaries with phase, "
             "dual budget, receipts, and resume state, without mutating "
             "progress, spend, or resume status."),
@@ -377,7 +377,7 @@ TOOL_SCHEMAS = [
         "description": (
             "When: governed scripting is enabled and a caller needs to run "
             "source under a declared root. "
-            "In: source, root, consent_sha, and optional timeout and Jev- "
+            "In: source, root, allow_exec, consent_sha, and optional timeout and Jev- "
             "alignment fields, with HARNESS_SCRIPT_ENABLED=1. "
             "Out: a receipt with exit code, stdout, stderr, sha, and duration "
             "after a scrubbed-environment run with process-tree cleanup; "
@@ -409,7 +409,7 @@ TOOL_SCHEMAS = [
         "description": (
             "When: code-extracted log items need one owner's Jev judgment and "
             "aggregation. "
-            "In: the operator bucket pack plus the extracted items. "
+            "In: log_text plus pack (the operator bucket pack). "
             "Out: judged bucket choices and scores aggregated into a JSON "
             "artifact, with unmatched items and fallback counts reported, "
             "never smoothed."),
@@ -429,7 +429,8 @@ TOOL_SCHEMAS = [
         "description": (
             "When: a caller has a typed-track Lucas Gate v2 assessment to "
             "validate deterministically. "
-            "In: scores and evidence for applicable categories plus explicit "
+            "In: track, artifact_text, actual_risk, category_scores, and bias_checks; "
+            "scores and evidence for applicable categories with explicit "
             "reasons for non-applicable ones. "
             "Out: a typed pass or fail against the declared bars and bias "
             "floors; never calls Jev or a model and does not persist "
@@ -546,7 +547,7 @@ TOOL_SCHEMAS = [
         "description": (
             "When: the self-hosting ground-verify-apply loop must run over "
             "claims and a source window. "
-            "In: the claims and source-window fields declared by the schema. "
+            "In: file and instruction (the claims and source-window fields below). "
             "Out: the dogfood loop result."),
         "inputSchema": {"type": "object", "properties": {
             "root": {"type": "string",

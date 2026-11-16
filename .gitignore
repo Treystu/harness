@@ -24,8 +24,8 @@ audits/scmessenger/round6/
 .claude/settings.local.json
 .venv/
 
-# Local scratch: lockfile from uv, matrix run output
-uv.lock
+# Local scratch: matrix run output. The uv lockfile is NOT scratch -- it is the
+# dependency contract, tracked so CI and every developer resolve the same world.
 dogfood_matrix_results.json
 
 # Hermetic test env created by scripts/hermetic-env.sh (isolated HOME/TMP/ledger)

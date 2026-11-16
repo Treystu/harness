@@ -11,8 +11,12 @@ and duration. stdio is the transport, so the logging path never writes to
 stdout or stderr.
 
 Tool schemas are additive-only: a schema may gain optional fields, but
-removing, renaming, or retyping a field requires a new tool name. The policy
-is repeated in ``docs/mcp.md`` where contributors look.
+removing, renaming, or retyping a field -- or making an optional one required --
+requires a new tool name. The policy is repeated in ``docs/mcp.md`` where
+contributors look, and it is enforced rather than merely stated:
+``harness.mcp_surface`` compares the catalog to the pinned surface in
+``packs/mcp/tool-surface.snapshot.json`` and refuses a breaking edit
+(``python -m harness.mcp_surface --check``).
 """
 import json
 import math
@@ -46,7 +50,8 @@ from . import osal
 from .executor import DEFAULT_PLAN_WORKERS, PlanExecutor
 from .mcp_lanes import LANES, lane_for
 from .mcp_schemas import TOOL_SCHEMAS
-from driver_core.audit import lint_tool_descriptions
+from driver_core.audit import (lint_description_inputs,
+                               lint_tool_descriptions)
 from .mcp_log import log_tool_call
 from .jev_completion import dogfood_phase, score_all_phases
 from .jev_policy import aggregate_structural, policy_for
@@ -627,6 +632,7 @@ class McpServer:
 
     def _tools(self):
         lint_tool_descriptions(TOOL_SCHEMAS)
+        lint_description_inputs(TOOL_SCHEMAS)
         return TOOL_SCHEMAS
 
     def _refuse(self, reason, message, task_id=None, model=None,

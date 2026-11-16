@@ -121,9 +121,18 @@ parameters do not yet identify a sufficiently bounded target.
 accepted and still resolved to itself, reported as *unbounded* -- or a
 bounded record `{"window": <exact title>, "rect": [x, y, width, height]}` in
 the window's client coordinates, resolved by `driver_core/targeting.py` to
-one canonical `target@1` record. Normalisation happens before the consent
+one canonical `target@2` record. Normalisation happens before the consent
 check, so the operator consents to the exact window and the exact rectangle
 that will be used, and a consent for one rectangle does not authorise another.
+A bounded target also names its pixel space, because capture on a scaled
+display produces logical pixels and a rectangle that does not say which space
+it lives in can aim a fraction of the way off the control: `"space":
+"client-logical"` is the declared default (the space capture produces) and is
+always carried on the canonical record, while `"space": "client-physical"`
+must declare its `"scale"` (`1.25` on a 125% display) so the conversion is
+arithmetic rather than a guess. A scale declared on a logical target, an
+undeclared space, and a physical target with no scale are each refused by
+name.
 A malformed or out-of-bounds rectangle is refused by name rather than trimmed.
 Because no in-repo backend implements `click` or `submit_irreversible` yet,
 both actions still refuse at the backend gate after a target resolves.

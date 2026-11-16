@@ -1,11 +1,22 @@
 # Hermetic / audit triage runbook
 
-This is the disposition record for audit-measurement noise landed with
-[#276](https://github.com/Sovereign-Communication/harness/issues/276), extended
-to [#290](https://github.com/Sovereign-Communication/harness/issues/290)'s full
-scope: a local failure that presents as a real one, triaged through the
-interpreter, ruff (S5), merge-base coverage (D12), and the hermetic suite
-(R13).
+This is the runbook for telling an **environment** failure from a **real**
+defect, and the disposition record for audit-measurement noise landed with
+[#276](https://github.com/Sovereign-Communication/harness/issues/276). It was
+extended for [#290](https://github.com/Sovereign-Communication/harness/issues/290)
+with the two signatures that were still tribal knowledge (bare-`python` gates
+and R13's environment leak) and with a check an operator can actually run for
+each entry:
+
+```bash
+python -m harness.triage               # every check
+python -m harness.triage --check ruff  # one check
+python -m harness.triage --json        # machine readable
+```
+
+Each probe prints `ok`, `env-broken` or `code-broken`, and the expected result
+in both worlds -- so the tables below are executable, not advice. Exit status is
+1 when anything is environment-broken.
 
 **Authority:** CI is authoritative: a failure in the CI `audit` job or the
 hermetic test matrix is a defect until proven otherwise. A local-only failure
@@ -24,45 +35,17 @@ Ask these in order:
 3. Is the failure a missing external tool, not a finding? Use the named
    remediation below; do not skip or weaken the check.
 
-## Bare `python` — a gate that shells out to an alias the host lacks
-
-**Signature:** a gate or audit step dies with `'python' is not recognized`,
-`python: command not found`, or `[Errno 2] No such file or directory:
-'python'` before any test runs. Python 3-only hosts (most macOS and Linux
-distributions, and any image that installs only `python3`) have no `python`
-alias, so a command written literally as `python check.py` never starts.
-
-**Distinguishing check:** compare the resolved names on the host.
-
-```bash
-command -v python   # empty on a python3-only host
-command -v python3  # resolves
-```
-
-- **Environment-broken:** `python` is empty, `python3` resolves, and the
-  failing step's first line is the interpreter error rather than an
-  assertion. Nothing about the tree is wrong.
-- **Code-broken:** the interpreter resolves and the gate's own assertion
-  fails afterwards. That is a real defect; do not relabel it.
-
-The one owner is `harness.tools.resolve_python`: `HARNESS_PYTHON` when set,
-then the running interpreter (`sys.executable`), then `python`, `python3`,
-`py` on `PATH`. It raises one named error, `no Python interpreter found: ...`,
-when every rung is missing. Point it at an interpreter instead of adding an
-alias that only exists on your machine:
-
-```bash
-export HARNESS_PYTHON="$(command -v python3)"
-```
-
-A gate that names an absolute interpreter is left alone by
-`resolve_gate_argv`, so a venv path or a pinned `C:\\...\\python.exe` keeps
-working.
-
 ## S5 — ruff resolution
 
 **Signature:** `No module named ruff`, `ruff: command not found`, or an S5
 failure that names the interpreter instead of a lint finding.
+
+**The check:** `python -m harness.triage --check ruff`.
+
+| world | expected output |
+|---|---|
+| environment-broken | `env-broken`, `ruff unresolved: ruff not found: put ruff on PATH, install the dev extra (pip install -e '.[dev]'), or set HARNESS_RUFF` |
+| code-broken | `ok`, `ruff resolves via '<path>'` -- ruff is there, so the S5 line is a real lint finding |
 
 **Disposition (2026-10-25):** S5 is an enforced check, not a skipped one. It
 resolves ruff through the one owner in `harness.tools.ruff_argv`:
@@ -80,6 +63,13 @@ Do not add a per-PR skip and do not label a genuinely reported lint finding as
 infrastructure. If ruff is present and S5 fails, it is a real lint defect.
 
 ## D12 — merge-base changed-line coverage
+
+**The check:** `python -m harness.triage --check d12`.
+
+| world | expected output |
+|---|---|
+| environment-broken | `env-broken`, `baseline names '<sha>' but HARNESS_D12_BASE is '<sha>'` -- a hand-pinned baseline older than the merge-base |
+| code-broken | `ok`, `no hand-pinned baseline; D12 resolves the merge-base`, and the audit then reports a ratio below 95% |
 
 D12 no longer trusts a stored baseline SHA. At audit time it resolves the
 runtime merge-base (`HARNESS_D12_BASE` in CI, otherwise `origin/main`), then
@@ -103,51 +93,6 @@ baseline re-point is not a pre-merge step.
   a prepared document, set `HARNESS_D12_BASELINE` to a JSON file whose
   `commit` is the same merge-base.
 
-## R13 — full suite green hermetically
-
-**Signature:** the local audit's R13 row fails, or a suite is not green, while
-the CI hermetic matrix is green for the same commit. The common cause is not a
-defect: the audit's suite child inherited the operator's routing and key
-environment, so it ran a different check than CI ran.
-
-R13 scrubs two leaks, and only the first is visible in `os.environ`:
-
-- **Environment.** Routing knobs are dropped before the child starts
-  (`HARNESS_USE_FREE`, `HARNESS_ALLOW_ESCALATION`, `HARNESS_MAX_COST`,
-  `HARNESS_TASK_MAX_COST`, `HARNESS_MIN_CONFIDENCE`) along with the key
-  variables (`HARNESS_JEV_KEY`, `TYPESAFE_API_KEY`, `JEV_API_KEY`,
-  `OPENROUTER_API_KEY`, `OPENROUTER_API_KEY_FILE`). A key left in place turns
-  the opt-in live-catalog check on, so the audit can fail on upstream drift (a
-delisted model id) that has nothing to do with this tree.
-- **The user's home.** A key is also resolved from files under `~`
-  (`.config/scmorc/openrouter_fusion.env`, `.config/scmorc/openrouter.env`,
-  `.config/harness/openrouter.env`, `.config/harness/jev.env`), and
-  `harness.config.CONFIG_DIR` itself is derived from `~`. No environment scrub
-  can reach those, so the child gets a fresh empty home (`HOME`,
-  `USERPROFILE`, `APPDATA`, `XDG_CONFIG_HOME`).
-
-**Distinguishing check:** the row self-verifies its classifier (R14), so a
-failing R13 with a passing R14 means the child's output was classified
-correctly and the suite really is not hermetic on this machine. `--dim` takes
-only the registered dimensions (`A`, `R`, `SD`, `SM`); R13 and R14 both live
-under `R`.
-
-```bash
-python audits/self/audit.py --dim R
-```
-
-- **Environment-sensitive:** `Ran N tests` / `OK` with a leak signature in the
-  captured stderr (`ResourceWarning`, `unclosed file`), or a live-catalog
-  failure naming an upstream model id. Reproduce with an empty home and no
-  provider keys; if it clears, record the environmental cause here.
-- **Real defect:** the assertion fails in the CI hermetic matrix too, or the
-  leak signature survives the scrub. Fix the leak; never drop the signature
-  scan or add a skip.
-
-`HARNESS_LEDGER` is deliberately not scrubbed: the suite pins its own
-temporary ledger in `tests/__init__.py`, and a caller that set a private one
-is already isolated.
-
 ## Local-only `test_dogfood` / `test_hourglass_end_to_end`
 
 **Known signature:** `tests.test_dogfood` or
@@ -166,15 +111,72 @@ under an empty home and without provider keys. If the failure follows that
 environment, record it here rather than weakening the test. If it also fails
 in CI, treat it as a real defect and fix the cause.
 
+## Bare-`python` gate failures (#278)
+
+**Signature:** every gate in a task aborts with the same `no such file or
+directory: python` / `FileNotFoundError: 'python'` shape, or a task ends
+`gate_broken` on a machine where Python is plainly installed. The `python` alias
+is absent (normal on several Linux distributions, and on a Windows box where only
+`py` is on PATH) and a gate shelled out to the bare name, so every task fails
+identically and nothing about the task is being measured.
+
+**The check:** `python -m harness.triage --check python`.
+
+| world | expected output |
+|---|---|
+| environment-broken | `env-broken`, `resolved '<path>' but no `python` on PATH` -- the resolver works, the alias does not |
+| environment-broken (no interpreter at all) | `env-broken`, `no interpreter resolved (...)` |
+| code-broken | `ok`, `resolved '<path>'; bare alias present` -- so a gate that still fails bypassed the resolver |
+
+**Fix:** gates resolve through `harness.tools.resolve_python()` (`HARNESS_PYTHON`,
+then the running interpreter, then a PATH name) and `resolve_gate_argv` rewrites
+only a bare interpreter token, leaving an explicit path alone. If a gate still
+shells out to a bare `python`, that call site is the defect: fix the call site,
+do not add a `python` shim to the machine.
+
+## R13 — the environment reaching a hermetic run
+
+**Signature:** the audit's hermetic suite fails locally while CI's is green, the
+failure moves between runs, or it names a model id / provider / routing lane.
+Two independent leaks produce it: the operator's key and routing variables (a
+live key un-skips the opt-in catalog check, so the audit fails on upstream drift;
+routing knobs change which lane a test takes, so a local green is not the green CI
+sees), and the operator's home directory, where a key is also resolved from files
+-- on Windows `USERPROFILE` overrides a cleared `HOME`.
+
+**The check:** `python -m harness.triage --check hermetic`.
+
+R13 drops ten variables; a local run must show none of them:
+
+```
+HARNESS_USE_FREE HARNESS_ALLOW_ESCALATION HARNESS_MAX_COST HARNESS_TASK_MAX_COST
+HARNESS_MIN_CONFIDENCE HARNESS_JEV_KEY TYPESAFE_API_KEY JEV_API_KEY
+OPENROUTER_API_KEY OPENROUTER_API_KEY_FILE
+```
+
+| world | expected output |
+|---|---|
+| environment-broken | `env-broken`, `N ambient variable(s) reach the run: ...` |
+| code-broken | `ok`, `no key or routing variable from the drop list` -- and the failure persists |
+
+**Fix:** run the suite through the wrapper, which scrubs those variables *and*
+points `HOME`/`USERPROFILE`/`APPDATA`/`XDG_CONFIG_HOME` at an empty directory:
+
+```bash
+scripts/hermetic-env.sh "$(git rev-parse --show-toplevel)" -- python -m unittest tests.test_dogfood -v
+```
+
+A local-only failure is never dismissed by label: reproduce it under that
+wrapper, and a failure that survives it is a real defect.
+
 ## Real-defect signs
 
 - The same assertion fails in the hermetic CI matrix.
-- A gate fails on a bare `python` even though `resolve_python` resolves an
-  interpreter (the named `no Python interpreter found` error is the only
-  environment signature there).
-- S5 fails while ruff is resolvable.
-- D12 reports a real ratio below 95% on current-tree coverage.
-- R13 is not green after the environment and home scrub.
+- S5 fails while `python -m harness.triage --check ruff` says `ok`.
+- A gate fails while `--check python` says `ok` (the gate bypassed the resolver).
+- D12 reports a real ratio below 95% while `--check d12` says `ok`.
+- Ambient variables are clean (`--check hermetic` says `ok`) and the failure
+  persists under `scripts/hermetic-env.sh`.
 - A local failure survives a clean-home, no-key reproduction.
 
 For those, file the defect against the owning module; do not relabel it as

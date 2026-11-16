@@ -550,6 +550,35 @@ def describe_screen():
                   f"platform gap, not a configuration one")
 
 
+def _resolve_launch_executable(app_name, executable):
+    """``(value, "")`` for a launch value Windows can actually start, else ``(None, reason)``.
+
+    ``cmd /c start`` returns 0 whether or not the program exists: its error is
+    written to a console this launcher has discarded, so "the launcher handed
+    off" and "the program was never there" used to look identical, and the
+    operator paid for a vision capture to find out. Resolution happens before
+    anything is started, so a missing program is an action refusal with the
+    program's own name in it.
+
+    A bare name is resolved through ``PATH`` and handed on unchanged (``start``
+    resolves it the same way); what is reported is whether it resolves at all.
+    The declared value is never rewritten into an absolute path here -- the
+    allowlist is the declaration, and this function only checks it.
+    """
+    if os.path.isabs(executable):
+        if os.path.isfile(executable):
+            return executable, ""
+        return None, (f"the declared launch value {executable!r} for "
+                      f"{app_name!r} is an absolute path that does not exist; "
+                      f"nothing was started")
+    if shutil.which(executable) is None:
+        return None, (f"the declared launch value {executable!r} for "
+                      f"{app_name!r} does not resolve on PATH; nothing was "
+                      f"started -- declare an absolute path in APP_ALLOWLIST "
+                      f"or install the program")
+    return executable, ""
+
+
 def launch_app(app_name, executable, *, timeout=LAUNCH_TIMEOUT):
     """Start one declared application, no shell, bounded hand-off.
 
@@ -571,7 +600,10 @@ def launch_app(app_name, executable, *, timeout=LAUNCH_TIMEOUT):
         return None, f"no launch declaration for {app_name!r}"
     platform = platform_name()
     if platform == "windows":
-        argv = ["cmd", "/c", "start", "", executable]
+        resolved, why = _resolve_launch_executable(app_name, executable)
+        if resolved is None:
+            return None, why
+        argv = ["cmd", "/c", "start", "", resolved]
         creationflags = CREATE_NO_WINDOW
     elif platform == "darwin":
         argv = ["open", "-a", executable]
