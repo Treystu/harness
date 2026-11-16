@@ -143,7 +143,7 @@ class ReproductionTests(unittest.TestCase):
 class SanitizerTests(unittest.TestCase):
     def test_a_credential_shape_refuses_serialisation(self):
         doc = bundle()
-        doc["results"][0]["task"] = "fizz sk-or-v1-abcdefghijklmnopqrst"
+        doc["results"][0]["task"] = "fizz " + "sk-or-v1-" + "abcdefghijklmnopqrst"
         with self.assertRaises(bb.BenchBundleError):
             bb.serialize(doc)
 

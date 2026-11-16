@@ -13,11 +13,14 @@ Hermetic: ephemeral loopback port, no network, no provider calls.
 """
 import http.client
 import json
+import os
+import tempfile
 import threading
 import unittest
 from unittest import mock
 
 from harness import server as ui_server
+from harness.ledger import AutonomyLedger
 from harness.server import make_server
 
 TOKEN = "behaviour-test-token"
@@ -105,17 +108,32 @@ class UncoveredHandlerTests(ServerCase):
                 self.assertIn(key, payload)
 
     def test_the_ledger_verify_handler_reports_a_chain_claim(self):
-        status, payload = self.call("GET", "/api/ledger/verify")
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = AutonomyLedger(os.path.join(tmp, "ledger.jsonl"))
+            ledger.append("offer", task_id="t0")
+            with mock.patch.object(ui_server, "ledger_for", return_value=ledger):
+                status, payload = self.call("GET", "/api/ledger/verify")
         self.assertEqual(status, 200)
-        self.assertIsInstance(payload["verified"], bool)
+        self.assertTrue(payload["verified"])
         self.assertIn("chain", payload)
 
     def test_ledger_tail_is_bounded_and_counts_its_entries(self):
-        status, payload = self.call("GET", "/api/ledger/tail")
-        self.assertEqual(status, 200)
-        entries = payload["entries"]
-        self.assertIsInstance(entries, list)
-        self.assertEqual(payload["count"], len(entries))
+        with tempfile.TemporaryDirectory() as tmp:
+            ledger = AutonomyLedger(os.path.join(tmp, "ledger.jsonl"))
+            for i in range(25):
+                ledger.append("offer", task_id=f"t{i}")
+            with mock.patch.object(ui_server, "ledger_for", return_value=ledger):
+                status, payload = self.call("GET", "/api/ledger/tail")
+                self.assertEqual(status, 200)
+                entries = payload["entries"]
+                self.assertIsInstance(entries, list)
+                self.assertEqual(len(entries), 20)
+                self.assertEqual(payload["count"], 25)
+                status5, payload5 = self.call("GET", "/api/ledger/tail?n=5")
+                self.assertEqual(status5, 200)
+                self.assertEqual(len(payload5["entries"]), 5)
+                self.assertEqual(payload5["count"], 25)
+                self.assertEqual(payload5["entries"][-1]["task_id"], "t24")
 
     def test_models_never_returns_a_non_list(self):
         with mock.patch.object(ui_server, "governor_for", side_effect=_stub_governor),                 mock.patch("harness.spend.discover_free_models",
