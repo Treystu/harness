@@ -160,7 +160,9 @@ _SPEND_HINTS = (
     "account balance is too low",
     "account has insufficient balance",
     "add more credits",
+    "adjust the key's daily limit",
     "billing hard limit",
+    "can only afford",
     "credit balance is too low",
     "credit balance too low",
     "exceeded your current quota, please check your plan and billing",
@@ -174,6 +176,7 @@ _SPEND_HINTS = (
     "payment required",
     "spend limit",
     "spending limit",
+    "tokens limit exceeded",
 )
 
 

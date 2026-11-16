@@ -334,13 +334,23 @@ class SimpleAnswerLifecycleMixin:
                 # by a static pool head. Known-unservable pairs are dropped and
                 # the documented free-first posture applies when the lane is
                 # configured for free routing.
-                from .availability import default_ledger as _availability
+                from .availability import (
+                    default_ledger as _availability,
+                    failover_models as _failover_models,
+                )
 
                 _ledger = _availability()
-                ladder = _ledger.order(
-                    configured_ladder,
-                    prefer_free=bool(getattr(self.settings, "use_free", False)))
-                live_backends = _ledger.live_backends(configured_ladder)
+                _prefer_free = bool(getattr(self.settings, "use_free", False))
+                _local_pool = getattr(self.settings, "local_pool", None)
+                ladder = list(
+                    _failover_models(
+                        configured_ladder, _local_pool, prefer_free=_prefer_free
+                    )
+                    or _ledger.order(configured_ladder, prefer_free=_prefer_free)
+                )
+                live_backends = _ledger.live_backends(
+                    list(dict.fromkeys(list(configured_ladder) + list(ladder)))
+                )
                 emit("availability_selection", lane="simple-answer",
                      ladder=list(ladder), backends=live_backends)
                 model = ladder[0]
@@ -364,7 +374,15 @@ class SimpleAnswerLifecycleMixin:
                 # served them. A one-model ladder behaves exactly as
                 # before: one attempt, then the existing deferred path.
                 rung_error = None
+                _failover_extended = False
                 for rung, rung_model in enumerate(ladder):
+                    if (
+                        _failover_extended
+                        and rung_model in configured_ladder
+                        and "/" in str(rung_model)
+                        and _ledger.is_excluded(rung_model)
+                    ):
+                        continue
                     model = rung_model
                     generation_attempts += 1
                     with cancellation_context(combined_cancel):
@@ -407,6 +425,17 @@ class SimpleAnswerLifecycleMixin:
                                 # #538/#540: remember the pair and fall through
                                 # to the next servable rung.
                                 record_error(rung_model, exc, kind=_kind)
+                                if not _failover_extended:
+                                    _extra = _failover_models(
+                                        configured_ladder,
+                                        _local_pool,
+                                        prefer_free=_prefer_free,
+                                    )
+                                    if _extra:
+                                        _failover_extended = True
+                                        for _m in _extra:
+                                            if _m not in ladder:
+                                                ladder.append(_m)
                             emit("rotation", model=rung_model,
                                  reason="simple_answer_ladder_advance",
                                  note=str(exc))

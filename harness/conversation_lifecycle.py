@@ -176,13 +176,28 @@ class ConversationLifecycleMixin:
         best_truncated: Optional[tuple] = None
         # #539: do not dispatch to a backend already known to be unservable;
         # #540 keeps the documented free-first posture on the answer ladder.
-        from .availability import default_ledger as _availability
+        from .availability import (
+            default_ledger as _availability,
+            failover_models as _failover_models,
+        )
 
         _ledger = _availability()
+        _prefer_free = bool(getattr(self.settings, "use_free", False))
+        _local_pool = getattr(self.settings, "local_pool", None)
         configured_ladder = self._chat_ladder(self.settings)
-        for model in _ledger.order(
-                configured_ladder,
-                prefer_free=bool(getattr(self.settings, "use_free", False))):
+        active_ladder = list(
+            _failover_models(configured_ladder, _local_pool, prefer_free=_prefer_free)
+            or _ledger.order(configured_ladder, prefer_free=_prefer_free)
+        )
+        _failover_extended = False
+        for model in active_ladder:
+            if (
+                _failover_extended
+                and model in configured_ladder
+                and "/" in str(model)
+                and _ledger.is_excluded(model)
+            ):
+                continue
             if cancel_check and cancel_check():
                 raise ToolCancelled("Prompt execution was cancelled by user")
             note = None
@@ -216,6 +231,15 @@ class ConversationLifecycleMixin:
                     from .availability import record_error
 
                     record_error(model, e, kind=_kind)
+                    if not _failover_extended:
+                        _extra = _failover_models(
+                            configured_ladder, _local_pool, prefer_free=_prefer_free
+                        )
+                        if _extra:
+                            _failover_extended = True
+                            for _m in _extra:
+                                if _m not in active_ladder:
+                                    active_ladder.append(_m)
             else:
                 if status != 200:
                     note = _http_error(status, resp)

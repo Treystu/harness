@@ -1910,14 +1910,38 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
             "cost": 0.0,
         }
     elif confirm:
-        ladder = resolve_waist_ladder(
+        primary_ladder = resolve_waist_ladder(
             use_free=use_free, custom_frontier=frontier_model,
             allow_escalation=allow_escalation)
         # #539: a rung known to be unservable is not dispatched again; the
         # ledger's verdicts (this run and earlier ones) order the ladder.
-        from .availability import order_models, record_error
+        from .availability import (
+            default_ledger,
+            failover_models,
+            order_models,
+            record_error,
+        )
+        from .config import (
+            laptop_local_pool,
+            resolve_cerebras_key,
+            resolve_fireworks_key,
+            resolve_groq_key,
+            resolve_meta_key,
+        )
 
-        ladder = order_models(ladder, prefer_free=bool(use_free))
+        _ledger = default_ledger()
+        _fallback_pool = laptop_local_pool(
+            groq_key=resolve_groq_key() or None,
+            cerebras_key=resolve_cerebras_key() or None,
+            fireworks_key=resolve_fireworks_key() or None,
+            meta_key=resolve_meta_key() or None,
+        )
+        ladder = list(
+            failover_models(
+                primary_ladder, _fallback_pool, prefer_free=bool(use_free)
+            )
+            or order_models(primary_ladder, prefer_free=bool(use_free))
+        )
         # #204: one circuit per run -- throttled models stay skipped and
         # the wait ceiling stops a storm with an honest rate-limited error.
         from .lifecycle_guards import (
@@ -1930,7 +1954,15 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
         _rate_circuit = RateCircuit()
         plan_result_confirmed = None
         last_exc = None
+        _failover_extended = False
         for rung_idx, candidate_model in enumerate(ladder):
+            if (
+                _failover_extended
+                and candidate_model in primary_ladder
+                and "/" in str(candidate_model)
+                and _ledger.is_excluded(candidate_model)
+            ):
+                continue
             if _rate_circuit.should_skip(candidate_model):
                 from . import events as _events
                 _events.emit("rotation", model=candidate_model,
@@ -1957,6 +1989,17 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
                     # Provider verdict: rotate to the next configured rung,
                     # and remember the pair for the next run.
                     record_error(candidate_model, exc, kind=_kind)
+                    if not _failover_extended:
+                        _extra = failover_models(
+                            primary_ladder,
+                            _fallback_pool,
+                            prefer_free=bool(use_free),
+                        )
+                        if _extra:
+                            _failover_extended = True
+                            for _m in _extra:
+                                if _m not in ladder:
+                                    ladder.append(_m)
                 if _kind == RATE_LIMITED:
                     _rate_circuit.note_rate_limited(candidate_model)
                 from . import events as _events
