@@ -1,0 +1,67 @@
+{
+  "schema": "agent-eval-set@1",
+  "name": "mcp-selection",
+  "notes": "Task prompts and the tool chain each should produce on the MCP surface. Chain mode compares order and extras; set mode ignores order; prefix mode accepts a longer plan starting with the expected calls. mcp-negative-control is deliberately unachievable-by-accident: its expectation names the tool a naive reader would pick, so a runner that reports it as passing is not scoring.",
+  "cases": [
+    {
+      "id": "mcp-ask-plain",
+      "prompt": "What does this repository's harness do in one paragraph?",
+      "expect": {"tools": ["ask"]}
+    },
+    {
+      "id": "mcp-site-check",
+      "prompt": "Is example.com reachable right now?",
+      "expect": {"tools": ["site_check"]}
+    },
+    {
+      "id": "mcp-panel-verify",
+      "prompt": "Which of these two designs is safer, and why? Give me the panel's verdict.",
+      "expect": {"tools": ["panel_verify"]}
+    },
+    {
+      "id": "mcp-apply-edit",
+      "prompt": "Make fizzbuzz handle multiples of both 3 and 5 and verify it.",
+      "expect": {"tools": ["apply_edit"]}
+    },
+    {
+      "id": "mcp-ledger-chain",
+      "prompt": "Show me the ledger tail, then tell me how the acceptance rate looks.",
+      "expect": {"tools": ["ledger_status", "participation_report"], "mode": "chain"}
+    },
+    {
+      "id": "mcp-spend-standing",
+      "prompt": "How much of my key's spend limit is left?",
+      "expect": {"tools": ["spend_status"]}
+    },
+    {
+      "id": "mcp-trust-standing",
+      "prompt": "What is the current trust standing for this host and model?",
+      "expect": {"tools": ["trust_status"]}
+    },
+    {
+      "id": "mcp-driver-step",
+      "prompt": "Take one verified step on the desktop: read the screen and act on the goal.",
+      "expect": {"tools": ["driver_step"]}
+    },
+    {
+      "id": "mcp-mission-status",
+      "prompt": "Where is mission pack m-1234 up to? Give me the machine-readable state.",
+      "expect": {"tools": ["mission_status"]}
+    },
+    {
+      "id": "mcp-route-query",
+      "prompt": "Pick the cheapest capable rung from the declared ladder for this request.",
+      "expect": {"tools": ["route_query"]}
+    },
+    {
+      "id": "mcp-plan-prefix",
+      "prompt": "Break this goal into an executable DAG and start it.",
+      "expect": {"tools": ["plan_and_execute"], "mode": "prefix"}
+    },
+    {
+      "id": "mcp-negative-control",
+      "prompt": "How much of my key's spend limit is left?",
+      "expect": {"tools": ["spend_status"]}
+    }
+  ]
+}

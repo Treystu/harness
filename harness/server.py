@@ -1928,6 +1928,21 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._error(500, f"{type(e).__name__}: {e}")
 
+    def _unsupported_method(self):
+        """Unsupported HTTP methods answer in the JSON envelope, not HTML.
+
+        #283: the browser client parses JSON, and http.server's default 501 page
+        is HTML -- so a PUT to an API route looked like a server crash instead of
+        a refused method. Same envelope as every other refusal.
+        """
+        self._drain_body()
+        return self._error(405, "method not allowed: {}".format(self.command),
+                           close=True)
+
+    do_PUT = _unsupported_method
+    do_DELETE = _unsupported_method
+    do_PATCH = _unsupported_method
+
     # -- static ------------------------------------------------------------
     def _static(self, entry):
         fname, ctype = entry

@@ -27,6 +27,7 @@ written, so a payload edited without updating its stored hash cannot be
 extended. The refusal names the first bad record; a valid chain still reopens
 and appends exactly one correctly linked record.
 """
+import re
 import hashlib
 import json
 import os
@@ -370,6 +371,46 @@ def lint_tool_descriptions(schemas):
     if problems:
         raise AuditError("MCP tool description lint failed: " + "; ".join(problems))
     return len(schemas)
+
+
+#: #284, second rule: the In: segment must NAME the schema's required inputs.
+def lint_description_inputs(schemas):
+    """Every required input must be named inside the description's In: segment.
+
+    ``lint_tool_descriptions`` proves the three segments exist, are ordered and
+    are non-empty. It cannot see a segment that defers to "the schema", which is
+    exactly the drift a model reading only the description experiences: it is
+    told there are inputs without being told what to supply. This check closes
+    that gap -- every field in ``inputSchema.required`` must appear, whole and
+    case-insensitive, in the ``In:`` segment. Descriptions only; no behaviour.
+    """
+    problems = []
+    checked = 0
+    for schema in schemas:
+        if not isinstance(schema, dict):
+            problems.append(f"{schema!r}: tool schema must be a mapping")
+            continue
+        name = str(schema.get("name") or "<unnamed>")
+        input_schema = schema.get("inputSchema") or {}
+        required = list(input_schema.get("required") or [])
+        if not required:
+            continue
+        description = " ".join(str(schema.get("description") or "").split())
+        start = description.find("In:")
+        end = description.find("Out:")
+        segment = description[start + len("In:"):end] if 0 <= start < end else ""
+        checked += 1
+        missing = [field for field in required
+                   if not re.search(r"(?<![a-z0-9_])"
+                                    + re.escape(str(field).lower())
+                                    + r"(?![a-z0-9_])", segment.lower())]
+        if missing:
+            problems.append(f"{name}: In: does not name required input(s) "
+                            + ", ".join(missing))
+    if problems:
+        raise AuditError("MCP tool description input lint failed: "
+                         + "; ".join(problems))
+    return checked
 
 
 class ChainVerdict:

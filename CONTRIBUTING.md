@@ -358,6 +358,16 @@ cheap; losing either is not.
 | `harness/ui_auth.py` | local UI bearer-token persistence shared by the desktop and HTTP server, with symlink refusal and atomic writes |
 | `harness/workspace.py` | explicit workspace selection and canonical path access; rejects traversal, symlink escapes, and sensitive credential paths |
 | `harness/workspace_audit.py` | read-only workspace audit lane (#448): enumerated scope/exclusions/truncation, input-cost estimate and cap preflight, and routing that never dispatches a paid request on a guess |
+| `harness/jev_conformance.py` | conformance corpus for the Jev gate (#489 residue item 1): deterministic conformance cases and calibration agreement checks |
+| `harness/hul_decision.py` | #275 L1-L3 — the Freebuff mission dossier's trace, decision, and grade specifications |
+| `harness/dogfood.py` | #277 — the structured round-2 dogfood runner: four surfaces (CLI, MCP, GUI, website) and one filed report |
+| `harness/first_rung.py` | #280 — calibration-driven first-rung selection and rotation after one unusable sample |
+| `harness/bench_bundle.py` | #281 — versioned, sanitized bench results bundle for the Proof Bench |
+| `harness/api_inventory.py` | #283 — GUI HTTP handler inventory derived from `server.py` and held to test coverage |
+| `harness/agent_eval.py` | #285 — agent-eval layer over the MCP tool surface, scored by tool-selection and chaining pass rate |
+| `harness/mcp_surface.py` | #286 — additive-only MCP tool surface snapshot and compatibility gate |
+| `harness/deps_lock.py` | #289 — lockfile/pyproject dependency surface agreement and drift gate for `uv.lock` |
+| `harness/triage.py` | #290 — executable environment vs code-defect triage probes behind `docs/audit-triage.md` |
 | `harness/refine.py` | Propose-Probe-Compose refinement loop (`REFINE-LOOP`, issue #239): code-enforced TIER 0/1/2 safety boundaries, P0 task outcome tracking on the ledger, P1 task family taxonomy (`task_families.json`), P3 lessons library (`experience.md` with 30-day recency decay), Jev 4-dimension scoring rubric with gating rules, CycleCost 3x budget check, and Phase 0 pilot state (20 cycles, TIER 2 only, no auto-merge) |
 | `tests/` | one test module per product owner (test_spend, test_panel, test_convergence, test_specialist, test_chat, test_ledger, test_prompts, ...); shared fakes and the `_gov` helper live in `tests/_fake.py` |
 

@@ -181,13 +181,36 @@ class Router:
             spec["jev_route"] = jev_route
         return spec
 
-    def route(self, task_type):
-        """Return the spec for a task type: cheap lane first."""
+    def route(self, task_type, report=None):
+        """Return the spec for a task type: cheap lane first.
+
+        Row-14 follow-up (#280): with a calibration ``report``, the FIRST RUNG is
+        decided by :mod:`harness.first_rung` -- recorded calibration may move the
+        declared head when it clears the sample floor and margin -- and the
+        decision's reasons ride on the spec as ``reasons`` (+ ``first_rung``), so
+        an operator can see why a rung was picked. Without a report the
+        historical spec is returned untouched (declared order, no reasons key),
+        which is the documented fallback.
+        """
+        if report is None:
+            if task_type == "verify":
+                return {"tier": "panel", "panel": self.panel_pool,
+                        "judge": self.judge}
+            if task_type == "code":
+                return {"tier": "apply", "model": self.apply_model,
+                        "pool": self.apply_pool}
+            raise ValueError(f"unknown task_type: {task_type}")
+        from .first_rung import choose_first_rung
         if task_type == "verify":
-            return {"tier": "panel", "panel": self.panel_pool, "judge": self.judge}
+            chosen = choose_first_rung(self._panel_pool, report, task="structured")
+            return {"tier": "panel", "panel": chosen["order"], "judge": self.judge,
+                    "first_rung": chosen["first"], "source": chosen["source"],
+                    "reasons": chosen["reasons"]}
         if task_type == "code":
-            return {"tier": "apply", "model": self.apply_model,
-                    "pool": self.apply_pool}
+            chosen = choose_first_rung(self._apply_pool, report, task="code")
+            return {"tier": "apply", "model": chosen["first"],
+                    "pool": chosen["order"], "first_rung": chosen["first"],
+                    "source": chosen["source"], "reasons": chosen["reasons"]}
         raise ValueError(f"unknown task_type: {task_type}")
 
     def escalation(self, override=None):

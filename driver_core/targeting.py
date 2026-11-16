@@ -36,7 +36,7 @@ from .errors import VocabularyError
 #: The bounded target's schema name and version, carried on the canonical
 #: record so an audit can tell a bounded target from a legacy title without
 #: inferring it from the type.
-TARGET_SCHEMA = "target@1"
+TARGET_SCHEMA = "target@2"
 
 #: The longest window title this model will carry. A title is an identity, not
 #: a document; one that long is a payload or a mistake.
@@ -58,6 +58,27 @@ MAX_AREA = 16777216
 #: a caller that tries to smuggle an offset or a selector alongside the
 #: rectangle is told rather than obeyed.
 BOUNDED_FIELDS = ("rect", "window")
+
+#: The pixel spaces a bounded target may name (#481's DPI discipline). Capture
+#: on the owner machine is logical pixels at 125% (#452 S3 specimens), so a
+#: rectangle that does not say which space it lives in can aim a quarter of the
+#: way off the control -- the same defect class as an undeclared parameter.
+SPACES = ("client-logical", "client-physical")
+
+#: The space a rectangle is in when the caller does not name one. Declared,
+#: not inferred: it is the space capture produces, and the canonical record
+#: always carries it so no consumer ever has to guess.
+DEFAULT_SPACE = "client-logical"
+
+#: The keys a bounded target may carry beyond the required pair. ``space`` and
+#: ``scale`` are declared here, so a caller cannot smuggle a fourth meaning in
+#: under an undeclared name.
+OPTIONAL_FIELDS = ("scale", "space")
+
+#: The largest physical-to-logical scale this model will carry. 1.25 is the
+#: owner machine; 4.0 leaves room for any display setting Windows offers while
+#: keeping a slip (25 instead of 2.5) out of the model.
+MAX_SCALE = 4.0
 
 
 class TargetError(VocabularyError):
@@ -119,6 +140,55 @@ def _checked_rect(rect):
     return [x, y, width, height]
 
 
+def _checked_space(space):
+    """The target's declared pixel space, refused by name if it is not one."""
+    if space is None:
+        return DEFAULT_SPACE
+    if not isinstance(space, str):
+        raise TargetError(
+            f"a target's space must be one of {list(SPACES)}, got "
+            f"{type(space).__name__}")
+    if space not in SPACES:
+        raise TargetError(
+            f"{space!r} is not a declared pixel space; the model declares "
+            f"{list(SPACES)}")
+    return space
+
+
+def _checked_scale(scale, space):
+    """The target's declared scale, present exactly when it can mean anything.
+
+    A physical rectangle without a scale cannot be converted, and a logical one
+    with a scale has nothing for the number to describe: both are refused,
+    because silently ignoring a declared value is how a caller's bug becomes an
+    aim point.
+    """
+    if space == DEFAULT_SPACE:
+        if scale is not None:
+            raise TargetError(
+                "a client-logical target declares no scale: its coordinates "
+                "are already the space capture produces")
+        return None
+    if scale is None:
+        raise TargetError(
+            "a client-physical target must declare its scale (physical to "
+            "logical pixels, e.g. 1.25), so the conversion is arithmetic "
+            "rather than a guess")
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)):
+        raise TargetError(
+            f"a target's scale must be a number, got {type(scale).__name__}")
+    value = float(scale)
+    if not (value > 0) or value != value or value in (float("inf"),
+                                                      float("-inf")):
+        raise TargetError(f"a target's scale must be finite and positive, "
+                          f"got {scale!r}")
+    if value > MAX_SCALE:
+        raise TargetError(
+            f"a target's scale is {value}, beyond the model's declared limit "
+            f"of {MAX_SCALE}")
+    return value
+
+
 def resolve_target(value):
     """Resolve one declared ``target`` parameter to its canonical form.
 
@@ -134,21 +204,29 @@ def resolve_target(value):
         raise TargetError(
             "a target must be an exact window title or a bounded target "
             f"mapping {{'window', 'rect'}}, got {type(value).__name__}")
-    unknown = sorted(set(value) - set(BOUNDED_FIELDS))
+    unknown = sorted(set(value) - set(BOUNDED_FIELDS) - set(OPTIONAL_FIELDS))
     if unknown:
         raise TargetError(
-            f"a bounded target declares exactly {list(BOUNDED_FIELDS)}; "
-            f"unknown key(s) {unknown}")
+            f"a bounded target declares {list(BOUNDED_FIELDS)} and may name "
+            f"{list(OPTIONAL_FIELDS)}; unknown key(s) {unknown}")
     missing = sorted(set(BOUNDED_FIELDS) - set(value))
     if missing:
         raise TargetError(
             f"a bounded target needs {list(BOUNDED_FIELDS)}; missing "
             f"key(s) {missing}")
-    return {
+    space = _checked_space(value.get("space"))
+    record = {
         "schema": TARGET_SCHEMA,
         "window": _checked_title(value["window"]),
         "rect": _checked_rect(value["rect"]),
+        #: Always present: a consumer reads the space rather than inferring it
+        #: from the schema version or from the platform it happens to run on.
+        "space": space,
     }
+    scale = _checked_scale(value.get("scale"), space)
+    if scale is not None:
+        record["scale"] = scale
+    return record
 
 
 def is_bounded(value):
@@ -170,8 +248,11 @@ def describe(value):
     """
     if is_bounded(value):
         x, y, width, height = value["rect"]
-        return (f"{value['window']!r} at [{x}, {y}, {width}, {height}] "
-                f"({TARGET_SCHEMA})")
+        space = value.get("space", DEFAULT_SPACE)
+        scale = value.get("scale")
+        suffix = f" in {space}" + (f" x{scale:g}" if scale else "")
+        return (f"{value['window']!r} at [{x}, {y}, {width}, {height}]"
+                f"{suffix} ({TARGET_SCHEMA})")
     if isinstance(value, str):
         return f"{value!r} (window only; unbounded)"
     return repr(value)

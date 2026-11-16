@@ -71,6 +71,7 @@ The seats and the grant requirement are opt-in (``seats=None``,
 ``require_grant=False``), which is what keeps a BR2/BR3 deployment working
 exactly as it did; a deployment that declares them gets default-deny.
 """
+import hashlib
 import json
 import math
 import os
@@ -119,6 +120,11 @@ FRAME_FIELD = "frame"
 #: The envelope's timestamp. Seconds since the epoch, from the hand's own
 #: clock -- the hand is the only process that knows when the pixels existed.
 CAPTURED_AT_FIELD = "captured_at"
+
+#: The frame's content digest (#480 BR3). A digest of the bytes, so a screen
+#: that has not changed is provably unchanged without describing it again --
+#: and describing is what costs a Jev call.
+FINGERPRINT_FIELD = "fingerprint"
 
 #: How old a frame may be when the driver reads it. Five seconds because
 #: that is the vision verifier's own verdict budget (#272): a frame older
@@ -219,7 +225,30 @@ def _read_json(path):
     return data if isinstance(data, dict) else {}
 
 
-def frame_envelope(*, path, captured_at, state):
+def frame_fingerprint(path):
+    """The sha256 digest of one frame's bytes, streamed in 1 MiB chunks.
+
+    Streamed rather than read whole because a full-desktop frame is the one
+    artefact in this system that is allowed to be large, and the digest is
+    the only thing needed from it. An unreadable frame is a refusal here, in
+    the hand: a frame nothing can fingerprint cannot be deduped, and a
+    silently fingerprint-less frame would describe on every poll forever.
+    """
+    if not isinstance(path, str) or not path.strip():
+        raise HandError(f"a frame needs a path to fingerprint, got {path!r}")
+    digest = hashlib.sha256()
+    try:
+        with open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(chunk)
+    except OSError as exc:
+        raise HandError(
+            f"the frame at {path!r} could not be read for a fingerprint: "
+            f"{exc}") from exc
+    return digest.hexdigest()
+
+
+def frame_envelope(*, path, captured_at, state, fingerprint=None):
     """The declared envelope for one answered frame.
 
     Refuses to build an envelope it could not date or place: a stamp that is
@@ -236,8 +265,15 @@ def frame_envelope(*, path, captured_at, state):
             f"returned {captured_at!r}")
     if state not in (INTERACTIVE, LOCKED, NO_FOREGROUND):
         raise HandError(f"a frame needs a session state, got {state!r}")
-    return {"schema": FRAME_SCHEMA, "path": path,
-            CAPTURED_AT_FIELD: float(captured_at), "state": state}
+    envelope = {"schema": FRAME_SCHEMA, "path": path,
+                CAPTURED_AT_FIELD: float(captured_at), "state": state}
+    if fingerprint is not None:
+        if not isinstance(fingerprint, str) or not fingerprint.strip():
+            raise HandError(
+                "a frame fingerprint must be a non-empty string, got "
+                f"{fingerprint!r}")
+        envelope[FINGERPRINT_FIELD] = fingerprint
+    return envelope
 
 
 def frame_age(frame, *, now=None):
@@ -517,7 +553,7 @@ def session_state(probe=None):
 
 
 def post_capture_request(root, request_id, kind="capture", *, seat=None,
-                         grant=None):
+                         grant=None, fingerprint=None):
     """Post one request for the hand. Returns the stored record.
 
     ``seat`` and ``grant`` are written only when the caller supplied them, so
@@ -533,6 +569,12 @@ def post_capture_request(root, request_id, kind="capture", *, seat=None,
         record["seat"] = _checked_seat(seat)
     if grant is not None:
         record["grant"] = _checked_id(grant)
+    if fingerprint is not None:
+        if not isinstance(fingerprint, str) or not fingerprint.strip():
+            raise HandError(
+                "a request fingerprint must be a non-empty string, got "
+                f"{fingerprint!r}")
+        record[FINGERPRINT_FIELD] = fingerprint
     _write_json(os.path.join(_requests_dir(root), f"{rid}.json"), record)
     return record
 
@@ -582,7 +624,8 @@ class CaptureHand:
     """
 
     def __init__(self, root, *, session_probe=None, capture=None,
-                 describe=None, clock=None, seats=None, require_grant=False):
+                 describe=None, clock=None, seats=None, require_grant=False,
+                 dedupe=True):
         self._root = os.path.abspath(root)
         self._probe = session_probe or default_session_probe
         self._capture = capture or (lambda: osal.capture_screen(max_side=None))
@@ -600,6 +643,13 @@ class CaptureHand:
         #: default, so declaring an allowlist does not silently also start
         #: demanding grants.
         self._require_grant = bool(require_grant)
+        #: BR3 dedupe. The hand remembers the fingerprint of the frame it last
+        #: captured and the fields it described for it, so a describe request
+        #: naming that fingerprint is answered without running the reader.
+        #: Off means every describe runs, which is BR2's behaviour.
+        self._dedupe = bool(dedupe)
+        self._last_fingerprint = None
+        self._described = {}
 
     @property
     def root(self):
@@ -658,7 +708,26 @@ class CaptureHand:
             return self._answer(rid, kind, state, None, None, LOCKED_DETAIL,
                                 seat=seat, grant=grant_id)
         if kind == "describe":
+            fingerprint = request.get(FINGERPRINT_FIELD)
+            unchanged = (
+                self._dedupe and isinstance(fingerprint, str)
+                and fingerprint == self._last_fingerprint
+                and fingerprint in self._described)
+            if unchanged:
+                # BR3: the caller is describing the frame this hand already
+                # described, and no newer capture has landed since. Answering
+                # from the remembered fields means no reader runs, so an
+                # unchanged screen costs zero describe -- and zero Jev -- calls.
+                return self._answer(
+                    rid, kind, state, None, self._described[fingerprint],
+                    "unchanged screen: this frame's fingerprint was already "
+                    "described, so no reader ran",
+                    seat=seat, grant=grant_id, deduped=True)
             fields, detail = self._safe_describe()
+            if (self._dedupe and isinstance(fingerprint, str)
+                    and fields is not None
+                    and fingerprint == self._last_fingerprint):
+                self._described[fingerprint] = fields
             return self._answer(rid, kind, state, None, fields, detail,
                                 seat=seat, grant=grant_id)
         # The indicator is on for exactly as long as a reader is running, so
@@ -682,11 +751,34 @@ class CaptureHand:
                 f"the hand's clock returned {stamp!r}; the frame could not "
                 "be stamped, so no frame is offered",
                 seat=seat, grant=grant_id)
+        fingerprint = None
+        unfingerprinted = None
+        if path:
+            try:
+                fingerprint = frame_fingerprint(path)
+            except HandError as exc:
+                # A frame the hand cannot read is still a frame the reader
+                # says exists: refusing it would turn every reader whose path
+                # the hand cannot open into a dead bridge. It is answered
+                # without a digest, and the detail says why -- an undigested
+                # frame simply never dedupes, so the cost is a describe call,
+                # not a lost screen.
+                # The reason travels on its own key, never inside ``detail``:
+                # ``detail`` is what the reader said about the frame, and a
+                # consumer comparing it to "" must not start seeing the hand's
+                # bookkeeping.
+                unfingerprinted = str(exc)
+                self._last_fingerprint = None
+            else:
+                self._last_fingerprint = fingerprint
+                unfingerprinted = None
         if path and self._require_grant:
             # Spent only now: the grant bought a frame, and a frame exists.
             consume_grant(self._root, grant_id, now=self._clock())
         return self._answer(rid, kind, state, path, None, detail,
-                            captured_at=stamp, seat=seat, grant=grant_id)
+                            captured_at=stamp, seat=seat, grant=grant_id,
+                            fingerprint=fingerprint,
+                            unfingerprinted=unfingerprinted)
 
     def _indicate(self, rid, seat, state, *, on):
         """Best-effort indicator write: it can never abort a capture.
@@ -729,7 +821,8 @@ class CaptureHand:
         return fields, detail if isinstance(detail, str) else str(detail)
 
     def _answer(self, rid, kind, state, path, fields, detail, *,
-                captured_at=None, seat=None, grant=None):
+                captured_at=None, seat=None, grant=None, fingerprint=None,
+                deduped=False, unfingerprinted=None):
         record = {"request_id": rid, "kind": kind, "state": state,
                   "detail": detail, "answered_at": time.time()}
         # The identity that asked travels with the answer, so an audit of the
@@ -739,6 +832,10 @@ class CaptureHand:
             record["seat"] = seat
         if grant is not None:
             record["grant"] = grant
+        if deduped:
+            record["deduped"] = True
+        if unfingerprinted:
+            record["unfingerprinted"] = unfingerprinted
         if kind == "describe":
             record["fields"] = fields
         else:
@@ -748,7 +845,8 @@ class CaptureHand:
             # than a partial one, so a consumer reads the absence instead of
             # inferring it from a missing key.
             record[FRAME_FIELD] = (frame_envelope(
-                path=path, captured_at=captured_at, state=state)
+                path=path, captured_at=captured_at, state=state,
+                fingerprint=fingerprint)
                 if path else None)
         _write_json(os.path.join(_results_dir(self._root), f"{rid}.json"),
                     record)
@@ -817,14 +915,22 @@ def bus_capture_backend(root, *, name="bridge-bus", platform=None,
         fresh, why = check_freshness(result, max_age=window, now=now())
         if not fresh:
             return None, why
+        envelope = result.get(FRAME_FIELD)
+        if isinstance(envelope, dict):
+            # Hold the digest of the frame just returned, so the describe call
+            # that follows can name it and dedupe.
+            last["fingerprint"] = envelope.get(FINGERPRINT_FIELD)
         return path, str(result.get("detail", ""))
+
+    last = {"fingerprint": None}
 
     def _describe():
         if kill_switch_engaged(root):
             return None, KILL_DETAIL
         rid = _checked_id(factory())
         post_capture_request(root, rid, "describe", seat=seat,
-                             grant=_grant_id())
+                             grant=_grant_id(),
+                             fingerprint=last["fingerprint"])
         result = read_result(root, rid, timeout=timeout)
         if result is None:
             return None, (f"capture hand did not answer within {timeout:g}s; "

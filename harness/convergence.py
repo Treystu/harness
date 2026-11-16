@@ -18,7 +18,14 @@ from .errors import HarnessError
 from .output import eprint
 
 MAX_429_RETRIES = 2
-# Backoff base for bounded 429 retries; Retry-After headers take precedence.
+# Backoff base for bounded 429 retries. This path does NOT read Retry-After:
+# panel.py waits RETRY_429_BACKOFF_SECONDS x retry number and nothing else.
+# Retry-After is honored one layer down, by the transport's own retry schedule
+# (harness/_http.py::_retry_delay, capped at 6.0 s) -- a different mechanism
+# that does not inform this delay. The previous comment here said "Retry-After
+# headers take precedence", which was never true for the panel loop and was
+# repeated as a premise in #475; corrected with the census that measured zero
+# Retry-After values and zero 429 events in this laptop's ledger.
 RETRY_429_BACKOFF_SECONDS = 0.5
 # The vote-lane floor for structured claims lives with the other lane minima
 # (config.MIN_CONVERGENCE_PANEL_TOKENS). Kept as a re-export alias for any
