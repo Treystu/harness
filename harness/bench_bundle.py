@@ -20,7 +20,9 @@ site's dedupe key must be stable across re-runs).
 """
 import hashlib
 import json
+import ntpath
 import os
+import posixpath
 import re
 from datetime import datetime, timezone
 
@@ -186,13 +188,13 @@ def reproduction_command(manifest_path, task_max_cost=None):
     if not isinstance(manifest_path, str) or not manifest_path:
         raise BenchBundleError("reproduction needs a manifest path")
     rel = manifest_path.replace("\\", "/")
-    if os.path.isabs(manifest_path):
+    if ntpath.isabs(rel) or ntpath.splitdrive(rel)[0] or posixpath.isabs(rel):
         # A public bundle names the manifest by its repo-relative path only.
         marker = "/bench/"
         if marker in rel:
             rel = "bench/" + rel.split(marker, 1)[1]
         else:
-            rel = os.path.basename(rel)
+            rel = posixpath.basename(rel)
     cmd = f"python -m harness.cli bench {rel}"
     if task_max_cost is not None:
         cmd += f" --task-max-cost {float(task_max_cost):g}"

@@ -131,13 +131,19 @@ class ReproductionTests(unittest.TestCase):
                               "--task-max-cost 0.25")
 
     def test_an_absolute_path_is_trimmed_to_the_repo_relative_one(self):
-        cmd = bb.reproduction_command(r"C:\Users\someone\repo\bench\manifests\x")
-        self.assertEqual(cmd, "python -m harness.cli bench bench/manifests/x")
+        for raw in (r"C:\Users\someone\repo\bench\manifests\x",
+                    "/home/someone/repo/bench/manifests/x"):
+            with self.subTest(raw=raw):
+                self.assertEqual(bb.reproduction_command(raw),
+                                 "python -m harness.cli bench bench/manifests/x")
 
     def test_a_path_outside_the_repo_keeps_only_its_basename(self):
-        cmd = bb.reproduction_command(r"C:\elsewhere\weird\manifest.json")
-        self.assertNotIn("elsewhere", cmd)
-        self.assertTrue(cmd.endswith("manifest.json"))
+        for raw in (r"C:\elsewhere\weird\manifest.json",
+                    "/elsewhere/weird/manifest.json"):
+            with self.subTest(raw=raw):
+                cmd = bb.reproduction_command(raw)
+                self.assertNotIn("elsewhere", cmd)
+                self.assertTrue(cmd.endswith("manifest.json"))
 
 
 class SanitizerTests(unittest.TestCase):
