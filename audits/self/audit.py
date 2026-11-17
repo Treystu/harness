@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 
@@ -1800,15 +1801,24 @@ def main():
     args = ap.parse_args()
 
     dims = {args.dim: CHECKS[args.dim]} if args.dim else CHECKS
+    audit_start = time.monotonic()
     results = {}
     for dim, checks in dims.items():
         rows = []
         for cid, label, fn in checks:
+            check_start = time.monotonic()
+            print(f"[audit] {dim}/{cid}: {label}...", flush=True)
             try:
                 score, ev = fn()
             except Exception as e:  # a broken check is a failed check
                 score, ev = 0.0, f"CHECK ERROR: {type(e).__name__}: {e}"
             status = _status(score, ev)
+            check_dt = time.monotonic() - check_start
+            print(
+                f"[audit] {dim}/{cid}: {status} "
+                f"({check_dt:.1f}s, total {time.monotonic() - audit_start:.1f}s)",
+                flush=True,
+            )
             rows.append({"id": cid, "label": label,
                          "score": None if status == "skip" else round(score, 3),
                          "status": status, "evidence": ev})

@@ -89,9 +89,25 @@ baseline re-point is not a pre-merge step.
     python audits/self/audit.py --dim SD
   ```
 
-  The traced battery is the slow part (roughly two to five minutes). To reuse
-  a prepared document, set `HARNESS_D12_BASELINE` to a JSON file whose
-  `commit` is the same merge-base.
+  Measured wall-clock timing (not a "2-5 minute" quick check):
+  - **D12 traced unittest battery vs 4-dimensional audit:** on CircleCI
+    (`cimg/python:3.11`, ~7,043 tests), the full 4-dimensional `audit.py` run
+    measured **11m 55s** (`714.85s`, build `4357`) to **12m 25s** (build `4353`).
+    Nearly all of that time is the **D12** subprocess running the full test
+    suite under stdlib `trace` (~11-12 minutes when regenerating coverage);
+    all remaining deterministic checks (`A`, `R` excluding slow inner suites,
+    `SM`, and `SD` `D1..D11,D13`) finish in under a minute unless live API checks
+    (`HARNESS_AUDIT_LIVE=1`) are enabled. On a local Windows workstation
+    (~7,045 tests), an untraced full battery takes ~8-10 minutes and a fresh
+    D12 trace takes ~10-14 minutes.
+  - **Progress output and abnormal-duration bar:** both
+    `audits/self/audit.py` and `audits/self/refresh_coverage_baseline.py` stream
+    elapsed progress timestamps so a slow run stays visibly alive. Treat a run
+    as **abnormal / stalled** when it emits no progress for >10 minutes or
+    exceeds **25 minutes** total (>2x the ~12m measured baseline, matching CI's
+    `no_output_timeout: 20m`).
+  - To reuse a prepared document, set `HARNESS_D12_BASELINE` to a JSON file
+    whose `commit` is the same merge-base.
 
 ## Local-only `test_dogfood` / `test_hourglass_end_to_end`
 

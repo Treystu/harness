@@ -122,7 +122,7 @@ Verified locally on that tree (Windows, CPython 3.14, setuptools 84):
 | sdist contents | 424 entries; operator-lane docs excluded; no `__pycache__`/`.pyc`; no operator-home command lines |
 | README | no relative Markdown links; install note states the `sovereign-harness` name vs `harness` import conflict and frozen model tiers in a wheel |
 | Clean-venv wheel install | `harness`, `harness-mcp`, `harness-desktop`, `driver-core` all `--help` cleanly; `pip check` clean; reports `0.5.0` |
-| Installed-wheel server | `/`, `/app.js`, `/app.css`, `/panes.js`, `/panes.css`, `/api/status`, `/api/settings`, `/api/capabilities` all 200 |
+| Installed-wheel server | Static UI shell (`/`, `/app.js`, `/app.css`, `/panes.js`, `/panes.css`) returns `200`; `/api/status`, `/api/settings`, `/api/capabilities` return `401` unauthenticated and `200` with `X-Harness-Auth` or Bearer auth (default `127.0.0.1:8765`; explicit `--port` overrides) |
 | Clean-venv sdist install | builds, imports, reports `0.5.0`, runtime data present; `pip check` clean |
 | Release state | version `0.5.0` in `pyproject.toml` and the fallback literal; `[Unreleased]` is `Nothing yet.`; dated `[0.5.0]` changelog section present |
 | Lint / compile | `ruff check harness tests audits` clean; `compileall` clean |

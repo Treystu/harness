@@ -98,8 +98,12 @@ is unchanged and still no sandbox.
   operating-system sandbox. In particular, an explicitly approved verification
   command still runs as the Harness process user, as described below.
 
-- **Authentication.** The `harness serve` and `harness desktop` entrypoints
-  require a per-user UI token by default. `harness serve --open` and the desktop
+- **Authentication.** The `harness serve` (default `127.0.0.1:8765`; `--port` to override, e.g. `8800`) and `harness desktop` (default `127.0.0.1:8766`) entrypoints
+  require a per-user UI token by default: `/api/status` and all other `/api/*`
+  routes return `401` unauthenticated and `200` only when authenticated. See
+  [ui-acceptance.md](ui-acceptance.md) for the complete first-use modal, pairing,
+  and recovery checklist (`gui-open.url`, `gui-auth-handoff.txt`, `harness serve --open`).
+  `harness serve --open` and the desktop
   shell pass it through the URL fragment, which browsers do not send to the
   server; API calls then send `X-Harness-Auth`. Every `/api` route checks that
   token (or `Authorization: Bearer`) in constant time
