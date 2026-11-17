@@ -34,6 +34,7 @@ from harness.jev_packs import (
 )
 from harness.jev_policy import policy_for
 from harness.ledger import AutonomyLedger
+from tests import isolated_history_dir
 
 
 class RecordingGovernor:
@@ -640,7 +641,9 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
             "escalation_justified": noul(0.10),
         })
         policy = self._policy(evaluator)
-        agent = AutonomousAgent(settings=load_settings(), root_dir=Path(self.tmp.name))
+        agent = AutonomousAgent(
+            settings=load_settings(), root_dir=Path(self.tmp.name),
+            history_dir=isolated_history_dir(Path(self.tmp.name)))
         plan = {
             "composition": {
                 "stages": [
@@ -672,7 +675,9 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
             "escalation_justified": noul(0.50),
         })
         policy = self._policy(evaluator)
-        agent = AutonomousAgent(settings=load_settings(), root_dir=Path(self.tmp.name))
+        agent = AutonomousAgent(
+            settings=load_settings(), root_dir=Path(self.tmp.name),
+            history_dir=isolated_history_dir(Path(self.tmp.name)))
         decision = agent._restart_decision("refactor sample.py", policy, {}, completed_stages=())
         self.assertTrue(decision["consent_renewal_required"])
         self.assertIn("consent no longer covers this assignment", " ".join(decision["reasons"]))
@@ -680,7 +685,9 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
     def test_restart_decision_discards_out_of_vocabulary_jev_target(self):
         from harness.agent import AutonomousAgent
         from pathlib import Path
-        agent = AutonomousAgent(settings=load_settings(), root_dir=Path(self.tmp.name))
+        agent = AutonomousAgent(
+            settings=load_settings(), root_dir=Path(self.tmp.name),
+            history_dir=isolated_history_dir(Path(self.tmp.name)))
         asked = [
             {"signals": {"restart_target": {"target": "undeclared-stage"}},
              "native": True},
@@ -743,7 +750,9 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
         from harness.agent import AutonomousAgent
         from unittest.mock import MagicMock
         from pathlib import Path
-        agent = AutonomousAgent(settings=load_settings(), root_dir=Path(self.tmp.name))
+        agent = AutonomousAgent(
+            settings=load_settings(), root_dir=Path(self.tmp.name),
+            history_dir=isolated_history_dir(Path(self.tmp.name)))
         mock_policy = MagicMock()
         class NonTupleRes:
             structural = {

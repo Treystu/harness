@@ -35,6 +35,7 @@ from harness.jev_policy import policy_for
 from harness.ledger import AutonomyLedger
 from harness.token_budget import budget_from_settings
 from harness.waist import STAGE_EXECUTION
+from tests import isolated_history_dir
 from tests._fake import FakeTransport, _gov
 
 
@@ -174,7 +175,8 @@ class RestartGuardIsReachedTests(unittest.TestCase):
             edit_policy_patch.start()
             self.addCleanup(edit_policy_patch.stop)
             agent = AutonomousAgent(settings=settings, root_dir=root,
-                                    transport=FakeTransport())
+                                    transport=FakeTransport(),
+                                    history_dir=isolated_history_dir(root))
             return agent.run_hourglass_request(
                 "edit calc.py so add() documents its return value",
                 auto_apply=False)
@@ -300,7 +302,8 @@ class RestartGuardIsReachedTests(unittest.TestCase):
             edit_policy_patch.start()
             self.addCleanup(edit_policy_patch.stop)
             agent = AutonomousAgent(settings=settings, root_dir=root,
-                                    transport=FakeTransport())
+                                    transport=FakeTransport(),
+                                    history_dir=isolated_history_dir(root))
             agent.run_hourglass_request(
                 "edit calc.py so add() documents its return value",
                 auto_apply=False)
@@ -327,7 +330,8 @@ class RestartGuardIsReachedTests(unittest.TestCase):
             settings.jev_api_key = None
             settings.hourglass_confirm = False
             agent = AutonomousAgent(settings=settings, root_dir=root,
-                                    transport=FakeTransport())
+                                    transport=FakeTransport(),
+                                    history_dir=isolated_history_dir(root))
             from unittest.mock import MagicMock
             fake_policy = MagicMock()
             fake_policy.evaluate_hourglass_stage.side_effect = HarnessError("synthetic failure")
