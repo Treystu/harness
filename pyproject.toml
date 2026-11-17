@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sovereign-harness"
 version = "0.5.1"
-description = "Cost-bounded multi-model verification & coding harness with AI sovereignty — consent, continued consensus, and a verifiable participation ledger. Pure Python stdlib, zero dependencies."
+description = "Cost-bounded multi-model verification & coding harness with AI sovereignty — consent, continued consensus, and a verifiable participation ledger. Pure Python stdlib, zero runtime dependencies; development and packaging are managed by uv."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
