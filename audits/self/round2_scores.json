@@ -20,11 +20,9 @@
         "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
         "score": 10.0,
         "bar_met": true,
-        "confidence": 0.96,
+        "confidence": 1.0,
         "evaluated": true,
-        "source": "live",
-        "live_level": "exemplary \u2014 100% defect-free across all checks (10.0)",
-        "live_level_confidence": 0.98
+        "source": "live"
       },
       "R": {
         "name": "Reliability",
@@ -32,11 +30,9 @@
         "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
         "score": 10.0,
         "bar_met": true,
-        "confidence": 0.99,
+        "confidence": 1.0,
         "evaluated": true,
-        "source": "live",
-        "live_level": "exemplary \u2014 100% defect-free across all checks (10.0)",
-        "live_level_confidence": 0.99
+        "source": "live"
       },
       "SM": {
         "name": "Structural hygiene & maintainability",
@@ -46,9 +42,7 @@
         "bar_met": true,
         "confidence": 0.96,
         "evaluated": true,
-        "source": "live",
-        "live_level": "exemplary \u2014 100% defect-free across all checks (10.0)",
-        "live_level_confidence": 0.98
+        "source": "live"
       },
       "SD": {
         "name": "Documentation & release integrity",
@@ -56,11 +50,9 @@
         "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
         "score": 10.0,
         "bar_met": true,
-        "confidence": 0.91,
+        "confidence": 0.95,
         "evaluated": true,
-        "source": "live",
-        "live_level": "exemplary \u2014 100% defect-free across all checks (10.0)",
-        "live_level_confidence": 0.95
+        "source": "live"
       }
     },
     "scores": {
@@ -268,7 +260,7 @@
         "label": "full suite green hermetically",
         "score": 1.0,
         "status": "pass",
-        "evidence": "unittest: Ran 7093 tests in 496.278s\n\nOK (env clean; empty home)"
+        "evidence": "unittest: Ran 7054 tests in 464.190s\n\nOK (env clean; empty home)"
       },
       {
         "id": "R14",
@@ -391,7 +383,7 @@
         "label": "shipped model freshness guard (live: opt-in)",
         "score": 1.0,
         "status": "pass",
-        "evidence": "shipped_model_ids + capabilities --check-shipped wired; pricing lookup hard-fatals on stale ids; 4 :free pool ids; live --check-shipped exit=0"
+        "evidence": "shipped_model_ids + capabilities --check-shipped wired; pricing lookup hard-fatals on stale ids; 4 :free pool ids; live check skipped (HARNESS_AUDIT_LIVE unset)"
       },
       {
         "id": "D9",
@@ -419,7 +411,7 @@
         "label": "changed lines suite-executed (coverage)",
         "score": 1.0,
         "status": "pass",
-        "evidence": "no executable harness changes vs merge-base c412378bbd (origin/main)"
+        "evidence": "no executable harness changes vs merge-base 6b6edd48d4 (origin/main)"
       },
       {
         "id": "D13",
