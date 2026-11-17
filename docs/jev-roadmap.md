@@ -30,16 +30,16 @@ the register of record for *ordering*; this mirror keeps its wave order
 and corrects its counts, because a snapshot cannot stay true while issues
 close.
 
-### Census (2026-11-17 at `04:20:00Z`, base `main` `125ef82c`, Slice 3G PR)
+### Census (2026-11-17 at `04:42:00Z`, base `main` `125ef82c`, Slice 3G PR)
 
-- **61 open issues**, agreed by two independent reads:
-  `gh issue list --state open --limit 400` (`61`) and the search API
-  (`type:issue state:open`, `61`), after PR `#564` merged at
-  `125ef82c6c3577a4b0e79b451f3b0eab64cca9b5` (`#335` closed) and five newly
-  filed issues (`#565`, `#566`, `#567`, `#568`, `#569`) opened.
-- Across the wave tables below (`W0`–`W10`), **107** tracked issue rows appear:
-  **61** `OPEN` and **46** `CLOSED`, with **0** open issues absent from
-  this mirror. The arithmetic reconciles: `107 - 46 = 61`.
+- **62 open issues**, agreed by two independent reads:
+  `gh issue list --state open --limit 400` (`62`) and the search API
+  (`type:issue state:open`, `62`), after PR `#564` merged at
+  `125ef82c6c3577a4b0e79b451f3b0eab64cca9b5` (`#335` closed) and six newly
+  filed issues (`#565`, `#566`, `#567`, `#568`, `#569`, `#570`) opened.
+- Across the wave tables below (`W0`–`W10`), **108** tracked issue rows appear:
+  **62** `OPEN` and **46** `CLOSED`, with **0** open issues absent from
+  this mirror. The arithmetic reconciles: `108 - 46 = 62`.
 - Closed since the 2026-11-17 `02:32:00Z` mirror: PR `#564` (`125ef82c`)
   closed `#335`. Issues staged in Slice 3G (`#416`, `#424`, `#553`, `#557`,
   `#565`) stay `OPEN` until Slice 3G merges.
@@ -104,7 +104,7 @@ close.
 | [#275](https://github.com/Treystu/harness/issues/275) Hourglass/HUL: integrate Freebuff mission-mode findings (full dossier) | OPEN | L1-L3 `harness/hul_decision.py` landed; remaining dossier integration open |
 | [#489](https://github.com/Treystu/harness/issues/489) [jev] External Jev calibration draft: validation verdict — do not integrate as written; scoped residue for the lane | CLOSED | PR #551 (`a144ce28`): `harness/jev_conformance.py`, `harness/jev_calibration.py`, `tests/test_jev_conformance.py`, `tests/test_jev_deferral_reporting.py` |
 
-### W2 - Verification and surface truth - 16 open
+### W2 - Verification and surface truth - 17 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -144,6 +144,7 @@ close.
 | [#565](https://github.com/Treystu/harness/issues/565) [docs] canon mirror still prints #329 OPEN against API closed, so the register count (58) is off by one | OPEN | staged in Slice 3G PR (`#329` fixed via PR `#564`) |
 | [#566](https://github.com/Treystu/harness/issues/566) [desktop] loopback port has three homes: 8765 for the harness UI and the media service, an undocumented 8766 for the desktop entry | OPEN | none |
 | [#567](https://github.com/Treystu/harness/issues/567) [audit] session-log audit 2026-11-16 -- orders-of-magnitude session | OPEN | read-only session-log audit tracker |
+| [#570](https://github.com/Treystu/harness/issues/570) [observability] Persisted chat turns carry no timestamp or role, so a rebuilt session cannot be ordered | OPEN | none |
 
 ### W3 - Driver and perception - 5 open
 
