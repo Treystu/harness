@@ -7,7 +7,8 @@
 
 **Cost-bounded multi-model verification & coding — with AI sovereignty.**
 
-Pure Python stdlib, **zero runtime dependencies**. One core, three faces: a
+Pure Python stdlib, zero runtime dependencies; development and packaging are
+managed by uv. One core, three faces: a
 library, a CLI, and a native [MCP](https://modelcontextprotocol.io) server
 (stdio), so any MCP host can dispatch to it natively.
 
