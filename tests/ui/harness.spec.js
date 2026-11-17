@@ -396,3 +396,35 @@ test("10 studio inspector: modeled baseline absent is not printed as a compariso
   await expect(body).toContainText("No modeled frontier baseline");
   await expect(body).not.toContainText("actual vs —");
 });
+
+test("11 studio inspector: Proof makes one read and paints each section as it lands",
+     async ({ page }) => {
+  const asked = [];
+  page.on("request", r => asked.push(new URL(r.url()).pathname));
+  const snapshot = {
+    sessions: [{ metrics: {
+      run_depth_distribution: { T0: { runs: 2, share: 1 } },
+      cost_per_gated_task: { T0: { median_cost: 0.001, samples: 2 } },
+      escalation_escape_rate: {},
+      frontier_warrant_rate: {},
+      hourglass_savings: { actual_cost: 1, modeled_frontier_cost: 2 },
+    } }],
+    recent_escalations: [{ seq: 7, from_model: "m-a", to_model: "m-b",
+                           directed_by: "jev", jev_confidence: 0.9,
+                           task_id: "task-7", event: "escalate" }],
+  };
+  await page.route("**/api/snapshot", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json",
+                    body: JSON.stringify(snapshot) }));
+  await signInOwner(page);
+  // Studio opens on Proof; clicking the tab is one render, so one read.
+  const body = await openStudio(page);
+  await expect(body).toContainText("Run depth (the hourglass)");
+  // The escalations section comes from the same payload: no second ledger
+  // read, which is what used to gate the first paint (#599).
+  await expect(body).toContainText("task-7");
+  expect(asked.filter(p => p === "/api/ledger/tail").length).toBe(0);
+  expect(asked.filter(p => p === "/api/snapshot").length).toBe(1);
+  expect(await body.locator("h3").count()).toBe(6);
+  await expect(body.locator("[data-pane-loading]")).toHaveCount(0);
+});

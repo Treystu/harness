@@ -2144,21 +2144,49 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         (export logic reused, not re-derived; no consent required to READ
         your own aggregated view — consent gates only public release)."""
         settings = load_settings()
-        ledger = ledger_for(settings)
-        ok, _bad = ledger.verify()
-        if not ok:
-            raise HarnessError(
-                "ledger hash chain failed verification; refusing snapshot")
-        from .site_export import _allow, build_runs
-        from .site_aggregate import compute_metrics
-        runs = build_runs(_allow(ledger.entries()))
-        metrics = compute_metrics(runs, None)
-        return self._send_json({
-            "schema": "site-snapshot-v1",
-            "contributors": 1,
-            "sessions": [{"bundle_id": "local", "runs": len(runs),
-                          "metrics": metrics}],
-        })
+        # Every call used to re-read the ledger, re-verify its hash chain and
+        # recompute the metrics (~3.5 s on an operator-sized ledger), and the
+        # Proof pane blocked its first paint on exactly that (#599). The
+        # result is cached under a fingerprint of the ledger FILE, so a write
+        # — including a tamper — changes size or mtime and re-verifies before
+        # anything is served again; repeats inside the TTL cost nothing.
+        try:
+            st = os.stat(settings.ledger_path)
+            fingerprint = (str(settings.ledger_path), st.st_size,
+                           getattr(st, "st_mtime_ns", None))
+        except OSError:
+            fingerprint = (str(settings.ledger_path), None, None)
+
+        def build():
+            ledger = ledger_for(settings)
+            ok, _bad = ledger.verify()
+            if not ok:
+                raise HarnessError(
+                    "ledger hash chain failed verification; refusing snapshot")
+            from .site_export import _allow, build_runs
+            from .site_aggregate import compute_metrics
+            entries = ledger.entries()
+            runs = build_runs(_allow(entries))
+            metrics = compute_metrics(runs, None)
+            # The Proof pane asks for recent escalations right after this.
+            # Serving them from the read we just did removes a second full
+            # ledger parse on a CPU-bound path (#599); only the fields the
+            # pane renders leave the process.
+            escalations = [
+                {k: e.get(k) for k in ("seq", "from_model", "to_model",
+                                       "directed_by", "jev_confidence",
+                                       "task_id", "event")}
+                for e in entries if e.get("event") == "escalate"][-40:]
+            return {
+                "schema": "site-snapshot-v1",
+                "contributors": 1,
+                "sessions": [{"bundle_id": "local", "runs": len(runs),
+                              "metrics": metrics}],
+                "recent_escalations": escalations,
+            }
+
+        return self._send_json(self.ui.cached(("site_snapshot",) + fingerprint,
+                                              build))
 
     # The route face is defined once, below: this class used to carry two
     # identical `_api_site_route` methods, so the earlier one was dead code

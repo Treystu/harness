@@ -35,6 +35,11 @@ const pct = (v) => v === null || v === undefined ? "—" : `${Math.round(v * 100
 // token -- so the pane stopped after its heading, with no error, no empty
 // state and an empty console (#586). Panes now fail fast and visible.
 let paneRenderDepth = 0;
+// A pane can publish what it already has while a slower read is still in
+// flight (#599). showSubtool sets this to a function that swaps the staged
+// node into the pane, guarded by the same render-sequence token as the final
+// swap, so a superseded render still cannot paint.
+let paneEmit = null;
 
 function authRequiredError(message, status) {
   const err = new Error(message);
@@ -163,6 +168,12 @@ async function renderPane(root, render) {
 
 async function renderProof(root) {
   root.append($("h2", {}, "Proof Bench — this harness's evidence"));
+  // Recent escalations used to cost a second full ledger read, awaited after
+  // the snapshot, so first paint waited for both (5.5 s measured, #599). The
+  // snapshot now carries them; an older server without the field still works
+  // through the ledger tail, and either way they land independently of the
+  // snapshot sections, which paint the moment they arrive.
+  let tailPromise = null;         // started once the snapshot is in hand
   let snapshot;
   try {
     snapshot = await api("/api/snapshot");
@@ -179,6 +190,9 @@ async function renderProof(root) {
       $("code", {}, "harness bench bench/manifests/efficiency")));
     return;
   }
+  tailPromise = Array.isArray(snapshot.recent_escalations)
+    ? Promise.resolve(escalationsNode(snapshot.recent_escalations))
+    : renderRecentEscalations();
   const depth = m.run_depth_distribution || {};
   const maxRuns = Math.max(...Object.values(depth).map(d => d.runs), 1);
   root.append(
@@ -224,25 +238,29 @@ async function renderProof(root) {
         $("strong", {}, money(modeled)), " modeled. ",
         $("span", { class: "muted small" }, s.basis || ""));
     })(),
-    $("h3", {}, "Recent escalations (traces)"),
-    await renderRecentEscalations());
+    $("h3", {}, "Recent escalations (traces)"));
+  paneEmit?.();                       // snapshot sections are ready: paint them
+  root.append(await tailPromise);     // the tail section fills in when it lands
+}
+
+function escalationsNode(entries) {
+  const escalations = (entries || []).filter(e => e.event === "escalate");
+  if (!escalations.length) {
+    return $("p", { class: "muted" }, "No escalations in the recent ledger tail.");
+  }
+    return table(["seq", "from model", "to model", "directed by", "task"],
+    escalations.slice(-12).reverse().map(e => {
+      const directed = (e.directed_by || "verify_lane") === "jev";
+      return [e.seq, e.from_model || "—", e.to_model || "—",
+        directed ? `jev (conf ${e.jev_confidence ?? "?"})` : "verify_lane",
+        (e.task_id || "").slice(0, 18)];
+    }));
 }
 
 async function renderRecentEscalations() {
   try {
     const tail = await api("/api/ledger/tail?n=300");
-    const escalations = (tail.entries || []).filter(e => e.event === "escalate");
-    if (!escalations.length) {
-      return $("p", { class: "muted" }, "No escalations in the recent ledger tail.");
-    }
-    return table(["seq", "from model", "to model", "directed by", "task"],
-      escalations.slice(-12).reverse().map(e => {
-        const directed = (e.directed_by || "verify_lane") === "jev";
-        return [e.seq, e.from_model || "—", e.to_model || "—",
-          directed ? `jev (conf ${e.jev_confidence ?? "?"})`
-                   : "verify_lane",
-          (e.task_id || "").slice(0, 18)];
-      }));
+    return escalationsNode(tail.entries);
   } catch (err) {
     return $("p", { class: "muted" }, `Ledger tail unavailable: ${err.message}`);
   }
@@ -1633,9 +1651,17 @@ export function initPanes() {
     // state the pane looks like a dead view for that whole time (#586).
     subtoolBody.replaceChildren(
       $("p", { class: "muted", "data-pane-loading": "1" }, "Loading…"));
-    await renderPane(stage, entry[2]);
-    if (seq !== renderSeq) return;
-    subtoolBody.replaceChildren(...stage.childNodes);
+    const emit = () => {
+      if (seq !== renderSeq || !stage.childNodes.length) return;
+      subtoolBody.replaceChildren(stage);
+    };
+    paneEmit = emit;
+    try {
+      await renderPane(stage, entry[2]);
+    } finally {
+      paneEmit = null;
+    }
+    emit();
   }
 
   function setMode(mode, targetSubtool = null) {
