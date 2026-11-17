@@ -11,6 +11,8 @@ import hashlib
 import json
 import os
 import re
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -102,20 +104,77 @@ def get_default_history_dir() -> Path:
     return history_dir
 
 
-def save_chat_turn(session_id: str, turn: Dict[str, Any], history_dir: Optional[Path] = None) -> Path:
-    # Append a chat turn to the persisted JSONL history file
+#: Additive identity on every newly persisted turn record (#570). A stored
+#: turn must answer *when* it happened and *which request* produced it. The
+#: keys are additive on purpose: records written before they existed stay
+#: readable, are never rewritten on read, and are reported as legacy.
+TURN_TS_KEY = "ts"
+TURN_SESSION_KEY = "session_id"
+TURN_REQUEST_KEY = "request_id"
+
+
+def _turn_timestamp() -> str:
+    # Same stamp shape the ledger rows use, so a turn and its ledger row sort
+    # together without a conversion step.
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def stamp_turn_identity(session_id: str, turn: Dict[str, Any], *,
+                        request_id: Optional[str] = None) -> Dict[str, Any]:
+    """Return a copy of ``turn`` carrying the additive identity fields.
+
+    The caller's dict is never mutated. An identity the caller already knows
+    wins over the generated one: a lane that threaded its lifecycle
+    ``request_id`` keeps it (so the row joins the ledger), and a record that
+    already has a timestamp keeps it on re-save.
+    """
+    record = dict(turn)
+    record.setdefault(TURN_TS_KEY, _turn_timestamp())
+    record.setdefault(TURN_SESSION_KEY, session_id)
+    known = request_id or record.get(TURN_REQUEST_KEY)
+    record[TURN_REQUEST_KEY] = known or uuid.uuid4().hex
+    return record
+
+
+def turn_identity(turn: Dict[str, Any]) -> Dict[str, Any]:
+    """Report a stored turn's identity without rewriting the record.
+
+    ``legacy`` is True for a turn persisted before the additive keys existed:
+    its file mtime dates the last append only, and it carries no request
+    attribution. The reader says exactly that instead of inventing an
+    identity for it.
+    """
+    if not isinstance(turn, dict):
+        raise HarnessError("chat turn must be an object")
+    ts = turn.get(TURN_TS_KEY)
+    session_id = turn.get(TURN_SESSION_KEY)
+    request_id = turn.get(TURN_REQUEST_KEY)
+    return {
+        TURN_TS_KEY: ts if isinstance(ts, str) and ts else None,
+        TURN_SESSION_KEY: session_id if isinstance(session_id, str) and session_id else None,
+        TURN_REQUEST_KEY: request_id if isinstance(request_id, str) and request_id else None,
+        "legacy": not (isinstance(ts, str) and ts),
+    }
+
+
+def save_chat_turn(session_id: str, turn: Dict[str, Any], history_dir: Optional[Path] = None,
+                   *, request_id: Optional[str] = None) -> Path:
+    # Append a chat turn to the persisted JSONL history file, stamped with the
+    # additive identity above so the stored record is datable and attributable
+    # on its own rather than through its file's mtime (#570).
     hdir = history_dir or get_default_history_dir()
     file_path = _chat_history_path(session_id, hdir)
+    record = stamp_turn_identity(session_id, turn, request_id=request_id)
     with open(file_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(turn, ensure_ascii=False) + "\n")
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
     # Project the turn into durable conversation memory (sites, paths, the
     # last request).  The transcript is the source of truth and must survive
     # even if the projection fails, so a memory error never breaks the save.
     try:
         from .conversation_context import remember_turn
 
-        remember_turn(session_id, str(turn.get("prompt") or ""),
-                      str(turn.get("response") or ""), history_dir=Path(hdir))
+        remember_turn(session_id, str(record.get("prompt") or ""),
+                      str(record.get("response") or ""), history_dir=Path(hdir))
     except Exception as exc:  # noqa: BLE001 - projection is best-effort
         from .output import eprint
 
