@@ -169,6 +169,84 @@ class ComposedCeilingTests(unittest.TestCase):
         self.assertEqual(emitted["composed_worst_case"]["plan_ceiling"], 0.0001)
         self.assertTrue(emitted["composed_worst_case"]["exceeds_remaining"])
 
+    def test_completed_decompose_not_double_counted_at_feasible_boundary(self):
+        """#346 Case 4: cap $0.10, completed decompose spent $0.02 (remaining $0.08),
+        future node allowance <= $0.07 -> all-in $0.09 <= $0.10 must be planned, not refused."""
+        from unittest.mock import patch
+        fake = FakeTransport(models=[
+            m("m/cheap", "0.0001", "0.0002"),
+            m("m/front", "0.0001", "0.0002"),
+        ])
+        gov = SpendGovernor(fake, "sk-test", max_cost=0.10)
+
+        def chat_fn(_prompt):
+            gov.record_actual(0.02, "m/cheap")
+            return DECOMP_JSON, 0.02
+
+        with patch("harness.waist.plan_task", side_effect=lambda **kw: {
+            "goal": kw["goal"],
+            "nodes": [{"node_id": "t1", "route": {"cost_ceiling": 0.07}}],
+            "total_cost_ceiling": 0.07,
+            "dag": {"nodes": []},
+        }), patch("harness.waist._fit_plan_to_single_pass", side_effect=lambda p, **kw: p):
+            plan = compose_plan(
+                transport=fake, api_key="k", governor=gov, ledger=None,
+                opts_goal="Split the work", candidate_files=["harness/sync.py"],
+                decompose_llm=True, decompose_model="m/cheap",
+                confirm=False, execute=True, chat_fn=chat_fn, use_free=False,
+                frontier_model="m/front")
+
+        self.assertNotEqual(plan.get("status"), "refused")
+        cwc = plan["composed_worst_case"]
+        self.assertEqual(cwc["decompose"], 0.0)
+        self.assertAlmostEqual(cwc["planning_spent"], 0.02, places=6)
+        self.assertAlmostEqual(cwc["remaining"], 0.08, places=6)
+        self.assertAlmostEqual(cwc["composed_worst_case"], 0.07, places=6)
+        self.assertAlmostEqual(cwc["all_in_worst_case"], 0.09, places=6)
+        self.assertFalse(cwc["exceeds_remaining"])
+
+    def test_over_budget_control_after_decompose_and_waist_amendment_refuses(self):
+        """#346 control: when remaining future liability exceeds remaining funds after
+        planning retries/amendments, compose_plan refuses unfunded execution."""
+        from unittest.mock import patch
+        fake = FakeTransport(models=[
+            m("m/cheap", "0.000001", "0.000002"),
+            m("m/front", "0.000001", "0.000002"),
+        ])
+        gov = SpendGovernor(fake, "sk-test", max_cost=0.10)
+
+        def chat_fn(_prompt):
+            gov.record_actual(0.02, "m/cheap")
+            return DECOMP_JSON, 0.02
+
+        def confirm_amends(**kw):
+            gov.record_actual(0.03, "m/front")
+            p = dict(kw["plan_result"])
+            p["status"] = "planned"
+            p["total_cost_ceiling"] = 0.06  # 0.06 > 0.05 remaining after $0.05 spent
+            p["confirmation"] = {"verdict": "approve", "model": "m/front", "cost": 0.03}
+            return p
+
+        with patch("harness.waist.plan_task", side_effect=lambda **kw: {
+            "goal": kw["goal"], "nodes": [{"node_id": "t1", "route": {"cost_ceiling": 0.04}}],
+            "total_cost_ceiling": 0.04, "dag": {"nodes": []},
+        }), patch("harness.waist._fit_plan_to_single_pass", side_effect=lambda p, **kw: p), \
+                patch("harness.waist.confirm_plan", side_effect=confirm_amends):
+            plan = compose_plan(
+                transport=fake, api_key="k", governor=gov, ledger=None,
+                opts_goal="Split the work", candidate_files=["harness/sync.py"],
+                decompose_llm=True, decompose_model="m/cheap",
+                confirm=True, execute=True, chat_fn=chat_fn, use_free=False,
+                frontier_model="m/front")
+
+        self.assertEqual(plan["status"], "refused")
+        cwc = plan["composed_worst_case"]
+        self.assertAlmostEqual(cwc["planning_spent"], 0.05, places=6)
+        self.assertAlmostEqual(cwc["remaining"], 0.05, places=6)
+        self.assertAlmostEqual(cwc["composed_worst_case"], 0.06, places=6)
+        self.assertTrue(cwc["exceeds_remaining"])
+        self.assertIn("planning_spent=0.050000", plan["confirmation"]["evidence"])
+
 
 if __name__ == "__main__":
     unittest.main()
