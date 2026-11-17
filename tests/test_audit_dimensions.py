@@ -916,6 +916,46 @@ class AuditConfidenceFloorTests(unittest.TestCase):
             ans, self.LEVELS, evidence_score=9.6, min_confidence=0.70)
         self.assertEqual((idx, source), (3, "heuristic"))
 
+class AuditEvidenceTextAbsentDimTests(unittest.TestCase):
+    """An unmeasured dimension must never be rendered as a zero score.
+
+    #578: a --dim A run rendered the other three dimensions as
+    "score=0.00/10 (0/0 checks fully satisfied)", so the model graded A against
+    three fabricated zeros and reported FAIL 5.00/10 for a 13/13 pass. The
+    renderer now states that the dimension was not evaluated.
+    """
+
+    def _text(self, evidence):
+        from harness.jev_policy import JevPolicy
+        return JevPolicy._audit_dimension_text(evidence)
+
+    def test_absent_dimension_is_not_rendered_with_a_score(self):
+        text = self._text({"A": {"score": 10.0, "checks_satisfied": 13,
+                                 "checks_count": 13, "checks": []}})
+        for dim in ("R", "SM", "SD"):
+            line = [ln for ln in text.splitlines() if ln.startswith(f"Dimension {dim}:")][0]
+            self.assertIn("not evaluated", line)
+            self.assertNotIn("score=", line)
+            self.assertNotIn("0/0", line)
+
+    def test_measured_dimension_still_carries_its_numbers(self):
+        text = self._text({"A": {"score": 9.6, "checks_satisfied": 12,
+                                 "checks_count": 13, "checks": []}})
+        line = [ln for ln in text.splitlines() if ln.startswith("Dimension A:")][0]
+        self.assertIn("score=9.60/10", line)
+        self.assertIn("12/13", line)
+
+    def test_empty_and_non_mapping_evidence_are_all_not_evaluated(self):
+        for evidence in ({}, None, [], "nope"):
+            text = self._text(evidence)
+            self.assertEqual(text.count("not evaluated"), 4, evidence)
+            self.assertNotIn("score=", text)
+
+    def test_a_dimension_present_but_not_a_mapping_is_not_evaluated(self):
+        text = self._text({"A": "pass", "R": None})
+        self.assertIn("Dimension A: not evaluated", text)
+        self.assertIn("Dimension R: not evaluated", text)
+
 if __name__ == "__main__":
     unittest.main()
 

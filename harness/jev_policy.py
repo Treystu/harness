@@ -3459,9 +3459,20 @@ class JevPolicy:
     @staticmethod
     def _audit_dimension_text(dimension_evidence: Any) -> str:
         lines = ["Harness 4-Dimensional Self-Audit Evidence:"]
+        source = dimension_evidence if isinstance(dimension_evidence, dict) else {}
         for dim in ("A", "R", "SM", "SD"):
-            ev = (dimension_evidence or {}).get(dim, {})
-            score = ev.get("score", 0.0) if isinstance(ev, dict) else 0.0
+            ev = source.get(dim)
+            if not isinstance(ev, dict):
+                # A dimension this run did not measure has NO score. Rendering
+                # it as score=0.00/10 with 0/0 checks asks the model to grade
+                # the dimension against three fabricated zeros, which is how a
+                # --dim run turned a 13/13 pass into "failing -- severe defect"
+                # (#578). Say what is true: it was not evaluated, and the
+                # absent score must not be inferred.
+                lines.append(f"Dimension {dim}: not evaluated (no evidence "
+                             "supplied for this run; do not infer a score for it)")
+                continue
+            score = ev.get("score", 0.0)
             satisfied = ev.get("checks_satisfied", 0)
             total = ev.get("checks_count", 0)
             lines.append(f"Dimension {dim}: score={score:.2f}/10 ({satisfied}/{total} checks fully satisfied)")
