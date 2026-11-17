@@ -272,7 +272,8 @@ def validated_ladder(ladder):
                 f"[{rung.confirm}, {rung.act}) no wider than the jitter band "
                 f"width {JITTER_BAND_WIDTH}")
     acts = sorted(rung.act for rung in ladder.values())
-    for lower, upper in zip(acts, acts[1:], strict=False):
+    for index in range(len(acts) - 1):
+        lower, upper = acts[index], acts[index + 1]
         if upper - lower <= JITTER_BAND_WIDTH + _JITTER_EPSILON:
             raise ConfigError(
                 f"confidence ladder act rungs {lower} and {upper} are not "
