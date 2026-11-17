@@ -273,5 +273,164 @@ class NonGoalTests(unittest.TestCase):
             hd.receipts_window(["not-a-dict"])
 
 
+class DeclinedCandidateLedgerTests(unittest.TestCase):
+    """L4: a declined candidate is remembered, and needs new evidence to return."""
+
+    def _decision(self, **kw):
+        base = {"decision": "run", "why": "needs the parser first",
+                "input": {"skill": "parser"}, "expectedGain": 2,
+                "confidence": 0.8, "evidence": ["trace: parse failed"]}
+        base.update(kw)
+        return base
+
+    def test_ledger_records_reason_and_evidence(self):
+        from harness.hul_decision import declined_candidates
+        ledger = declined_candidates([self._decision(declined=["rewrite-module"])])
+        self.assertEqual(list(ledger), ["rewrite-module"])
+        self.assertEqual(ledger["rewrite-module"][0]["why"], "needs the parser first")
+        self.assertEqual(ledger["rewrite-module"][0]["evidence"], ["trace: parse failed"])
+
+    def test_repeated_decline_accumulates_history(self):
+        from harness.hul_decision import declined_candidates
+        ledger = declined_candidates([
+            self._decision(declined=["rewrite-module"], why="too broad"),
+            self._decision(declined=["rewrite-module"], why="still too broad"),
+        ])
+        self.assertEqual([e["why"] for e in ledger["rewrite-module"]],
+                         ["too broad", "still too broad"])
+
+    def test_reproposal_needs_new_evidence(self):
+        from harness.hul_decision import declined_candidates, may_repropose
+        ledger = declined_candidates([self._decision(declined=["rewrite-module"])])
+        refused = may_repropose("rewrite-module", ledger=ledger)
+        self.assertFalse(refused["allowed"])
+        self.assertEqual(refused["reason"], "declined_without_new_evidence")
+        allowed = may_repropose("rewrite-module", ledger=ledger,
+                                new_evidence=["trace: parser now passes"])
+        self.assertTrue(allowed["allowed"])
+        self.assertEqual(allowed["reason"], "new_evidence")
+        self.assertTrue(may_repropose("other", ledger=ledger)["allowed"])
+
+
+class CostPerGainFloorTests(unittest.TestCase):
+    """L5: a run must buy forecast per unit spend; a stop is never trapped."""
+
+    def _run(self, gain):
+        return {"decision": "run", "why": "one more pass",
+                "input": {"label": "pass", "prompt": "continue the pass"},
+                "expectedGain": gain, "confidence": 0.7}
+
+    def test_run_below_floor_is_refused(self):
+        from harness.hul_decision import admissible_run
+        out = admissible_run(self._run(1), cost=10.0, max_cost_per_gain=1.0)
+        self.assertFalse(out["allowed"])
+        self.assertEqual(out["reason"], "below_cost_per_gain_floor")
+
+    def test_run_at_floor_is_admitted(self):
+        from harness.hul_decision import admissible_run
+        out = admissible_run(self._run(1), cost=1.0, max_cost_per_gain=1.0)
+        self.assertTrue(out["allowed"])
+        self.assertAlmostEqual(out["cost_per_gain"], 1.0)
+
+    def test_zero_expected_gain_is_never_admissible(self):
+        from harness.hul_decision import admissible_run
+        out = admissible_run(self._run(0), cost=0.0, max_cost_per_gain=0.0)
+        self.assertFalse(out["allowed"])
+        self.assertEqual(out["reason"], "no_expected_gain")
+
+    def test_stop_is_always_admissible(self):
+        from harness.hul_decision import admissible_run
+        out = admissible_run({"decision": "stop", "why": "done", "expectedGain": 0},
+                             cost=99.0, max_cost_per_gain=99.0)
+        self.assertTrue(out["allowed"])
+        self.assertEqual(out["reason"], "stop_spends_nothing")
+
+
+class PhaseBudgetTests(unittest.TestCase):
+    """L6: only the terminal phase may draw on the mission's remaining budget."""
+
+    def test_non_terminal_phase_is_capped(self):
+        from harness.hul_decision import phase_budget
+        out = phase_budget("build", spent=5, total_budget=100, per_phase_cap=20)
+        self.assertEqual(out["cap"], 20.0)
+        self.assertEqual(out["remaining"], 15.0)
+        self.assertFalse(out["unlocked"])
+
+    def test_terminal_phase_unlocks_the_remainder(self):
+        from harness.hul_decision import phase_budget
+        out = phase_budget("terminal", spent=5, total_budget=100, per_phase_cap=20)
+        self.assertEqual(out["cap"], 100.0)
+        self.assertEqual(out["remaining"], 95.0)
+        self.assertTrue(out["unlocked"])
+
+    def test_exhausted_budget_reports_zero_not_negative(self):
+        from harness.hul_decision import phase_budget
+        self.assertEqual(phase_budget("verify", spent=50, total_budget=100,
+                                      per_phase_cap=20)["remaining"], 0.0)
+
+    def test_unknown_phase_is_refused(self):
+        from harness.hul_decision import HulDecisionError, phase_budget
+        with self.assertRaises(HulDecisionError):
+            phase_budget("someday", spent=0, total_budget=1, per_phase_cap=1)
+
+
+class SubagentBoundaryTests(unittest.TestCase):
+    """L11: a subagent cannot be handed work outside its declared namespaces."""
+
+    def test_input_inside_the_boundary_is_admitted(self):
+        from harness.hul_decision import subagent_scope
+        out = subagent_scope({"decision": "run", "why": "w",
+                              "input": {"skill": "parser"}, "expectedGain": 1},
+                             may_read=["parser"], may_write=["parser"])
+        self.assertTrue(out["allowed"])
+
+    def test_input_outside_the_boundary_is_refused(self):
+        from harness.hul_decision import subagent_scope
+        out = subagent_scope({"decision": "run", "why": "w",
+                              "input": {"skill": "deploy"}, "expectedGain": 1},
+                             may_read=["parser"], may_write=["parser"])
+        self.assertFalse(out["allowed"])
+        self.assertEqual(out["reason"], "outside_write_scope")
+
+    def test_empty_boundary_is_a_declaration_error(self):
+        from harness.hul_decision import HulDecisionError, subagent_scope
+        with self.assertRaises(HulDecisionError):
+            subagent_scope({"decision": "run", "why": "w",
+                            "input": {"skill": "parser"}, "expectedGain": 1},
+                           may_read=[], may_write=["parser"])
+
+
+class CancellationRecordTests(unittest.TestCase):
+    """L12: a cancel leaves a record the next seat can resume from."""
+
+    GRADES = {"spec": 7, "design": 9, "correctness": 6, "quality": 8}
+
+    def test_record_carries_phase_grades_and_next_target(self):
+        from harness.hul_decision import cancellation_record
+        out = cancellation_record(phase="build", grades=self.GRADES,
+                                  cancelled_at="2026-11-17T05:00:00Z")
+        self.assertTrue(out["resumable"])
+        self.assertEqual(out["phase"], "build")
+        self.assertEqual(out["next_grade_target"], ("correctness", 6))
+        self.assertEqual(out["receipts"], [])
+
+    def test_record_carries_declines_and_scope_anchor(self):
+        from harness.hul_decision import cancellation_record
+        out = cancellation_record(
+            phase="build", grades=self.GRADES,
+            cancelled_at="2026-11-17T05:00:00Z",
+            decisions=[{"decision": "run", "why": "too broad",
+                        "input": {"skill": "rewrite"}, "expectedGain": 1,
+                        "declined": ["rewrite-everything"]}],
+            scope_anchor="ship the parser fix")
+        self.assertIn("rewrite-everything", out["declined"])
+        self.assertEqual(out["scope_anchor"], "ship the parser fix")
+
+    def test_record_without_grades_is_refused(self):
+        from harness.hul_decision import HulDecisionError, cancellation_record
+        with self.assertRaises(HulDecisionError):
+            cancellation_record(phase="build", grades={},
+                                cancelled_at="2026-11-17T05:00:00Z")
+
 if __name__ == "__main__":
     unittest.main()
