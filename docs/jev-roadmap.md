@@ -30,19 +30,18 @@ the register of record for *ordering*; this mirror keeps its wave order
 and corrects its counts, because a snapshot cannot stay true while issues
 close.
 
-### Census (2026-11-17 at `01:09:00Z`, base `main` `212735ba`, Slice 3C PR)
+### Census (2026-11-17 at `01:30:00Z`, base `main` `22340d87`, Slice 3D PR)
 
 - **60 open issues**, agreed by two independent reads:
-  `gh issue list --state open --limit 400` and the search API
-  (`type:issue state:open`) both return **60**; prior open PR `#559`
-  merged as `212735ba1d2d2cff9a54fbfd2561dfe8831006a1`.
-- Across the wave tables below (`W0`–`W10`), **101** tracked issue rows appear:
-  **60** `OPEN` and **41** `CLOSED`, with **0** open issues absent from
-  this mirror. The arithmetic reconciles: `101 - 41 = 60`.
-- Closed since the 2026-11-17 `00:49:00Z` mirror: PR `#559` (`212735ba`)
-  landed and closed `#302` and `#346`, plus evidence reconciliation closed
-  `#325` (`harness/jev_assessment.py` verified 28/28 OK on `main`). Slice 3C
-  (`#420`) stays `OPEN` until Slice 3C merges.
+  `gh issue list --state open --limit 400` (`60`) and the search API
+  (`type:issue state:open`, `60`), including newly filed `#561`; prior open
+  PR `#560` merged as `22340d878bcb115aaf19998ce1005e913d3c7940`.
+- Across the wave tables below (`W0`–`W10`), **102** tracked issue rows appear:
+  **60** `OPEN` and **42** `CLOSED`, with **0** open issues absent from
+  this mirror. The arithmetic reconciles: `102 - 42 = 60`.
+- Closed since the 2026-11-17 `01:09:00Z` mirror: PR `#560` (`22340d87`)
+  landed and closed `#420`. New W2 docs issue `#561` opened. Slice 3D
+  (`#530`) stays `OPEN` until Slice 3D merges.
 
 ### Rows that closed since the 2026-11-11 filing
 
@@ -64,8 +63,9 @@ close.
 | [#549](https://github.com/Treystu/harness/issues/549), [#550](https://github.com/Treystu/harness/issues/550), [#552](https://github.com/Treystu/harness/issues/552), [#555](https://github.com/Treystu/harness/issues/555), [#556](https://github.com/Treystu/harness/issues/556) | PR `#558` (`27c509b4`, 15/15 CI green at `d11695d8`) |
 | [#302](https://github.com/Treystu/harness/issues/302), [#346](https://github.com/Treystu/harness/issues/346) | PR `#559` (`212735ba`, 15/15 CI green at `f4376353`) |
 | [#325](https://github.com/Treystu/harness/issues/325) | evidence close 2026-11-17 on `main` `212735ba` (`harness/jev_assessment.py`, 28/28 tests OK) |
+| [#420](https://github.com/Treystu/harness/issues/420) | PR `#560` (`22340d87`, 15/15 CI green at `bc40c1b6`) |
 
-*Staged in Slice 3C PR (still `OPEN` until Slice 3C merges, then queued for post-merge close):* `#420`.
+*Staged in Slice 3D PR (still `OPEN` until Slice 3D merges, then queued for post-merge close):* `#530`.
 
 ### Waves - live counts
 
@@ -73,10 +73,10 @@ close.
 | --- | --- | --- |
 | W0 - Rail and gate truth - blocks landing anything else | 4 | 0 |
 | W1 - Active queue - the filed order | 2 | 1 |
-| W2 - Verification and surface truth | 32 | 14 |
+| W2 - Verification and surface truth | 33 | 15 |
 | W3 - Driver and perception | 5 | 5 |
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
-| W5 - Research and retrieval | 4 | 4 |
+| W5 - Research and retrieval | 4 | 3 |
 | W6 - Spend, routing and calibration | 15 | 10 |
 | W7 - Structure and scoped defects | 16 | 8 |
 | W8 - Champion Audit program | 12 | 11 |
@@ -99,7 +99,7 @@ close.
 | [#275](https://github.com/Treystu/harness/issues/275) Hourglass/HUL: integrate Freebuff mission-mode findings (full dossier) | OPEN | L1-L3 `harness/hul_decision.py` landed; remaining dossier integration open |
 | [#489](https://github.com/Treystu/harness/issues/489) [jev] External Jev calibration draft: validation verdict — do not integrate as written; scoped residue for the lane | CLOSED | PR #551 (`a144ce28`): `harness/jev_conformance.py`, `harness/jev_calibration.py`, `tests/test_jev_conformance.py`, `tests/test_jev_deferral_reporting.py` |
 
-### W2 - Verification and surface truth - 14 open
+### W2 - Verification and surface truth - 15 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -128,13 +128,14 @@ close.
 | [#430](https://github.com/Treystu/harness/issues/430) [lifecycle] Stop repeated retries after validated restart or consent refusal | CLOSED | `harness/restart_policy.py`, `tests/test_hourglass_stage_judgments.py` |
 | [#448](https://github.com/Treystu/harness/issues/448) [desktop] Honor read-only workspace audits and preflight the full scope | CLOSED | `harness/workspace_audit.py`, `tests/test_workspace_audit_routing_448.py`, `tests/test_read_only_audit_448.py` |
 | [#463](https://github.com/Treystu/harness/issues/463) [found-in-use:submission] harness-oc MCP server fails to start over ssh stdio (transport); error text truncates the failing command | OPEN | none |
-| [#530](https://github.com/Treystu/harness/issues/530) [driver-core] Sync vendored driver_core v3.5.0 -> v3.6.0 (upstream moved; drift check red) | OPEN | none |
+| [#530](https://github.com/Treystu/harness/issues/530) [driver-core] Sync vendored driver_core v3.5.0 -> v3.6.0 (upstream moved; drift check red) | OPEN | staged in Slice 3D PR |
 | [#549](https://github.com/Treystu/harness/issues/549) [cli] doctor gui_port cannot recognise an auth-required Harness UI: its OK branch requires the literal X-Harness-Auth in the response body | CLOSED | PR #558 (`27c509b4`) |
 | [#552](https://github.com/Treystu/harness/issues/552) [cli] models envelope says free_only true and use_free false in one object, and count names three different quantities across models, capabilities and ledger tail | CLOSED | PR #558 (`27c509b4`) |
 | [#553](https://github.com/Treystu/harness/issues/553) [docs] audit-triage runbook says the traced battery is 2-5 minutes; a completed audit run measured 12m25s | OPEN | none |
 | [#554](https://github.com/Treystu/harness/issues/554) [docs] roadmap state labels drift from live issues: align OPEN/CLOSED truth, W0 heading, wave counts, and #454 credit | CLOSED | PR #551 (`a144ce28`) |
 | [#556](https://github.com/Treystu/harness/issues/556) [cli] doctor marks typesafe OK on 'endpoint responded HTTP 405' with no scope word | CLOSED | PR #558 (`27c509b4`) |
 | [#557](https://github.com/Treystu/harness/issues/557) [docs] cited ledger entries D-2026-11-13-019 and -016 are not readable from the repo | OPEN | none |
+| [#561](https://github.com/Treystu/harness/issues/561) [docs] closure comments cite commits that do not exist or are not on main (5 issues splice a SHA) | OPEN | none |
 
 ### W3 - Driver and perception - 5 open
 
@@ -154,14 +155,14 @@ close.
 | [#459](https://github.com/Treystu/harness/issues/459) [completion] Direct-reference completion: the judge must read deliverables and real test output, not an 8k/4k status summary | CLOSED | PR #514 (`8305712`) |
 | [#460](https://github.com/Treystu/harness/issues/460) [loop] Assistance breakpoint in the plan-lane loop: Jev can pause and request LLM/operator help, then resume from the register | CLOSED | PR #515 (`fc53d97`) |
 
-### W5 - Research and retrieval - 4 open
+### W5 - Research and retrieval - 3 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
 | [#342](https://github.com/Treystu/harness/issues/342) [research] Implement the missing shared model-proposed ResearchPlan and native Jev review lifecycle | OPEN | register: #345, #346, #324 (closed) |
 | [#343](https://github.com/Treystu/harness/issues/343) [web] Reject unrelated hits individually instead of accepting a mixed target-site result batch | OPEN | register: #342 |
 | [#344](https://github.com/Treystu/harness/issues/344) [lifecycle] Bind resumed web context to the current request and retrieval decision | OPEN | register: #342 |
-| [#420](https://github.com/Treystu/harness/issues/420) [site] Use the TypeSafe System One contract for route judgments | OPEN | staged in Slice 3C PR |
+| [#420](https://github.com/Treystu/harness/issues/420) [site] Use the TypeSafe System One contract for route judgments | CLOSED | PR #560 (`22340d87`) |
 
 ### W6 - Spend, routing and calibration - 10 open
 
@@ -197,7 +198,7 @@ close.
 | [#310](https://github.com/Treystu/harness/issues/310) [provision] Split admission, approval, and execution by trust boundary | OPEN | register: #276 (closed) |
 | [#311](https://github.com/Treystu/harness/issues/311) [local-fit] Exercise training and export extra in hermetic CI | OPEN | register: #276 (closed) |
 | [#314](https://github.com/Treystu/harness/issues/314) feat(jev): offline Jev-like judge modules (local inference backends) | OPEN | register: #325, #309 |
-| [#325](https://github.com/Treystu/harness/issues/325) [jev][MED] v1 assessment gate (5-aspect suite + flexibility rule) has no code counterpart | CLOSED | `harness/jev_assessment.py` (PR #442 `d516c1a`, 28/28 OK) |
+| [#325](https://github.com/Treystu/harness/issues/325) [jev][MED] v1 assessment gate (5-aspect suite + flexibility rule) has no code counterpart | CLOSED | `harness/jev_assessment.py` (PR #442 `82847461`, 28/28 OK) |
 | [#328](https://github.com/Treystu/harness/issues/328) [cli][MINOR] no version surface: --version / -v / version all exit 2 | CLOSED | PR #531 (`5f2554e`) |
 | [#329](https://github.com/Treystu/harness/issues/329) [cli] polish: desktop usage line + shared --out/--quiet/--events/--no-color flags missing on defer/media/driver | OPEN | none |
 | [#332](https://github.com/Treystu/harness/issues/332) [audit] inconsistent fallback model labeling: is_fallback=True with model=jev-latest vs model=local-heuristic | CLOSED | PR #536 |

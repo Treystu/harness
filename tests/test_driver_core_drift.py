@@ -52,8 +52,8 @@ class CheckTests(DriftFixture):
     def test_shipping_pin_matches_the_vendored_copy(self):
         result = check_drift()
         self.assertTrue(result["ok"], result)
-        self.assertEqual(result["vendored"], "3.5.0")
-        self.assertEqual(result["pinned"], "3.5.0")
+        self.assertEqual(result["vendored"], "3.6.0")
+        self.assertEqual(result["pinned"], "3.6.0")
 
     def test_pin_mismatch_fails_offline(self):
         self.write_pin(dict(PIN, version="3.4.0"))
@@ -110,9 +110,9 @@ class CheckTests(DriftFixture):
             encoding="utf-8")
         workflow = (DEFAULT_PIN.parents[1] / ".github" / "workflows" / "ci.yml").read_text(
             encoding="utf-8")
-        self.assertIn("`3.5.0` as vendored", docs)
+        self.assertIn("`3.6.0` as vendored", docs)
         self.assertIn("scripts/check_driver_core_drift.py", docs)
-        self.assertNotIn("3.4.0 as vendored", docs)
+        self.assertNotIn("3.5.0 as vendored", docs)
         self.assertNotIn("not yet in CI", docs)
         self.assertIn("scripts/check_driver_core_drift.py --remote", workflow)
         self.assertEqual(DEFAULT_VENDORED.name, "__init__.py")

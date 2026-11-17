@@ -7,6 +7,11 @@ the built wheel, the running service and this docstring cannot drift apart.
 What each version changed, one line each; the mechanisms they introduced are
 documented where those mechanisms live.
 
+* ``3.6.0``: capture latency is recorded beside the audit log rather than
+  in it (``trace.py``, #70). The chain cannot carry a duration without
+  breaking the byte-identical golden, so the number goes to an unchained
+  ``<audit stem>.trace.jsonl`` tied to the run by ``step_id``. No record
+  written to the log changed, and the wire contract was not touched.
 * ``3.5.0``: the standalone 3.5.0 reconciliation -- the ``extractors/``
   package plus guardrails, Jev audit context, locate and verdicts.  The
   harness-local patches remain deliberate; see ``docs/driver.md``'s vendoring
@@ -36,4 +41,4 @@ shape it has had since 2.x. Post-action verification adds the
 absent work for a driver with the feature off.
 """
 
-__version__ = "3.5.0"
+__version__ = "3.6.0"
