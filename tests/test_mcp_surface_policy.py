@@ -222,5 +222,106 @@ class CommandLineTests(unittest.TestCase):
             self.assertEqual(ms.main(["--check", "--snapshot", snap_p]), 0)
 
 
+class AnnotationPolicyTests(unittest.TestCase):
+    def _annotated(self, name="t1", *, read_only=True, destructive=False,
+                   idempotent=None, open_world=False, title=None,
+                   desc="When: x. In: y. Out: z.", props=None):
+        ann = {
+            "readOnlyHint": read_only,
+            "destructiveHint": destructive,
+            "openWorldHint": open_world,
+        }
+        if idempotent is not None:
+            ann["idempotentHint"] = idempotent
+        entry = tool(name=name, props=props)
+        entry["title"] = title if title is not None else name
+        entry["description"] = desc
+        entry["annotations"] = ann
+        return entry
+
+    def test_all_33_catalog_tools_carry_accurate_annotations(self):
+        from unittest import mock
+        from harness import mcp as mcp_mod
+        from harness.mcp import McpServer
+        from harness.mcp_lanes import MUTATION_LANE
+
+        self.assertEqual(ms.lint_tool_annotations(TOOL_SCHEMAS), 33)
+        served = McpServer._tools(object())
+        by_name = {entry["name"]: entry for entry in served}
+        self.assertEqual(len(by_name), 33)
+
+        expected_readonly = {
+            "ask", "site_check", "panel_verify", "ledger_status",
+            "participation_report", "spend_status", "trust_status",
+            "issue_sort", "route_query", "log_judgment", "lucas_gate_v2",
+            "jev_phase", "generate_brief", "driver_health",
+            "driver_vocabulary", "driver_verify", "host_provision_probe",
+            "host_provision_plan", "jev_calibration", "economics_report",
+        }
+        expected_destructive = {
+            "apply_edit", "plan_and_execute", "continue_work",
+            "script_run", "dogfood", "driver_step",
+        }
+        expected_non_destructive_mutating = {
+            "offer_work", "defer_work", "source_audit",
+            "mission_status", "jev_freeze", "repo_cards", "flush_run",
+        }
+        expected_idempotent_mutating = {"mission_status", "jev_freeze", "repo_cards"}
+        expected_open_world = {
+            "ask", "site_check", "panel_verify", "apply_edit", "offer_work",
+            "spend_status", "plan_and_execute", "issue_sort", "source_audit",
+            "route_query", "continue_work", "script_run", "log_judgment",
+            "dogfood", "host_provision_plan", "flush_run",
+        }
+
+        self.assertEqual(
+            expected_readonly | expected_destructive | expected_non_destructive_mutating,
+            set(by_name),
+        )
+        for name, entry in by_name.items():
+            ann = entry["annotations"]
+            self.assertEqual(ann["readOnlyHint"], name in expected_readonly, name)
+            self.assertEqual(ann["destructiveHint"], name in expected_destructive, name)
+            self.assertEqual(ann["openWorldHint"], name in expected_open_world, name)
+            if name in expected_readonly:
+                self.assertNotIn("idempotentHint", ann, name)
+            else:
+                self.assertEqual(ann["idempotentHint"], name in expected_idempotent_mutating, name)
+            if name in MUTATION_LANE:
+                self.assertFalse(ann["readOnlyHint"], name)
+
+        # Runtime guard refuses stale claims and verifies live catalog parity.
+        self.assertNotIn("14-action", by_name["driver_vocabulary"]["description"])
+        self.assertNotIn("read-only", by_name["mission_status"]["title"].lower())
+
+        broken = [self._annotated("ask", read_only=True, destructive=True)]
+        with mock.patch.object(mcp_mod, "TOOL_SCHEMAS", broken):
+            with self.assertRaises(ms.SurfaceError):
+                McpServer._tools(object())
+
+    def test_lint_tool_annotations_refuses_all_inconsistent_contracts(self):
+        from harness.mcp_lanes import MUTATION_LANE
+
+        mut_name = sorted(MUTATION_LANE)[0]
+        cases = [
+            (["not-a-dict"], "mapping"),
+            ([tool("missing")], "missing annotations"),
+            ([{**self._annotated("x"), "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False, "extraHint": True}}], "unknown annotation key"),
+            ([{**self._annotated("badbool"), "annotations": {"readOnlyHint": "yes", "destructiveHint": False, "openWorldHint": False}}], "must be a bool"),
+            ([self._annotated("mut_no_idem", read_only=False, destructive=False, idempotent=None)], "idempotentHint"),
+            ([self._annotated("ro_destr", read_only=True, destructive=True)], "cannot pair"),
+            ([self._annotated(mut_name, read_only=True, destructive=False)], "MUTATION_LANE"),
+            ([self._annotated("wgated", read_only=True, destructive=False, props={"allow_write": {"type": "boolean"}})], "write/exec-gated"),
+            ([self._annotated("stale_ro", read_only=False, destructive=False, idempotent=True, title="Status (read-only)")], "read-only"),
+            ([self._annotated("stale_destr", read_only=False, destructive=True, idempotent=False, desc="When: x. In: y. Out: never mutates files.")], "never mutates"),
+            ([self._annotated("ro_claims_write", read_only=True, destructive=False, desc="When: x. In: y. Out: writes the operator config.")], "claims mutation"),
+        ]
+        for bad, expected_msg in cases:
+            with self.subTest(expected_msg=expected_msg):
+                with self.assertRaises(ms.SurfaceError) as held:
+                    ms.lint_tool_annotations(bad)
+                self.assertIn(expected_msg, str(held.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
