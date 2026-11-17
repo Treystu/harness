@@ -803,7 +803,9 @@ def _cmd_ledger(opts, settings):
         raise HarnessError("defer-stats window must be a positive integer")
     ledger = _ledger(settings)
     if opts.ledger_cmd == "tail":
-        _emit({"entries": ledger.tail(opts.n), "count": len(ledger.entries()),
+        entries = ledger.tail(opts.n)
+        _emit({"entries": entries, "tail_count": len(entries),
+               "ledger_total_entries": len(ledger.entries()),
                "chain": ledger.chain_status()}, opts.out)
     elif opts.ledger_cmd == "verify":
         ok, bad = ledger.verify()
@@ -933,23 +935,51 @@ def _cmd_models(opts, settings):
         ids = [r["id"] for r in rows]
     else:
         rows = ids
-    _emit({"free_only": not opts.all, "models": rows, "count": len(rows),
+    _emit({"filter_free_only": not opts.all, "models": rows,
+           "listed_count": len(rows),
            "meta": {"source": "openrouter:/models", "fetched_at": time.time(),
-                    "use_free": settings.use_free}}, opts.out)
+                    "routing_use_free": settings.use_free}}, opts.out)
 
 
 def _cmd_spend(opts, settings):
     api_key, gov = _governor(settings)
     status: Dict[str, Any] = gov.key_status()
+    reset_scope = status.get("limit_reset") or "window"
+    status["scope"] = f"key:{reset_scope}"
+    status["key"] = {
+        "scope": f"key:{reset_scope}",
+        "limit": status.get("limit"),
+        "remaining": status.get("remaining"),
+        "limit_reset": status.get("limit_reset"),
+    }
     # Enrichment (Phase 1): the session-level budget view the governor
     # enforces, alongside the key-level data -- the same numbers a UI
     # dashboard needs, from the one owner.
-    status["session"] = {"spent": gov.spent, "ceiling": gov.max_cost,
-                         "remaining": max(0.0, gov.max_cost - gov.spent)}
+    session_remaining = max(0.0, gov.max_cost - gov.spent)
+    status["session"] = {
+        "scope": "session",
+        "spent": gov.spent,
+        "ceiling": gov.max_cost,
+        "remaining": session_remaining,
+    }
     ledger = _ledger(settings)
     c_report = ledger.cost_report()
     if "jev" in c_report:
-        status["jev"] = c_report["jev"]
+        jev = dict(c_report["jev"])
+        jev.setdefault("scope", "jev_monthly")
+        status["jev"] = jev
+    if not getattr(opts, "json", False):
+        eprint(f"[spend] key ({reset_scope}): limit=${status.get('limit')}, "
+               f"remaining={status.get('remaining')} | "
+               f"session: spent=${gov.spent:.6f} / ceiling=${gov.max_cost:.2f} "
+               f"(remaining=${session_remaining:.6f})")
+        if "jev" in status:
+            jv = status["jev"]
+            eprint(f"[spend] jev ({jv.get('month', 'monthly')}): "
+                   f"spent=${jv.get('cost', 0.0):.6f} / "
+                   f"credit=${jv.get('monthly_credit', 5.0):.2f} "
+                   f"(remaining=${jv.get('remaining_credit', 5.0):.6f}, "
+                   f"{jv.get('used_percent', 0.0):.2f}% used)")
     _emit(status, opts.out)
 
 

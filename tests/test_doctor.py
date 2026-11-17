@@ -242,11 +242,12 @@ class DoctorChecksTests(unittest.TestCase):
         return SimpleNamespace(**values)
 
     @staticmethod
-    def _response(status=200, body=b"{}"):
+    def _response(status=200, body=b"{}", headers=None):
         class Response:
             def __init__(self):
                 self.status = status
                 self.body = body
+                self.headers = headers or {}
 
             def __enter__(self):
                 return self
@@ -390,7 +391,14 @@ class DoctorChecksTests(unittest.TestCase):
         self.assertEqual(doctor.check_typesafe(settings, self._dns(False))["status"],
                          "DEGRADED")
         with mock.patch.object(doctor, "_typesafe_probe", return_value=405):
-            self.assertEqual(doctor.check_typesafe(settings, self._dns())["status"], "OK")
+            r405 = doctor.check_typesafe(settings, self._dns())
+            self.assertEqual(r405["status"], "OK")
+            self.assertIn("reachable", r405["detail"])
+            self.assertIn("405", r405["detail"])
+        with mock.patch.object(doctor, "_typesafe_probe", return_value=200):
+            r200 = doctor.check_typesafe(settings, self._dns())
+            self.assertEqual(r200["status"], "OK")
+            self.assertIn("responded HTTP 200", r200["detail"])
         with mock.patch.object(doctor, "_typesafe_probe", return_value=503):
             self.assertEqual(doctor.check_typesafe(settings, self._dns())["status"],
                              "DEGRADED")
@@ -426,6 +434,22 @@ class DoctorChecksTests(unittest.TestCase):
                                              io.BytesIO(b"X-Harness-Auth required"))
         with mock.patch.object(doctor.urllib.request, "urlopen", side_effect=auth_error):
             self.assertEqual(doctor.check_gui_port(1234)["status"], "OK")
+        header_auth_error = urllib.error.HTTPError(
+            "http://127.0.0.1", 401, "Unauthorized",
+            {"Server": "harness-ui/0.1 Python/3.14.6"},
+            io.BytesIO(b'{"error": "This browser is not connected to Harness"}'))
+        with mock.patch.object(doctor.urllib.request, "urlopen", side_effect=header_auth_error):
+            res_auth = doctor.check_gui_port(1234)
+            self.assertEqual(res_auth["status"], "OK")
+            self.assertIn("auth is required", res_auth["detail"])
+        stranger_auth_error = urllib.error.HTTPError(
+            "http://127.0.0.1", 401, "Unauthorized",
+            {"Server": "nginx/1.24"},
+            io.BytesIO(b'{"error": "unauthorized"}'))
+        with mock.patch.object(doctor.urllib.request, "urlopen", side_effect=stranger_auth_error):
+            res_stranger = doctor.check_gui_port(1234)
+            self.assertEqual(res_stranger["status"], "DEGRADED")
+            self.assertIn("unverified service", res_stranger["detail"])
         other_error = urllib.error.HTTPError("http://127.0.0.1", 503, "busy", {},
                                               io.BytesIO(b"busy"))
         with mock.patch.object(doctor.urllib.request, "urlopen", side_effect=other_error):

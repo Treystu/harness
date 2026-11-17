@@ -255,8 +255,14 @@ def check_typesafe(settings, dns_check=None):
         return _check(
             "typesafe", "DEGRADED", "TypeSafe endpoint could not be reached",
             "Check network/TLS access and HARNESS_JEV_ENDPOINT, then rerun harness doctor.")
-    if 200 <= status < 500:
-        return _check("typesafe", "OK", f"endpoint responded HTTP {status}")
+    if status == 405:
+        return _check(
+            "typesafe", "OK",
+            "endpoint reachable; HEAD probe returned HTTP 405 (POST endpoint only)")
+    if 200 <= status < 400:
+        return _check("typesafe", "OK", f"endpoint reachable; responded HTTP {status}")
+    if status < 500:
+        return _check("typesafe", "OK", f"endpoint reachable (HTTP {status})")
     return _check(
         "typesafe", "DEGRADED", f"endpoint responded HTTP {status}",
         "Check TypeSafe service availability, then rerun harness doctor.")
@@ -295,12 +301,15 @@ def check_gui_port(port):
             "Pass --gui-port with a valid loopback port.")
     url = f"http://127.0.0.1:{port}/api/status"
     request = urllib.request.Request(url, method="GET")
+    headers = {}
     try:
         with urllib.request.urlopen(request, timeout=1) as response:
             status = response.status
+            headers = dict(response.headers or {})
             body = response.read(1024).decode("utf-8", errors="ignore")
     except urllib.error.HTTPError as exc:
         status = exc.code
+        headers = dict(exc.headers or {})
         body = exc.read(1024).decode("utf-8", errors="ignore")
         exc.close()
     except urllib.error.URLError as exc:
@@ -313,9 +322,14 @@ def check_gui_port(port):
         return _check(
             "gui_port", "DEGRADED", f"127.0.0.1:{port} could not be inspected",
             "Check local firewall or listener state, or choose another --gui-port.")
+    server_header = next(
+        (str(v) for k, v in headers.items() if str(k).lower() == "server"),
+        "",
+    ).lower()
     if status == 200:
         return _check("gui_port", "OK", f"Harness GUI responds on 127.0.0.1:{port}")
-    if status == 401 and "X-Harness-Auth" in body:
+    if status == 401 and (
+            server_header.startswith("harness-ui/") or "X-Harness-Auth" in body):
         return _check(
             "gui_port", "OK", f"Harness GUI is running on 127.0.0.1:{port}; auth is required")
     return _check(
