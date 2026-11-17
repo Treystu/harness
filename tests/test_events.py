@@ -337,7 +337,8 @@ class EnrichmentTests(unittest.TestCase):
         self.assertEqual(r["meta"]["source"], "openrouter:/models")
 
     def test_capabilities_payload_labels_scope_and_count(self):
-        from harness.capability import capabilities_payload
+        from harness import capability as capability_mod
+        capabilities_payload = capability_mod.capabilities_payload
         import unittest.mock as m
 
         gov = m.Mock()
@@ -349,9 +350,17 @@ class EnrichmentTests(unittest.TestCase):
         ledger = m.Mock()
         ledger.entries.return_value = []
         ledger.participation_report.return_value = {"per_model": {}}
-        out = capabilities_payload(
-            gov, ledger, panel_pool=["a/model-a"], apply_pool=[], judge="a/model-a",
-            all_models=False)
+        # Hermetic: capabilities_payload reads ensure_profiles(CAPABILITIES_PATH,
+        # ...), so a real on-disk cache on this machine short-circuits the mocked
+        # fetch_models and drops the synthetic id (observed: profiled_count 0 != 1).
+        # Point the cache at an empty path inside a temp dir so the mocked models
+        # are the only input, on every machine.
+        with tempfile.TemporaryDirectory() as cache_dir:
+            with m.patch.object(capability_mod, "CAPABILITIES_PATH",
+                                os.path.join(cache_dir, "capabilities.json")):
+                out = capabilities_payload(
+                    gov, ledger, panel_pool=["a/model-a"], apply_pool=[],
+                    judge="a/model-a", all_models=False)
         self.assertFalse(out["all_models_included"])
         self.assertEqual(out["profiled_count"], 1)
         self.assertNotIn("count", out)
