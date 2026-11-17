@@ -22,8 +22,8 @@ origin wins. The operator tree (`main`) may lag; reconcile before trusting STATU
 
 ## Current mission (generated pointer - do not hand-edit)
 
-**Generated:** 2026-11-17 at `origin/main` `faaf657`, from a two-method live read
-(`gh issue list --state open --limit 400` = 65; search API `type:issue is:open` = 65).
+**Generated:** 2026-11-17 at `origin/main` `8ae3346`, from a two-method live read
+(`gh issue list --state open --limit 400` = 60; search API `type:issue is:open` = 60).
 Regenerate this block in the same act that updates the register mirror in
 [docs/jev-roadmap.md](docs/jev-roadmap.md); if the two disagree, the register wins
 and this block is regenerated, never hand-edited. Every change, including this
@@ -31,15 +31,15 @@ block, goes through a reviewed PR with local gates and green CI; one phase PR at
 a time; never push directly to `main`.
 
 **The open set.** Issue #295 is the live queue; the register mirror in
-`docs/jev-roadmap.md` is its generated count and order. **65 open issues**, of
-which **56 are placed** in a wave and **9 are filed but not yet placed**
-(`#573`, `#574`, `#579`, `#583`, `#585`, `#587`, `#588`, `#589`, `#594`).
+`docs/jev-roadmap.md` is its generated count and order. **60 open issues**, of
+which **54 are placed** in a wave and **6 are filed but not yet placed**
+(`#573`, `#574`, `#579`, `#585`, `#587`, `#588`).
 
 | Wave | Placed open |
 |---|---|
 | W0 - Rail and gate truth | 0 |
 | W1 - Active queue | 0 |
-| W2 - Verification and surface truth | 12 |
+| W2 - Verification and surface truth | 10 |
 | W3 - Driver and perception | 5 |
 | W4 - Project execution envelope | 0 |
 | W5 - Research and retrieval | 3 |

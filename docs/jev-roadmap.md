@@ -19,7 +19,7 @@ Related design context (not the tracker): [system-one-integration.md](system-one
 <!-- BEGIN REGISTER_MIRROR -->
 ## Register mirror - 2026-11-17 (#295)
 
-**Generated:** `2026-11-17` at base `main` `faaf657` (refresh:
+**Generated:** `2026-11-17` at base `main` `8ae3346` (refresh:
 `gh issue list --state all --limit 400 --json number,state` plus the search API
 `type:issue is:open`; both reads agree on 65 open).
 
@@ -31,20 +31,21 @@ register of record for *ordering*; this mirror keeps its wave order and
 corrects its counts, because a snapshot cannot stay true while issues
 close.
 
-### Census (2026-11-17, base `main` `faaf657`)
+### Census (2026-11-17, base `main` `8ae3346`)
 
-- **65 open issues**, agreed by two independent reads:
-  `gh issue list --state open --limit 400` (`65`) and the search API
-  (`type:issue is:open`, `65`). The previous mirror printed 62 at
-  `125ef82c`; the delta is named below rather than absorbed.
+- **60 open issues**, agreed by two independent reads:
+  `gh issue list --state open --limit 400` (`60`) and the search API
+  (`type:issue is:open`, `60`). The previous mirror printed 65 at
+  `4aaa65f1`; the delta is named below rather than absorbed.
 - Across the wave tables below (`W0`-`W10`), **108** tracked issue rows appear:
-  **56** `OPEN` and **52** `CLOSED`. The arithmetic reconciles: `108 - 52 = 56`.
-- **9 open issues are filed but not yet placed in a wave**, named here
-  rather than dropped: `#573`, `#574`, `#579`, `#583`, `#585`, `#587`,
-  `#588`, `#589`, `#594`. With them, `56 + 9 = 65`, which is the live
-  count above. Placing them is a taxonomy act for the register's owner;
+  **54** `OPEN` and **54** `CLOSED`. The arithmetic reconciles: `108 - 54 = 54`.
+- **6 open issues are filed but not yet placed in a wave**, named here
+  rather than dropped: `#573`, `#574`, `#579`, `#585`, `#587`, `#588`.
+  With them, `54 + 6 = 60`, which is the live count above. Placing them is a taxonomy act for the register's owner;
   this mirror does not invent a placement.
-- Closed since the previous mirror, among tracked rows: `#275` (PR `#576`,
+- Closed since the previous mirror, among tracked rows: `#463` (closed
+  2026-11-17 per oversight decision tick 400: transport/host, `harness-oc`
+  stdio) and `#570` (PR `#592`, `34f4009`), then `#275` (PR `#576`,
   `562c557`), and `#416`, `#424`, `#553`, `#557`, `#565` (Slice 3G, PR
   `#564`, `125ef82c`). Their `Live state` cells below are flipped to
   `CLOSED`.
@@ -83,7 +84,7 @@ close.
 | --- | --- | --- |
 | W0 - Rail and gate truth - blocks landing anything else | 4 | 0 |
 | W1 - Active queue - the filed order | 2 | 0 |
-| W2 - Verification and surface truth | 37 | 12 |
+| W2 - Verification and surface truth | 37 | 10 |
 | W3 - Driver and perception | 5 | 5 |
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
 | W5 - Research and retrieval | 4 | 3 |
@@ -109,7 +110,7 @@ close.
 | [#275](https://github.com/Treystu/harness/issues/275) Hourglass/HUL: integrate Freebuff mission-mode findings (full dossier) | CLOSED | L1-L7/L10-L12 landed via PR `#576` (`562c557`); closed 2026-11-17T07:16Z with receipts on #295 |
 | [#489](https://github.com/Treystu/harness/issues/489) [jev] External Jev calibration draft: validation verdict — do not integrate as written; scoped residue for the lane | CLOSED | PR #551 (`a144ce28`): `harness/jev_conformance.py`, `harness/jev_calibration.py`, `tests/test_jev_conformance.py`, `tests/test_jev_deferral_reporting.py` |
 
-### W2 - Verification and surface truth - 12 open
+### W2 - Verification and surface truth - 10 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -137,7 +138,7 @@ close.
 | [#429](https://github.com/Treystu/harness/issues/429) [audit] Refuse or recover truncated JEV judgment state before append | CLOSED | `harness/repo_summary.py`, `tests/test_jev_repo_envelope.py` |
 | [#430](https://github.com/Treystu/harness/issues/430) [lifecycle] Stop repeated retries after validated restart or consent refusal | CLOSED | `harness/restart_policy.py`, `tests/test_hourglass_stage_judgments.py` |
 | [#448](https://github.com/Treystu/harness/issues/448) [desktop] Honor read-only workspace audits and preflight the full scope | CLOSED | `harness/workspace_audit.py`, `tests/test_workspace_audit_routing_448.py`, `tests/test_read_only_audit_448.py` |
-| [#463](https://github.com/Treystu/harness/issues/463) [found-in-use:submission] harness-oc MCP server fails to start over ssh stdio (transport); error text truncates the failing command | OPEN | none |
+| [#463](https://github.com/Treystu/harness/issues/463) [found-in-use:submission] harness-oc MCP server fails to start over ssh stdio (transport); error text truncates the failing command | CLOSED | none |
 | [#530](https://github.com/Treystu/harness/issues/530) [driver-core] Sync vendored driver_core v3.5.0 -> v3.6.0 (upstream moved; drift check red) | CLOSED | PR #562 (`24167b48`) |
 | [#549](https://github.com/Treystu/harness/issues/549) [cli] doctor gui_port cannot recognise an auth-required Harness UI: its OK branch requires the literal X-Harness-Auth in the response body | CLOSED | PR #558 (`27c509b4`) |
 | [#552](https://github.com/Treystu/harness/issues/552) [cli] models envelope says free_only true and use_free false in one object, and count names three different quantities across models, capabilities and ledger tail | CLOSED | PR #558 (`27c509b4`) |
@@ -149,7 +150,7 @@ close.
 | [#565](https://github.com/Treystu/harness/issues/565) [docs] canon mirror still prints #329 OPEN against API closed, so the register count (58) is off by one | CLOSED | PR `#564` (`125ef82c`, Slice 3G; `#329` fixed there); closed 2026-11-17T04:42Z |
 | [#566](https://github.com/Treystu/harness/issues/566) [desktop] loopback port has three homes: 8765 for the harness UI and the media service, an undocumented 8766 for the desktop entry | OPEN | none |
 | [#567](https://github.com/Treystu/harness/issues/567) [audit] session-log audit 2026-11-16 -- orders-of-magnitude session | OPEN | read-only session-log audit tracker |
-| [#570](https://github.com/Treystu/harness/issues/570) [observability] Persisted chat turns carry no timestamp or role, so a rebuilt session cannot be ordered | OPEN | none |
+| [#570](https://github.com/Treystu/harness/issues/570) [observability] Persisted chat turns carry no timestamp or role, so a rebuilt session cannot be ordered | CLOSED | none |
 
 ### W3 - Driver and perception - 5 open
 
