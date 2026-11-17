@@ -19,7 +19,7 @@ Related design context (not the tracker): [system-one-integration.md](system-one
 <!-- BEGIN REGISTER_MIRROR -->
 ## Register mirror - 2026-11-17 (#295)
 
-**Snapshot timestamp:** `2026-11-17T00:01:00Z` (refresh command: `gh issue list --state all --limit 400 --json number,state,title`).
+**Snapshot timestamp:** `2026-11-17T00:49:00Z` (refresh command: `gh issue list --state all --limit 400 --json number,state,title`).
 
 **This section, not the dated filings below, is the live count and order.**
 It is reconciled from live issue state at the timestamp above, so every
@@ -30,19 +30,18 @@ the register of record for *ordering*; this mirror keeps its wave order
 and corrects its counts, because a snapshot cannot stay true while issues
 close.
 
-### Census (2026-11-17 at `00:01:00Z`, base `main` `a144ce28`, Slice 3A PR)
+### Census (2026-11-17 at `00:49:00Z`, base `main` `27c509b4`, Slice 3B PR)
 
-- **68 open issues**, agreed by two independent reads:
+- **63 open issues**, agreed by two independent reads:
   `gh issue list --state open --limit 400` and the search API
-  (`type:issue state:open`) both return **68**; prior open PR `#551`
-  merged as `a144ce28e8e78e83278f7b32dca4cec41fefbe2e`.
+  (`type:issue state:open`) both return **63**; prior open PR `#558`
+  merged as `27c509b44a78e85a069083bd4f81f30c34080bfc`.
 - Across the wave tables below (`W0`–`W10`), **101** tracked issue rows appear:
-  **68** `OPEN` and **33** `CLOSED`, with **0** open issues absent from
-  this mirror. The arithmetic reconciles: `101 - 33 = 68`.
-- Closed since the 2026-11-16 `23:33:06Z` mirror: PR `#551` (`a144ce28`)
-  landed and closed `#283`, `#284`, `#285`, `#286`, `#489`, `#554`; S2/S3
-  filed `#555`, `#556`, `#557`. Slice 3A items (`#549`, `#550`, `#552`,
-  `#555`, `#556`) stay `OPEN` until Slice 3A merges.
+  **63** `OPEN` and **38** `CLOSED`, with **0** open issues absent from
+  this mirror. The arithmetic reconciles: `101 - 38 = 63`.
+- Closed since the 2026-11-17 `00:01:00Z` mirror: PR `#558` (`27c509b4`)
+  landed and closed `#549`, `#550`, `#552`, `#555`, `#556`. Slice 3B items
+  (`#302`, `#346`) stay `OPEN` until Slice 3B merges.
 
 ### Rows that closed since the 2026-11-11 filing
 
@@ -61,8 +60,9 @@ close.
 | [#290](https://github.com/Treystu/harness/issues/290), [#299](https://github.com/Treystu/harness/issues/299), [#300](https://github.com/Treystu/harness/issues/300), [#303](https://github.com/Treystu/harness/issues/303), [#328](https://github.com/Treystu/harness/issues/328), [#332](https://github.com/Treystu/harness/issues/332), [#334](https://github.com/Treystu/harness/issues/334), [#340](https://github.com/Treystu/harness/issues/340), [#345](https://github.com/Treystu/harness/issues/345), [#426](https://github.com/Treystu/harness/issues/426), [#433](https://github.com/Treystu/harness/issues/433), [#445](https://github.com/Treystu/harness/issues/445), [#453](https://github.com/Treystu/harness/issues/453), [#457](https://github.com/Treystu/harness/issues/457), [#459](https://github.com/Treystu/harness/issues/459), [#460](https://github.com/Treystu/harness/issues/460), [#470](https://github.com/Treystu/harness/issues/470) | prior lane merges (`#499`–`#537`) & HAR-SAMS `#470` |
 | [#292](https://github.com/Treystu/harness/issues/292), [#423](https://github.com/Treystu/harness/issues/423), [#434](https://github.com/Treystu/harness/issues/434), [#448](https://github.com/Treystu/harness/issues/448) | evidence close 2026-11-16 on `origin/main` `3f2ec71` (shipped via `#442` `8284746`, verified 81 tests OK) |
 | [#283](https://github.com/Treystu/harness/issues/283), [#284](https://github.com/Treystu/harness/issues/284), [#285](https://github.com/Treystu/harness/issues/285), [#286](https://github.com/Treystu/harness/issues/286), [#489](https://github.com/Treystu/harness/issues/489), [#554](https://github.com/Treystu/harness/issues/554) | PR `#551` (`a144ce28`, 15/15 CI green at `dd196e01`) |
+| [#549](https://github.com/Treystu/harness/issues/549), [#550](https://github.com/Treystu/harness/issues/550), [#552](https://github.com/Treystu/harness/issues/552), [#555](https://github.com/Treystu/harness/issues/555), [#556](https://github.com/Treystu/harness/issues/556) | PR `#558` (`27c509b4`, 15/15 CI green at `d11695d8`) |
 
-*Staged in Slice 3A PR (still `OPEN` until Slice 3A merges, then queued for post-merge close):* `#549`, `#550`, `#552`, `#555`, `#556`.
+*Staged in Slice 3B PR (still `OPEN` until Slice 3B merges, then queued for post-merge close):* `#302`, `#346`.
 
 ### Waves - live counts
 
@@ -70,11 +70,11 @@ close.
 | --- | --- | --- |
 | W0 - Rail and gate truth - blocks landing anything else | 4 | 0 |
 | W1 - Active queue - the filed order | 2 | 1 |
-| W2 - Verification and surface truth | 32 | 17 |
+| W2 - Verification and surface truth | 32 | 14 |
 | W3 - Driver and perception | 5 | 5 |
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
 | W5 - Research and retrieval | 4 | 4 |
-| W6 - Spend, routing and calibration | 15 | 13 |
+| W6 - Spend, routing and calibration | 15 | 11 |
 | W7 - Structure and scoped defects | 16 | 10 |
 | W8 - Champion Audit program | 12 | 11 |
 | W9 - Tracking and low priority | 5 | 5 |
@@ -96,7 +96,7 @@ close.
 | [#275](https://github.com/Treystu/harness/issues/275) Hourglass/HUL: integrate Freebuff mission-mode findings (full dossier) | OPEN | L1-L3 `harness/hul_decision.py` landed; remaining dossier integration open |
 | [#489](https://github.com/Treystu/harness/issues/489) [jev] External Jev calibration draft: validation verdict — do not integrate as written; scoped residue for the lane | CLOSED | PR #551 (`a144ce28`): `harness/jev_conformance.py`, `harness/jev_calibration.py`, `tests/test_jev_conformance.py`, `tests/test_jev_deferral_reporting.py` |
 
-### W2 - Verification and surface truth - 17 open
+### W2 - Verification and surface truth - 14 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -126,11 +126,11 @@ close.
 | [#448](https://github.com/Treystu/harness/issues/448) [desktop] Honor read-only workspace audits and preflight the full scope | CLOSED | `harness/workspace_audit.py`, `tests/test_workspace_audit_routing_448.py`, `tests/test_read_only_audit_448.py` |
 | [#463](https://github.com/Treystu/harness/issues/463) [found-in-use:submission] harness-oc MCP server fails to start over ssh stdio (transport); error text truncates the failing command | OPEN | none |
 | [#530](https://github.com/Treystu/harness/issues/530) [driver-core] Sync vendored driver_core v3.5.0 -> v3.6.0 (upstream moved; drift check red) | OPEN | none |
-| [#549](https://github.com/Treystu/harness/issues/549) [cli] doctor gui_port cannot recognise an auth-required Harness UI: its OK branch requires the literal X-Harness-Auth in the response body | OPEN | staged in Slice 3A PR |
-| [#552](https://github.com/Treystu/harness/issues/552) [cli] models envelope says free_only true and use_free false in one object, and count names three different quantities across models, capabilities and ledger tail | OPEN | staged in Slice 3A PR |
+| [#549](https://github.com/Treystu/harness/issues/549) [cli] doctor gui_port cannot recognise an auth-required Harness UI: its OK branch requires the literal X-Harness-Auth in the response body | CLOSED | PR #558 (`27c509b4`) |
+| [#552](https://github.com/Treystu/harness/issues/552) [cli] models envelope says free_only true and use_free false in one object, and count names three different quantities across models, capabilities and ledger tail | CLOSED | PR #558 (`27c509b4`) |
 | [#553](https://github.com/Treystu/harness/issues/553) [docs] audit-triage runbook says the traced battery is 2-5 minutes; a completed audit run measured 12m25s | OPEN | none |
 | [#554](https://github.com/Treystu/harness/issues/554) [docs] roadmap state labels drift from live issues: align OPEN/CLOSED truth, W0 heading, wave counts, and #454 credit | CLOSED | PR #551 (`a144ce28`) |
-| [#556](https://github.com/Treystu/harness/issues/556) [cli] doctor marks typesafe OK on 'endpoint responded HTTP 405' with no scope word | OPEN | staged in Slice 3A PR |
+| [#556](https://github.com/Treystu/harness/issues/556) [cli] doctor marks typesafe OK on 'endpoint responded HTTP 405' with no scope word | CLOSED | PR #558 (`27c509b4`) |
 | [#557](https://github.com/Treystu/harness/issues/557) [docs] cited ledger entries D-2026-11-13-019 and -016 are not readable from the repo | OPEN | none |
 
 ### W3 - Driver and perception - 5 open
@@ -160,7 +160,7 @@ close.
 | [#344](https://github.com/Treystu/harness/issues/344) [lifecycle] Bind resumed web context to the current request and retrieval decision | OPEN | register: #342 |
 | [#420](https://github.com/Treystu/harness/issues/420) [site] Use the TypeSafe System One contract for route judgments | OPEN | none |
 
-### W6 - Spend, routing and calibration - 13 open
+### W6 - Spend, routing and calibration - 11 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -175,10 +175,10 @@ close.
 | [#337](https://github.com/Treystu/harness/issues/337) ledger: validated criteria-prompt library for interrogating the ledger across models | OPEN | register: #336, #318, #340 |
 | [#340](https://github.com/Treystu/harness/issues/340) [economics][MEDIUM] harness-reported costs drift \u00b115\u201340% off measured spend; #318 metric must use measured | CLOSED | PR #518 (`75f30c7`) |
 | [#345](https://github.com/Treystu/harness/issues/345) [spend] Attribute request caps independently of unrelated concurrent session spending | CLOSED | PR #519 (`7132f1b`) |
-| [#346](https://github.com/Treystu/harness/issues/346) [planning] Exclude completed planning calls from the remaining execution allowance | OPEN | register: #345 |
+| [#346](https://github.com/Treystu/harness/issues/346) [planning] Exclude completed planning calls from the remaining execution allowance | OPEN | staged in Slice 3B PR (register: #345) |
 | [#517](https://github.com/Treystu/harness/issues/517) Fusion Light protocol (Jev-gated panel/judge escalation) | OPEN | none |
-| [#550](https://github.com/Treystu/harness/issues/550) [cli] spend and cost print three different 'remaining' budgets and a lifetime total beside a daily limit, with no scope labels | OPEN | staged in Slice 3A PR |
-| [#555](https://github.com/Treystu/harness/issues/555) [cli] cost prints billable_calls and free_calls in different units (row count vs weighted) | OPEN | staged in Slice 3A PR |
+| [#550](https://github.com/Treystu/harness/issues/550) [cli] spend and cost print three different 'remaining' budgets and a lifetime total beside a daily limit, with no scope labels | CLOSED | PR #558 (`27c509b4`) |
+| [#555](https://github.com/Treystu/harness/issues/555) [cli] cost prints billable_calls and free_calls in different units (row count vs weighted) | CLOSED | PR #558 (`27c509b4`) |
 
 ### W7 - Structure and scoped defects - 10 open
 
@@ -187,7 +187,7 @@ close.
 | [#289](https://github.com/Treystu/harness/issues/289) [build] Migrate dependency management to uv (old requirements stay until uv CI is green) | OPEN | `uv.lock`, `harness/deps_lock.py`, `docs/dependencies.md`, `tests/test_dependency_surface.py` landed; `.circleci/config.yml` uv cutover open |
 | [#299](https://github.com/Treystu/harness/issues/299) fix(server): cap POST body size before reading — return 413 over the limit | CLOSED | PR #503 (`1413e8a`) + PR #509 (`ddf6587`) |
 | [#300](https://github.com/Treystu/harness/issues/300) fix(driver_core): check_batch docstring overstates the irreversible-mix guarantee it enforces | CLOSED | `tests/test_driver_core/test_batch_contract.py` |
-| [#302](https://github.com/Treystu/harness/issues/302) harden(apply): screen refusal/non-code model output at intake; stop crediting model health for missing-marker responses | OPEN | none |
+| [#302](https://github.com/Treystu/harness/issues/302) harden(apply): screen refusal/non-code model output at intake; stop crediting model health for missing-marker responses | OPEN | staged in Slice 3B PR |
 | [#303](https://github.com/Treystu/harness/issues/303) fix(site-check): non-http(s) schemes in prose prompts bypass the scheme gate via extractor normalization (minor) | CLOSED | PR #537 |
 | [#308](https://github.com/Treystu/harness/issues/308) [planning] Split waist.py by planning responsibility | OPEN | register: #346, #342 |
 | [#309](https://github.com/Treystu/harness/issues/309) [jev] Separate domain evaluators from shared policy dispatch | OPEN | register: #324 (closed), #342 |

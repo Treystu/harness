@@ -820,14 +820,19 @@ def composed_worst_case(
     use_free: bool = True,
     allow_escalation: bool = False,
     plan_consensus: bool = False,
+    incurred_stages: Optional[Sequence[str]] = None,
+    planning_spent: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Composed pyramid ceiling: decompose + consensus + waist + node sum.
+    """Composed pyramid ceiling over remaining unincurred work (#346).
 
-    ONE owner of the pre-execute worst-case budget. Called before execute
-    spend when a governor is present; if the composed total exceeds
+    ONE owner of the pre-execute worst-case budget. Stages listed in
+    ``incurred_stages`` (``"decompose"``, ``"consensus"``, ``"waist"``) have
+    already completed and deducted their actual/reserved cost from
+    ``governor.remaining()``, so only not-yet-incurred future liability is
+    compared against ``governor.remaining()``. Called before spend when a
+    governor is present; if remaining liability exceeds
     ``governor.remaining()`` the plan lane REFUSES instead of dispatching
-    into an unfunded pyramid. The envelope always carries the breakdown so
-    an operator can see which rung would blow the ceiling.
+    into an unfunded pyramid.
     """
     node_ceiling = 0.0
     try:
@@ -844,11 +849,12 @@ def composed_worst_case(
             except (TypeError, ValueError):
                 continue
 
+    completed = set(incurred_stages or ())
     decompose_cost = 0.0
     waist_cost = 0.0
     consensus_cost = 0.0
     if governor is not None:
-        if decompose_llm:
+        if decompose_llm and "decompose" not in completed:
             model = decompose_model
             if not model:
                 try:
@@ -857,7 +863,7 @@ def composed_worst_case(
                 except Exception:
                     model = None
             decompose_cost = _call_worst_case(governor, model, DECOMPOSE_MAX_TOKENS)
-        if plan_consensus:
+        if plan_consensus and "consensus" not in completed:
             model = decompose_model
             if not model:
                 try:
@@ -866,7 +872,7 @@ def composed_worst_case(
                 except Exception:
                     model = None
             consensus_cost = _call_worst_case(governor, model, 256)
-        if confirm:
+        if confirm and "waist" not in completed:
             try:
                 ladder = resolve_waist_ladder(
                     use_free=use_free, custom_frontier=frontier_model,
@@ -892,7 +898,7 @@ def composed_worst_case(
             plan_ceiling = round(float(governor.max_cost), 6)
         except (TypeError, ValueError):
             plan_ceiling = None
-    return {
+    envelope = {
         "composed_worst_case": composed,
         "node_ceiling": round(node_ceiling, 6),
         "decompose": round(decompose_cost, 6),
@@ -903,6 +909,11 @@ def composed_worst_case(
         "exceeds_remaining": (
             None if remaining is None else bool(composed > remaining + 1e-12)),
     }
+    if planning_spent is not None:
+        spent_val = round(max(0.0, float(planning_spent)), 6)
+        envelope["planning_spent"] = spent_val
+        envelope["all_in_worst_case"] = round(spent_val + composed, 6)
+    return envelope
 
 
 def _refuse_composed_ceiling(plan_result: Dict[str, Any], composed: Dict[str, Any]) -> Dict[str, Any]:
@@ -913,16 +924,19 @@ def _refuse_composed_ceiling(plan_result: Dict[str, Any], composed: Dict[str, An
     reason = (
         f"composed worst-case ${composed['composed_worst_case']:.6f} exceeds "
         f"remaining budget ${composed['remaining']:.6f}")
+    evidence = (
+        f"nodes={composed['node_ceiling']:.6f} "
+        f"decompose={composed['decompose']:.6f} "
+        f"waist={composed['waist']:.6f} "
+        f"consensus={composed['consensus']:.6f}")
+    if composed.get("planning_spent") is not None:
+        evidence += f" planning_spent={composed['planning_spent']:.6f}"
     refused["confirmation"] = {
         "verdict": "refused",
         "model": "composed-ceiling",
         "rounds": 0,
         "reason": reason,
-        "evidence": (
-            f"nodes={composed['node_ceiling']:.6f} "
-            f"decompose={composed['decompose']:.6f} "
-            f"waist={composed['waist']:.6f} "
-            f"consensus={composed['consensus']:.6f}"),
+        "evidence": evidence,
         "cost": 0.0,
     }
     return refused
@@ -1651,6 +1665,43 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
     if (decompose_llm or confirm or plan_consensus) and governor is None:
         raise HarnessError("LLM plan features require a governor")
 
+    def _governor_spent():
+        if governor is None:
+            return 0.0
+        try:
+            return float(getattr(governor, "spent", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    plan_start_spent = _governor_spent()
+
+    def _evaluate_composed_ceiling(target_plan, *, completed_stages):
+        spent_now = max(0.0, _governor_spent() - plan_start_spent)
+        composed = composed_worst_case(
+            target_plan,
+            governor=governor,
+            decompose_llm=decompose_llm,
+            confirm=confirm and not _degraded_preview_heuristic,
+            decompose_model=decompose_model,
+            frontier_model=frontier_model,
+            use_free=use_free,
+            allow_escalation=allow_escalation,
+            plan_consensus=bool(plan_consensus and confirm),
+            incurred_stages=tuple(completed_stages),
+            planning_spent=spent_now,
+        )
+        target_plan["composed_worst_case"] = composed
+        if (execute and governor is not None
+                and target_plan.get("status") != "refused"
+                and composed.get("exceeds_remaining")):
+            from . import events as _events
+            _events.emit(
+                "orchestration_note",
+                note=("composed pyramid ceiling exceeds remaining budget; "
+                      "refusing before execute spend"))
+            return _refuse_composed_ceiling(target_plan, composed)
+        return target_plan
+
     plan_goal = opts_goal
     plan_structural = None
     plan_triage = None
@@ -1866,11 +1917,17 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
     if plan_issue_sort is not None:
         plan_result["issue_sort"] = plan_issue_sort
 
+    # #346: preflight unincurred consensus + waist + execute liability BEFORE
+    # spending on consensus/confirm when waist/consensus are armed for execute.
+    if execute and governor is not None and confirm and not _degraded_preview_heuristic:
+        plan_result = _evaluate_composed_ceiling(
+            plan_result, completed_stages=("decompose",))
+
     # HG-plan-consensus: optional cheap soundness check BEFORE the waist.
     # It always uses its OWN governed call (or an injected consensus seam),
     # never the decompose chat_fn -- those are different contracts.
     consensus = None
-    if plan_consensus and confirm:
+    if plan_result.get("status") != "refused" and plan_consensus and confirm:
         consensus_model = decompose_model
         if not consensus_model:
             try:
@@ -1894,7 +1951,9 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
         if consensus is not None:
             plan_result["consensus"] = consensus
 
-    if confirm and _degraded_preview_heuristic:
+    if plan_result.get("status") == "refused":
+        pass
+    elif confirm and _degraded_preview_heuristic:
         # DF-HG-3b: the operator opted into a heuristic-degraded preview,
         # which never ran the LLM decomposition the waist would confirm.
         # Report the skip explicitly -- never "approved" for a plan that
@@ -2144,29 +2203,13 @@ def compose_plan(*, transport, api_key, governor, ledger, opts_goal,
             }
             plan_result = degraded
 
-    # HG-composed-ceiling: ALWAYS compute the pyramid envelope; refuse execute
-    # when the composed worst case cannot fit the governor's remaining budget.
-    composed = composed_worst_case(
-        plan_result,
-        governor=governor,
-        decompose_llm=decompose_llm,
-        confirm=confirm,
-        decompose_model=decompose_model,
-        frontier_model=frontier_model,
-        use_free=use_free,
-        allow_escalation=allow_escalation,
-        plan_consensus=plan_consensus,
-    )
-    plan_result["composed_worst_case"] = composed
-    if (execute and governor is not None
-            and plan_result.get("status") != "refused"
-            and composed.get("exceeds_remaining")):
-        from . import events as _events
-        _events.emit(
-            "orchestration_note",
-            note=("composed pyramid ceiling exceeds remaining budget; "
-                  "refusing before execute spend"))
-        plan_result = _refuse_composed_ceiling(plan_result, composed)
+    # #346 / HG-composed-ceiling: all planning stages (decompose, consensus,
+    # waist + retries/critique) have already completed and settled against the
+    # governor, so compare ONLY not-yet-incurred DAG execution liability against
+    # remaining funds unless already refused before waist spend.
+    if plan_result.get("status") != "refused":
+        plan_result = _evaluate_composed_ceiling(
+            plan_result, completed_stages=("decompose", "consensus", "waist"))
     if token_budget is not None:
         # HV-4: the composition decision is evidence, so it rides on the
         # envelope rather than living only in the caller's head. Attached

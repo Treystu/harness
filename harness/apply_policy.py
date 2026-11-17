@@ -14,6 +14,7 @@ from .apply_state import AttemptOutcome, RunState
 from .prompts import (
     CAPABILITY_MARKER,
     _extract_file_content, _parse_ready, _apply_unified_diff,
+    screen_non_candidate_response,
 )
 from .results import (_defer_result, _http_error, _round_entry,
                        model_envelope)
@@ -166,10 +167,15 @@ class ApplyEngineMixin:
                 # was built on -- dogfooding caught it propagating as FATAL).
                 new_content = self._merge_or_extract(req, state, outcome)
                 if new_content is None:
+                    if outcome.ready == "missing":
+                        self._note_model_health(outcome.model_used, ok=False)
                     continue
             else:
                 new_content = _extract_file_content(outcome.content)
             result = self.gate.apply_candidate(req, state, outcome, new_content)
+            if outcome.ready == "missing":
+                passed = result is not None and result.get("status") in ("ok", "preview")
+                self._note_model_health(outcome.model_used, ok=passed)
             if result is not None:
                 return self._attach_envelopes(result, state)
 
@@ -443,25 +449,56 @@ class ApplyEngineMixin:
                                      reason="readiness_defer", detail=ready_reason,
                                      round=state.round_no)
                     else:
-                        self._record_billable(req, attempt_model, cost, "ok", readiness=ready)
-                        if ready == "missing":
+                        screen_reason = screen_non_candidate_response(
+                            content, backend=req.backend,
+                            file_path=req.file_path, ready=ready)
+                        if screen_reason is not None:
+                            self._record_billable(
+                                req, attempt_model, cost, "error",
+                                readiness=ready,
+                                reason=f"no usable content ({screen_reason})")
+                            outcome.last_error = (
+                                f"model returned {screen_reason} "
+                                "(no usable content)")
+                            state.failed_models.add(attempt_model)
+                            self._note_model_health(attempt_model, ok=False)
+                            state.rotations += 1
+                            eprint(f"[apply] {attempt_model} returned "
+                                   f"{screen_reason}; rotating.")
+                            _events.emit("rotation", task_id=req.task_id,
+                                         model=attempt_model,
+                                         reason="non_candidate",
+                                         detail=screen_reason,
+                                         round=state.round_no)
+                        elif ready == "missing":
+                            # Unverified missing-marker candidates record spend
+                            # at intake without claiming status="ok" or
+                            # healthy model credit until downstream gates pass.
+                            self._record_billable(req, attempt_model, cost,
+                                                  "unverified", readiness=ready)
                             eprint(f"[apply] {attempt_model} did not emit HARNESS_READY; "
                                    f"treating as confident (verify + DEFER still guard).")
                             _events.emit("readiness", task_id=req.task_id,
                                          model=attempt_model, round=state.round_no,
                                          decision="missing")
+                            outcome.model_used = attempt_model
+                            outcome.content = content
+                            outcome.ready = ready
+                            break
                         else:
+                            self._record_billable(req, attempt_model, cost, "ok",
+                                                  readiness=ready)
                             _events.emit("readiness", task_id=req.task_id,
                                          model=attempt_model, round=state.round_no,
                                          decision="confident")
                             self.ledger.append("readiness", task_id=req.task_id,
                                                model=attempt_model, round=state.round_no,
                                                decision="confident")
-                        self._note_model_health(attempt_model, ok=True)
-                        outcome.model_used = attempt_model
-                        outcome.content = content
-                        outcome.ready = ready
-                        break
+                            self._note_model_health(attempt_model, ok=True)
+                            outcome.model_used = attempt_model
+                            outcome.content = content
+                            outcome.ready = ready
+                            break
             if state.rotations > req.max_rot:
                 break
             attempt_model = next(

@@ -1014,6 +1014,105 @@ class BatchOptionsPinTests(ApplyFixture):
         self.assertIsNotNone(engine.jev_policy)
         self.assertTrue(engine.jev_policy.keyed)
 
+    # ---- #302: intake screening & missing-marker health accounting ----
+    def test_refusal_response_rotates_at_intake_without_health_credit(self):
+        from harness.prompts import screen_non_candidate_response
+        p = self.make_file()
+        health_calls = []
+        refusal = comp("I'm sorry, I cannot modify this file due to safety guidelines.")
+        fake, _, ledger, engine = self.make_env(
+            posts=[refusal, comp("HARNESS_READY: confident\n" + CHANGED)],
+            run=scripted_run([(0, "")]),
+            router_kw={"apply_pool": [CODER_A, CODER_B]})
+        orig_note = engine.router.note_model_result
+
+        def spy_note(model_id, ok, latency_ms=None):
+            health_calls.append((model_id, ok))
+            return orig_note(model_id, ok=ok, latency_ms=latency_ms)
+
+        engine.router.note_model_result = spy_note
+        result = engine.apply_edit(task_id="t1", file_path=p, instruction="change",
+                                   verify_cmd="check", require_consent=False,
+                                   max_rotations=3)
+        self.assertEqual(result["status"], "ok")
+        self.assertGreaterEqual(result["rotations"], 1)
+        with open(p, encoding="utf-8") as f:
+            self.assertEqual(f.read(), CHANGED)
+        # First model refused at intake -> unhealthy (ok=False) & error model_result
+        self.assertIn((APPLY, False), health_calls)
+        self.assertNotIn((APPLY, True), health_calls)
+        mrs = [e for e in ledger.entries() if e["event"] == "model_result"]
+        self.assertEqual(mrs[0]["status"], "error")
+        self.assertIn("no usable content", mrs[0]["reason"])
+        self.assertIsNone(screen_non_candidate_response(
+            "Updated setup documentation for users.", file_path="README.md", ready="missing"))
+        self.assertEqual(screen_non_candidate_response(
+            "HARNESS_READY: confident\n   ", file_path="x.py", ready="confident"),
+            "empty candidate body")
+
+    def test_non_code_prose_rejected_on_code_and_diff_targets(self):
+        from harness.prompts import screen_non_candidate_response
+        p = self.make_file()
+        prose = comp("Sure, here is an explanation of how you can update that function instead of code.")
+        _, _, ledger, engine = self.make_env(
+            posts=[prose, prose],
+            run=scripted_run([(1, "should not run")]),
+            router_kw={"apply_pool": [CODER_A]})
+        result = engine.apply_edit(task_id="t1", file_path=p, instruction="change",
+                                   verify_cmd="check", require_consent=False,
+                                   max_rounds=1, max_rotations=2)
+        self.assertNotEqual(result["status"], "ok")
+        # Verify gate never ran on screened non-code prose and file stayed original.
+        self.assertEqual([e for e in ledger.entries() if e["event"] == "verify_round"], [])
+        with open(p, encoding="utf-8") as f:
+            self.assertEqual(f.read(), ORIGINAL)
+        self.assertEqual(
+            screen_non_candidate_response(
+                "Please update the file manually because I cannot emit a patch here.",
+                backend="diff", file_path="a.py", ready="missing"),
+            "non-diff prose response")
+
+    def test_missing_marker_health_tracks_downstream_gate_outcome(self):
+        # Downstream verify_failed must NOT credit ok=True on missing marker.
+        p1 = self.make_file()
+        health_fail = []
+        _, _, ledger_f, engine_f = self.make_env(
+            posts=[comp(CHANGED)], run=scripted_run([(1, "boom")]))
+        engine_f.router.note_model_result = lambda m_id, ok, latency_ms=None: health_fail.append((m_id, ok))
+        res_fail = engine_f.apply_edit(task_id="t1", file_path=p1, instruction="change",
+                                       verify_cmd="check", require_consent=False, max_rounds=1)
+        self.assertEqual(res_fail["status"], "verify_failed")
+        self.assertEqual(health_fail, [(APPLY, False)])
+        mr_f = [e for e in ledger_f.entries() if e["event"] == "model_result"][0]
+        self.assertEqual(mr_f["status"], "unverified")
+        self.assertEqual(mr_f["readiness"], "missing")
+
+        # Downstream diff merge_failed must record ok=False on missing marker.
+        p_diff = self.make_file()
+        health_diff = []
+        bad_diff = ("--- a/math.py\n+++ b/math.py\n@@ -1,2 +1,2 @@\n"
+                    "-def wrong(a, b):\n-    return a + b\n"
+                    "+def add(a, b):\n+    return a + b + 0\n")
+        _, _, _, engine_d = self.make_env(
+            posts=[comp(bad_diff)], run=scripted_run([(0, "")]))
+        engine_d.router.note_model_result = lambda m_id, ok, latency_ms=None: health_diff.append((m_id, ok))
+        res_diff = engine_d.apply_edit(task_id="t1", file_path=p_diff, instruction="change",
+                                       verify_cmd="check", require_consent=False,
+                                       max_rounds=1, backend="diff")
+        self.assertEqual(res_diff["status"], "verify_failed")
+        self.assertEqual(health_diff, [(APPLY, False)])
+
+        # Downstream passing verify credits ok=True for code-shaped missing marker.
+        p2 = self.make_file()
+        health_ok = []
+        _, _, _, engine_ok = self.make_env(
+            posts=[comp(CHANGED)], run=scripted_run([(0, "")]))
+        engine_ok.router.note_model_result = lambda m_id, ok, latency_ms=None: health_ok.append((m_id, ok))
+        res_ok = engine_ok.apply_edit(task_id="t1", file_path=p2, instruction="change",
+                                      verify_cmd="check", require_consent=False)
+        self.assertEqual(res_ok["status"], "ok")
+        self.assertEqual(health_ok, [(APPLY, True)])
+
 
 if __name__ == "__main__":
     unittest.main()

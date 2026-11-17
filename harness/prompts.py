@@ -173,6 +173,100 @@ def build_apply_prompt(file_path, instruction, edit_snippet, original,
     return prompt
 
 
+_REFUSAL_INTAKE_RE = re.compile(
+    r"^(?:"
+    r"i'?m sorry\b|"
+    r"i am sorry\b|"
+    r"sorry[, ]+i\b|"
+    r"apologies[, ]|"
+    r"i apologize\b|"
+    r"i cannot\b|"
+    r"i can'?t\b|"
+    r"i am unable to\b|"
+    r"i'?m unable to\b|"
+    r"i do not have access\b|"
+    r"i don'?t have access\b|"
+    r"i don'?t have the ability\b|"
+    r"as an ai\b|"
+    r"as a (?:large )?language model\b|"
+    r"this request violates\b|"
+    r"that violates my\b|"
+    r"against my (?:safety|ethical|content)"
+    r")",
+    re.IGNORECASE,
+)
+
+_CODE_TARGET_EXTS = frozenset({
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs",
+    ".go", ".rs", ".java", ".c", ".cc", ".cpp", ".h", ".hpp",
+    ".sh", ".bash", ".ps1", ".rb", ".php", ".sql",
+    ".json", ".toml", ".yaml", ".yml", ".css", ".html",
+})
+
+_CODE_TOKEN_RE = re.compile(
+    r"(?:^|\s)def\s+[A-Za-z_]\w*\s*\("
+    r"|(?:^|\s)class\s+[A-Za-z_]\w*[\s(:]"
+    r"|(?:^|\s)from\s+[A-Za-z_.]+\s+import\b"
+    r"|(?:^|\s)import\s+[A-Za-z_.]"
+    r"|(?:^|\s)function\s+[A-Za-z_]\w*\s*\("
+    r"|[=(){}\[\];#<>]|=>|//|@@ "
+)
+
+
+def screen_non_candidate_response(content, *, backend="whole", file_path=None, ready="missing"):
+    """Deterministic intake screen for obvious non-candidate apply payloads (#302).
+
+    Catches explicit safety/capability refusals and (when no readiness marker or
+    code fence was emitted) natural-language-only prose on code/diff targets so
+    the apply loop rejects and rotates at intake instead of crediting model
+    health or packaging prose as a candidate. Code-shaped responses and plain
+    prose edits on documentation targets pass untouched.
+    """
+    raw = (content or "").strip()
+    body = _extract_file_content(raw).strip()
+    if not body:
+        return "empty candidate body"
+
+    lines = [ln.strip() for ln in body.splitlines() if ln.strip()]
+    first = lines[0] if lines else ""
+    has_diff_hunk = any(ln.startswith("@@ ") for ln in lines)
+    has_fence = "```" in raw
+    ext = os.path.splitext(file_path or "")[1].lower()
+    has_code_syntax = bool(_CODE_TOKEN_RE.search(body))
+
+    # Explicit LLM refusal phrasing outside diff hunks or code comments.
+    if (
+        _REFUSAL_INTAKE_RE.match(first)
+        and not first.startswith(("#", "//", "/*", "---", "+++", "@@"))
+        and not has_diff_hunk
+        and not (backend != "diff" and has_code_syntax and len(lines) > 2)
+    ):
+        return "safety refusal response"
+
+    if ready == "missing":
+        words = body.split()
+        looks_like_sentence = (
+            len(words) >= 5
+            and body[-1] in ".!?"
+            and not any(ln.startswith(("#", "//", "/*", "*", "- ", "+ ")) for ln in lines)
+        )
+        if backend == "diff" and not has_diff_hunk and not any(
+            ln.startswith(("--- ", "+++ ")) for ln in lines
+        ):
+            if looks_like_sentence or _REFUSAL_INTAKE_RE.match(first):
+                return "non-diff prose response"
+        elif (
+            backend != "diff"
+            and not has_fence
+            and ext in _CODE_TARGET_EXTS
+            and looks_like_sentence
+            and not has_code_syntax
+        ):
+            return "non-code prose response"
+
+    return None
+
+
 def _extract_file_content(text):
     """Pull the new file body from a model response.
 
