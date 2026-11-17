@@ -334,7 +334,7 @@ class DefaultPathDeliversTheEvidenceTests(_GovernedRun):
             (root / ".hist").mkdir(exist_ok=True)
             agent = AutonomousAgent(
                 settings=_settings(), root_dir=root,
-                transport=_BlockedTransport())
+                transport=_BlockedTransport(), history_dir=root / ".hist")
             # auto_apply deliberately left at its DEFAULT.
             return agent.run_hourglass_request(
                 "edit calc.py so add() documents its return value")
