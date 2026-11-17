@@ -20,16 +20,44 @@ lane) loads this via `CLAUDE.md`; any other agent reads it directly.
 If a local `docs/jev-roadmap.md` disagrees with `origin/main`, **fetch origin** —
 origin wins. The operator tree (`main`) may lag; reconcile before trusting STATUS.
 
-## Current mission (truth 2026-11-13 at `bf2348f` — details in canon STATUS)
+## Current mission (generated pointer - do not hand-edit)
 
-Claude, Codex, and Freebuff use `docs/jev-roadmap.md` as the shared operational canon. Lane-specific handoffs are seat state, not parallel plans. Every change, including STATUS and docs, goes through a reviewed PR with local gates and green CI; keep one phase PR active at a time and never push directly to `main`.
+**Generated:** 2026-11-17 at `origin/main` `8ae3346`, from a two-method live read
+(`gh issue list --state open --limit 400` = 60; search API `type:issue is:open` = 60).
+Regenerate this block in the same act that updates the register mirror in
+[docs/jev-roadmap.md](docs/jev-roadmap.md); if the two disagree, the register wins
+and this block is regenerated, never hand-edited. Every change, including this
+block, goes through a reviewed PR with local gates and green CI; one phase PR at
+a time; never push directly to `main`.
 
-| Item | Truth |
+**The open set.** Issue #295 is the live queue; the register mirror in
+`docs/jev-roadmap.md` is its generated count and order. **60 open issues**, of
+which **54 are placed** in a wave and **6 are filed but not yet placed**
+(`#573`, `#574`, `#579`, `#585`, `#587`, `#588`).
+
+| Wave | Placed open |
 |---|---|
-| Shipped | Every canon `complete` row listed in [docs/jev-roadmap.md](docs/jev-roadmap.md), reconciled against merged `main` on 2026-10-18 (post PR #240 `a7daf42` + PR #241). Every `HV-*` row (`HV-0`..`HV-6`), `DRV-1`/`DRV-2` (PR #161, #190, #191, #223, #232), `PROVISION-CORE` + `REPO-CARDS` + `JEV-P3-calibration-analysis` (PR #164–#169, #189, #192), `EV-0`..`EV-7` (`EV-0` PR #163+#167+#193; `EV-1`..`EV-7` + `#195`–`#197` PR #241), `PLAT-*` (`PLAT-cmd-data`, `PLAT-osal-module`, `PLAT-parity-tests`, `PLAT-ci-matrix`, `PLAT-docs` PR #201–#206), `JEV-LOG-*` (`JEV-LOG-SCHEMA`, `JEV-LOG-JUDGMENT`, `JEV-LOG-PARSE`, `JEV-LOG-FACTOR-PASS`, `JEV-LOG-CLI`, `JEV-LOG-DOGFOOD`, `JEV-LOG-ENVELOPE` PR #226–#233), `REFINE-LOOP` (`#239` Phase 0 pilot + P0–P3 prerequisites PR #240 `a7daf42`), every `GAP-*` row (`GAP-diff-auth`, `GAP-consent-stale`, `GAP-waist-degrade`, `GAP-judge-fallback`, `GAP-token-kinds`, `GAP-plan-http` PR #154/#156/#188), and every `DF-*` dogfood follow-up are complete. Post-10-18 burndown-window merges through `bf2348f` (2026-11-13): #449 (#447), #461 (#453 S1), #464 (#454 sweep), #477 (H-OSAL + #453 D12), #484 + #485 (#480 BR1/BR2), #486 (#456), #487 (#271), #488 (#273), #490 (#304), #491, #494 (#492), #495 (#304), #496 (#493, #304), #497 (#275 measure, stays open), #498 (#458), #499 (#457 intake, stays open), #500 (register mirror), #501 (#454 item, #454 stays open). See the dated ledger and rows in the canon for detail. |
-| Open | Rows marked **open** or **deferred** in canon STATUS: `EV-8` (scaffolded in `harness/fireworks_probe.py`; open only on live Fireworks API key execution against `accounts/fireworks/models/deepseek-v3p2` and `accounts/fireworks/models/glm-5p1` to write `audits/self/dogfood/EV8_FIREWORKS_RECEIPT.md`); `OC-HANDOFF` (experimental OpenClaw lane in PR #73); `GAP-jury` / `JEV-P2-jury` (deferred by operator ruling — do not invent it); and `CIVICSCOPE-COMPLETION` (external sibling repo, deferred until local gates run cleanly). PR #73 is the in-scope experimental OC handoff lane (`OC-HANDOFF`); Harness-owned changes may write findings only to `HANDOFF/OC_FINDINGS.md`. Keep all work inside this Harness repository; do not change external instances or configuration. |
+| W0 - Rail and gate truth | 0 |
+| W1 - Active queue | 0 |
+| W2 - Verification and surface truth | 10 |
+| W3 - Driver and perception | 5 |
+| W4 - Project execution envelope | 0 |
+| W5 - Research and retrieval | 3 |
+| W6 - Spend, routing and calibration | 10 |
+| W7 - Structure and scoped defects | 8 |
+| W8 - Champion Audit program | 11 |
+| W9 - Tracking and low priority | 5 |
+| W10 - Mode, proposals and parked (owner) | 2 |
+
+**Canon rows are a different unit and are not in the counts above.** The `HV-*` /
+`EV-*` / `DRV-*` / `GAP-*` / `DF-*` families live in the roadmap's own tables:
+`EV-8` and `OC-HANDOFF` are open, `GAP-jury` / `JEV-P2-jury` are **deferred by
+operator ruling - do not invent them**, and `CIVICSCOPE-COMPLETION` is deferred in
+a sibling repository. Every other row in those families is complete.
+
+| Rule | Truth |
+|---|---|
 | Completion rule | STATUS may say complete only when `harness jev-phase --phase <ID>` passes the bar (hard gates + sentiment buckets) **and** CI is green on the merge |
-| `JEV-P2-jury` | **deferred** by operator ruling — do not invent it to look complete |
 | Do not | redo shipped phases; mark complete while audit/CI red; merge red CI; hardcode provider brands in phase code |
 
 ## Worktrees
