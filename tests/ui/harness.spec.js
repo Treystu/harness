@@ -295,3 +295,104 @@ test("06 driver NL intake plans, cancels, and runs through the served card", asy
   await expect(page.locator("#driver-nl-steps li").first().locator("[data-step-state]"))
     .toContainText("✓");
 });
+
+async function openStudio(page) {
+  await page.locator('.pane-tab', { hasText: "Studio Inspector" }).click();
+  return page.locator("#subtool-body");
+}
+
+async function pickSubtool(page, label) {
+  await page.locator(".subtool-btn", { hasText: label }).click();
+}
+
+const POPULATED_SNAPSHOT = {
+  sessions: [{
+    metrics: {
+      run_depth_distribution: {
+        T0: { runs: 10, share: 0.5 }, T1: { runs: 4, share: 0.2 },
+        T2: { runs: 4, share: 0.2 }, T3: { runs: 2, share: 0.1 },
+      },
+      cost_per_gated_task: { T0: { median_cost: 0.001, samples: 5 },
+                             T1: { median_cost: 0.002, samples: 3 } },
+      escalation_escape_rate: { T2: { escape_rate: 0.25, samples: 4 } },
+      frontier_warrant_rate: { frontier_runs: 2, warranted: 1,
+                               warrant_rate: 0.5, unwarranted_flagged: 1 },
+      hourglass_savings: { actual_cost: 1.5, modeled_frontier_cost: 4.25,
+                           basis: "modeled from the pricing snapshot" },
+    },
+  }],
+};
+
+test("07 studio inspector: Proof renders its populated content exactly once", async ({ page }) => {
+  await page.route("**/api/snapshot", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json",
+                    body: JSON.stringify(POPULATED_SNAPSHOT) }));
+  await signInOwner(page);
+  await openStudio(page);
+  await pickSubtool(page, "Proof");
+  const body = page.locator("#subtool-body");
+  await expect(body).toContainText("Run depth (the hourglass)");
+  // Superseded renders must not stack a second copy of the pane (#586).
+  expect(await body.locator("h2").count()).toBe(1);
+  await expect(body).toContainText("Cost per gated task");
+  await expect(body).toContainText("$1.50 actual vs");
+  await expect(body).toContainText("$4.25 modeled");
+  await expect(body).toContainText("No escalations in the recent ledger tail.");
+});
+
+test("08 studio inspector: an unpaired pane offers Connect instead of going blank",
+     async ({ page }) => {
+  await page.route("**/api/snapshot", (route) =>
+    route.fulfill({ status: 401, contentType: "application/json",
+                    body: JSON.stringify({ error: "This browser is not connected to Harness" }) }));
+  await signInOwner(page);
+  await openStudio(page);
+  await pickSubtool(page, "Proof");
+  const body = page.locator("#subtool-body");
+  await expect(body).toContainText("This browser is not connected to Harness");
+  await expect(body.locator("button", { hasText: "Connect browser" })).toBeVisible();
+  // The pane must not have parked: the heading it draws first is followed by
+  // a message and an action, not left alone.
+  expect(await body.locator("h2").count()).toBe(1);
+  await expect(body.locator("h2")).toContainText("Proof Bench");
+});
+
+test("09 studio inspector: a failed snapshot says so, and an empty ledger says so",
+     async ({ page }) => {
+  await page.route("**/api/snapshot", (route) =>
+    route.fulfill({ status: 500, contentType: "application/json",
+                    body: JSON.stringify({ error: "snapshot exploded" }) }));
+  await signInOwner(page);
+  await openStudio(page);
+  await pickSubtool(page, "Proof");
+  await expect(page.locator("#subtool-body")).toContainText("Snapshot unavailable");
+
+  await page.unroute("**/api/snapshot");
+  await page.route("**/api/snapshot", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json",
+                    body: JSON.stringify({ sessions: [] }) }));
+  await pickSubtool(page, "Intake");
+  await pickSubtool(page, "Proof");
+  await expect(page.locator("#subtool-body"))
+    .toContainText("No runs in the local ledger yet");
+});
+
+test("10 studio inspector: modeled baseline absent is not printed as a comparison",
+     async ({ page }) => {
+  const snapshot = { sessions: [{ metrics: {
+    run_depth_distribution: { T0: { runs: 3, share: 1 } },
+    cost_per_gated_task: { T0: { median_cost: 0.001, samples: 2 } },
+    escalation_escape_rate: {},
+    frontier_warrant_rate: {},
+    hourglass_savings: { actual_cost: 0.75, basis: "unavailable: no priced model" },
+  } }] };
+  await page.route("**/api/snapshot", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json",
+                    body: JSON.stringify(snapshot) }));
+  await signInOwner(page);
+  await openStudio(page);
+  await pickSubtool(page, "Proof");
+  const body = page.locator("#subtool-body");
+  await expect(body).toContainText("No modeled frontier baseline");
+  await expect(body).not.toContainText("actual vs —");
+});

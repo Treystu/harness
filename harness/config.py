@@ -371,7 +371,7 @@ def save_byok_prefixes(path, prefixes):
 FREE_PANEL_POOL = [
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3.5-lightning:free",
     "cohere/north-mini-code:free",
     "openrouter/free",
 ]
@@ -387,7 +387,7 @@ FREE_JUDGE = "google/gemma-4-31b-it:free"
 FREE_APPLY_POOL = [
     "google/gemma-4-31b-it:free",
     "google/gemma-4-26b-a4b-it:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3.5-lightning:free",
     "cohere/north-mini-code:free",
     "openrouter/free",
 ]
@@ -451,7 +451,7 @@ SPECIALIST_POOL_PAID = [
 # Each rung has an implicit per-rung cost cap enforced by SpendGovernor.
 ESCALATION_POOL_FREE = [
     "google/gemma-4-26b-a4b-it:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3.5-lightning:free",
     "cohere/north-mini-code:free",
 ]
 

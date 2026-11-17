@@ -94,23 +94,29 @@ class AuditSuiteEnvIsolationTests(unittest.TestCase):
     def test_r_suite_runner_passes_the_scrubbed_env_to_the_child(self):
         captured = {}
 
-        class _Result:
-            stdout = "Ran 3 tests in 0.010s\n\nOK"
-            stderr = ""
-
         def fake_run(argv, **kwargs):
             captured["env"] = kwargs.get("env")
             captured["argv"] = argv
-            return _Result()
+            captured["stdout"] = kwargs.get("stdout")
+            captured["capture_output"] = kwargs.get("capture_output")
+            # R13 hands the child a FILE, never a captured pipe (a spawned
+            # grandchild inherits the pipe on Windows and parks the audit, #583),
+            # so the child's output arrives through the handle it was given.
+            handle = kwargs.get("stdout")
+            if handle is not None:
+                handle.write("Ran 3 tests in 0.010s\n\nOK\n")
+            return mock.Mock(returncode=0)
 
-        with mock.patch.dict(os.environ, {"HARNESS_USE_FREE": "true"}, clear=False), \
-                mock.patch.object(self.audit.subprocess, "run", side_effect=fake_run):
+        with mock.patch.dict(os.environ, {"HARNESS_USE_FREE": "true"}, clear=False),                 mock.patch.object(self.audit.subprocess, "run", side_effect=fake_run):
             score, evidence = self.audit.r_suite_green()
 
         self.assertEqual(score, 1.0, evidence)
         self.assertIsNotNone(captured["env"])
         self.assertNotIn("HARNESS_USE_FREE", captured["env"])
         self.assertIn("unittest", captured["argv"])
+        self.assertIsNone(captured["capture_output"],
+                          "the suite child must not be captured through a pipe")
+        self.assertIsNotNone(captured["stdout"])
         self.assertIn("env scrubbed", evidence)
         self.assertIn("HARNESS_USE_FREE", evidence)
 

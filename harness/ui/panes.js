@@ -29,6 +29,20 @@ const money = (v) => v === null || v === undefined ? "—"
   : v < 1 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`;
 const pct = (v) => v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`;
 
+// A pane render is not a user gesture: it must never await the interactive
+// auth prompt. Before this guard, an unpaired browser made `api()` await
+// `HARNESS_PROMPT_AUTH`, whose promise only settles when a human types a
+// token -- so the pane stopped after its heading, with no error, no empty
+// state and an empty console (#586). Panes now fail fast and visible.
+let paneRenderDepth = 0;
+
+function authRequiredError(message, status) {
+  const err = new Error(message);
+  err.authRequired = status === 401;
+  err.status = status;
+  return err;
+}
+
 async function api(path, opts = {}) {
   const headers = Object.assign({ accept: "application/json" }, opts.headers || {});
   let token = null;
@@ -50,7 +64,9 @@ async function api(path, opts = {}) {
   try { body = await res.json(); } catch (_e) { /* no body */ }
   if (res.status === 401) {
     const errReason = (body && body.error) ? body.error : "This browser is not connected to Harness.";
-    if (typeof window !== "undefined" && typeof window.HARNESS_PROMPT_AUTH === "function") {
+    const mayPrompt = paneRenderDepth === 0;
+    if (mayPrompt && typeof window !== "undefined"
+        && typeof window.HARNESS_PROMPT_AUTH === "function") {
       const entered = await window.HARNESS_PROMPT_AUTH(errReason);
       if (entered) {
         headers["X-Harness-Auth"] = entered;
@@ -61,7 +77,7 @@ async function api(path, opts = {}) {
   }
   if (!res.ok) {
     const msg = (body && body.error) ? body.error : `${path} -> HTTP ${res.status}`;
-    throw new Error(msg);
+    throw authRequiredError(msg, res.status);
   }
   return body;
 }
@@ -97,6 +113,52 @@ function table(headers, rows) {
         String(c)))))));
 }
 
+// ---- Shared pane shell --------------------------------------------------
+
+/** Render the connect affordance a pane shows when the browser is unpaired.
+ *  The button is the user gesture, so the prompt is allowed from here. */
+function authNotice(root, reason, retry) {
+  const button = $("button", { class: "pane-fetch", type: "button" },
+    "Connect browser");
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const token = (typeof window !== "undefined"
+        && typeof window.HARNESS_PROMPT_AUTH === "function")
+        ? await window.HARNESS_PROMPT_AUTH(reason) : null;
+      if (token) {
+        root.replaceChildren();
+        await retry(root);
+        return;
+      }
+    } finally {
+      button.disabled = false;
+    }
+  });
+  root.append(
+    $("p", { class: "muted" }, "This browser is not connected to Harness. ",
+      $("span", { class: "muted small" }, reason || "")),
+    button);
+}
+
+/** Run one pane render: unpaired -> notice, failure -> visible message. */
+async function renderPane(root, render) {
+  paneRenderDepth += 1;
+  try {
+    await render(root);
+  } catch (err) {
+    if (err && err.authRequired) {
+      const reason = String(err.message || "not connected");
+      authNotice(root, reason, render);
+      return;
+    }
+    root.append($("p", { class: "muted" },
+      `Pane error: ${err && err.message ? err.message : String(err)}`));
+  } finally {
+    paneRenderDepth -= 1;
+  }
+}
+
 // ---- Proof pane (SITE local mode) ---------------------------------------
 
 async function renderProof(root) {
@@ -105,6 +167,7 @@ async function renderProof(root) {
   try {
     snapshot = await api("/api/snapshot");
   } catch (err) {
+    if (err && err.authRequired) throw err;   // the pane shell renders the notice
     root.append($("p", { class: "muted" }, "Snapshot unavailable: ",
       $("code", {}, String(err.message))));
     return;
@@ -143,11 +206,24 @@ async function renderProof(root) {
           w.unwarranted_flagged ?? 0]]);
     })(),
     $("h3", {}, "Savings vs always-frontier (modeled)"),
-    $("p", {},
-      $("strong", {}, money(m.hourglass_savings?.actual_cost)), " actual vs ",
-      $("strong", {}, money(m.hourglass_savings?.modeled_frontier_cost)),
-      " modeled. ", $("span", { class: "muted small" },
-        m.hourglass_savings?.basis || "")),
+    (() => {
+      const s = m.hourglass_savings || {};
+      const modeled = s.modeled_frontier_cost;
+      // Never print one side of a comparison as if it were both: when the
+      // modeled baseline is missing the line said "$35.85 actual vs —
+      // modeled", which reads like a saving against nothing.
+      if (modeled === null || modeled === undefined) {
+        return $("p", {},
+          $("strong", {}, money(s.actual_cost)), " actual. ",
+          $("span", { class: "muted small" },
+            "No modeled frontier baseline in this snapshot"
+            + (s.basis ? `: ${s.basis}` : "")));
+      }
+      return $("p", {},
+        $("strong", {}, money(s.actual_cost)), " actual vs ",
+        $("strong", {}, money(modeled)), " modeled. ",
+        $("span", { class: "muted small" }, s.basis || ""));
+    })(),
     $("h3", {}, "Recent escalations (traces)"),
     await renderRecentEscalations());
 }
@@ -1533,20 +1609,33 @@ export function initPanes() {
   let current = "chat";
   const rendered = {};
 
+  // Overlapping renders used to interleave into one body: two clicks (the
+  // studio tab and then the subtool, or a fast double click) each cleared the
+  // body, then both appended, so every section and table appeared twice. A
+  // render now stages into a detached node and is swapped in only if it is
+  // still the newest render, so a superseded pass can never duplicate or
+  // half-paint the pane.
+  let renderSeq = 0;
+
   async function showSubtool(id) {
     currentSubtool = id;
+    const seq = ++renderSeq;
     for (const btn of subtoolBar.querySelectorAll(".subtool-btn")) {
       btn.classList.toggle("active", btn.dataset.pane === id);
     }
-    subtoolBody.replaceChildren();
     const entry = PANES.find(([pid]) => pid === id);
-    if (entry) {
-      try {
-        await entry[2](subtoolBody);
-      } catch (err) {
-        subtoolBody.append($("p", { class: "muted" }, `Pane error: ${err.message}`));
-      }
+    if (!entry) {
+      subtoolBody.replaceChildren();
+      return;
     }
+    const stage = $("div", { class: "pane-stage" });
+    // /api/snapshot reads the ledger and can take ~2s; without a pending
+    // state the pane looks like a dead view for that whole time (#586).
+    subtoolBody.replaceChildren(
+      $("p", { class: "muted", "data-pane-loading": "1" }, "Loading…"));
+    await renderPane(stage, entry[2]);
+    if (seq !== renderSeq) return;
+    subtoolBody.replaceChildren(...stage.childNodes);
   }
 
   function setMode(mode, targetSubtool = null) {
