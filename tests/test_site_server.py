@@ -259,6 +259,54 @@ class SiteSnapshotTests(ServerHarness):
         finally:
             conn.close()
 
+    def _escalate(self, task_id, prompt):
+        from harness.session import ledger_for
+        ledger = ledger_for(load_settings())
+        ledger.append("offer", task_id=task_id)
+        ledger.append("escalate", task_id=task_id, from_model="m-a",
+                      to_model="m-b", directed_by="jev", jev_confidence=0.9,
+                      prompt=prompt)
+
+    def test_snapshot_carries_recent_escalations_from_the_same_read(self):
+        # #599: the Proof pane used to need a second full ledger read for its
+        # escalations section. The snapshot now carries them, and only the
+        # fields the pane renders leave the process.
+        self._escalate("task-esc-1", "SECRET-PROMPT-TEXT")
+        conn = self._conn()
+        try:
+            status, data = _request(conn, "GET", "/api/snapshot")
+        finally:
+            conn.close()
+        self.assertEqual(status, 200)
+        rows = data.get("recent_escalations") or []
+        self.assertTrue(rows, "the snapshot must carry recent escalations")
+        row = [r for r in rows if r.get("task_id") == "task-esc-1"][-1]
+        self.assertEqual(row.get("event"), "escalate")
+        self.assertEqual(row.get("from_model"), "m-a")
+        self.assertEqual(row.get("to_model"), "m-b")
+        self.assertEqual(set(row), {"seq", "from_model", "to_model",
+                                    "directed_by", "jev_confidence",
+                                    "task_id", "event"})
+        self.assertNotIn("SECRET-PROMPT-TEXT", json.dumps(data))
+
+    def test_snapshot_cache_is_keyed_by_the_ledger_file(self):
+        # A cached snapshot must never outlive a ledger write: the key carries
+        # the ledger's size and mtime, so an append (or a tamper) re-reads and
+        # re-verifies before anything is served again.
+        conn = self._conn()
+        try:
+            _, first = _request(conn, "GET", "/api/snapshot")
+            self._escalate("task-esc-2", "another")
+            _, second = _request(conn, "GET", "/api/snapshot")
+            _, third = _request(conn, "GET", "/api/snapshot")
+        finally:
+            conn.close()
+        self.assertNotIn("task-esc-2",
+                         json.dumps(first.get("recent_escalations") or []))
+        self.assertIn("task-esc-2",
+                      json.dumps(second.get("recent_escalations") or []))
+        self.assertEqual(second, third)   # unchanged file -> cached payload
+
 
 class RouteEndpointTests(ServerHarness):
     PACK = {
