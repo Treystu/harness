@@ -428,7 +428,7 @@ persistent audit path.
 
 The package under `driver_core/` is a vendored copy of
 [`Treystu/driver-core`](https://github.com/Treystu/driver-core), pinned by
-`driver_core/__init__.py`'s `__version__` (`3.5.0` as vendored), with the
+`driver_core/__init__.py`'s `__version__` (`3.6.0` as vendored), with the
 upstream identity recorded in `driver_core/UPSTREAM.json` (repository,
 version, commit and raw source URL). The standalone repository publishes no
 tags, so the pin is the version plus commit, not a tag.

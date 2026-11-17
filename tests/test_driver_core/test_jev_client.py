@@ -12,11 +12,15 @@ from driver_core.actions import DEFAULT_VOCABULARY
 from driver_core.audit import MemoryAuditLog
 from driver_core.budget import Budget
 from driver_core.config import load_settings
+from driver_core.errors import VocabularyError
+from driver_core.executor_registry import build_driver_registry
 from driver_core.jev_client import (
-    MALFORMED, NATIVE, UNAVAILABLE, UNKEYED, JevClient, build_questions,
-    validate_answers,
+    COARSEST_INFERRED_DECIMAL_PLACE, FLOAT_NOISE_TOLERANCE,
+    MALFORMED, MAX_ACCEPTED_DEVIATION, NATIVE, UNAVAILABLE, UNKEYED,
+    Decision, JevClient, accepted_deviation, build_questions, decimal_places,
+    inferred_grid, offered_actions, probability_deviation, validate_answers,
 )
-from driver_core.transport import Response
+from driver_core.transport import EmittedFloat, Response
 from driver_core.ev import (
     FakeTransport, action_answer, no_usage_response, ok_response,
 )
@@ -222,6 +226,280 @@ class EnvelopeTests(unittest.TestCase):
         self.assertFalse(decision.usable)
         self.assertIsNone(decision.confidence)
         self.assertIsNone(decision.recommended_action)
+
+
+class OfferedActionTests(unittest.TestCase):
+    """Only what this build can actually perform is ever offered.
+
+    Two sets are in play and only one is safe to show: the vocabulary
+    declares what the system can *name*, the registry holds what this build
+    can *do*. Offering the vocabulary alone is how a real model came to
+    choose ``read_dom`` at 0.98 confidence and ``run_probe`` at 1.00, only
+    for the step to end in a refusal naming an executor nothing registered.
+
+    The declaration is untouched either way -- a host that backs one of the
+    three through ``Driver.register_executor`` puts it straight back on the
+    menu, which is the extension point the refusal message already promises.
+    """
+
+    def setUp(self):
+        self.registry = build_driver_registry(allow_write=True)
+
+    def test_the_offered_set_is_exactly_what_the_registry_can_perform(self):
+        offered = offered_actions(DEFAULT_VOCABULARY, self.registry.names())
+        self.assertEqual(set(offered), set(self.registry.names()))
+        self.assertEqual(len(offered), 12)
+        self.assertEqual(len(DEFAULT_VOCABULARY.names()), 15)
+
+    def test_the_three_names_nothing_implements_are_withheld(self):
+        offered = offered_actions(DEFAULT_VOCABULARY, self.registry.names())
+        for name in ("launch_app", "call_read_tool", "read_dom"):
+            self.assertIn(name, DEFAULT_VOCABULARY.names())
+            self.assertNotIn(name, offered)
+
+    def test_without_a_registry_nothing_is_narrowed(self):
+        """A caller holding no registry gets exactly what it always got, so
+        nothing that exists today changes shape."""
+        self.assertEqual(offered_actions(DEFAULT_VOCABULARY),
+                         DEFAULT_VOCABULARY.names())
+
+    def test_the_question_offers_exactly_the_narrowed_set(self):
+        questions = build_questions(STATE, DEFAULT_VOCABULARY,
+                                   performable=self.registry.names())
+        self.assertEqual(set(questions["action"]["criteria"]),
+                         set(self.registry.names()))
+
+    def test_a_registry_that_can_perform_nothing_declared_is_refused(self):
+        """An empty option set is not a question. Refused by name rather than
+        left to surface as a bare ValueError from the question builder."""
+        with self.assertRaises(VocabularyError):
+            offered_actions(DEFAULT_VOCABULARY, ("not_a_declared_action",))
+
+    def test_a_host_can_put_a_withheld_action_back_on_the_menu(self):
+        registry = self.registry.clone()
+        registry.register("read_dom", lambda action, params: {})
+        self.assertIn("read_dom",
+                      offered_actions(DEFAULT_VOCABULARY, registry.names()))
+
+
+#: A distribution exactly as a live eleven-option call returned it: every
+#: entry on a hundredth, and summing to 0.99 because the residue was lost.
+#: Captured verbatim from the real endpoint during the live audit.
+OBSERVED_ROUNDED = {
+    "click": 0.03, "delete_file": 0.0, "focus": 0.01, "no_action": 0.79,
+    "observe": 0.14, "press_key": 0.0, "read_value": 0.02, "scroll": 0.0,
+    "submit_irreversible": 0.0, "type_text": 0.0, "write_file": 0.0,
+}
+
+
+def _rounded_answers(probabilities, chosen, confidence):
+    return {
+        "action": {"type": "choice", "choice": chosen,
+                   "probabilities": dict(probabilities),
+                   "confidence": confidence},
+        "state_is_stable": {"type": "noul", "noul": 0.95},
+        "a_blocking_choice_is_required": {"type": "noul", "noul": 0.2},
+    }
+
+
+class DistributionDerivationTests(unittest.TestCase):
+    """The tolerance is read off the values, not chosen."""
+
+    def test_a_hundredth_grid_gets_half_a_hundredth_per_entry(self):
+        self.assertEqual(inferred_grid({"a": 0.99, "b": 0.01}), 2)
+        self.assertAlmostEqual(accepted_deviation({"a": 0.99, "b": 0.01}),
+                               0.01)
+
+    def test_whole_numbers_cannot_imply_that_a_hundredth_is_the_grid(self):
+        self.assertEqual(inferred_grid({"a": 1.0, "b": 0.0}),
+                         COARSEST_INFERRED_DECIMAL_PLACE)
+        self.assertAlmostEqual(accepted_deviation({"a": 1.0, "b": 0.0}), 0.1)
+
+    def test_full_precision_gets_no_tolerance_beyond_float_noise(self):
+        """Full precision means the sum is meant to be exactly 1."""
+        repeating = {"a": (1.0 - 0.99) / 13, "b": 0.99}
+        self.assertAlmostEqual(accepted_deviation(repeating),
+                               FLOAT_NOISE_TOLERANCE)
+
+    def test_the_tolerance_is_capped_however_coarse_the_grid(self):
+        """A very coarse grid must not license an unbounded deviation."""
+        coarse = {str(i): 0.1 for i in range(200)}
+        self.assertEqual(accepted_deviation(coarse), MAX_ACCEPTED_DEVIATION)
+
+    def test_an_empty_distribution_cannot_widen_anything(self):
+        self.assertGreater(accepted_deviation({}), 0.0)
+        self.assertLessEqual(accepted_deviation({}), MAX_ACCEPTED_DEVIATION)
+
+    def test_the_deviation_is_the_distance_from_one(self):
+        self.assertAlmostEqual(probability_deviation({"a": 0.5}), -0.5)
+        self.assertIsNone(probability_deviation({"a": 1.0}))
+
+    def test_a_trailing_zero_is_evidence_of_the_grid(self):
+        """``0.500`` is three places even though the float is ``0.5``."""
+        self.assertEqual(decimal_places(EmittedFloat("0.500")), 3)
+        self.assertEqual(decimal_places(0.5), 1)
+        self.assertEqual(inferred_grid({"a": EmittedFloat("0.500"),
+                                        "b": EmittedFloat("0.500")}), 3)
+        self.assertAlmostEqual(
+            accepted_deviation({"a": EmittedFloat("0.500"),
+                                "b": EmittedFloat("0.500")}), 0.001)
+
+    def test_dropping_the_literal_is_what_widens_the_tolerance(self):
+        """The same payload, read without its literals, is 100x too permissive.
+
+        This is the defect the cure exists for: grid inference is a maximum,
+        so one lost trailing zero coarsens the whole distribution and the
+        tolerance silently widens toward the cap.
+        """
+        kept = {"a": EmittedFloat("0.500"), "b": EmittedFloat("0.500")}
+        lost = {key: float(value) for key, value in kept.items()}
+        self.assertLess(accepted_deviation(kept), accepted_deviation(lost))
+        self.assertAlmostEqual(accepted_deviation(lost), 0.1)
+        self.assertAlmostEqual(accepted_deviation(kept), 0.001)
+
+    def test_the_transport_decode_keeps_the_literal(self):
+        """The seam, not just the helper: json -> EmittedFloat -> grid."""
+        import json
+
+        body = '{"probabilities": {"a": 0.500, "b": 0.50}}'
+        decoded = json.loads(body, parse_float=EmittedFloat)
+        probabilities = decoded["probabilities"]
+        self.assertEqual(inferred_grid(probabilities), 3)
+        self.assertAlmostEqual(float(probabilities["a"]), 0.5)
+        self.assertEqual(decimal_places(probabilities["b"]), 2)
+        self.assertIsNone(probability_deviation({"a": "nonsense"}))
+
+
+class RoundedDistributionTests(unittest.TestCase):
+    """A distribution short by its own printed precision is still a decision.
+
+    The endpoint documents that the distribution sums to 1, and publishes
+    every worked example rounded to two decimal places. At eleven options
+    those two documented facts stop being simultaneously satisfiable: live
+    calls landed exactly 0.01 short on nine of twenty, then seven of sixteen,
+    and the superseded fixed 1e-3 bound discarded the whole envelope each
+    time. Because a discarded envelope is unusable, the cost of that bound
+    was a step that acted on nothing while holding a perfectly good
+    ``no_action`` at 0.79 confidence.
+    """
+
+    def setUp(self):
+        # The live 11-option call was captured before run_probe (#439) joined
+        # the default registry; pin the 11-option offered set so the verbatim
+        # distribution remains directly comparable.
+        self.offered = tuple(
+            n for n in build_driver_registry(allow_write=True).names()
+            if n != "run_probe")
+        self.questions = build_questions(STATE, DEFAULT_VOCABULARY,
+                                        performable=self.offered)
+
+    def _validate(self, probabilities, chosen="no_action", confidence=0.79):
+        return validate_answers(
+            _rounded_answers(probabilities, chosen, confidence),
+            self.questions, DEFAULT_VOCABULARY)
+
+    def test_the_observed_rounded_distribution_now_validates(self):
+        action, confidence, probabilities, guards, reasons = self._validate(
+            OBSERVED_ROUNDED)
+        self.assertEqual(reasons, [])
+        self.assertEqual(action, "no_action")
+        self.assertEqual(set(probabilities), set(self.offered))
+        self.assertNotIn("run_probe", probabilities)
+        self.assertAlmostEqual(confidence, 0.79)
+        self.assertIn("state_is_stable", guards)
+
+    def test_a_distribution_short_beyond_its_grid_is_still_refused(self):
+        """The rule is unchanged; only the bound moved with the precision."""
+        wrong = dict(OBSERVED_ROUNDED)
+        wrong["no_action"] = 0.59
+        action, _, _, _, reasons = self._validate(wrong)
+        self.assertIsNone(action)
+        self.assertTrue(any("not 1" in reason for reason in reasons), reasons)
+        self.assertTrue(any("precision" in reason for reason in reasons),
+                        reasons)
+
+    def test_the_superseded_case_is_still_refused(self):
+        action, _, _, _, reasons = self._validate({"observe": 0.9,
+                                                   "click": 0.9},
+                                                  chosen="observe",
+                                                  confidence=0.9)
+        self.assertIsNone(action)
+        self.assertTrue(any("not 1" in reason for reason in reasons))
+
+    def test_the_record_names_the_deviation_it_tolerated(self):
+        settings = load_settings(env={"DRIVER_JEV_API_KEY": "k"})
+        audit = MemoryAuditLog()
+        client = JevClient(settings, budget=Budget(1.0, step_ceiling_usd=1.0),
+                           audit=audit,
+                           transport_module=FakeTransport(ok_response(
+                               _rounded_answers(OBSERVED_ROUNDED,
+                                                "no_action", 0.79))))
+        decision = client.decide(STATE, DEFAULT_VOCABULARY,
+                                 performable=self.offered)
+        self.assertTrue(decision.usable)
+        self.assertEqual(decision.status, NATIVE)
+        self.assertAlmostEqual(decision.probability_deviation, -0.01)
+        self.assertAlmostEqual(decision.to_dict()["probability_deviation"],
+                               -0.01)
+        record = audit.read_all()[0]
+        self.assertAlmostEqual(record["probability_deviation"], -0.01)
+
+    def test_an_exact_distribution_records_no_deviation(self):
+        settings = load_settings(env={"DRIVER_JEV_API_KEY": "k"})
+        audit = MemoryAuditLog()
+        exact = dict(OBSERVED_ROUNDED)
+        exact["no_action"] = 0.80
+        client = JevClient(settings, budget=Budget(1.0, step_ceiling_usd=1.0),
+                           audit=audit,
+                           transport_module=FakeTransport(ok_response(
+                               _rounded_answers(exact, "no_action", 0.80))))
+        decision = client.decide(STATE, DEFAULT_VOCABULARY,
+                                 performable=self.offered)
+        self.assertTrue(decision.usable)
+        self.assertIsNone(decision.probability_deviation)
+        self.assertNotIn("probability_deviation", decision.to_dict())
+
+
+class StableZeroTests(unittest.TestCase):
+    """A recorded zero has one sign on every interpreter (issue #31).
+
+    ``sum()`` gained Neumaier compensated summation in 3.12: a distribution
+    summing to 1 by construction lands on exactly ``0.0`` there and one ulp
+    off on 3.9-3.11. Rounded to nine places that ulp is ``-0.0``, which
+    serialises as ``"-0.0"`` -- a different byte string, so a different hash,
+    so a chain that cannot be reproduced on the interpreter that wrote it.
+    """
+
+    ULP_LOW = -2.220446049250313e-16      # what sum()-1.0 gives on <=3.11
+
+    def test_the_recorded_deviation_is_never_a_negative_zero(self):
+        import json
+
+        decision = Decision("native", confidence=0.9,
+                            probability_deviation=self.ULP_LOW)
+        self.assertEqual(json.dumps(decision.to_dict()["probability_deviation"]),
+                         "0.0")
+        self.assertEqual(
+            json.dumps(decision.audit_fields()["probability_deviation"]),
+            "0.0")
+
+    def test_no_other_number_is_moved_by_the_normalisation(self):
+        import json
+
+        for value in (0.5, -0.5, 1e-17, 0.06923076923076923, -1.0):
+            with self.subTest(value=value):
+                decision = Decision("native", probability_deviation=value)
+                self.assertEqual(
+                    json.dumps(decision.to_dict()["probability_deviation"]),
+                    json.dumps(round(value, 9)))
+
+    def test_the_ulp_rounds_into_the_negative_zero_the_fix_removes(self):
+        """The mechanism, stated as a fact rather than assumed."""
+        import json
+
+        self.assertEqual(repr(round(self.ULP_LOW, 9)), "-0.0")
+        self.assertEqual(json.dumps(round(self.ULP_LOW, 9)), "-0.0")
+        self.assertEqual(json.dumps(round(self.ULP_LOW, 9) + 0.0), "0.0")
 
 
 if __name__ == "__main__":

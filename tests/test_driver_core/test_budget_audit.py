@@ -112,6 +112,80 @@ class CeilingTests(unittest.TestCase):
         self.assertEqual(len(budget.open_reservations()), 1)
 
 
+class AccountingPrecisionTests(unittest.TestCase):
+    """The comparison must agree with the balance the budget reports.
+
+    ``snapshot`` rounds to 9 places and the ledger rounds with it, so the
+    pre-flight check does too. Comparing raw floats made a ceiling of
+    N x cost admit only N-1 charges, and then reported one cent remaining
+    while refusing a one-cent charge.
+    """
+
+    def test_an_exact_fit_charge_is_admitted_to_the_last_cent(self):
+        budget = Budget(0.30)
+        for index in range(30):
+            budget.reserve(0.01, label=f"c{index}").settle(0.01)
+        self.assertEqual(round(budget.spent, 9), 0.30)
+        self.assertEqual(budget.remaining, 0.0)
+        self.assertEqual(len(budget.open_reservations()), 0)
+
+    def test_an_exact_fit_charge_is_admitted_at_five_cent_steps(self):
+        budget = Budget(1.00)
+        for index in range(20):
+            budget.reserve(0.05, label=f"c{index}").settle(0.05)
+        self.assertEqual(budget.snapshot()["spent_usd"], 1.00)
+        self.assertEqual(budget.snapshot()["remaining_usd"], 0.0)
+
+    def test_the_report_and_the_enforcement_agree_at_the_boundary(self):
+        budget = Budget(0.30)
+        for index in range(29):
+            budget.reserve(0.01, label=f"c{index}").settle(0.01)
+        self.assertEqual(budget.snapshot()["remaining_usd"], 0.01)
+        budget.reserve(0.01, label="last").settle(0.01)
+        self.assertEqual(budget.snapshot()["remaining_usd"], 0.0)
+
+    def test_a_remaining_balance_refusal_names_remaining_not_ceiling(self):
+        budget = Budget(1.0)
+        budget.reserve(0.95, label="most").settle(0.95)
+        with self.assertRaises(BudgetRefused) as ctx:
+            budget.reserve(0.50, label="over")
+        message = str(ctx.exception)
+        self.assertIn("exceeds remaining", message)
+        self.assertNotIn("exceeds ceiling", message)
+        self.assertIn("0.050000", message)
+        self.assertEqual(ctx.exception.limit, "remaining")
+
+    def test_a_step_ceiling_refusal_still_says_ceiling(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        with self.assertRaises(BudgetRefused) as ctx:
+            budget.reserve(0.5)
+        self.assertIn("exceeds ceiling", str(ctx.exception))
+        self.assertEqual(ctx.exception.limit, "ceiling")
+
+
+class StepCeilingTests(unittest.TestCase):
+    """A step ceiling of zero is a request, not an absence."""
+
+    def test_a_zero_step_ceiling_is_refused_rather_than_widened(self):
+        with self.assertRaises(ValueError) as ctx:
+            Budget(5.0, step_ceiling_usd=0.0)
+        self.assertIn("step_ceiling_usd", str(ctx.exception))
+
+    def test_a_negative_step_ceiling_is_refused(self):
+        with self.assertRaises(ValueError):
+            Budget(5.0, step_ceiling_usd=-1.0)
+
+    def test_no_step_ceiling_inherits_the_run_ceiling(self):
+        budget = Budget(5.0)
+        self.assertEqual(budget.reserve(4.9, label="").state, "reserved")
+
+    def test_a_tiny_step_ceiling_is_still_respected(self):
+        budget = Budget(5.0, step_ceiling_usd=1e-9)
+        with self.assertRaises(BudgetRefused) as ctx:
+            budget.reserve(0.01)
+        self.assertEqual(ctx.exception.ceiling, 1e-9)
+
+
 class ConcurrencyTests(unittest.TestCase):
 
     def test_racing_workers_cannot_collectively_overspend(self):
@@ -404,6 +478,43 @@ class AuditChainTests(unittest.TestCase):
         self.assertEqual(_canonical(record), _canonical(
             dict(reversed(list(record.items())))))
 
+    def test_a_truncated_record_returns_a_failed_verdict_rather_than_raising(self):
+        path = os.path.join(self.dir.name, "truncated.jsonl")
+        log = AuditLog(path)
+        log.append("capture", step_id="s1", source="cli")
+        log.append("capture", step_id="s2", source="cli")
+        with open(path, "rb+") as handle:
+            handle.seek(0, os.SEEK_END)
+            handle.truncate(os.path.getsize(path) - 12)
+        verdict = log.verify()
+        self.assertFalse(verdict.ok)
+        self.assertFalse(verdict)
+        self.assertIn("truncated", verdict.detail)
+        self.assertEqual(verdict.records, 1)
+
+    def test_an_altered_record_is_still_reported_as_drift(self):
+        path = os.path.join(self.dir.name, "altered.jsonl")
+        log = AuditLog(path)
+        log.append("capture", step_id="s1", source="cli")
+        log.append("capture", step_id="s2", source="cli")
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read().replace('"cli"', '"forged"', 1)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        verdict = log.verify()
+        self.assertFalse(verdict.ok)
+        self.assertIn("altered", verdict.detail)
+
+    def test_a_clean_chain_verifies_without_rereading_the_file(self):
+        path = os.path.join(self.dir.name, "clean.jsonl")
+        log = AuditLog(path)
+        for index in range(3):
+            log.append("capture", step_id=f"s{index}", source="cli")
+        verdict = log.verify()
+        self.assertTrue(verdict.ok)
+        self.assertEqual(verdict.records, 3)
+        self.assertEqual(verdict.detail, "chain verified")
+
     def test_two_independent_runs_record_the_same_facts(self):
         one = MemoryAuditLog()
         one.append("capture", step_id="s1", source="cli")
@@ -413,6 +524,123 @@ class AuditChainTests(unittest.TestCase):
         self.assertEqual(a["kind"], b["kind"])
         self.assertEqual(a["source"], b["source"])
         self.assertEqual(a["seq"], b["seq"])
+
+
+class StepScopeTests(unittest.TestCase):
+    """``step_ceiling_usd`` bounds a step, not each of its dispatches.
+
+    The defect these cover: checked one call at a time, a step that made ten
+    dispatches was bounded by ten times the declared cap, so the number in the
+    configuration was not the number enforced.
+    """
+
+    def test_a_step_cannot_spend_its_ceiling_more_than_once(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        with budget.step_scope("s1"):
+            budget.reserve(0.03, label="rung-1").settle(0.03)
+            with self.assertRaises(BudgetRefused) as ctx:
+                budget.reserve(0.03, label="rung-2")
+        self.assertEqual(ctx.exception.ceiling, 0.05)
+        self.assertEqual(budget.spent, 0.03)
+
+    def test_the_refusal_names_the_step_and_the_call(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        with budget.step_scope("step-7"):
+            budget.reserve(0.04, label="rung-1")
+            with self.assertRaises(BudgetRefused) as ctx:
+                budget.reserve(0.04, label="rung-2")
+        message = str(ctx.exception)
+        self.assertIn("step-7", message)
+        self.assertIn("rung-2", message)
+
+    def test_an_open_reservation_counts_against_the_step(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        with budget.step_scope("s1"):
+            leaked = budget.reserve(0.04, label="held")
+            with self.assertRaises(BudgetRefused):
+                budget.reserve(0.04, label="second")
+            leaked.cancel()
+            budget.reserve(0.04, label="after-cancel").settle(0.04)
+
+    def test_each_step_gets_its_own_ceiling(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        for step in ("s1", "s2"):
+            with budget.step_scope(step):
+                budget.reserve(0.05).settle(0.05)
+        self.assertAlmostEqual(budget.spent, 0.10)
+
+    def test_a_nested_scope_cannot_buy_a_second_allowance(self):
+        # The defect: the ceiling was judged against the innermost open
+        # scope, so every nested scope started at zero and N levels of
+        # nesting admitted N times the declared cap.
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        with budget.step_scope("outer"):
+            budget.reserve(0.03, label="outer-rung").settle(0.03)
+            with budget.step_scope("inner"):
+                with self.assertRaises(BudgetRefused) as ctx:
+                    budget.reserve(0.03, label="inner-rung")
+        self.assertEqual(ctx.exception.ceiling, 0.05)
+        self.assertIn("outer", str(ctx.exception))
+        self.assertAlmostEqual(budget.spent, 0.03)
+
+    def test_a_nested_scope_still_admits_what_the_step_can_afford(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        with budget.step_scope("outer"):
+            budget.reserve(0.02, label="outer-rung").settle(0.02)
+            with budget.step_scope("inner"):
+                budget.reserve(0.03, label="inner-rung").settle(0.03)
+        self.assertAlmostEqual(budget.spent, 0.05)
+
+    def test_outside_a_scope_the_call_is_the_step(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        budget.reserve(0.05).settle(0.05)
+        budget.reserve(0.05).settle(0.05)
+        with self.assertRaises(BudgetRefused):
+            budget.reserve(0.051)
+
+    def test_the_run_ceiling_still_bites_inside_a_scope(self):
+        # A step ceiling wide enough not to be the binding one, so what the
+        # refusal reports is the run ceiling the scope must not weaken.
+        budget = Budget(0.06, step_ceiling_usd=0.20)
+        with budget.step_scope("s1"):
+            budget.reserve(0.04).settle(0.04)
+            with self.assertRaises(BudgetRefused) as ctx:
+                budget.reserve(0.04)
+        self.assertAlmostEqual(ctx.exception.ceiling, 0.02)
+        self.assertEqual(budget.spent, 0.04)
+
+    def test_a_scope_leaves_nothing_behind_after_an_exception(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        with self.assertRaises(RuntimeError):
+            with budget.step_scope("s1"):
+                budget.reserve(0.04, label="held")
+                raise RuntimeError("step blew up")
+        # The next step is judged on its own exposure, not the failed one's.
+        with budget.step_scope("s2"):
+            budget.reserve(0.04).settle(0.04)
+        self.assertAlmostEqual(budget.spent, 0.04)
+
+    def test_a_scope_is_thread_local(self):
+        budget = Budget(10.0, step_ceiling_usd=0.05)
+        entered, release = threading.Event(), threading.Event()
+        seen = {}
+
+        def worker():
+            with budget.step_scope("slow"):
+                budget.reserve(0.05).settle(0.05)
+                entered.set()
+                release.wait(5)
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        self.assertTrue(entered.wait(5))
+        # This thread is in no scope, so it is not charged for the other one.
+        seen["ok"] = budget.reserve(0.05).settle(0.05)
+        release.set()
+        thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertAlmostEqual(budget.spent, 0.10)
+        self.assertAlmostEqual(seen["ok"], 0.05)
 
 
 if __name__ == "__main__":

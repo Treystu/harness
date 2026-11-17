@@ -405,7 +405,7 @@ class PackTests(unittest.TestCase):
         self.assertEqual(len(service.requests), 1)
         self.assertEqual(len(service.requests[0]["questions"]), 16)
         self.assertTrue(service.requests[0]["images_enabled"])
-        self.assertEqual(service.requests[0]["body"]["model"], "jev-preview")
+        self.assertEqual(service.requests[0]["body"]["model"], "jev-1.14.0")
 
 
 class DriverIntegrationTests(unittest.TestCase):

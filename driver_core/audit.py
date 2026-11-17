@@ -322,6 +322,7 @@ class AuditError(Exception):
     def __init__(self, message, *, record_index=None):
         super().__init__(message)
         self.record_index = record_index
+        self.index = record_index
 
 
 #: The description formula every MCP tool contract must follow (#284).

@@ -24,6 +24,7 @@ record -- has one owner, :meth:`Budget.exchange`, so it cannot drift between
 the call sites that spend money.
 """
 import threading
+from contextlib import contextmanager
 
 from .errors import BudgetRefused
 
@@ -31,6 +32,17 @@ from .errors import BudgetRefused
 ACTUAL = "actual"
 ESTIMATED = "estimated"
 UNAVAILABLE = "unavailable"
+
+#: The precision the budget reports in: :meth:`Budget.snapshot` and every
+#: ledger entry round to this many places, so the pre-flight comparison does
+#: too. Comparing raw floats let accumulated representation error refuse a
+#: charge that fitted exactly -- a ceiling of N x cost admitted only N-1.
+ACCOUNTING_PLACES = 9
+
+
+def _at_precision(value):
+    """``value`` as the budget reports it, so comparisons match the reports."""
+    return round(float(value), ACCOUNTING_PLACES)
 
 
 class Budget:
@@ -46,7 +58,16 @@ class Budget:
         if ceiling_usd <= 0:
             raise ValueError("ceiling_usd must be positive")
         self._ceiling = float(ceiling_usd)
-        self._step_ceiling = float(step_ceiling_usd or ceiling_usd)
+        # ``is None``, not ``or``: a step ceiling of 0.0 is a real request
+        # ("no step may spend") and must not be widened to the run ceiling.
+        # It is refused below for the same reason ``ceiling_usd <= 0`` is:
+        # a ceiling that can never admit a charge is a configuration error,
+        # and inheriting it silently would bound nothing.
+        if step_ceiling_usd is None:
+            step_ceiling_usd = ceiling_usd
+        self._step_ceiling = float(step_ceiling_usd)
+        if self._step_ceiling <= 0:
+            raise ValueError("step_ceiling_usd must be positive")
         self._lock = threading.RLock()
         self._spent = 0.0
         self._reserved = 0.0
@@ -56,6 +77,11 @@ class Budget:
         #: balance forever and nothing reports it, which is the precise
         #: failure ``open_reservations`` exists to make visible.
         self._live = []
+        #: The step scopes open on *this* thread, innermost last. A scope is
+        #: what makes ``step_ceiling_usd`` a per-step number: see
+        #: :meth:`step_scope`. Thread-local because one budget is shared by
+        #: concurrent workers, and a step belongs to exactly one of them.
+        self._scopes = threading.local()
 
     # -- queries ---------------------------------------------------------
 
@@ -76,7 +102,8 @@ class Budget:
     @property
     def remaining(self):
         with self._lock:
-            return max(0.0, self._ceiling - self._spent - self._reserved)
+            return _at_precision(max(0.0, self._ceiling - self._spent
+                                     - self._reserved))
 
     def snapshot(self):
         with self._lock:
@@ -103,17 +130,82 @@ class Budget:
         if estimate < 0:
             raise ValueError("estimated_usd must be >= 0")
         with self._lock:
-            if estimate > self._step_ceiling:
-                raise BudgetRefused(estimate, self._step_ceiling, label)
-            if estimate > self._ceiling - self._spent - self._reserved:
-                raise BudgetRefused(estimate, self._remaining_locked(), label)
+            # The step ceiling judges the *step*, not the call. Outside a
+            # step scope the two are the same thing -- one reservation, one
+            # dispatch -- so a bare ``reserve`` keeps the old meaning.
+            tallies = self._open_tallies()
+            if not tallies:
+                if _at_precision(estimate) > _at_precision(self._step_ceiling):
+                    raise BudgetRefused(estimate, self._step_ceiling, label)
+            else:
+                # The outermost open scope is the step being accounted for.
+                # Nested scopes do not buy a second allowance: a sub-step is
+                # judged against what the step that owns it has already
+                # committed, or a step could exceed its cap by nesting.
+                step = tallies[0]
+                projected = step.committed + step.outstanding + estimate
+                if _at_precision(projected) > _at_precision(self._step_ceiling):
+                    raise BudgetRefused(projected, self._step_ceiling,
+                                        _step_label(step.key, label))
+            # Compare at the precision this budget reports in. Accumulated
+            # float representation error in ``_spent`` otherwise makes the
+            # remaining balance a hair smaller than a charge that fits
+            # exactly, so a ceiling of N x cost admitted N-1 of them.
+            if (_at_precision(estimate)
+                    > _at_precision(self._ceiling - self._spent - self._reserved)):
+                raise BudgetRefused(estimate, self._remaining_locked(), label,
+                                    limit="remaining")
             self._reserved += estimate
             reservation = Reservation(self, estimate, label)
+            for step in tallies:
+                step.outstanding += estimate
+            reservation._steps = list(tallies)
             self._live.append(reservation)
             return reservation
 
+    # -- step scoping ----------------------------------------------------
+
+    def _open_tallies(self):
+        """The step scopes open on this thread, outermost first."""
+        stack = getattr(self._scopes, "stack", None)
+        return list(stack) if stack else []
+
+    @contextmanager
+    def step_scope(self, key=""):
+        """Attribute every reservation taken inside this block to one step.
+
+        ``step_ceiling_usd`` is documented as a **per-step** ceiling, and a
+        step dispatches more than once: the locate ladder retries rungs, and
+        an envelope may be re-asked. Checked one call at a time, the ceiling
+        bounded a single *call*, so a step that made N dispatches was bounded
+        by N times the declared cap -- the configured number was not the
+        enforced number.
+
+        Inside this scope the reservations of one step are accumulated and
+        the running total is what the ceiling judges, so a step cannot spend
+        its cap twice. A settled reservation counts at what it actually
+        charged; an open one counts at its reservation, because the step may
+        still have to pay that much. Scopes nest, and the **outermost** one is
+        what the ceiling is judged against: every open scope is charged, so a
+        sub-step cannot buy a second allowance and a step cannot exceed its
+        cap by nesting.
+
+        An empty ``key`` is allowed for callers that have no id yet, and
+        names itself in the refusal.
+        """
+        tally = _StepTally(key)
+        stack = getattr(self._scopes, "stack", None)
+        if stack is None:
+            stack = self._scopes.stack = []
+        stack.append(tally)
+        try:
+            yield tally
+        finally:
+            stack.pop()
+
     def _remaining_locked(self):
-        return max(0.0, self._ceiling - self._spent - self._reserved)
+        return _at_precision(max(0.0, self._ceiling - self._spent
+                                 - self._reserved))
 
     def open_reservations(self):
         with self._lock:
@@ -125,6 +217,9 @@ class Budget:
             reservation._finish(amount, source)
             self._reserved -= reservation.estimate
             self._spent += amount
+            for step in reservation._steps:
+                step.outstanding -= reservation.estimate
+                step.committed += amount
             if reservation in self._live:
                 self._live.remove(reservation)
             self._entries.append({
@@ -197,11 +292,33 @@ SETTLED = "settled"
 CANCELLED = "cancelled"
 
 
+class _StepTally:
+    """What one step has committed and what it still has outstanding.
+
+    ``committed`` is dollars already settled or cancelled; ``outstanding`` is
+    the reservations the step still holds. A step's exposure is the sum, and
+    that is what :attr:`Budget.step_scope` judges against the ceiling.
+    """
+
+    __slots__ = ("key", "committed", "outstanding")
+
+    def __init__(self, key=""):
+        self.key = key
+        self.committed = 0.0
+        self.outstanding = 0.0
+
+
+def _step_label(key, label):
+    """Name the step and the call in one refusal, so both are actionable."""
+    parts = [part for part in (f"step {key}" if key else "", label) if part]
+    return " / ".join(parts)
+
+
 class Reservation:
     """A held amount. Settles or cancels exactly once."""
 
     __slots__ = ("_budget", "estimate", "label", "state", "charged",
-                 "usage_source")
+                 "usage_source", "_steps")
 
     def __init__(self, budget, estimate, label):
         self._budget = budget
@@ -210,6 +327,11 @@ class Reservation:
         self.state = RESERVED
         self.charged = 0.0
         self.usage_source = None
+        #: The step scopes this reservation was taken under, outermost first;
+        #: empty outside a :meth:`Budget.step_scope`. Settlement reports back
+        #: to every one of them, so a nested scope cannot hide spend from the
+        #: step that owns it.
+        self._steps = ()
 
     def settle(self, actual_usd=None, source=ACTUAL):
         """Charge the call.

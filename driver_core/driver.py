@@ -60,6 +60,7 @@ from .extractors import ExtractorPool
 from .jev_client import JevClient
 from .perception import GUI, select_capture
 from .states import SCREEN_SCHEMA
+from .trace import CaptureTrace, trace_path_for
 from .vision_verify import VisionVerifier
 from .wiring import configured_pools, configured_sources
 
@@ -130,7 +131,7 @@ class Driver:
     def __init__(self, *, audit, settings=None, budget=None,
                  vocabulary=DEFAULT_VOCABULARY, pool=None, jev=None,
                  executor=None, sources=None, screen=None, pools=None,
-                 input_backend=None, vision=None):
+                 input_backend=None, vision=None, trace=None):
         self.settings = settings or load_settings()
         self.budget = budget or Budget(self.settings.run_ceiling_usd,
                                        step_ceiling_usd=self.settings.step_ceiling_usd)
@@ -139,6 +140,18 @@ class Driver:
         #: makes and can see -- :func:`driver_from_settings` is the pairing
         #: the CLI and the service both use.
         self.audit = required(audit, "A Driver")
+        #: Where capture latency goes, or ``None`` for no sidecar.
+        #:
+        #: Deliberately *not* required, unlike the chain: a chain is evidence
+        #: about what the driver saw, decided and did, while this is a
+        #: measurement of how long one tier took. A caller that brought a
+        #: memory log -- a test, a dry run -- has nowhere to put a file and
+        #: wants no stray one, so the absence of a trace is the honest
+        #: default rather than a gap in the record.
+        #:
+        #: :func:`driver_from_settings` is where a real run gets one, derived
+        #: from the audit log's own path (see :mod:`driver_core.trace`).
+        self.trace = trace
         self.vocabulary = vocabulary
 
         # Each collaborator has exactly one owner. ``None`` means "use what
@@ -233,6 +246,23 @@ class Driver:
 
     def step(self, target, *, schema=None, consent=None, step_id=None,
              prefer=(), require_stable=True, params=None):
+        """Run one full step inside its own budget scope.
+
+        The whole step runs inside :meth:`Budget.step_scope`, so
+        ``step_ceiling_usd`` bounds what the step spends **in total** rather
+        than what any one of its dispatches spends. A step that retries a
+        ladder is exactly the case where those two differ: bounded per call,
+        a ten-rung ladder could spend ten times the declared cap.
+        """
+        step_id = step_id or uuid.uuid4().hex[:12]
+        with self.budget.step_scope(step_id):
+            return self._run_step(
+                target, schema=schema or SCREEN_SCHEMA, consent=consent,
+                step_id=step_id, prefer=prefer,
+                require_stable=require_stable, params=params)
+
+    def _run_step(self, target, *, schema, consent, step_id, prefer,
+                  require_stable, params):
         """Run one full step. Returns a :class:`StepResult`; never raises for
         a blocked or degraded condition.
 
@@ -244,12 +274,10 @@ class Driver:
         caller's side of the line is also what lets them be shown to an
         operator and consented to as a single ``(action, params)`` pair.
         """
-        step_id = step_id or uuid.uuid4().hex[:12]
-        schema = schema or SCREEN_SCHEMA
 
         # 1. capture
         try:
-            capture = self._capture(target, prefer)
+            capture = self._capture(target, prefer, step_id=step_id)
         except PerceptionUnavailable as exc:
             return self._stop(step_id, "capture", "no_capture", str(exc),
                               needs=self._capture_needs())
@@ -258,6 +286,17 @@ class Driver:
         # 2 + 3. extract and tally
         pool = self._pool_for(capture)
         votes = pool.run(capture, schema)
+        # A ceiling that refused a slot is a spend stop. Without this the
+        # refusal reaches the tally as an error vote and the step reports an
+        # extraction shortfall, which blames the capture for a budget decision.
+        if pool.refused():
+            # The votes already collected may include billed extractions that
+            # settled before the ceiling refused a later slot. Dropping them
+            # here reported cost_usd 0.0 while the ledger recorded real spend
+            # (Codex, PR #64), so the incurred cost travels with the stop.
+            return self._stop(step_id, "extract", "budget_refused",
+                              pool.refused(), capture=capture,
+                              cost=sum(vote.cost for vote in votes))
         agreement = tally(votes, schema, quorum=self.settings.quorum,
                           min_agreement=self.settings.min_agreement)
         receipt = agreement.receipt(schema.identity(), step_id)
@@ -456,14 +495,26 @@ class Driver:
         """
         return next((s for s in self.sources if s.name == "screen"), None)
 
-    def _capture(self, target, prefer):
+    def _capture(self, target, prefer, *, step_id=None):
         """One capture, through the ordered tier chain.
 
         ``self.sources`` is the whole chain, screen included, and it is
         filtered by target class rather than consulted in a fixed order --
         that filtering is the guarantee, not this loop.
+
+        Each attempt is handed to this driver's trace, when it has one, with
+        the step already bound. The tier policy is told nothing about steps or
+        files: it reports an attempt, and :mod:`driver_core.trace` decides what
+        one is worth keeping.
+
+        ``step_id`` is optional because this seam is also called directly to
+        inspect a refusal message. A record is tied to its run by ``step_id``
+        and nothing else, so a capture with no step is traced as nothing
+        rather than filed under a null id.
         """
-        return select_capture(target, self.sources, prefer=prefer)
+        trace = (self.trace.recorder(step_id)
+                 if self.trace is not None and step_id is not None else None)
+        return select_capture(target, self.sources, prefer=prefer, trace=trace)
 
     def _pool_for(self, capture):
         """The extractor pool for this capture's target class.
@@ -590,8 +641,16 @@ def driver_from_settings(settings=None):
     collaborators, the vocabulary -- is what :class:`Driver` takes directly.
     """
     settings = settings or load_settings()
+    audit_path = settings.audit_path or default_audit_path()
+    # The sidecar is derived here, beside the chain, so the two cannot name
+    # different runs: one setting decides where a run's records live, and its
+    # measurements live next to them (``audit.jsonl`` ->
+    # ``audit.trace.jsonl``). Passing ``trace=None`` to :class:`Driver` is
+    # what a caller with a memory log wants; the entry points always have a
+    # path, so the CLI and the service always measure.
     return Driver(settings=settings,
-                  audit=AuditLog(settings.audit_path or default_audit_path()))
+                  audit=AuditLog(audit_path),
+                  trace=CaptureTrace(trace_path_for(audit_path)))
 
 
 __all__ = ["Driver", "StepResult", "Settings", "load_settings", "Budget",

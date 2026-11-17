@@ -32,7 +32,7 @@ import json
 from . import osal
 from .errors import PerceptionUnavailable
 from .observation import (
-    CLI, DOM, GUI, MCP, SCREEN_SOURCE, Capture, fingerprint,
+    CLI, DOM, GUI, MCP, SCREEN_SOURCE, Capture, carries_state, fingerprint,
 )
 from .parsing import _last_reply, _tool_payload, read_document
 
@@ -40,6 +40,17 @@ from .parsing import _last_reply, _tool_payload, read_document
 #: The first entry is the one that failed; the rest exist so an operator can
 #: see where a declared command was split.
 _ARGV_ECHO = 6
+
+
+def _truncation_failure(what, result):
+    """Name a capture the cap cut short, with the sizes that prove it.
+
+    ``osal.run`` already reports both numbers in ``error``; this prefixes
+    which program produced them so the diagnosis names the tier, without
+    repeating the phrase ``error`` already carries.
+    """
+    reason = (result.error or "").split("output truncated: ", 1)[-1]
+    return f"{what} output truncated: {reason}"
 
 
 def _launch_failure(prefix, result, argv):
@@ -129,6 +140,9 @@ class ScreenSource:
             described, why = osal.describe_screen()
             if not described:
                 return Capture(SCREEN_SOURCE, target, None, detail=why)
+            if not carries_state(described):
+                return Capture(SCREEN_SOURCE, target, None,
+                               detail="source answered with no state")
             return Capture(SCREEN_SOURCE, target, described,
                            fingerprint=fingerprint(described))
         path, detail = osal.capture_screen()
@@ -142,6 +156,9 @@ class ScreenSource:
         if payload is None:
             return Capture(SCREEN_SOURCE, target, None,
                            detail="capture produced no readable bytes")
+        if not carries_state(payload):
+            return Capture(SCREEN_SOURCE, target, None,
+                           detail="source answered with no state")
         return Capture(SCREEN_SOURCE, target, payload,
                        fingerprint=fingerprint(payload))
 
@@ -193,6 +210,14 @@ class CliSource:
         if self.extra_env:
             kwargs["env"] = self.extra_env
         result = osal.run(argv, **kwargs)
+        if result.truncated:
+            # A prefix of the answer is not the answer. The capture cap is a
+            # failure to ask in full, so it takes the same route as a
+            # timeout -- unless it is named here, the stored payload is
+            # indistinguishable from a command that really printed exactly
+            # the cap, down to the fingerprint two steps compare.
+            return Capture(self.name, target, None,
+                           detail=_truncation_failure("command", result))
         if not result.ok and result.reason:
             # "not found" and "timed out" are failures to ask, not answers.
             return Capture(self.name, target, None,
@@ -273,6 +298,12 @@ class McpSource:
         if self.extra_env:
             kwargs["env"] = self.extra_env
         result = osal.run(self.command, **kwargs)
+        if result.truncated:
+            # The reply that matters is the one the cap removed. Reporting
+            # that as "no structured content" sends the operator after an
+            # empty tool instead of a truncated capture.
+            return Capture(self.name, target, None,
+                           detail=_truncation_failure("mcp server", result))
         if not result.ok and result.reason:
             return Capture(self.name, target, None,
                            detail=_launch_failure("mcp server did not run",
