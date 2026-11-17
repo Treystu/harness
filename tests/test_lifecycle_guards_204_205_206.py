@@ -253,6 +253,40 @@ class HonestRendererTests(unittest.TestCase):
         self.assertTrue(has_write_surface(["util.py"], None))
         self.assertTrue(has_write_surface([], {"nodes": [{"target_files": ["a.py"]}]}))
 
+    def test_gate_guard_never_prints_internal_state_at_the_operator(self):
+        # #569: the operator sees plain language, not the gate's own token.
+        block = render_gate_guard("no_evidence_cited", True)
+        self.assertNotIn("no_evidence_cited", block)
+        self.assertIn("cites no evidence", block)
+        self.assertNotIn("Review the planned changes above", block)
+        self.assertIn("**What to do next:**", block)
+
+    def test_gate_guard_lists_the_changes_it_held(self):
+        block = render_gate_guard("no_evidence_cited", True,
+                                  paths=["script.py", "util.py"])
+        self.assertIn("script.py", block)
+        self.assertIn("util.py", block)
+        self.assertIn("**What would change:**", block)
+
+    def test_gate_guard_says_so_when_no_change_was_named(self):
+        block = render_gate_guard("no_evidence_cited", True)
+        self.assertIn("no change list to show", block)
+
+    def test_gate_guard_translates_a_consent_hold_without_the_raw_reason(self):
+        raw = ("validated restart to execution requires a resumable stage "
+               "runner: restart target execution is not earlier than the "
+               "current stage execution; consent no longer covers this "
+               "assignment and must be renewed before any dispatch")
+        block = render_gate_guard(raw, True)
+        self.assertIn("consent recorded for this assignment no longer covers", block)
+        self.assertIn("Renew consent", block)
+        self.assertNotIn("resumable stage runner", block)
+
+    def test_gate_guard_keeps_an_unrecognised_reason_as_a_support_code(self):
+        block = render_gate_guard("some_future_gate_token", True)
+        self.assertIn("Support code: `some_future_gate_token`", block)
+        self.assertIn("did not pass the gate", block)
+
     def test_identical_blocks_deduplicated_to_one(self):
         block = render_gate_guard("waist refused", True)
         self.assertEqual(dedupe_notices([block, block, block]), [block])

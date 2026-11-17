@@ -364,19 +364,115 @@ stages/nodes are labeled unconfirmed so the refusal signal survives.
     return "\n".join(lines) + "\n"
 
 
-def render_gate_guard(reason, has_write):
+#: Plain-language rendering of the gate reasons an operator can actually meet.
+#: A reason is an internal state name; printing it at the operator is what #569
+#: reported. Each entry is (what is held, what the operator can do about it).
+_GATE_REASON_TEXT = {
+    "no_evidence_cited": (
+        "the plan cites no evidence for the change it wants to make",
+        "Name the file and line the change is grounded in (or paste that "
+        "evidence), then send the request again.",
+    ),
+    "bounded_evidence_request": (
+        "the plan needs more evidence before it can be trusted with a write",
+        "Answer the evidence questions the plan listed, then send the request "
+        "again.",
+    ),
+    "no_brief_fit_any_round": (
+        "no plan matched this request with enough grounding to write",
+        "Restate the request with the concrete file and the change you want, "
+        "then send it again.",
+    ),
+    "nothing_left_to_request": (
+        "planning ran out of questions without finding grounded evidence",
+        "Supply the evidence the plan asked for, then send the request again.",
+    ),
+}
+
+#: These reasons ask the operator to renew consent; the gate refuses to
+#: dispatch on consent that predates the current assignment.
+_CONSENT_REASON_MARKERS = (
+    "consent no longer covers",
+    "must be renewed",
+    "consent required",
+)
+
+
+def _operator_reason(reason):
+    """Say what is held in the operator's terms, never as internal state.
+
+    Returns ``(sentence, next_step, support_code)``. ``support_code`` carries
+    the raw gate reason only when the reason is not one of the recognized
+    shapes, so a report can be diagnosed without making the operator read
+    machine state (#569).
+    """
+    text = (reason or "").strip()
+    lowered = text.lower()
+    if text in _GATE_REASON_TEXT:
+        sentence, step = _GATE_REASON_TEXT[text]
+        return sentence, step, None
+    if any(marker in lowered for marker in _CONSENT_REASON_MARKERS):
+        return (
+            "the consent recorded for this assignment no longer covers it, "
+            "because the assignment changed after consent was given",
+            "Renew consent for this assignment, then send the request again.",
+            None,
+        )
+    if not text:
+        return (
+            "the plan did not pass the gate, so no write was made",
+            "Send the request again, or approve the plan explicitly.",
+            None,
+        )
+    return (
+        "the plan did not pass the gate, so no write was made",
+        "Send the request again with the change you want stated plainly, or "
+        "approve the plan explicitly.",
+        text,
+    )
+
+
+def render_gate_guard(reason, has_write, *, planned=None, paths=None):
     """Render one gate-guard block, or ``""`` when there is no write surface.
 
-    Blocking behavior is unchanged (#206 non-goal); only what it *says*
-is scoped -- read-only runs never see file-write blocks.
+    Blocking behavior is unchanged (#206 non-goal); only what it *says* is
+    scoped -- read-only runs never see file-write blocks.
+
+    #569: the block printed the internal gate reason and told the operator to
+    review changes that were never shown. It now names what is held, lists the
+    change surface it was given, and states the one next step.
     """
     if not has_write:
         return ""
-    return (
-        "**Autonomous Waist Gate Guard:** Automated file writes were held "
-        f"({reason}). Review the planned changes above or confirm execution "
-        "to proceed."
-    )
+    sentence, step, support_code = _operator_reason(reason)
+    surface = [str(p) for p in (paths or []) if str(p).strip()]
+    planned_lines = []
+    for entry in (planned or [])[:8]:
+        if isinstance(entry, dict):
+            target = (entry.get("path") or entry.get("target")
+                      or entry.get("name") or "change")
+            summary = entry.get("summary") or entry.get("description") or ""
+            planned_lines.append(
+                "  - `{}`{}".format(target, ": " + str(summary) if summary else ""))
+        elif str(entry).strip():
+            planned_lines.append("  - `{}`".format(str(entry).strip()))
+    if not planned_lines:
+        planned_lines = ["  - `{}`".format(p) for p in surface[:8]]
+    lines = [
+        "**Autonomous Waist Gate Guard:** this request was held before any "
+        "file was written. Nothing was saved and nothing ran.",
+        "",
+        f"**What is held:** {sentence}.",
+    ]
+    if planned_lines:
+        lines += ["", "**What would change:**"] + planned_lines
+    else:
+        lines += ["", "**What would change:** no file was named by the plan, "
+                      "so there is no change list to show."]
+    lines += ["", f"**What to do next:** {step}"]
+    if support_code:
+        lines += ["", f"Support code: `{support_code}`"]
+    return "\n".join(lines)
 
 
 def dedupe_notices(blocks):
