@@ -1593,6 +1593,70 @@ class OverlayCliDispatchTests(unittest.TestCase):
         self.assertEqual((captured["base"], captured["overlay"]), ("B", "O"))
 
 
+class CliSurfacePolishTests(unittest.TestCase):
+    """Issue #329: desktop help usage line and shared output flags on defer."""
+
+    def test_desktop_help_shows_subcommand_usage_and_standalone_keeps_script_name(self):
+        from harness import ui as ui_mod
+
+        out_sub = io.StringIO()
+        with contextlib.redirect_stdout(out_sub), self.assertRaises(SystemExit) as ctx:
+            cli.main(["desktop", "--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        self.assertIn("usage: harness desktop", out_sub.getvalue())
+
+        out_script = io.StringIO()
+        with contextlib.redirect_stdout(out_script), self.assertRaises(SystemExit) as ctx2:
+            ui_mod.main(["--help"])
+        self.assertEqual(ctx2.exception.code, 0)
+        self.assertIn("usage: harness-desktop", out_script.getvalue())
+
+    def test_defer_supports_out_quiet_events_and_no_color(self):
+        from harness import events as _events, output as _output, render as _render
+        from harness.cli_parser import build_parser
+
+        with tempfile.TemporaryDirectory() as d:
+            out_path = os.path.join(d, "defer.json")
+            events_path = os.path.join(d, "events.jsonl")
+            opts = build_parser().parse_args([
+                "defer", "--task-id", "t-329", "--reason", "hold", "--category", "consent",
+                "--out", out_path, "--quiet", "--events", events_path, "--no-color",
+            ])
+            self.assertEqual(opts.out, out_path)
+            self.assertTrue(opts.quiet)
+            self.assertEqual(opts.events, events_path)
+            self.assertTrue(opts.no_color)
+
+            fake_ledger = mock.MagicMock()
+            fake_ledger.append.return_value = {"seq": 1, "event": "defer_midtask"}
+            old_quiet = _output.QUIET
+            old_color = getattr(_render, "_COLOR_ENABLED", None)
+            before_sinks = list(getattr(_events, "_sinks", []))
+            try:
+                with mock.patch.object(cli, "load_settings", return_value=object()), \
+                     mock.patch.object(cli, "_ledger", return_value=fake_ledger), \
+                     contextlib.redirect_stdout(io.StringIO()), \
+                     contextlib.redirect_stderr(io.StringIO()):
+                    cli.main([
+                        "defer", "--task-id", "t-329", "--reason", "hold",
+                        "--out", out_path, "--quiet", "--events", events_path, "--no-color",
+                    ])
+                with open(out_path, encoding="utf-8") as handle:
+                    saved = json.load(handle)
+                self.assertEqual(saved["status"], "deferred")
+                self.assertEqual(saved["task_id"], "t-329")
+                self.assertEqual(saved["reason"], "hold")
+            finally:
+                _output.QUIET = old_quiet
+                if old_color is not None:
+                    _render.set_color_enabled(old_color)
+                for sink in list(getattr(_events, "_sinks", [])):
+                    if sink not in before_sinks:
+                        _events.remove_sink(sink)
+                        if hasattr(sink, "close"):
+                            sink.close()
+
+
 if __name__ == "__main__":
     unittest.main()
 

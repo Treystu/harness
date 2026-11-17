@@ -17,6 +17,19 @@ from .results import terminal_exit_code
 from .saturation import advise
 
 
+def apply_output_flags(opts):
+    """Configure process output state (--quiet, --events, --no-color)."""
+    from . import events as _events
+    from . import output as _output
+    from . import render as _render
+    _output.QUIET = bool(getattr(opts, "quiet", False))
+    if getattr(opts, "events", None):
+        _events.add_jsonl_sink(opts.events)
+    _render.set_color_enabled(
+        not getattr(opts, "no_color", False)
+        and not os.environ.get("NO_COLOR"))
+
+
 def _emit(result, out, force_json=False):
     """The ONE result emitter: --out gets the JSON file; a piped stdout gets
     machine JSON (the script contract, byte-compatible); a TTY gets the rich
