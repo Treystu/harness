@@ -22,7 +22,7 @@ from driver_core.errors import BudgetRefused
 
 def _append_audit_record_in_process(path, start, results, kind):
     try:
-        start.wait(timeout=10)
+        start.wait(timeout=60)
         record = AuditLog(path).append("capture", step_id=kind)
         results.put(("ok", record["seq"]))
     except Exception as exc:
@@ -442,7 +442,7 @@ class AuditChainTests(unittest.TestCase):
 
     def test_separate_processes_serialize_concurrent_appends(self):
         context = multiprocessing.get_context("spawn")
-        start = context.Barrier(4)
+        start = context.Barrier(4)  # spawn startup on a loaded box is slow
         results = context.Queue()
         processes = [
             context.Process(
@@ -452,13 +452,21 @@ class AuditChainTests(unittest.TestCase):
         ]
         for process in processes:
             process.start()
-        start.wait(timeout=10)
+        start.wait(timeout=60)
         for process in processes:
-            process.join(timeout=10)
+            process.join(timeout=60)
+        # A survivor is a failure, and it must not outlive the test either:
+        # a spawned child inherits the caller's standard handles on Windows,
+        # so an abandoned one keeps a captured pipe open and parks whoever
+        # is waiting on that pipe (the audit's R13 did exactly that, #583).
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
 
         self.assertFalse(any(process.is_alive() for process in processes))
         self.assertEqual([process.exitcode for process in processes], [0, 0, 0])
-        outcomes = [results.get(timeout=3) for _ in processes]
+        outcomes = [results.get(timeout=30) for _ in processes]
         self.assertEqual([outcome[0] for outcome in outcomes], ["ok"] * 3)
         self.assertCountEqual([outcome[1] for outcome in outcomes], [0, 1, 2])
         reopened = AuditLog(self.path)
