@@ -148,7 +148,13 @@ from .claims import (
 from .claims import parse_claims
 from .config import load_settings, shipped_model_ids
 from .cli_parser import build_parser
-from .cli_report import _emit, _emit_by_status, _print_capabilities_table, _print_cost_table
+from .cli_report import (
+    _emit,
+    _emit_by_status,
+    _print_capabilities_table,
+    _print_cost_table,
+    apply_output_flags,
+)
 
 
 def _split_opt_list(value):
@@ -541,7 +547,7 @@ def _cmd_defer(opts, settings):
     entry = ledger.append("defer_midtask", task_id=opts.task_id, reason=opts.reason,
                           category=opts.category or None, model="(deferral)")
     _emit({"status": "deferred", "task_id": opts.task_id, "reason": opts.reason,
-           "category": opts.category, "ledger_entry": entry}, None)
+           "category": opts.category, "ledger_entry": entry}, opts.out)
 
 
 def _cmd_issue_sort(opts, settings):
@@ -2308,7 +2314,7 @@ def main(argv=None):
         return _serve(args[1:])
     if args[:1] == ["desktop"]:
         from .ui import main as _desktop
-        return _desktop(args[1:])
+        return _desktop(args[1:], prog="harness desktop")
     if args[:1] == ["media"]:
         # Media generation via sovereign-media (adapter parses its own
         # subarguments; mirrors the serve/desktop early-intercept pattern).
@@ -2328,18 +2334,7 @@ def main(argv=None):
         return _queue_cli(args[1:])
     ap = build_parser()
     opts = ap.parse_args(args)
-    import harness.output as _output
-    _output.QUIET = bool(getattr(opts, "quiet", False))
-    # Phase-1 UI groundwork: optional typed event stream + color policy.
-    # The sink is module-global state registered once per CLI invocation;
-    # with no --events flag nothing is registered and emit() is a no-op.
-    from . import events as _events
-    from . import render as _render
-    if getattr(opts, "events", None):
-        _events.add_jsonl_sink(opts.events)
-    _render.set_color_enabled(
-        not getattr(opts, "no_color", False)
-        and not os.environ.get("NO_COLOR"))
+    apply_output_flags(opts)
     try:
         doctor_config_error = False
         if opts.command == "doctor":

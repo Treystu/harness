@@ -177,6 +177,9 @@ def run_cli(args, settings=None):
     import argparse
     import sys
 
+    from .cli_parser import add_output_flags
+    from .cli_report import _emit, apply_output_flags
+
     ap = argparse.ArgumentParser(prog="harness media")
     sub = ap.add_subparsers(dest="media_cmd", required=True)
 
@@ -193,6 +196,7 @@ def run_cli(args, settings=None):
     p.add_argument("--quality", default=None, choices=["low", "medium", "high"])
     p.add_argument("--no-wait", action="store_true")
     p.add_argument("--timeout", type=float, default=600)
+    add_output_flags(p)
 
     p = sub.add_parser("video")
     p.add_argument("prompt")
@@ -202,18 +206,23 @@ def run_cli(args, settings=None):
     p.add_argument("--seconds", type=int, default=None)
     p.add_argument("--no-wait", action="store_true")
     p.add_argument("--timeout", type=float, default=1200)
+    add_output_flags(p)
 
     p = sub.add_parser("job")
     p.add_argument("job_id")
+    add_output_flags(p)
 
     p = sub.add_parser("jobs")
     p.add_argument("--project", default=None)
     p.add_argument("--limit", type=int, default=20)
+    add_output_flags(p)
 
     p = sub.add_parser("balance")
     p.add_argument("--project", default=None)
+    add_output_flags(p)
 
     opts = ap.parse_args(args)
+    apply_output_flags(opts)
     if opts.media_cmd == "job":
         try:
             MediaAdapter._quote_job_id(opts.job_id)
@@ -245,33 +254,43 @@ def run_cli(args, settings=None):
             return 0
         return 1
 
+    def render(payload, fallback):
+        if opts.out:
+            _emit(payload, opts.out, force_json=True)
+        else:
+            fallback()
+
     try:
         if opts.media_cmd == "image":
             params = {k: v for k, v in (("size", opts.size), ("quality", opts.quality)) if v}
             env = adapter.image(opts.prompt, project=opts.project, wait=not opts.no_wait,
                                 timeout=opts.timeout, provider=opts.provider,
                                 model=opts.model, **params)
-            show(env)
+            render(env, lambda: show(env))
             return exit_code(env)
         if opts.media_cmd == "video":
             params = {"seconds": opts.seconds} if opts.seconds else {}
             env = adapter.video(opts.prompt, project=opts.project, wait=not opts.no_wait,
                                 timeout=opts.timeout, provider=opts.provider,
                                 model=opts.model, **params)
-            show(env)
+            render(env, lambda: show(env))
             return exit_code(env)
         if opts.media_cmd == "job":
-            show(adapter.job(opts.job_id))
+            env = adapter.job(opts.job_id)
+            render(env, lambda: show(env))
             return 0
         if opts.media_cmd == "jobs":
-            for env in adapter.jobs(project=opts.project, limit=opts.limit):
-                show(env)
+            envs = adapter.jobs(project=opts.project, limit=opts.limit)
+            render({"jobs": envs}, lambda: [show(e) for e in envs])
             return 0
         if opts.media_cmd == "balance":
-            print(json.dumps(adapter.balance(opts.project), indent=2))
+            bal = adapter.balance(opts.project)
+            render(bal, lambda: print(json.dumps(bal, indent=2)))
             return 0
     except MediaUnavailable as e:
         # defer-style honest failure: state the reason, spend nothing
+        if opts.out:
+            _emit({"status": "deferred", "error": str(e)}, opts.out, force_json=True)
         print("[defer] media: {}".format(e), file=sys.stderr)
         return 4
     return 2

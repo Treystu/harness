@@ -70,7 +70,7 @@ def _add_engine_flags(p, *, max_tokens_default, verify_required=False,
     # See run_batch's keep_going contract (harness/batch.py).
 
 
-def _add_output_flags(p):
+def add_output_flags(p):
     """--out (JSON report destination) + --quiet (stderr progress off), plus
     the Phase-1 UI groundwork flags: --events (typed JSONL progress stream for
     UI consumers) and --no-color (strip ANSI from rich stderr rendering).
@@ -83,6 +83,9 @@ def _add_output_flags(p):
                         "the JSON result is unchanged)")
     p.add_argument("--no-color", action="store_true",
                    help="disable ANSI color in stderr rendering (NO_COLOR is honored too)")
+
+
+_add_output_flags = add_output_flags
 
 
 class _FixedWidthHelpFormatter(argparse.HelpFormatter):
@@ -412,6 +415,7 @@ def build_parser():
     pd.add_argument("--task-id", required=True)
     pd.add_argument("--reason", default=None)
     pd.add_argument("--category", default=None)
+    _add_output_flags(pd)
 
     pis = sub.add_parser(
         "issue-sort",

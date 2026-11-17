@@ -36,9 +36,9 @@ def _open_window(url, token):
     return "webview"
 
 
-def main(argv=None):
+def main(argv=None, *, prog="harness-desktop"):
     ap = argparse.ArgumentParser(
-        prog="harness-desktop",
+        prog=prog,
         description="Native desktop window over the harness web UI (loopback).")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8766)

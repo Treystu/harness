@@ -320,5 +320,113 @@ class JobIdQuotingTests(unittest.TestCase):
                 self.assertEqual(opener.calls, [])
 
 
+class MediaOutputFlagsTests(unittest.TestCase):
+    """Issue #329: every media subcommand supports --out/--quiet/--events/--no-color."""
+
+    def test_all_media_subcommands_accept_and_honor_output_flags(self):
+        import os
+        import tempfile
+        from harness import events as _events, output as _output, render as _render
+
+        cases = [
+            ("image", ["image", "a cabin", "--no-wait"],
+             [{"id": "j1", "status": "queued", "kind": "image"}], 0, "queued"),
+            ("video", ["video", "waves", "--no-wait"],
+             [{"id": "j2", "status": "running", "kind": "video"}], 0, "running"),
+            ("job", ["job", "j3"],
+             [{"id": "j3", "status": "succeeded", "kind": "image"}], 0, "succeeded"),
+            ("jobs", ["jobs", "--project", "demo"],
+             [{"jobs": [{"id": "j4", "status": "succeeded", "kind": "image"}]}], 0, None),
+            ("balance", ["balance", "--project", "demo"],
+             [{"remaining": 4.25}], 0, None),
+        ]
+        old_quiet = _output.QUIET
+        old_color = getattr(_render, "_COLOR_ENABLED", None)
+        before_sinks = list(getattr(_events, "_sinks", []))
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                for subcmd, argv, payloads, expected_rc, expected_status in cases:
+                    with self.subTest(subcmd=subcmd):
+                        out_path = os.path.join(d, f"{subcmd}.json")
+                        events_path = os.path.join(d, f"{subcmd}.events.jsonl")
+                        opener = _fake_opener(payloads)
+
+                        def fake_init(self, base_url=None, token=None, timeout=60,
+                                      _opener=opener):
+                            self.base = "http://media.local"
+                            self.token = token or "tok"
+                            self.timeout = timeout
+                            self._opener = _opener
+
+                        with mock.patch.object(MediaAdapter, "__init__", fake_init), \
+                             redirect_stdout(io.StringIO()), \
+                             redirect_stderr(io.StringIO()):
+                            rc = run_cli(argv + [
+                                "--out", out_path, "--quiet",
+                                "--events", events_path, "--no-color",
+                            ])
+                        self.assertEqual(rc, expected_rc)
+                        with open(out_path, encoding="utf-8") as handle:
+                            data = json.load(handle)
+                        if expected_status:
+                            self.assertEqual(data["status"], expected_status)
+                        elif subcmd == "jobs":
+                            self.assertEqual(data["jobs"][0]["job_id"], "j4")
+                        else:
+                            self.assertEqual(data["remaining"], 4.25)
+
+                err_out = os.path.join(d, "unavailable.json")
+                opener = _fake_opener([urllib.error.URLError("down")])
+
+                def fake_init_down(self, base_url=None, token=None, timeout=60,
+                                   _opener=opener):
+                    self.base = "http://media.local"
+                    self.token = token or "tok"
+                    self.timeout = timeout
+                    self._opener = _opener
+
+                with mock.patch.object(MediaAdapter, "__init__", fake_init_down), \
+                     redirect_stdout(io.StringIO()), \
+                     redirect_stderr(io.StringIO()):
+                    rc = run_cli(["balance", "--out", err_out, "--quiet", "--no-color"])
+                self.assertEqual(rc, 4)
+                with open(err_out, encoding="utf-8") as handle:
+                    self.assertEqual(json.load(handle)["status"], "deferred")
+
+                for stdout_argv, opener_resp, expected_sub in (
+                    (["jobs", "--project", "demo"],
+                     [{"jobs": [{"id": "j5", "status": "succeeded", "kind": "image"}]}],
+                     "job j5  [succeeded]"),
+                    (["balance", "--project", "demo"],
+                     [{"remaining": 3.5}],
+                     "3.5"),
+                ):
+                    with self.subTest(stdout_argv=stdout_argv):
+                        buf = io.StringIO()
+                        op = _fake_opener(opener_resp)
+
+                        def fake_init_plain(self, base_url=None, token=None, timeout=60,
+                                            _opener=op):
+                            self.base = "http://media.local"
+                            self.token = token or "tok"
+                            self.timeout = timeout
+                            self._opener = _opener
+
+                        with mock.patch.object(MediaAdapter, "__init__", fake_init_plain), \
+                             redirect_stdout(buf):
+                            rc = run_cli(stdout_argv)
+                        self.assertEqual(rc, 0)
+                        self.assertIn(expected_sub, buf.getvalue())
+        finally:
+            _output.QUIET = old_quiet
+            if old_color is not None:
+                _render.set_color_enabled(old_color)
+            for sink in list(getattr(_events, "_sinks", [])):
+                if sink not in before_sinks:
+                    _events.remove_sink(sink)
+                    if hasattr(sink, "close"):
+                        sink.close()
+
+
 if __name__ == "__main__":
     unittest.main()

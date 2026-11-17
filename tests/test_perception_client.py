@@ -538,5 +538,77 @@ class CliFaceTests(unittest.TestCase):
         self.assertFalse(opener.calls[0]["body"]["require_stable"])
 
 
+class DriverOutputFlagsTests(unittest.TestCase):
+    """Issue #329: every driver subcommand supports --out/--quiet/--events/--no-color."""
+
+    def test_all_driver_subcommands_accept_and_honor_output_flags(self):
+        import os
+        import tempfile
+        from harness import events as _events, output as _output, render as _render
+
+        cases = [
+            ("health", ["health"], [{"ok": True, "status": "up"}], 0),
+            ("schemas", ["schemas"], [{"ok": True, "schemas": []}], 0),
+            ("vocabulary", ["vocabulary"], [{"ok": True, "vocabulary": {}}], 0),
+            ("verify", ["verify"], [{"ok": True, "audit": {"ok": True}}], 0),
+            ("step", ["step", "file-manager"], [_ok_envelope()], 0),
+        ]
+        old_quiet = _output.QUIET
+        old_color = getattr(_render, "_COLOR_ENABLED", None)
+        before_sinks = list(getattr(_events, "_sinks", []))
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                for subcmd, argv, payloads, expected_rc in cases:
+                    with self.subTest(subcmd=subcmd):
+                        out_path = os.path.join(d, f"{subcmd}.json")
+                        events_path = os.path.join(d, f"{subcmd}.events.jsonl")
+                        injected = _fake_opener(payloads)
+
+                        def fake_init(self, base_url=None, token=None, timeout=120, opener=None,
+                                      _injected=injected):
+                            self.base = "http://127.0.0.1:8791"
+                            self.token = token or "t0k"
+                            self.timeout = timeout
+                            self._opener = opener or _injected
+
+                        with mock.patch.object(PerceptionAdapter, "__init__", fake_init), \
+                             redirect_stdout(io.StringIO()), \
+                             redirect_stderr(io.StringIO()):
+                            rc = run_cli(argv + [
+                                "--out", out_path, "--quiet",
+                                "--events", events_path, "--no-color",
+                            ])
+                        self.assertEqual(rc, expected_rc)
+                        with open(out_path, encoding="utf-8") as handle:
+                            data = json.load(handle)
+                        self.assertTrue(data["ok"])
+
+                err_out = os.path.join(d, "unavailable.json")
+                injected = _fake_opener([urllib.error.URLError("down")])
+
+                def fake_init_down(self, base_url=None, token=None, timeout=120, opener=None):
+                    self.base = "http://127.0.0.1:8791"
+                    self.token = token or "t0k"
+                    self.timeout = timeout
+                    self._opener = opener or injected
+
+                with mock.patch.object(PerceptionAdapter, "__init__", fake_init_down), \
+                     redirect_stdout(io.StringIO()), \
+                     redirect_stderr(io.StringIO()):
+                    rc = run_cli(["health", "--out", err_out, "--quiet", "--no-color"])
+                self.assertEqual(rc, 4)
+                with open(err_out, encoding="utf-8") as handle:
+                    self.assertEqual(json.load(handle)["status"], "deferred")
+        finally:
+            _output.QUIET = old_quiet
+            if old_color is not None:
+                _render.set_color_enabled(old_color)
+            for sink in list(getattr(_events, "_sinks", [])):
+                if sink not in before_sinks:
+                    _events.remove_sink(sink)
+                    if hasattr(sink, "close"):
+                        sink.close()
+
+
 if __name__ == "__main__":
     unittest.main()

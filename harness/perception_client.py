@@ -282,13 +282,19 @@ def run_cli(args, settings=None):
     import argparse
     import sys
 
+    from .cli_parser import add_output_flags
+    from .cli_report import _emit, apply_output_flags
+
     ap = argparse.ArgumentParser(prog="harness driver")
     sub = ap.add_subparsers(dest="driver_cmd", required=True)
 
-    p = sub.add_parser("health", help="driver liveness and redacted settings")
-    sub.add_parser("schemas", help="declared extraction schemas")
-    sub.add_parser("vocabulary", help="the closed action vocabulary")
-    sub.add_parser("verify", help="audit chain verdict and spend snapshot")
+    for cmd_name, help_text in (
+        ("health", "driver liveness and redacted settings"),
+        ("schemas", "declared extraction schemas"),
+        ("vocabulary", "the closed action vocabulary"),
+        ("verify", "audit chain verdict and spend snapshot"),
+    ):
+        add_output_flags(sub.add_parser(cmd_name, help=help_text))
 
     p = sub.add_parser("step", help="run one verified-extraction step")
     p.add_argument("target", help="what to read: a window name, app, or source")
@@ -304,23 +310,26 @@ def run_cli(args, settings=None):
     p.add_argument("--allow-unstable", action="store_true",
                    help="do not require the screen to be stable before acting")
     p.add_argument("--raw", action="store_true", help="print the full envelope")
+    add_output_flags(p)
 
     opts = ap.parse_args(args)
+    apply_output_flags(opts)
     adapter = PerceptionAdapter()
 
     try:
-        if opts.driver_cmd == "health":
-            print(json.dumps(adapter.health(), indent=2, sort_keys=True))
-            return 0
-        if opts.driver_cmd == "schemas":
-            print(json.dumps(adapter.schemas(), indent=2, sort_keys=True))
-            return 0
-        if opts.driver_cmd == "vocabulary":
-            print(json.dumps(adapter.vocabulary(), indent=2, sort_keys=True))
+        if opts.driver_cmd in ("health", "schemas", "vocabulary"):
+            payload = getattr(adapter, opts.driver_cmd)()
+            if opts.out:
+                _emit(payload, opts.out, force_json=True)
+            else:
+                print(json.dumps(payload, indent=2, sort_keys=True))
             return 0
         if opts.driver_cmd == "verify":
             report = adapter.verify()
-            print(json.dumps(report, indent=2, sort_keys=True))
+            if opts.out:
+                _emit(report, opts.out, force_json=True)
+            else:
+                print(json.dumps(report, indent=2, sort_keys=True))
             return 0 if (report.get("audit") or {}).get("ok") else 1
 
         # step -- consent is built here or not at all. The adapter has no
@@ -346,7 +355,9 @@ def run_cli(args, settings=None):
         envelope = adapter.step(
             opts.target, schema=opts.schema, consent=consent, prefer=prefer,
             require_stable=not opts.allow_unstable)
-        if opts.raw:
+        if opts.out:
+            _emit(envelope, opts.out, force_json=True)
+        elif opts.raw:
             print(json.dumps(envelope, indent=2, sort_keys=True))
         else:
             print(adapter.summarize(envelope))
@@ -355,6 +366,8 @@ def run_cli(args, settings=None):
         return 0 if envelope.get("ok") else 1
     except PerceptionUnavailable as e:
         # defer-style honest failure: state the reason, act on nothing
+        if opts.out:
+            _emit({"status": "deferred", "error": str(e)}, opts.out, force_json=True)
         print("[defer] driver: {}".format(e), file=sys.stderr)
         return 4
 
