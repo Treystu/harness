@@ -38,6 +38,13 @@ from harness.waist import STAGE_EXECUTION
 from tests._fake import FakeTransport, _gov
 
 
+
+def _isolated_history_dir(root):
+    """This fixture's own chat store -- never the operator's default (#589)."""
+    path = Path(root) / ".hist"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
 class _RecordingGovernor:
     """Reserve/settle bookkeeping, so a real JevPolicy can preflight."""
 
@@ -174,7 +181,8 @@ class RestartGuardIsReachedTests(unittest.TestCase):
             edit_policy_patch.start()
             self.addCleanup(edit_policy_patch.stop)
             agent = AutonomousAgent(settings=settings, root_dir=root,
-                                    transport=FakeTransport())
+                                    transport=FakeTransport(),
+                                    history_dir=_isolated_history_dir(root))
             return agent.run_hourglass_request(
                 "edit calc.py so add() documents its return value",
                 auto_apply=False)
@@ -300,7 +308,8 @@ class RestartGuardIsReachedTests(unittest.TestCase):
             edit_policy_patch.start()
             self.addCleanup(edit_policy_patch.stop)
             agent = AutonomousAgent(settings=settings, root_dir=root,
-                                    transport=FakeTransport())
+                                    transport=FakeTransport(),
+                                    history_dir=_isolated_history_dir(root))
             agent.run_hourglass_request(
                 "edit calc.py so add() documents its return value",
                 auto_apply=False)
@@ -327,7 +336,8 @@ class RestartGuardIsReachedTests(unittest.TestCase):
             settings.jev_api_key = None
             settings.hourglass_confirm = False
             agent = AutonomousAgent(settings=settings, root_dir=root,
-                                    transport=FakeTransport())
+                                    transport=FakeTransport(),
+                                    history_dir=_isolated_history_dir(root))
             from unittest.mock import MagicMock
             fake_policy = MagicMock()
             fake_policy.evaluate_hourglass_stage.side_effect = HarnessError("synthetic failure")
