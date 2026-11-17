@@ -27,6 +27,13 @@ dossier's own suggested action 1: adopt **L1-L3 into the HUL driver**, hermetica
   spec -> design -> correctness -> quality. Steering at the lowest dimension is
   what turns "what next?" into a target.
 
+The second half of the dossier integration lives here too: **L4** declined
+candidates are remembered so nothing is silently re-proposed, **L5** a run must
+clear a forecast-per-spend floor (a stop never can be trapped by it), **L6** the
+terminal phase may draw on the mission's remaining budget, **L11** a subagent's
+declared read/write boundary is enforced, and **L12** a cancellation leaves a
+resumable record instead of dying with the session.
+
 What this module deliberately does **not** do is decide *when* a mission is
 finished. L8 and L9 are the dossier's named non-goals precisely because HUL is
 ahead there: the Jev scope gate stays the authority on completion and the
@@ -349,3 +356,207 @@ def receipts_window(receipts, *, limit=RECEIPT_WINDOW):
             "duration": float(receipt.get("duration") or 0.0),
         })
     return window
+
+# --- L4: declined candidates are remembered, not silently retried -----------
+
+def declined_candidates(decisions):
+    """Every alternative the decider rejected, with the decision that rejected it.
+
+    Freebuff's decider has to say what it *declined*, and the dossier's L4
+    lesson is that the decline list only changes behaviour if the driver
+    remembers it: a candidate rejected for a stated reason must not come back
+    as if nothing happened. Walks a mission's decisions in order and returns
+    ``{candidate: [{"why": ..., "evidence": [...]}]}``.
+
+    A decision that declines nothing contributes nothing, and a repeated
+    decline accumulates its reasons instead of overwriting them, so the
+    recovery record can show the whole history rather than the last excuse.
+    """
+    if decisions is None:
+        return {}
+    if not isinstance(decisions, (list, tuple)):
+        raise HulDecisionError(
+            f"decisions must be a sequence, got {type(decisions).__name__}")
+    ledger = {}
+    for raw in decisions:
+        decision = validate_decision(raw)
+        for candidate in decision["declined"]:
+            ledger.setdefault(candidate, []).append(
+                {"why": decision["why"],
+                 "evidence": list(decision["evidence"])})
+    return ledger
+
+
+def may_repropose(candidate, *, ledger, new_evidence=None):
+    """Whether a declined candidate may be proposed again (L4).
+
+    Three outcomes, and the middle one is the point:
+
+    * never declined -> allowed (nothing to remember yet);
+    * declined, and the caller brings evidence the decline did not already
+      have -> allowed, because new evidence is a new decision;
+    * declined with no new evidence -> refused, naming the reason it was
+      rejected, so a spinning decider cannot loop on it.
+    """
+    name = _checked_string(candidate, "candidate")
+    if not isinstance(ledger, dict):
+        raise HulDecisionError(
+            "ledger must be a mapping from declined_candidates(), got "
+            f"{type(ledger).__name__}")
+    history = ledger.get(name) or []
+    if not history:
+        return {"allowed": True, "reason": "not_declined", "prior_reasons": []}
+    known = {piece for entry in history for piece in entry.get("evidence") or []}
+    fresh = [piece for piece in _checked_strings(new_evidence or [], "new_evidence")
+             if piece not in known]
+    if fresh:
+        return {"allowed": True, "reason": "new_evidence",
+                "prior_reasons": [e.get("why") for e in history],
+                "new_evidence": fresh}
+    return {"allowed": False, "reason": "declined_without_new_evidence",
+            "prior_reasons": [e.get("why") for e in history]}
+
+
+# --- L5: cost per expected gain ---------------------------------------------
+
+def admissible_run(decision, *, cost, max_cost_per_gain, min_expected_gain=0.0):
+    """The L5 floor: a run must buy at least this much forecast per unit spend.
+
+    A mission loop is worth running for improvement per unit spend, so a run
+    decision is admissible only when ``expectedGain / cost`` clears the floor.
+    A gain of exactly zero cannot clear any positive floor: nothing is being
+    bought, whatever it costs. A stop decision spends nothing and is never
+    refused here -- L5 must not be able to trap a mission in a loop it cannot
+    afford to continue.
+    """
+    normalised = validate_decision(decision)
+    if not (_is_number(max_cost_per_gain) and float(max_cost_per_gain) >= 0):
+        raise HulDecisionError(
+            "max_cost_per_gain must be a non-negative number, got "
+            f"{max_cost_per_gain!r}")
+    if not (_is_number(min_expected_gain) and float(min_expected_gain) >= 0):
+        raise HulDecisionError(
+            "min_expected_gain must be a non-negative number, got "
+            f"{min_expected_gain!r}")
+    if normalised["decision"] == "stop":
+        return {"allowed": True, "reason": "stop_spends_nothing",
+                "cost_per_gain": None}
+    if not (_is_number(cost) and float(cost) >= 0):
+        raise HulDecisionError(f"cost must be a non-negative number, got {cost!r}")
+    gain = float(normalised["expectedGain"])
+    if gain < float(min_expected_gain):
+        return {"allowed": False, "reason": "below_min_expected_gain",
+                "expectedGain": gain, "cost_per_gain": None}
+    cost = float(cost)
+    if gain <= 0:
+        return {"allowed": False, "reason": "no_expected_gain",
+                "expectedGain": gain, "cost_per_gain": None}
+    ratio = gain / cost if cost > 0 else math.inf
+    if ratio < float(max_cost_per_gain):
+        return {"allowed": False, "reason": "below_cost_per_gain_floor",
+                "expectedGain": gain, "cost_per_gain": ratio}
+    return {"allowed": True, "reason": "within_floor",
+            "expectedGain": gain, "cost_per_gain": ratio}
+
+
+# --- L6: the terminal phase unlocks the remaining budget --------------------
+
+#: The mission phases the driver budgets. The last one is terminal (L6).
+PHASES = ("survey", "build", "verify", "terminal")
+
+
+def phase_budget(phase, *, spent, total_budget, per_phase_cap):
+    """How much the current phase may still spend, after L6's unlock.
+
+    Freebuff maps effort to a time target and treats the target as a *target*,
+    not a cutoff: required work continues while it remains. Translated to a
+    budgeted driver, every non-terminal phase is capped so one phase cannot eat
+    the mission, while the **terminal** phase may spend whatever the mission has
+    left -- stopping there with budget unused and required work remaining is
+    exactly the failure the dossier warns about.
+
+    Returns ``{"phase", "cap", "remaining", "unlocked"}``: the cap is the
+    mission total in the terminal phase and the per-phase cap otherwise.
+    """
+    if phase not in PHASES:
+        raise HulDecisionError(f"phase must be one of {list(PHASES)}, got {phase!r}")
+    for name, value in (("spent", spent), ("total_budget", total_budget),
+                        ("per_phase_cap", per_phase_cap)):
+        if not (_is_number(value) and float(value) >= 0):
+            raise HulDecisionError(
+                f"{name} must be a non-negative number, got {value!r}")
+    spent = float(spent)
+    total = float(total_budget)
+    terminal = phase == "terminal"
+    ceiling = total if terminal else min(float(per_phase_cap), total)
+    remaining = max(0.0, ceiling - spent)
+    return {"phase": phase, "cap": ceiling, "remaining": remaining,
+            "unlocked": terminal and ceiling > float(per_phase_cap)}
+
+
+# --- L11: the subagent boundary ---------------------------------------------
+
+def subagent_scope(decision, *, may_read, may_write):
+    """Refuse a run whose input crosses the subagent's declared boundary (L11).
+
+    A decider may hand work to a subagent, and a subagent that can reach
+    anything is a scope hole the mission pack cannot see. The boundary is two
+    declared namespace sets; a run input naming a ``skill`` or ``label`` outside
+    ``may_write`` is refused, and a ``read`` request outside ``may_read`` is
+    refused. ``stop`` touches nothing and always passes. An empty boundary is
+    refused as a declaration error rather than read as \"reach anything\".
+    """
+    normalised = validate_decision(decision)
+    read_scope = set(_checked_strings(may_read, "may_read"))
+    write_scope = set(_checked_strings(may_write, "may_write"))
+    if not read_scope or not write_scope:
+        raise HulDecisionError(
+            "a subagent boundary must declare at least one readable and one "
+            "writable namespace; an empty boundary means 'reach anything'")
+    if normalised["decision"] == "stop":
+        return {"allowed": True, "reason": "stop_touches_nothing"}
+    raw = decision.get("input") if isinstance(decision, dict) else None
+    if isinstance(decision, str):
+        raw = json.loads(decision).get("input")
+    target = raw.get("skill") or raw.get("label") if isinstance(raw, dict) else None
+    if target is not None and target not in write_scope:
+        return {"allowed": False, "reason": "outside_write_scope",
+                "target": target, "may_write": sorted(write_scope)}
+    if normalised.get("read") and target is not None and target not in read_scope:
+        return {"allowed": False, "reason": "outside_read_scope",
+                "target": target, "may_read": sorted(read_scope)}
+    return {"allowed": True, "reason": "within_boundary", "target": target}
+
+
+# --- L12: cancellation leaves a resumable record ----------------------------
+
+def cancellation_record(*, phase, grades, cancelled_at, receipts=None,
+                        decisions=None, scope_anchor=None):
+    """What survives a cancellation (L12).
+
+    Freebuff's mission dies with its tab; HUL's must not. On cancel this returns
+    the smallest record a next seat can resume from rather than restart: the
+    phase it stopped in, the graded state, the receipt window, the declined
+    candidates so nothing is re-litigated, and the grade target the driver was
+    steering at.
+
+    ``receipts`` and ``decisions`` are optional -- a cancel can arrive before
+    either exists -- but ``phase``, ``grades`` and ``cancelled_at`` are
+    required, because a record without them cannot be resumed from.
+    """
+    if phase not in PHASES:
+        raise HulDecisionError(f"phase must be one of {list(PHASES)}, got {phase!r}")
+    if not isinstance(grades, dict) or not grades:
+        raise HulDecisionError(
+            "a cancellation record needs the graded state it stopped at")
+    stamp = _checked_string(cancelled_at, "cancelled_at")
+    return {
+        "phase": phase,
+        "cancelled_at": stamp,
+        "grades": dict(grades),
+        "next_grade_target": next_grade_target(grades),
+        "receipts": receipts_window(receipts or []),
+        "declined": declined_candidates(decisions or []),
+        "scope_anchor": _clip(scope_anchor, SCOPE_ANCHOR_MAX)[0] if scope_anchor else None,
+        "resumable": True,
+    }
