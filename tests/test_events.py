@@ -251,10 +251,35 @@ class RenderTests(unittest.TestCase):
 
     def test_ledger_tail_and_bench_shapes(self):
         tail = {"entries": [{"seq": 3, "ts": 1.0, "event": "complete",
-                             "model": "m"}], "count": 1}
+                             "model": "m"}],
+                "tail_count": 1, "ledger_total_entries": 5}
         rendered, err, _ = self._pretty(tail)
         self.assertTrue(rendered)
         self.assertIn("complete", err)
+        self.assertIn("1 shown of 5 total entries", err)
+        caps = {
+            "models": [{"model": "m/a", "context": 8192, "capability": 0.9,
+                        "reliability_structured": 0.95}],
+            "profiled_count": 1, "all_models_included": False,
+        }
+        rendered, err, _ = self._pretty(caps)
+        self.assertTrue(rendered)
+        self.assertIn("capabilities (1 profiled)", err)
+        models_free = {
+            "models": ["m/a", "m/b"],
+            "listed_count": 2, "filter_free_only": True,
+            "meta": {"source": "openrouter:/models", "fetched_at": "now"},
+        }
+        rendered, err, _ = self._pretty(models_free)
+        self.assertTrue(rendered)
+        self.assertIn("models (2 listed, filter=free-only)", err)
+        models_all = {
+            "models": [{"id": "m/a", "context": 8192, "note": "ok"}],
+            "listed_count": 1, "filter_free_only": False,
+        }
+        rendered, err, _ = self._pretty(models_all)
+        self.assertTrue(rendered)
+        self.assertIn("models (1 listed, filter=all)", err)
         bench = {"bench": {"results": [{"name": "add", "status": "ok",
                                         "cost": 0.0}],
                            "statuses": {"ok": 1}}, "cost": 0.0}

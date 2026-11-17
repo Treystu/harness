@@ -399,6 +399,10 @@ class DoctorChecksTests(unittest.TestCase):
             r200 = doctor.check_typesafe(settings, self._dns())
             self.assertEqual(r200["status"], "OK")
             self.assertIn("responded HTTP 200", r200["detail"])
+        with mock.patch.object(doctor, "_typesafe_probe", return_value=404):
+            r404 = doctor.check_typesafe(settings, self._dns())
+            self.assertEqual(r404["status"], "OK")
+            self.assertIn("HTTP 404", r404["detail"])
         with mock.patch.object(doctor, "_typesafe_probe", return_value=503):
             self.assertEqual(doctor.check_typesafe(settings, self._dns())["status"],
                              "DEGRADED")
