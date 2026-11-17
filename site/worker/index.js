@@ -197,78 +197,166 @@ async function withinDailyBudget(env, cap) {
   return true;
 }
 
-async function handleRoute(request, env) {
+export const CANONICAL_JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
+const VALID_TIERS = new Set(["T0", "T1", "T2", "T3"]);
+
+export function validateRoutePack(pack) {
+  if (!pack || typeof pack !== "object" || Array.isArray(pack)) {
+    return "goal and a valid rungs pack object are required";
+  }
+  if (!Array.isArray(pack.rungs) || !pack.rungs.length) {
+    return "goal and a non-empty rungs pack are required";
+  }
+  const seen = new Set();
+  for (const rung of pack.rungs) {
+    if (!rung || typeof rung !== "object" || Array.isArray(rung)) {
+      return "each route rung must be an object";
+    }
+    if (typeof rung.rung_id !== "string" || !rung.rung_id.trim()) {
+      return "each rung requires a non-empty string rung_id";
+    }
+    if (seen.has(rung.rung_id)) {
+      return `duplicate rung_id: ${rung.rung_id}`;
+    }
+    seen.add(rung.rung_id);
+    if (!VALID_TIERS.has(rung.tier)) {
+      return `rung ${rung.rung_id} tier must be T0..T3`;
+    }
+  }
+  return null;
+}
+
+export function buildRouteQuestions(pack) {
+  const criteria = Object.create(null);
+  for (const rung of pack.rungs) {
+    const hasObs = typeof rung.observed_success === "number";
+    const evidence = hasObs
+      ? `, observed success ${rung.observed_success.toFixed(2)} over ${Number(rung.samples || 0)} runs`
+      : "";
+    criteria[rung.rung_id] = `tier ${rung.tier} (${rung.cost_class || "unknown"} cost${evidence})`;
+  }
+  return {
+    rung: {
+      type: "choice",
+      instructions:
+        "Choose the cheapest capable rung from the declared criteria " +
+        "that can complete this request. Prefer the lowest tier that " +
+        "plausibly suffices; escalate only when the request genuinely " +
+        "needs a higher tier's capability. Select only from the " +
+        "declared criteria keys; do not invent rungs.",
+      criteria,
+    },
+  };
+}
+
+export function buildRouteRequest(goal, pack, model = "jev-latest") {
+  return {
+    model: model || "jev-latest",
+    state: { goal: String(goal), pack_id: typeof pack.id === "string" ? pack.id : null },
+    questions: buildRouteQuestions(pack),
+  };
+}
+
+function isValidLiveRouteEnvelope(envelope, declaredRungs) {
+  return Boolean(
+    envelope &&
+    typeof envelope === "object" &&
+    !Array.isArray(envelope) &&
+    envelope.is_fallback === false &&
+    envelope.status === "ok" &&
+    envelope.route &&
+    typeof envelope.route === "object" &&
+    typeof envelope.route.rung_id === "string" &&
+    declaredRungs.has(envelope.route.rung_id)
+  );
+}
+
+export async function handleRoute(request, env, fetchFn = fetch) {
   const { success } = await env.ROUTE_LIMIT.limit({ key: ipKey(request) });
   if (!success) return json({ error: "rate limited" }, 429);
   let body;
   try { body = await request.json(); } catch { return json({ error: "invalid JSON" }, 400); }
-  const goal = String(body.goal || "").trim();
-  const pack = body.pack;
-  if (!goal || !pack || !Array.isArray(pack.rungs) || !pack.rungs.length) {
+  const goal = String(body?.goal || "").trim();
+  const pack = body?.pack;
+  if (!goal) {
     return json({ error: "goal and a non-empty rungs pack are required" }, 422);
   }
   if (goal.length > 10000) return json({ error: "goal too long" }, 422);
+  const packProblem = validateRoutePack(pack);
+  if (packProblem) return json({ error: packProblem }, 422);
 
+  const declared = new Set(pack.rungs.map(r => r.rung_id));
   const cacheKey = `route:${await sha256hex(goal + "|" + JSON.stringify(pack))}`;
   const cached = await env.ROLLUP.get(cacheKey, "json");
-  if (cached) return json(cached);
+  if (isValidLiveRouteEnvelope(cached, declared)) {
+    return json(cached);
+  }
+
+  if (!env.JEV_KEY) {
+    return json(fallbackEnvelope(goal, pack, "Jev credentials not configured"));
+  }
 
   if (!await withinDailyBudget(env, Number(env.ROUTE_DAILY_BUDGET || 200))) {
-    return fallbackEnvelope(goal, pack,
-      "daily route budget exhausted; deterministic heuristic served");
+    return json(fallbackEnvelope(goal, pack,
+      "daily route budget exhausted; deterministic heuristic served"));
   }
 
   let envelope = null;
-  if (env.JEV_ENDPOINT && env.JEV_KEY) {
-    try {
-      const res = await fetch(env.JEV_ENDPOINT, {
-        method: "POST",
-        headers: { "authorization": `Bearer ${env.JEV_KEY}`,
-                   "content-type": "application/json" },
-        body: JSON.stringify({
-          model: env.JEV_MODEL || "jev-latest",
-          messages: [{ role: "user", content: routePrompt(goal, pack) }],
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        envelope = parseJevChoice(data, pack, goal);
-      }
-    } catch { /* fall through to deterministic fallback */ }
+  const endpoint = env.JEV_ENDPOINT || CANONICAL_JEV_ENDPOINT;
+  try {
+    const res = await fetchFn(endpoint, {
+      method: "POST",
+      headers: {
+        "authorization": `Bearer ${env.JEV_KEY}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(buildRouteRequest(goal, pack, env.JEV_MODEL)),
+    });
+    if (!res.ok) {
+      envelope = fallbackEnvelope(goal, pack, `System One HTTP ${res.status}`);
+    } else {
+      const data = await res.json();
+      envelope = parseSystemOneRouteAnswer(data, pack, goal);
+    }
+  } catch {
+    envelope = fallbackEnvelope(goal, pack, "System One transport or response error");
   }
-  if (!envelope) {
-    envelope = fallbackEnvelope(goal, pack, "Jev seat unavailable");
+
+  if (isValidLiveRouteEnvelope(envelope, declared)) {
+    await env.ROLLUP.put(cacheKey, JSON.stringify(envelope), { expirationTtl: 86400 });
   }
-  await env.ROLLUP.put(cacheKey, JSON.stringify(envelope), { expirationTtl: 86400 });
   return json(envelope);
 }
 
-function routePrompt(goal, pack) {
-  const criteria = pack.rungs.map(r =>
-    `- ${r.rung_id}: tier ${r.tier}, ${r.cost_class} cost`).join("\n");
-  return (
-    "Choose the cheapest capable rung for the request. Answer with JSON " +
-    `{"choice": "<rung_id>"} and nothing else. Declared rungs (only these):\n` +
-    `${criteria}\n\nRequest: ${goal}`);
-}
-
-function parseJevChoice(data, pack, goal) {
-  try {
-    const content = data?.choices?.[0]?.message?.content || "";
-    const match = content.match(/"choice"\s*:\s*"([^"]+)"/);
-    const declared = new Set(pack.rungs.map(r => r.rung_id));
-    if (match && declared.has(match[1])) {
-      const rung = pack.rungs.find(r => r.rung_id === match[1]);
-      return { status: "ok", route: { rung_id: rung.rung_id, tier: rung.tier,
-        cost_class: rung.cost_class, guidance: rung.guidance || [] },
-        is_fallback: false, reasons: ["Jev choice from declared ladder"] };
-    }
-    if (match) {
-      return fallbackEnvelope(goal, pack,
-        `out-of-ladder choice refused: ${match[1]}`);
-    }
-  } catch { /* fall through */ }
-  return null;
+export function parseSystemOneRouteAnswer(data, pack, goal) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return fallbackEnvelope(goal, pack, "System One malformed response");
+  }
+  const ans = data.answers && typeof data.answers === "object" ? data.answers.rung : null;
+  if (!ans || typeof ans !== "object" || Array.isArray(ans)) {
+    return fallbackEnvelope(goal, pack, "System One response missing typed rung answer");
+  }
+  if (ans.type !== undefined && ans.type !== "choice") {
+    return fallbackEnvelope(goal, pack, `System One answer type invalid: ${String(ans.type)}`);
+  }
+  const choice = ans.choice;
+  const declared = new Set(pack.rungs.map(r => r.rung_id));
+  if (typeof choice !== "string" || !declared.has(choice)) {
+    return fallbackEnvelope(goal, pack,
+      `out-of-ladder choice refused: ${choice == null ? "" : String(choice)}`);
+  }
+  const rung = pack.rungs.find(r => r.rung_id === choice);
+  return {
+    status: "ok",
+    route: {
+      rung_id: rung.rung_id,
+      tier: rung.tier,
+      cost_class: rung.cost_class || null,
+      guidance: Array.isArray(rung.guidance) ? rung.guidance : [],
+    },
+    is_fallback: false,
+    reasons: ["Jev choice from declared ladder"],
+  };
 }
 
 function fallbackEnvelope(goal, pack, reason) {
