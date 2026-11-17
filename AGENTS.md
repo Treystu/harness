@@ -108,6 +108,11 @@ coding agent's own delegation (no static model tiers) is in `CLAUDE.md`.
 6. Report blocked with exact command/output — never “will do”.
 7. Every change to `main` — STATUS and docs included — lands through a PR with green CI; never push directly to `main` (2026-09-22: direct STATUS pushes left `main` red, `DF-GOV-1`).
 8. **Uncommitted work is at-risk work.** Commit on the phase branch as you go — a `wip:` checkpoint beats a dirty tree — and push the feature branch early; the push is the backup, not the merge (see `CONTRIBUTING.md` → *Commit and push safety*). Never force-push a shared branch, never rewrite `main`, and never run `git checkout .`, `git reset --hard` or `git clean -fd` over work you have not committed — park it on a `backup/*` ref first, the convention this repo already uses. A push is not done until the CI run for that commit is green: a queued run is not green, no run is not green, and the merge gate stays local gates + CI audit.
+9. **A PR body names the head it is about.** Any `Head SHA` or `Verification`
+line names the PR's current head; when a commit lands after the body was
+written, refresh the body in the same act. The rail at the exact head is the
+evidence and the body is only the pointer to it, so a body pinned to a
+superseded head describes a tree nobody is reviewing (#573).
 
 ## LANE PROTOCOL - all agent lanes, all sessions (added 2026-10-29)
 1. ONE BRANCH, ONE CLONE. Work in the canonical clone only. Never create worktrees or scratch/backup branches. Your lane branch (THIS REPO line below) is the only branch you work on; it carries ONE standing DRAFT PR into the base - oversight's live view of all your work, WIP included.
