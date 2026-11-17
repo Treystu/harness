@@ -851,6 +851,71 @@ def run_convergence_specialist(max_tokens=8192):
         self.assertFalse(audit._has_governor_preflight_with_retry_calls(tree))
 
 
+class AuditConfidenceFloorTests(unittest.TestCase):
+    """A declared level below min_confidence is not a judgment to act on.
+
+    Observed live (jev-1.14.0, three runs): dim_A came back with a bimodal
+    distribution -- 0.59 on "failing" against 0.36 on "exemplary" -- and every
+    declared scalar 0.0. Taking the larger lobe as authoritative reported FAIL
+    5.00/10 for a dimension whose thirteen measured checks all passed. The
+    declared level is kept for the record; the resolved claim falls back to the
+    dimension's evidence, and the 9.5 bar is unchanged.
+    """
+
+    LEVELS = DEFAULT_AUDIT_DIMENSIONS_PACK["sentiment"]["levels"]
+
+    def _answer(self, probs, *, confidence=0.0, score=1.52):
+        return {"type": "score", "score": score,
+                "legend": {str(i): lvl for i, lvl in enumerate(self.LEVELS)},
+                "probabilities": {str(k): v for k, v in probs.items()},
+                "confidence": confidence}
+
+    def test_bimodal_answer_resolves_from_the_dimension_evidence(self):
+        from harness.jev_policy import _resolve_audit_dimension
+        ans = self._answer({0: 0.59, 1: 0.03, 2: 0.0, 3: 0.02, 4: 0.36})
+        idx, source, conf, live_level, live_conf = _resolve_audit_dimension(
+            ans, self.LEVELS, evidence_score=10.0, min_confidence=0.70)
+        self.assertEqual(source, "heuristic_low_confidence")
+        self.assertEqual(idx, 4)
+        self.assertAlmostEqual(live_conf, 0.59)
+        self.assertEqual(live_level, self.LEVELS[0])   # the claim is kept
+        self.assertAlmostEqual(conf, 0.59)             # and its probability
+
+    def test_decisive_answer_is_taken_live(self):
+        from harness.jev_policy import _resolve_audit_dimension
+        ans = self._answer({3: 0.08, 4: 0.92})
+        idx, source, conf, live_level, _ = _resolve_audit_dimension(
+            ans, self.LEVELS, evidence_score=10.0, min_confidence=0.70)
+        self.assertEqual(source, "live")
+        self.assertEqual(idx, 4)
+        self.assertEqual(live_level, self.LEVELS[4])
+        self.assertAlmostEqual(conf, 0.92)
+
+    def test_low_confidence_answer_never_passes_weak_evidence(self):
+        from harness.jev_policy import _resolve_audit_dimension
+        ans = self._answer({0: 0.59, 1: 0.03, 2: 0.0, 3: 0.02, 4: 0.36})
+        idx, source, _, _, _ = _resolve_audit_dimension(
+            ans, self.LEVELS, evidence_score=6.0, min_confidence=0.70)
+        self.assertEqual(source, "heuristic_low_confidence")
+        self.assertEqual(idx, 0)
+
+    def test_missing_answer_is_plain_heuristic(self):
+        from harness.jev_policy import _resolve_audit_dimension
+        idx, source, _, live_level, live_conf = _resolve_audit_dimension(
+            None, self.LEVELS, evidence_score=9.6, min_confidence=0.70)
+        self.assertEqual((idx, source), (3, "heuristic"))
+        self.assertIsNone(live_level)
+        self.assertIsNone(live_conf)
+
+    def test_unmatched_legend_is_plain_heuristic(self):
+        from harness.jev_policy import _resolve_audit_dimension
+        ans = {"type": "score", "score": 1.0, "confidence": 0.0,
+               "legend": {"x": "not a declared level"},
+               "probabilities": {"x": 0.9}}
+        idx, source, _, _, _ = _resolve_audit_dimension(
+            ans, self.LEVELS, evidence_score=9.6, min_confidence=0.70)
+        self.assertEqual((idx, source), (3, "heuristic"))
+
 if __name__ == "__main__":
     unittest.main()
 

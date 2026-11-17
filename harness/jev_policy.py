@@ -284,6 +284,62 @@ def aggregate_structural(
     }
 
 
+def _resolve_audit_dimension(answer, levels, *, evidence_score, min_confidence):
+    """Resolve one audit dimension from one declared answer.
+
+    The answer is a score-typed legend (anchor -> declared level string) plus a
+    probability distribution. The level is the highest-probability declared
+    anchor, exactly like every other score-typed site here.
+
+    A level whose own probability does not clear ``min_confidence`` is not a
+    judgment the policy may act on. Observed live from jev-1.14.0, three runs:
+    dim_A came back 0.59 on "failing" against 0.36 on "exemplary" with every
+    declared scalar 0.0 -- a bimodal non-answer that the argmax reported as
+    FAIL 5.00/10 on a dimension whose thirteen measured checks all passed.
+    Such an answer resolves from the dimension's own evidence instead, which
+    is the same path a missing answer already takes; the level and its
+    probability are still recorded so the refusal can be audited. The 9.5 bar
+    is untouched: weak evidence still fails, it just fails on its evidence.
+
+    Pure, so the rule is testable without a transport or a key.
+    """
+    level = None
+    value = None
+    conf = None
+    if isinstance(answer, dict):
+        probs = answer.get("probabilities")
+        legend = answer.get("legend")
+        if isinstance(probs, dict) and isinstance(legend, dict):
+            for anchor, declared in legend.items():
+                if not isinstance(declared, str) or declared not in levels:
+                    continue
+                prob = probs.get(str(anchor))
+                if (isinstance(prob, (int, float))
+                        and not isinstance(prob, bool)
+                        and (value is None or float(prob) > value)):
+                    level, value = declared, float(prob)
+        raw_conf = answer.get("confidence")
+        if isinstance(raw_conf, (int, float)) and not isinstance(raw_conf, bool):
+            conf = float(raw_conf)
+    live_level = level
+    live_conf = None if value is None else round(float(value), 4)
+    if live_conf is not None and (conf is None or conf <= 0.0):
+        conf = live_conf
+    if level is not None and float(value) < float(min_confidence):
+        level = None
+    if level is not None:
+        idx = levels.index(level)
+        source = "live"
+    else:
+        score = float(evidence_score or 0.0)
+        idx = (4 if score >= 9.99 else
+               3 if score >= 9.5 else
+               2 if score >= 8.5 else
+               1 if score >= 7.0 else 0)
+        source = ("heuristic_low_confidence" if live_conf is not None
+                  else "heuristic")
+    return idx, source, conf, live_level, live_conf
+
 class JevPolicy:
     """Coordinate typed Jev calls, spend, ledger evidence, and envelopes."""
 
@@ -3573,39 +3629,16 @@ class JevPolicy:
                 }
                 continue
             evaluated_dim_ids.append(dim)
-            ans = answers.get(f"dim_{dim}")
-            level = None
-            value = None
-            conf = None
-            if isinstance(ans, dict):
-                probs = ans.get("probabilities")
-                legend = ans.get("legend")
-                if isinstance(probs, dict) and isinstance(legend, dict):
-                    for anchor, lvl in legend.items():
-                        if not isinstance(lvl, str) or lvl not in levels:
-                            continue
-                        prob = probs.get(str(anchor))
-                        if isinstance(prob, (int, float)) and (
-                                value is None or float(prob) > value):
-                            level, value = lvl, float(prob)
-                raw_conf = ans.get("confidence")
-                if isinstance(raw_conf, (int, float)) and not isinstance(raw_conf, bool):
-                    conf = float(raw_conf)
-            if level is not None:
-                idx = levels.index(level)
+            ev = dimension_evidence.get(dim) if evidence_is_dict else None
+            ev_score = float(ev.get("score", 0.0)) if isinstance(ev, dict) else 0.0
+            idx, level_source, conf, live_level, live_conf = (
+                _resolve_audit_dimension(
+                    answers.get(f"dim_{dim}"), levels,
+                    evidence_score=ev_score,
+                    min_confidence=float(
+                        getattr(self.evaluator, "min_confidence", 0.70) or 0.70)))
+            if level_source == "live":
                 any_dim_valid = True
-                level_source = "live"
-            else:
-                # Declared answer missing/invalid: fall back to this ONE
-                # dimension's own evidence-calibrated index -- never an
-                # invented level.
-                ev = dimension_evidence.get(dim) if evidence_is_dict else None
-                ev_score = float(ev.get("score", 0.0)) if isinstance(ev, dict) else 0.0
-                idx = (4 if ev_score >= 9.99 else
-                      3 if ev_score >= 9.5 else
-                      2 if ev_score >= 8.5 else
-                      1 if ev_score >= 7.0 else 0)
-                level_source = "heuristic"
             dim_results[dim] = {
                 "name": spec["name"],
                 "level_index": idx,
@@ -3619,6 +3652,10 @@ class JevPolicy:
                 # standing in for a missing/invalid answer. A call can be live
                 # overall while one dimension is heuristic (#454 item 3).
                 "source": level_source,
+                # What Jev actually declared, kept even when it was too
+                # uncertain to act on, so the refusal can be audited.
+                "live_level": live_level,
+                "live_level_confidence": live_conf,
             }
 
         if evaluated_dim_ids and not any_dim_valid:
