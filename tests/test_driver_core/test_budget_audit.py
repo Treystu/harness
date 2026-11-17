@@ -455,6 +455,14 @@ class AuditChainTests(unittest.TestCase):
         start.wait(timeout=10)
         for process in processes:
             process.join(timeout=10)
+        # A survivor is a failure, and it must not outlive the test either:
+        # a spawned child inherits the caller's standard handles on Windows,
+        # so an abandoned one keeps a captured pipe open and parks whoever
+        # is waiting on that pipe (the audit's R13 did exactly that, #583).
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
 
         self.assertFalse(any(process.is_alive() for process in processes))
         self.assertEqual([process.exitcode for process in processes], [0, 0, 0])
