@@ -30,20 +30,17 @@ the register of record for *ordering*; this mirror keeps its wave order
 and corrects its counts, because a snapshot cannot stay true while issues
 close.
 
-### Census (2026-11-17 at `02:05:00Z`, base `main` `24167b48`, Slice 3E PR)
+### Census (2026-11-17 at `02:32:00Z`, base `main` `184281e4`, Slice 3F PR)
 
-- **58 open issues**, agreed by two independent reads:
-  `gh issue list --state open --limit 400` (`58`) and the search API
-  (`type:issue state:open`, `58`), after PR `#562` merged at
-  `24167b48eca79cb177a5ee7bb4c25f64f0ae6e2a` (`#530` closed) and `#561`
-  closed with verified SHA corrections on `#549`, `#550`, `#552`, `#555`,
-  `#556`, and `#325`.
+- **57 open issues**, agreed by two independent reads:
+  `gh issue list --state open --limit 400` (`57`) and the search API
+  (`type:issue state:open`, `57`), after PR `#563` merged at
+  `184281e45b2b07c88e01255b6948248cf9ae99cf` (`#329` closed).
 - Across the wave tables below (`W0`–`W10`), **102** tracked issue rows appear:
-  **58** `OPEN` and **44** `CLOSED`, with **0** open issues absent from
-  this mirror. The arithmetic reconciles: `102 - 44 = 58`.
-- Closed since the 2026-11-17 `01:30:00Z` mirror: PR `#562` (`24167b48`)
-  closed `#530`, and evidence verification closed `#561`. Slice 3E
-  (`#329`) stays `OPEN` until Slice 3E merges.
+  **57** `OPEN` and **45** `CLOSED`, with **0** open issues absent from
+  this mirror. The arithmetic reconciles: `102 - 45 = 57`.
+- Closed since the 2026-11-17 `02:05:00Z` mirror: PR `#563` (`184281e4`)
+  closed `#329`. Slice 3F (`#335`) stays `OPEN` until Slice 3F merges.
 
 ### Rows that closed since the 2026-11-11 filing
 
@@ -68,8 +65,9 @@ close.
 | [#420](https://github.com/Treystu/harness/issues/420) | PR `#560` (`22340d87`, 15/15 CI green at `bc40c1b6`) |
 | [#530](https://github.com/Treystu/harness/issues/530) | PR `#562` (`24167b48`, 15/15 CI green at `acb52675`) |
 | [#561](https://github.com/Treystu/harness/issues/561) | closed 2026-11-17: verified SHA comments on `#549`, `#550`, `#552`, `#555`, `#556`, `#325` + mirror PR `#562` |
+| [#329](https://github.com/Treystu/harness/issues/329) | PR `#563` (`184281e4`, 15/15 CI green at `20cb0c63`) |
 
-*Staged in Slice 3E PR (still `OPEN` until Slice 3E merges, then queued for post-merge close):* `#329`.
+*Staged in Slice 3F PR (still `OPEN` until Slice 3F merges, then queued for post-merge close):* `#335`.
 
 ### Waves - live counts
 
@@ -82,7 +80,7 @@ close.
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
 | W5 - Research and retrieval | 4 | 3 |
 | W6 - Spend, routing and calibration | 15 | 10 |
-| W7 - Structure and scoped defects | 16 | 8 |
+| W7 - Structure and scoped defects | 16 | 7 |
 | W8 - Champion Audit program | 12 | 11 |
 | W9 - Tracking and low priority | 5 | 5 |
 | W10 - Mode, proposals and parked - owner | 3 | 2 |
@@ -188,7 +186,7 @@ close.
 | [#550](https://github.com/Treystu/harness/issues/550) [cli] spend and cost print three different 'remaining' budgets and a lifetime total beside a daily limit, with no scope labels | CLOSED | PR #558 (`27c509b4`) |
 | [#555](https://github.com/Treystu/harness/issues/555) [cli] cost prints billable_calls and free_calls in different units (row count vs weighted) | CLOSED | PR #558 (`27c509b4`) |
 
-### W7 - Structure and scoped defects - 8 open
+### W7 - Structure and scoped defects - 7 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -204,10 +202,10 @@ close.
 | [#314](https://github.com/Treystu/harness/issues/314) feat(jev): offline Jev-like judge modules (local inference backends) | OPEN | register: #325, #309 |
 | [#325](https://github.com/Treystu/harness/issues/325) [jev][MED] v1 assessment gate (5-aspect suite + flexibility rule) has no code counterpart | CLOSED | `harness/jev_assessment.py` (PR #442 `82847461`, 28/28 OK) |
 | [#328](https://github.com/Treystu/harness/issues/328) [cli][MINOR] no version surface: --version / -v / version all exit 2 | CLOSED | PR #531 (`5f2554e`) |
-| [#329](https://github.com/Treystu/harness/issues/329) [cli] polish: desktop usage line + shared --out/--quiet/--events/--no-color flags missing on defer/media/driver | OPEN | staged in Slice 3E PR |
+| [#329](https://github.com/Treystu/harness/issues/329) [cli] polish: desktop usage line + shared --out/--quiet/--events/--no-color flags missing on defer/media/driver | CLOSED | PR `#563` (`184281e4`, 15/15 CI green at `20cb0c63`) |
 | [#332](https://github.com/Treystu/harness/issues/332) [audit] inconsistent fallback model labeling: is_fallback=True with model=jev-latest vs model=local-heuristic | CLOSED | PR #536 |
 | [#334](https://github.com/Treystu/harness/issues/334) [mcp][LOW] log_judgment reports ok when zero items were live-judged | CLOSED | PR #504 (`c73c673`) |
-| [#335](https://github.com/Treystu/harness/issues/335) [mcp][LOW] tool annotations inaccurate: read_only_hint missing on read-only tools, absent on mutating ones | OPEN | none |
+| [#335](https://github.com/Treystu/harness/issues/335) [mcp][LOW] tool annotations inaccurate: read_only_hint missing on read-only tools, absent on mutating ones | OPEN | staged in Slice 3F PR |
 
 ### W8 - Champion Audit program - 11 open
 

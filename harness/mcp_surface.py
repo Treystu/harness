@@ -42,6 +42,90 @@ class SurfaceError(ValueError):
     """A schema change that the additive-only policy refuses."""
 
 
+ANNOTATION_KEYS = frozenset({
+    "readOnlyHint",
+    "destructiveHint",
+    "idempotentHint",
+    "openWorldHint",
+})
+
+_NON_READONLY_PHRASES = ("read-only", "read only")
+_NON_DESTRUCTIVE_PHRASES = ("read-only", "read only", "never mutates", "no mutation")
+_MUTATING_CLAIM_PHRASES = (
+    "writes the operator config",
+    "write generated cards",
+    "applied file write",
+    "regenerated status.md",
+)
+
+
+def lint_tool_annotations(schemas, *, mutation_lane=None):
+    """Enforce accurate, description-consistent annotations on all MCP tools (#335).
+
+    Every served tool must declare explicit boolean ``readOnlyHint``,
+    ``destructiveHint``, and ``openWorldHint`` flags (plus ``idempotentHint``
+    when ``readOnlyHint`` is False), agree with its lane and write/exec
+    controls, and never carry prose claiming read-only behavior on a mutating
+    or destructive tool. Raises :class:`SurfaceError` on any violation.
+    """
+    if mutation_lane is None:
+        from .mcp_lanes import MUTATION_LANE
+        mutation_lane = MUTATION_LANE
+    problems = []
+    for schema in schemas:
+        if not isinstance(schema, dict):
+            problems.append(f"{schema!r}: tool schema must be a mapping")
+            continue
+        name = str(schema.get("name") or "<unnamed>")
+        ann = schema.get("annotations")
+        if not isinstance(ann, dict):
+            problems.append(f"{name}: missing annotations dict")
+            continue
+        unknown = sorted(set(ann) - ANNOTATION_KEYS)
+        if unknown:
+            problems.append(f"{name}: unknown annotation key(s) {unknown}")
+        for key in ("readOnlyHint", "destructiveHint", "openWorldHint"):
+            if not isinstance(ann.get(key), bool):
+                problems.append(f"{name}: annotation {key!r} must be a bool")
+        read_only = ann.get("readOnlyHint")
+        destructive = ann.get("destructiveHint")
+        if read_only is False and not isinstance(ann.get("idempotentHint"), bool):
+            problems.append(
+                f"{name}: mutating tool (readOnlyHint=False) must declare "
+                "boolean 'idempotentHint'")
+        if read_only is True and destructive is True:
+            problems.append(
+                f"{name}: readOnlyHint=True cannot pair with destructiveHint=True")
+        if name in mutation_lane and read_only is not False:
+            problems.append(
+                f"{name}: MUTATION_LANE tool must declare readOnlyHint=False")
+        props = (schema.get("inputSchema") or {}).get("properties") or {}
+        if ("allow_write" in props or "allow_exec" in props) and read_only is not False:
+            problems.append(
+                f"{name}: write/exec-gated tool must declare readOnlyHint=False")
+        text = " ".join(
+            f"{schema.get('title') or ''} {schema.get('description') or ''}"
+            .lower().split())
+        if read_only is False:
+            for phrase in _NON_READONLY_PHRASES:
+                if phrase in text:
+                    problems.append(
+                        f"{name}: title/description claims {phrase!r} despite readOnlyHint=False")
+        if destructive is True:
+            for phrase in _NON_DESTRUCTIVE_PHRASES:
+                if phrase in text:
+                    problems.append(
+                        f"{name}: title/description claims {phrase!r} despite destructiveHint=True")
+        if read_only is True:
+            for phrase in _MUTATING_CLAIM_PHRASES:
+                if phrase in text:
+                    problems.append(
+                        f"{name}: title/description claims mutation ({phrase!r}) despite readOnlyHint=True")
+    if problems:
+        raise SurfaceError("MCP tool annotation lint failed: " + "; ".join(problems))
+    return len(schemas)
+
+
 def default_snapshot_path(root=None):
     base = root or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, "packs", "mcp", "tool-surface.snapshot.json")

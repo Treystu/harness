@@ -48,8 +48,9 @@ from .errors import HarnessError, ToolCancelled
 from .flush_loop import run_campaign_file, run_canary_suite_file
 from . import osal
 from .executor import DEFAULT_PLAN_WORKERS, PlanExecutor
-from .mcp_lanes import LANES, lane_for
+from .mcp_lanes import LANES, MUTATION_LANE, lane_for
 from .mcp_schemas import TOOL_SCHEMAS
+from .mcp_surface import lint_tool_annotations
 from driver_core.audit import (lint_description_inputs,
                                lint_tool_descriptions)
 from .mcp_log import log_tool_call
@@ -633,6 +634,7 @@ class McpServer:
     def _tools(self):
         lint_tool_descriptions(TOOL_SCHEMAS)
         lint_description_inputs(TOOL_SCHEMAS)
+        lint_tool_annotations(TOOL_SCHEMAS, mutation_lane=MUTATION_LANE)
         return TOOL_SCHEMAS
 
     def _refuse(self, reason, message, task_id=None, model=None,

@@ -20,7 +20,8 @@ TOOL_SCHEMAS = [
             "prompt": {"type": "string", "description": "Question or short ordinary request"},
             "session_id": {"type": "string", "description": "Optional shared chat-history session id"},
         }, "required": ["prompt"]},
-        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "site_check",
@@ -37,7 +38,8 @@ TOOL_SCHEMAS = [
             "session_id": {"type": "string",
                           "description": "Optional chat-history session id"},
         }, "required": ["prompt"]},
-        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "panel_verify",
@@ -66,6 +68,8 @@ TOOL_SCHEMAS = [
             "task_max_cost": {"type": "number", "minimum": 0, "maximum": 0.25,
                               "description": "Optional per-call cost ceiling (USD), capped at HARD_TASK_MAX_COST"},
         }, "required": ["prompt"]},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "apply_edit",
@@ -113,6 +117,8 @@ TOOL_SCHEMAS = [
             {"required": ["instruction"]},
             {"required": ["continuation"]},
         ]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "offer_work",
@@ -121,13 +127,16 @@ TOOL_SCHEMAS = [
             "When: a work item needs a model's accept, decline, defer, or "
             "redirect decision. "
             "In: task plus the work-item fields below. "
-            "Out: the model's choice; dispatch is allowed only on accept."),
+            "Out: the model's choice recorded in the durable ledger; dispatch "
+            "is allowed only on accept."),
         "inputSchema": {"type": "object", "properties": {
             "task": {"type": "string", "description": "Work item description"},
             "task_id": {"type": "string"},
             "model": {"type": "string", "description": "Model to ask (defaults to configured judge)"},
             "context": {"type": "string"},
         }, "required": ["task"]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "defer_work",
@@ -136,12 +145,14 @@ TOOL_SCHEMAS = [
             "When: a model or operator defers or revokes consent mid-task. "
             "In: task_id plus the task and reason fields below. "
             "Out: partial work preserved, the task returned to the queue with "
-            "the reason recorded, and work stopped."),
+            "the reason recorded in the durable ledger, and work stopped."),
         "inputSchema": {"type": "object", "properties": {
             "task_id": {"type": "string"},
             "reason": {"type": "string"},
             "category": {"type": "string", "description": "e.g. capability, consent, alignment"},
         }, "required": ["task_id"]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": False, "openWorldHint": False},
     },
     {
         "name": "ledger_status",
@@ -155,6 +166,8 @@ TOOL_SCHEMAS = [
         "inputSchema": {"type": "object", "properties": {
             "limit": {"type": "integer", "default": 20, "minimum": 1},
         }},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "participation_report",
@@ -168,6 +181,8 @@ TOOL_SCHEMAS = [
             "deferral points, per-model participation, and a degenerate- "
             "consent flag."),
         "inputSchema": {"type": "object", "properties": {}},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "spend_status",
@@ -178,6 +193,8 @@ TOOL_SCHEMAS = [
             "Out: OpenRouter key identity, spend limit, remaining balance, "
             "and harness session spend."),
         "inputSchema": {"type": "object", "properties": {}},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "trust_status",
@@ -191,6 +208,8 @@ TOOL_SCHEMAS = [
         "inputSchema": {"type": "object", "properties": {
             "model": {"type": "string", "description": "Model id to score (defaults to none: host only)"},
         }},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "plan_and_execute",
@@ -255,6 +274,8 @@ TOOL_SCHEMAS = [
             "max_cost": {"type": "number", "minimum": 0, "maximum": 0.25},
             "allow_write": {"type": "boolean", "description": "Confirm permission to write files when execute=true"},
         }, "required": ["goal"]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "issue_sort",
@@ -274,6 +295,8 @@ TOOL_SCHEMAS = [
                                     "path_id, keywords[], suggested_next_action, attention}}}"},
             "task_id": {"type": "string"},
         }, "required": ["issue", "pack"]},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "source_audit",
@@ -310,7 +333,8 @@ TOOL_SCHEMAS = [
                             "description": "Explicit permission to persist resume state and optional report"},
         }, "required": ["code_pack", "docs_pack", "evidence_pack",
                         "run_budget", "state_path", "allow_write"]},
-        "annotations": {"readOnlyHint": False, "openWorldHint": True},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "route_query",
@@ -331,21 +355,25 @@ TOOL_SCHEMAS = [
                                     "guidance?, notes?}]}"},
             "task_id": {"type": "string"},
         }, "required": ["goal", "pack"]},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "mission_status",
-        "title": "Mission pack status (read-only)",
+        "title": "Mission pack status refresh",
         "description": (
             "When: a caller needs machine-readable HUL-A mission pack state. "
             "In: mission_id (the mission pack selector). "
-            "Out: regenerated STATUS.md and INDEX.md summaries with phase, "
-            "dual budget, receipts, and resume state, without mutating "
+            "Out: regenerated STATUS.md and INDEX.md files on disk with "
+            "phase, dual budget, receipts, and resume state, without mutating "
             "progress, spend, or resume status."),
         "inputSchema": {"type": "object", "properties": {
             "mission_id": {"type": "string", "description": "Mission id (pack directory name)"},
             "root": {"type": "string", "default": "missions",
                      "description": "Mission pack root directory"},
         }, "required": ["mission_id"]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
     },
     {
         "name": "continue_work",
@@ -370,6 +398,8 @@ TOOL_SCHEMAS = [
                             "MCP request may write files"},
             "task_id": {"type": "string"},
         }, "required": ["continuation"]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "script_run",
@@ -401,7 +431,7 @@ TOOL_SCHEMAS = [
             "task_id": {"type": "string"},
         }, "required": ["source", "root", "allow_exec", "consent_sha"]},
         "annotations": {"readOnlyHint": False, "destructiveHint": True,
-                        "openWorldHint": True},
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "log_judgment",
@@ -422,6 +452,8 @@ TOOL_SCHEMAS = [
                             "description": "Also judge every Nth INFO record (0 = WARN/ERROR only)"},
             "task_id": {"type": "string"},
         }, "required": ["log_text", "pack"]},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "lucas_gate_v2",
@@ -513,6 +545,8 @@ TOOL_SCHEMAS = [
             {"required": ["all"],
              "properties": {"all": {"const": True}}},
         ]},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "jev_freeze",
@@ -540,6 +574,8 @@ TOOL_SCHEMAS = [
                                            "write in this request"},
             "task_id": {"type": "string"},
         }},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
     },
     {
         "name": "dogfood",
@@ -572,6 +608,8 @@ TOOL_SCHEMAS = [
                             "description": "Confirm permission to write target file"},
             "task_id": {"type": "string"},
         }, "required": ["file", "instruction"]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "generate_brief",
@@ -595,6 +633,8 @@ TOOL_SCHEMAS = [
             "render": {"type": "boolean", "default": False,
                        "description": "Render markdown prose representation instead of raw JSON"},
         }, "required": ["goal"]},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "driver_step",
@@ -616,6 +656,8 @@ TOOL_SCHEMAS = [
                                "description": "Require stable state before execution"},
             "task_id": {"type": "string"},
         }, "required": ["target"]},
+        "annotations": {"readOnlyHint": False, "destructiveHint": True,
+                        "idempotentHint": False, "openWorldHint": False},
     },
     {
         "name": "driver_health",
@@ -628,6 +670,8 @@ TOOL_SCHEMAS = [
         "inputSchema": {"type": "object", "properties": {
             "task_id": {"type": "string"},
         }},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "driver_vocabulary",
@@ -635,11 +679,13 @@ TOOL_SCHEMAS = [
         "description": (
             "When: a caller needs driver-core's closed action vocabulary. "
             "In: no inputs beyond the request. "
-            "Out: the closed 14-action vocabulary, tier mutability, and "
+            "Out: the closed action vocabulary, tier mutability, and "
             "normalizers."),
         "inputSchema": {"type": "object", "properties": {
             "task_id": {"type": "string"},
         }},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "driver_verify",
@@ -652,6 +698,8 @@ TOOL_SCHEMAS = [
         "inputSchema": {"type": "object", "properties": {
             "task_id": {"type": "string"},
         }},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "host_provision_probe",
@@ -662,7 +710,8 @@ TOOL_SCHEMAS = [
             "Out: hardware, operating system, interpreter, GPU, and package- "
             "manager facts."),
         "inputSchema": {"type": "object", "properties": {}},
-        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "host_provision_plan",
@@ -675,7 +724,8 @@ TOOL_SCHEMAS = [
             "goal": {"type": "string", "description": "Provisioning goal text (e.g. 'install ruff')"},
             "root": {"type": "string", "description": "Workspace inside configured MCP allowed roots; defaults only when exactly one root is configured"},
         }, "required": ["goal"]},
-        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": True},
     },
     {
         "name": "repo_cards",
@@ -684,14 +734,16 @@ TOOL_SCHEMAS = [
             "When: deterministic repo philosophy cards must be generated or "
             "checked. "
             "In: the committed repository config. "
-            "Out: the generated or checked cards."),
+            "Out: the checked card status or generated card files written "
+            "when check=false and allow_write=true."),
         "inputSchema": {"type": "object", "properties": {
             "root": {"type": "string", "description": "Selected repo or parent workspace inside configured MCP allowed roots"},
             "check": {"type": "boolean", "default": True, "description": "True to verify cards match without writing (default)"},
             "repo": {"type": "string", "description": "Optional specific repository name"},
             "allow_write": {"type": "boolean", "description": "Explicit permission to write generated cards when check=false"},
         }},
-        "annotations": {"openWorldHint": True},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": True, "openWorldHint": False},
     },
     {
         "name": "jev_calibration",
@@ -705,7 +757,8 @@ TOOL_SCHEMAS = [
         "inputSchema": {"type": "object", "properties": {
             "window": {"type": "integer", "default": 1000, "description": "Number of recent ledger entries to inspect"},
         }},
-        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "economics_report",
@@ -719,7 +772,8 @@ TOOL_SCHEMAS = [
         "inputSchema": {"type": "object", "properties": {
             "allow_cost_increase": {"type": "boolean", "default": False, "description": "Allow proposing a candidate with higher expected cost"},
         }},
-        "annotations": {"readOnlyHint": True, "openWorldHint": True},
+        "annotations": {"readOnlyHint": True, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "flush_run",
@@ -730,7 +784,7 @@ TOOL_SCHEMAS = [
             "In: exactly one of campaign or canary_suite, plus optional "
             "ledger, extended_instruments, cold_run, root, and allow_write. "
             "Out: the same campaign state the CLI reports, or the fail-closed "
-            "canary gate verdict; no code is written."),
+            "canary gate verdict; appends event ledger, no code is written."),
         "inputSchema": {"type": "object", "properties": {
             "campaign": {"type": "string", "description": "Campaign JSON path inside an allowed root"},
             "canary_suite": {"type": "string", "description": "Canary suite JSON path inside an allowed root"},
@@ -740,7 +794,8 @@ TOOL_SCHEMAS = [
             "root": {"type": "string", "description": "Selected workspace inside configured MCP allowed roots"},
             "allow_write": {"type": "boolean", "description": "Explicit permission to append the event ledger"},
         }},
-        "annotations": {"openWorldHint": True},
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "idempotentHint": False, "openWorldHint": True},
     },
 ]
 
