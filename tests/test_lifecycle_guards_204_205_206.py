@@ -282,6 +282,25 @@ class HonestRendererTests(unittest.TestCase):
         self.assertIn("Renew consent", block)
         self.assertNotIn("resumable stage runner", block)
 
+    def test_gate_guard_handles_an_empty_reason(self):
+        block = render_gate_guard("", True)
+        self.assertIn("did not pass the gate", block)
+        self.assertIn("Send the request again", block)
+
+    def test_gate_guard_renders_a_planned_change_list(self):
+        block = render_gate_guard(
+            "no_evidence_cited", True,
+            planned=[{"path": "a.py"},
+                     {"target": "b.py", "summary": "rewrite the parser"},
+                     {"name": "node-3"},
+                     "c.py",
+                     "   "])
+        self.assertIn("`a.py`", block)
+        self.assertIn("`b.py`: rewrite the parser", block)
+        self.assertIn("`node-3`", block)
+        self.assertIn("`c.py`", block)
+        self.assertNotIn("no change list", block)
+
     def test_gate_guard_keeps_an_unrecognised_reason_as_a_support_code(self):
         block = render_gate_guard("some_future_gate_token", True)
         self.assertIn("Support code: `some_future_gate_token`", block)
@@ -299,6 +318,17 @@ class RefusedEditIntegrationTests(unittest.TestCase):
                 "dag": {"nodes": []}, "nodes": []}
         plan.update(extra)
         return plan
+
+    def test_refused_edit_names_dag_targets_as_the_change_surface(self):
+        plan = self._refused(dag={"nodes": [{"target_files": ["from_dag.py"]},
+                                        "a node that is not a dict"]})
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = _agent(tmp)
+            with patch.object(agent, "_handle_conversation",
+                              side_effect=RuntimeError("lane down")):
+                res = agent._refused_edit(plan, "Update from_dag.py", [], "s1")
+        self.assertIn("from_dag.py", res["response"])
+        self.assertIn("What would change", res["response"])
 
     def test_read_only_refusal_has_no_file_write_block(self):
         with tempfile.TemporaryDirectory() as tmp:
