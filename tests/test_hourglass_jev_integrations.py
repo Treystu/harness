@@ -13,6 +13,7 @@ The contract this file pins, in the order the canon states it:
   native signals, and never a completion or readiness claim.
 """
 import copy
+from pathlib import Path
 import unittest
 from unittest import mock
 
@@ -34,8 +35,14 @@ from harness.jev_packs import (
 )
 from harness.jev_policy import policy_for
 from harness.ledger import AutonomyLedger
-from tests import isolated_history_dir
 
+
+
+def _isolated_history_dir(root):
+    """This fixture's own chat store -- never the operator's default (#589)."""
+    path = Path(root) / ".hist"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 class RecordingGovernor:
     def __init__(self):
@@ -643,7 +650,7 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
         policy = self._policy(evaluator)
         agent = AutonomousAgent(
             settings=load_settings(), root_dir=Path(self.tmp.name),
-            history_dir=isolated_history_dir(Path(self.tmp.name)))
+            history_dir=_isolated_history_dir(Path(self.tmp.name)))
         plan = {
             "composition": {
                 "stages": [
@@ -677,7 +684,7 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
         policy = self._policy(evaluator)
         agent = AutonomousAgent(
             settings=load_settings(), root_dir=Path(self.tmp.name),
-            history_dir=isolated_history_dir(Path(self.tmp.name)))
+            history_dir=_isolated_history_dir(Path(self.tmp.name)))
         decision = agent._restart_decision("refactor sample.py", policy, {}, completed_stages=())
         self.assertTrue(decision["consent_renewal_required"])
         self.assertIn("consent no longer covers this assignment", " ".join(decision["reasons"]))
@@ -687,7 +694,7 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
         from pathlib import Path
         agent = AutonomousAgent(
             settings=load_settings(), root_dir=Path(self.tmp.name),
-            history_dir=isolated_history_dir(Path(self.tmp.name)))
+            history_dir=_isolated_history_dir(Path(self.tmp.name)))
         asked = [
             {"signals": {"restart_target": {"target": "undeclared-stage"}},
              "native": True},
@@ -752,7 +759,7 @@ class StageCallingLanesIntegrationTests(unittest.TestCase):
         from pathlib import Path
         agent = AutonomousAgent(
             settings=load_settings(), root_dir=Path(self.tmp.name),
-            history_dir=isolated_history_dir(Path(self.tmp.name)))
+            history_dir=_isolated_history_dir(Path(self.tmp.name)))
         mock_policy = MagicMock()
         class NonTupleRes:
             structural = {

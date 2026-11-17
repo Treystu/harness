@@ -26,7 +26,6 @@ import socket as _socket
 import sys
 import tempfile
 import unittest
-from pathlib import Path
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
@@ -39,18 +38,6 @@ LEDGER_ISOLATION_DIR = tempfile.mkdtemp(prefix="harness-test-ledger-")
 LEDGER_ISOLATION_PATH = os.path.join(LEDGER_ISOLATION_DIR, "ledger.jsonl")
 
 os.environ["HARNESS_LEDGER"] = LEDGER_ISOLATION_PATH
-
-def isolated_history_dir(root):
-    """A chat-history store inside the caller's own temporary root (#589).
-
-    Hourglass fixtures drive real lifecycles, so ``save_chat_turn`` runs with
-    whatever ``history_dir`` the agent carries. Passing this keeps the write
-    inside the test's tree instead of falling back to the default store.
-    """
-    path = Path(root) / ".hist"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
 
 #: Provider availability is real cross-run state (harness/availability.py).
 #: Two rules keep the suite hermetic: never resolve the operator's
