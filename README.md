@@ -44,8 +44,13 @@ FusionLite's engine it adds:
    run reports `verify_failed` with the gate's real output and `"gate_ran":
    true`.
 5. **System One & Calibrated Decision Support** — Fast-path pre-flight triage,
-   calibrated confidence thresholds for pre-gate deferral, and sub-second machine-native
-   jury panels (see [docs/system-one-integration.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/system-one-integration.md)).
+   native Jev decision/evaluation gates (`jev_policy`), and group-calibrated
+   confidence thresholds for pre-gate deferral; calibration is measured at the
+   group level across outcomes and never guarantees an individual answer, so
+   deterministic verification gates remain authoritative. Lean enum-constrained
+   jury panels (`JEV-P2-jury`) remain **deferred** and are not shipped (see
+   [docs/system-one-integration.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/system-one-integration.md)
+   and [docs/jev-roadmap.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/jev-roadmap.md)).
 
    Multi-file edits (`--file` × N) always return the **batch envelope**:
    `"batch": true` with a `results` list (one result per file, task-suffixed
@@ -549,10 +554,16 @@ verify-gate validation, and the trust gates are never bypassed; the UI adds a
 human confirmation step on top, never instead.
 
 Security posture: loopback bind only (non-loopback Host headers are refused —
-DNS-rebinding guard), token-protected API routes, and secrets shown as
-presence-only in the settings view. The desktop shell reuses the persisted UI
-token and passes it via the URL fragment. See [docs/security.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/security.md)
-and [docs/ui-readiness.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/ui-readiness.md) for details.
+DNS-rebinding guard), token-protected API routes (`/api/status` and all other
+`/api/*` routes return `401` unauthenticated and `200` with `X-Harness-Auth` /
+Bearer auth), and secrets shown as presence-only in the settings view.
+`harness serve` defaults to `127.0.0.1:8765` (`--port` to override);
+`harness-desktop` / `harness desktop` defaults to `127.0.0.1:8766` and reuses
+the persisted owner token via the URL fragment. See
+[docs/security.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/security.md),
+[docs/ui-readiness.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/ui-readiness.md),
+and [docs/ui-acceptance.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/ui-acceptance.md)
+for details.
 
 ### Web evidence: one fetch ladder
 

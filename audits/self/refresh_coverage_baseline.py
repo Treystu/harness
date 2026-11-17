@@ -18,9 +18,10 @@ longer a manual pre-merge ritual. ``--out`` writes to a temporary path (the
 CI path uses it so the tracked file is not rewritten); without it the
 reviewable ``audits/self/coverage_baseline.json`` fast path is updated.
 
-Cost: one traced battery run, roughly two to five minutes -- run this when
-you want a committed fast-path document, not per commit. The trace artifacts
-stay in-memory; nothing is written except the coverage JSON.
+Cost: one traced battery run — measured at ~11m55s–12m25s (714.85s–745s on
+CircleCI cimg/python:3.11 across ~7,043 tests; ~10–14m on local Windows).
+Run this when you want a committed fast-path document, not per commit. The trace
+artifacts stay in-memory; nothing is written except the coverage JSON.
 """
 import inspect
 import io
@@ -68,10 +69,11 @@ def main():
         pass
 
     class ProgressStream:
-        def __init__(self, target):
+        def __init__(self, target, *, start_time=None):
             self.target = target
             self.count = 0
             self.total = None
+            self.start_time = time.monotonic() if start_time is None else start_time
 
         def write(self, s):
             if not s:
@@ -83,7 +85,10 @@ def main():
                 self.count += dots
                 if self.total and (self.count % 50 == 0 or self.count == self.total):
                     pct = int(self.count * 100 / self.total)
-                    self.target.write(f" [{self.count}/{self.total} - {pct}%]\n")
+                    elapsed = time.monotonic() - self.start_time
+                    self.target.write(
+                        f" [{self.count}/{self.total} - {pct}% - {elapsed:.1f}s]\n"
+                    )
                     self.target.flush()
 
         def flush(self):
@@ -141,7 +146,7 @@ def main():
         finally:
             harness.output.QUIET = orig_quiet
 
-    print("tracing full battery (2-4 min)...", flush=True)
+    print("tracing full battery (~10-14 min across full suite; measured 12m25s on CI)...", flush=True)
     tests_dir = str(ROOT / "tests")
     tr = trace.Trace(count=1, trace=0,
                      ignoredirs=[sys.prefix, sys.exec_prefix, tests_dir])

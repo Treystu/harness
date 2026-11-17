@@ -34,3 +34,28 @@ complete audit archive should preserve and externally protect all segments.
 - Preserve rotated files if evidence must remain complete.
 - Treat `quarantined`, failed verification, and repair output as audit events
   requiring review.
+
+## Resolving cited ledger entries (`D-YYYY-MM-DD-nnn`)
+
+Because the autonomy ledger is local and uncommitted, **it is not stored in or
+readable from a git repository checkout alone** unless an explicit sanitized
+export has been committed. Repo-committed tracking summaries live in
+[jev-roadmap.md](jev-roadmap.md) and GitHub issues.
+
+- **Operator inspection command:** when an operator needs to inspect a local
+  ledger entry or cited `D-YYYY-MM-DD-nnn` dispatch record on the host where
+  the ledger lives, run:
+
+  ```bash
+  python -m harness.cli ledger tail --limit 50 --json
+  ```
+
+  (or inspect the `ledger.jsonl` / rotated segment files in the configured
+  Harness config directory and verify integrity with
+  `python -m harness.cli ledger verify --json`).
+- **Checkout-only agent contract (fail closed):** an agent limited strictly to
+  the repository tree cannot resolve an un-exported `D-YYYY-MM-DD-nnn` ID from
+  source files. Do not probe outside workspace boundaries or invent missing item
+  lists; **park** any dependency whose scope exists only in an unavailable `D-...`
+  entry, naming the exact `D-YYYY-MM-DD-nnn` identifier in the report/blocker so
+  the operator can supply or export it.

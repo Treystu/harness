@@ -66,9 +66,9 @@ We propose incorporating System One paradigms into Harness across three architec
 * **Current State:** Deferral happens when a model explicitly emits `HARNESS_DEFER` or hits rate/error limits.
 * **System One Enhancement:** Leverage calibrated confidence scores. If a model's self-assessed confidence falls below a configured threshold (e.g., `< 0.70`), Harness immediately triggers an automated `HARNESS_DEFER` handoff to a higher-capability model tier **before** spending budget on writing files or executing test gates.
 
-### Pillar 3: Ultra-Lean Machine-Native Jury Panels
-* **Current State:** Multi-model panels generate full text advisory verdicts, increasing total token burn.
-* **System One Enhancement:** For `--verify-only` or jury consensus steps, request single-token or enum-constrained responses (e.g., `PASS`, `FAIL`, `DEFER`) with associated confidence scores. This drops panel verification latency to sub-second speeds and reduces cost to near zero.
+### Pillar 3: Ultra-Lean Machine-Native Jury Panels (Deferred / Not Shipped)
+* **Status:** **Deferred (`JEV-P2-jury`)** per operator ruling — design proposal only; not shipped and no fail-closed contract or coverage is merged.
+* **Planned Concept:** For future `--verify-only` or jury consensus steps, constrain panel outputs to typed enums (e.g., `PASS`, `FAIL`, `DEFER`) with calibrated probabilities rather than multi-paragraph prose. Until `JEV-P2-jury` leaves deferred status, multi-model panels continue to synthesize text advisory verdicts alongside deterministic verification gates.
 
 ---
 
@@ -97,15 +97,17 @@ System One decision interfaces replace unstructured natural language reasoning w
 
 ### 3.2 Confidence Calibration & Deferral Gating
 
-Standard LLM confidence is notoriously poorly calibrated (often displaying overconfident hallucinations). Through **Reinforcement Learning for Calibrated Decisions (RLCD)**, System One models produce probabilities that correspond directly to observed accuracy rates.
+Standard LLM confidence is notoriously poorly calibrated (often displaying overconfident hallucinations). Through **Reinforcement Learning for Calibrated Decisions (RLCD)**, System One models produce probabilities calibrated across groups of similar judgments. Group-level calibration describes statistical agreement across batches and **does not guarantee correctness on any single individual answer**, so deterministic code checks, test gates, and explicit verification rules always remain the final authority.
 
 Harness integrates this via the following deferral rules:
 1. **Implicit Deferral on Low Confidence**: If a model returns `"decision": "accept"`, but its `confidence` score is below the configured threshold (e.g. `confidence < 0.70`), Harness intercepts the acceptance and treats it as an automatic `HARNESS_DEFER` handoff.
 2. **Autonomy Ledger Evidence**: The ledger records the self-assessed confidence, reason, and any automated threshold override in the hash-chained JSONL file, enabling longitudinal tracking of model calibration and under/overconfidence metrics.
 
-### 3.3 Fast Jury Panel Protocol (Enum-Constrained Consensus)
+### 3.3 Fast Jury Panel Protocol (Enum-Constrained Consensus — Deferred)
 
-For advisory panel verification (`--verify-only` or multi-model voting), generative text synthesis generates excess tokens. Under the System One protocol:
+Status: **Deferred (`JEV-P2-jury` in [jev-roadmap.md](jev-roadmap.md))**. This section documents the proposed contract for future work and is not active in shipped CLI/MCP/UI paths.
+
+For future advisory panel verification (`--verify-only` or multi-model voting), generative text synthesis generates excess tokens. Under the proposed System One protocol:
 - Panelists evaluate task claims or code diffs and emit single-token enum selections:
   ```json
   {
@@ -114,7 +116,7 @@ For advisory panel verification (`--verify-only` or multi-model voting), generat
     "claim_id": "syntax_clean"
   }
   ```
-- The Harness `convergence` engine aggregates logits/choices without requiring multi-paragraph judge synthesis, reducing panel evaluation latency from ~10s to <1s.
+- A future fail-closed `convergence` aggregator would combine typed verdicts instead of multi-paragraph synthesis; latency/cost improvements await benchmark validation after `JEV-P2-jury` is un-deferred.
 
 ---
 
