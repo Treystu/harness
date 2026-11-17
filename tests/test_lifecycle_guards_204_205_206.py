@@ -253,6 +253,59 @@ class HonestRendererTests(unittest.TestCase):
         self.assertTrue(has_write_surface(["util.py"], None))
         self.assertTrue(has_write_surface([], {"nodes": [{"target_files": ["a.py"]}]}))
 
+    def test_gate_guard_never_prints_internal_state_at_the_operator(self):
+        # #569: the operator sees plain language, not the gate's own token.
+        block = render_gate_guard("no_evidence_cited", True)
+        self.assertNotIn("no_evidence_cited", block)
+        self.assertIn("cites no evidence", block)
+        self.assertNotIn("Review the planned changes above", block)
+        self.assertIn("**What to do next:**", block)
+
+    def test_gate_guard_lists_the_changes_it_held(self):
+        block = render_gate_guard("no_evidence_cited", True,
+                                  paths=["script.py", "util.py"])
+        self.assertIn("script.py", block)
+        self.assertIn("util.py", block)
+        self.assertIn("**What would change:**", block)
+
+    def test_gate_guard_says_so_when_no_change_was_named(self):
+        block = render_gate_guard("no_evidence_cited", True)
+        self.assertIn("no change list to show", block)
+
+    def test_gate_guard_translates_a_consent_hold_without_the_raw_reason(self):
+        raw = ("validated restart to execution requires a resumable stage "
+               "runner: restart target execution is not earlier than the "
+               "current stage execution; consent no longer covers this "
+               "assignment and must be renewed before any dispatch")
+        block = render_gate_guard(raw, True)
+        self.assertIn("consent recorded for this assignment no longer covers", block)
+        self.assertIn("Renew consent", block)
+        self.assertNotIn("resumable stage runner", block)
+
+    def test_gate_guard_handles_an_empty_reason(self):
+        block = render_gate_guard("", True)
+        self.assertIn("did not pass the gate", block)
+        self.assertIn("Send the request again", block)
+
+    def test_gate_guard_renders_a_planned_change_list(self):
+        block = render_gate_guard(
+            "no_evidence_cited", True,
+            planned=[{"path": "a.py"},
+                     {"target": "b.py", "summary": "rewrite the parser"},
+                     {"name": "node-3"},
+                     "c.py",
+                     "   "])
+        self.assertIn("`a.py`", block)
+        self.assertIn("`b.py`: rewrite the parser", block)
+        self.assertIn("`node-3`", block)
+        self.assertIn("`c.py`", block)
+        self.assertNotIn("no change list", block)
+
+    def test_gate_guard_keeps_an_unrecognised_reason_as_a_support_code(self):
+        block = render_gate_guard("some_future_gate_token", True)
+        self.assertIn("Support code: `some_future_gate_token`", block)
+        self.assertIn("did not pass the gate", block)
+
     def test_identical_blocks_deduplicated_to_one(self):
         block = render_gate_guard("waist refused", True)
         self.assertEqual(dedupe_notices([block, block, block]), [block])
@@ -265,6 +318,17 @@ class RefusedEditIntegrationTests(unittest.TestCase):
                 "dag": {"nodes": []}, "nodes": []}
         plan.update(extra)
         return plan
+
+    def test_refused_edit_names_dag_targets_as_the_change_surface(self):
+        plan = self._refused(dag={"nodes": [{"target_files": ["from_dag.py"]},
+                                        "a node that is not a dict"]})
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = _agent(tmp)
+            with patch.object(agent, "_handle_conversation",
+                              side_effect=RuntimeError("lane down")):
+                res = agent._refused_edit(plan, "Update from_dag.py", [], "s1")
+        self.assertIn("from_dag.py", res["response"])
+        self.assertIn("What would change", res["response"])
 
     def test_read_only_refusal_has_no_file_write_block(self):
         with tempfile.TemporaryDirectory() as tmp:

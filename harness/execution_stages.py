@@ -457,9 +457,23 @@ class ExecutionStageMixin:
             render_gate_guard,
         )
 
+        # #569: name the change surface the hold actually covers, so the
+        # operator sees what would change instead of being told to review
+        # changes that were never shown.
+        surface = []
+        for path in list(target_files or []):
+            if str(path).strip() and str(path) not in surface:
+                surface.append(str(path))
+        for node in (plan.get("dag") or {}).get("nodes") or []:
+            if not isinstance(node, dict):
+                continue
+            for target in (node.get("target_files") or node.get("targets") or []):
+                if str(target).strip() and str(target) not in surface:
+                    surface.append(str(target))
         guard_block = render_gate_guard(
             reason,
             has_write_surface(target_files, plan.get("dag")),
+            paths=surface,
         )
         notice_blocks = dedupe_notices([guard_block] if guard_block else [])
         if notice_blocks:
