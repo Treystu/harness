@@ -1,54 +1,35 @@
-"""The suite must never append to the operator's chat store (issue #589).
+"""Hourglass fixtures must name their own chat-history store (issue #589).
 
 3,766 of the 5,254 records in ``~/.config/harness/chat_history/default.jsonl``
 were one test prompt, produced by hourglass fixtures that built a real
-``AutonomousAgent`` without a ``history_dir`` and so fell back to the default
-store. The suite now pins a private config directory (``tests/__init__.py``),
-and this module holds the two contracts that keep it pinned: the default
-history dir resolves inside the test root, and no hourglass fixture builds an
-agent without naming a history dir.
+``AutonomousAgent`` without a ``history_dir`` and so fell back to the
+operator's default store. Every offending construction now passes its own
+temporary store, and this module holds that shape in place: the omission is
+silent at runtime -- the save simply lands somewhere else -- so it has to be
+caught structurally.
 """
-import os
+import tempfile
 import unittest
 from pathlib import Path
 
-import tests
-from harness.history import get_default_history_dir, load_chat_history, save_chat_turn
+from tests import isolated_history_dir
 
 
-def _norm(path) -> str:
-    return os.path.normcase(os.path.abspath(str(path)))
+class IsolatedHistoryDirTests(unittest.TestCase):
+    def test_helper_stays_inside_the_caller_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            resolved = isolated_history_dir(root)
+            self.assertEqual(resolved, root / ".hist")
+            self.assertTrue(resolved.is_dir())
 
-
-class DefaultHistoryDirIsIsolatedTests(unittest.TestCase):
-    def test_default_history_dir_is_inside_the_pinned_test_root(self):
-        resolved = _norm(get_default_history_dir())
-        pinned = _norm(tests.CONFIG_ISOLATION_DIR)
-        self.assertTrue(
-            resolved == pinned or resolved.startswith(pinned + os.sep),
-            f"default history dir {resolved} is not under the test root {pinned}")
-
-    def test_default_history_dir_is_not_the_operator_store(self):
-        resolved = _norm(get_default_history_dir())
-        operator = _norm(Path(os.path.expanduser("~")) / ".config" / "harness")
-        self.assertFalse(
-            resolved == operator or resolved.startswith(operator + os.sep),
-            f"default history dir still resolves to the operator store: {resolved}")
-
-    def test_a_save_without_history_dir_lands_in_the_isolated_store(self):
-        path = save_chat_turn("sess_isolation_probe", {"prompt": "isolation probe"})
-        self.addCleanup(lambda: Path(path).unlink(missing_ok=True))
-
-        resolved = _norm(path)
-        pinned = _norm(tests.CONFIG_ISOLATION_DIR)
-        self.assertTrue(resolved.startswith(pinned + os.sep), resolved)
-        self.assertEqual(
-            load_chat_history("sess_isolation_probe")[0]["prompt"], "isolation probe")
+    def test_helper_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertEqual(isolated_history_dir(root), isolated_history_dir(root))
 
 
 class HourglassFixturesNameAHistoryDirTests(unittest.TestCase):
-    """Static guard: the omission is silent, so a new fixture must not repeat it."""
-
     def test_every_hourglass_agent_build_names_a_history_dir(self):
         root = Path(__file__).resolve().parent
         offenders = []

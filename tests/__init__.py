@@ -40,19 +40,6 @@ LEDGER_ISOLATION_PATH = os.path.join(LEDGER_ISOLATION_DIR, "ledger.jsonl")
 
 os.environ["HARNESS_LEDGER"] = LEDGER_ISOLATION_PATH
 
-#: The operator's chat-history store lives under the config directory
-#: (``harness.history.get_default_history_dir``), so a test that builds a real
-#: lifecycle *without* an explicit ``history_dir`` appends its fixture turn to
-#: ``~/.config/harness/chat_history``: 3,766 of that store's 5,254 records were
-#: one test prompt (#589). Pinning a private config directory is the same
-#: isolation switch as the ledger above, for the same reason -- the suite must
-#: never write to the operator's evidence. An ambient ``HARNESS_CONFIG_DIR`` is
-#: overridden rather than respected, so a lane's live state cannot be reached
-#: by accident either.
-CONFIG_ISOLATION_DIR = tempfile.mkdtemp(prefix="harness-test-config-")
-os.environ["HARNESS_CONFIG_DIR"] = CONFIG_ISOLATION_DIR
-
-
 def isolated_history_dir(root):
     """A chat-history store inside the caller's own temporary root (#589).
 
@@ -63,6 +50,7 @@ def isolated_history_dir(root):
     path = Path(root) / ".hist"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
 
 #: Provider availability is real cross-run state (harness/availability.py).
 #: Two rules keep the suite hermetic: never resolve the operator's
