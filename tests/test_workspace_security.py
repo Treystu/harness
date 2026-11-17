@@ -11,6 +11,7 @@ from unittest.mock import patch
 from harness.agent import AutonomousAgent
 from harness.apply import ApplyEngine
 from harness.errors import HarnessError
+from harness.history import save_chat_turn
 from harness.repo_scope import (_rebase_path, discover_target_files,
                                 discover_verification_gate, enumerate_repo_files,
                                 gate_for_targets)
@@ -302,29 +303,49 @@ class DispatchWorkspaceTests(WorkspaceFixture):
 
 
 class AgentDefaultsTests(unittest.TestCase):
+    def _agent_with_scoped_history(self, root: Path) -> AutonomousAgent:
+        """An agent with no workspace whose prior turn scoped a file (#589).
+
+        Both edit-intent cases below assert the workspace gate on a request
+        that has file scope. That scope used to arrive from whatever turns sat
+        in the default chat store -- on an operator machine a test fixture's
+        turn, which is the pollution #589 cures. The state is created here, so
+        the assertion holds whatever else has run in this process.
+        """
+        store = root / ".hist"
+        store.mkdir(parents=True, exist_ok=True)
+        save_chat_turn("default", {
+            "prompt": "edit calc.py so add() documents its return value",
+            "response": "I will edit calc.py and run its tests.",
+            "target_files": ["calc.py"],
+        }, store)
+        return AutonomousAgent(settings=object(), history_dir=store)
+
     def test_agent_apis_do_not_default_to_auto_apply_or_cwd(self):
         self.assertIs(AutonomousAgent.run_prompt.__defaults__[0], False)
         hourglass = inspect.signature(AutonomousAgent.run_hourglass_request)
         self.assertIs(hourglass.parameters["auto_apply"].default, False)
 
     def test_unscoped_edit_intent_can_be_discussed_but_not_applied(self):
-        agent = AutonomousAgent(settings=object())
-        with patch.object(agent, "_handle_conversation",
-                          return_value={"status": "ok"}) as conversation:
-            result = agent.run_prompt(
-                "refactor the whole engine", force_conversation=True,
-                auto_apply=False)
-        self.assertEqual(result["status"], "ok")
-        conversation.assert_called_once()
-        with self.assertRaises(HarnessError):
-            agent.run_prompt(
-                "refactor the whole engine", force_conversation=True,
-                auto_apply=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent_with_scoped_history(Path(tmp))
+            with patch.object(agent, "_handle_conversation",
+                              return_value={"status": "ok"}) as conversation:
+                result = agent.run_prompt(
+                    "refactor the whole engine", force_conversation=True,
+                    auto_apply=False)
+            self.assertEqual(result["status"], "ok")
+            conversation.assert_called_once()
+            with self.assertRaises(HarnessError):
+                agent.run_prompt(
+                    "refactor the whole engine", force_conversation=True,
+                    auto_apply=True)
 
     def test_edit_intent_without_workspace_is_rejected_before_dispatch(self):
-        agent = AutonomousAgent(settings=object())
-        with self.assertRaisesRegex(HarnessError, "Select a workspace folder"):
-            agent.run_prompt("refactor the whole engine", auto_apply=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent_with_scoped_history(Path(tmp))
+            with self.assertRaisesRegex(HarnessError, "Select a workspace folder"):
+                agent.run_prompt("refactor the whole engine", auto_apply=False)
 
     def test_context_skips_a_candidate_that_fails_workspace_resolution(self):
         with tempfile.TemporaryDirectory() as temp:
