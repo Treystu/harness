@@ -904,12 +904,26 @@ def r_suite_green():
     """The full unit suite is green hermetically (with ResourceWarnings as
     errors)."""
     env, dropped = hermetic_suite_env()
+    # The suite output goes to a FILE, never to a captured pipe. One test in
+    # the suite spawns child interpreters (multiprocessing "spawn"); on
+    # Windows those children inherit the parent's standard handles, so a
+    # child that outlives the test keeps the write end of a captured pipe
+    # open. subprocess.run() then waits for pipe EOF -- not for the suite
+    # child -- and the audit parks on R13 with the suite process already
+    # gone (#583: two runs, 40 and 25 minutes, log stopped at R13). A file
+    # has no reader to wait for, so the wait ends when the child exits; the
+    # timeout, the classifier and the leak rule are unchanged.
+    log_path = os.path.join(env["HOME"], "r13-suite.log")
     try:
-        r = subprocess.run(
-            [sys.executable, "-W", "error::ResourceWarning", "-m", "unittest",
-             "discover", "-s", "tests", "-q"],
-            cwd=str(ROOT), capture_output=True, text=True, timeout=900, env=env)
-        stdout, stderr = r.stdout, r.stderr
+        with open(log_path, "w", encoding="utf-8", errors="replace") as log:
+            subprocess.run(
+                [sys.executable, "-W", "error::ResourceWarning", "-m", "unittest",
+                 "discover", "-s", "tests", "-q"],
+                cwd=str(ROOT), stdout=log, stderr=subprocess.STDOUT,
+                text=True, timeout=900, env=env)
+        with open(log_path, encoding="utf-8", errors="replace") as log:
+            captured = log.read()
+        stdout, stderr = captured, ""
     finally:
         shutil.rmtree(env["HOME"], ignore_errors=True)
     summary_ok, leaked, summary = _classify_suite_output(stdout + stderr)
