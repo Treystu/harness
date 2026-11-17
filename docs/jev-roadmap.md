@@ -78,7 +78,7 @@ close.
 | --- | --- | --- |
 | W0 - Rail and gate truth - blocks landing anything else | 4 | 0 |
 | W1 - Active queue - the filed order | 2 | 1 |
-| W2 - Verification and surface truth | 36 | 16 |
+| W2 - Verification and surface truth | 37 | 17 |
 | W3 - Driver and perception | 5 | 5 |
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
 | W5 - Research and retrieval | 4 | 3 |
