@@ -144,6 +144,38 @@ class CostCliTests(unittest.TestCase):
         self.assertEqual(rep["free_calls"], 2)  # the seeded free call + this one
         self.assertEqual(rep["events_count"], 5)
 
+    def test_billable_free_other_identity_with_weighted_jev_and_lifecycle_rows(self):
+        import contextlib
+        import io
+        from harness.cli_report import _print_cost_table
+
+        self.ledger.append("offer", task_id="task-identity-555")
+        self.ledger._tail.append({
+            "event": "jev_eval", "model": "jev-1.14.0",
+            "input_tokens": 1000, "repeat_count": 4, "cost": 0.0,
+        })
+        self.ledger._tail.append({
+            "event": "jev_eval", "model": "jev-1.14.0",
+            "input_tokens": 1000, "cache_hit": True, "cost": 0.0,
+        })
+        rep = self.ledger.cost_report()
+        self.assertEqual(
+            rep["billable_calls"] + rep["free_calls"] + rep["other_events"],
+            rep["events_count"],
+        )
+        self.assertEqual(rep["billable_calls"], 4)  # 3 paid + 1 billed jev row
+        self.assertEqual(rep["free_calls"], 1)  # 1 :free row (cache_hit skipped)
+        self.assertEqual(rep["other_events"], 2)  # offer + cache_hit
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            _print_cost_table(rep)
+        out = buf.getvalue()
+        self.assertIn("Lifetime ledger spend", out)
+        self.assertIn("billable rows", out)
+        self.assertIn("free rows", out)
+        self.assertIn("other events", out)
+        self.assertIn("Calls(wtd)", out)
+
 
 
 

@@ -135,7 +135,9 @@ def capabilities_payload(governor, ledger, *, panel_pool, apply_pool, judge,
 
     return {
         "captured_at": fetched_at, "refreshed": refreshed,
-        "models": rows, "count": len(rows),
+        "all_models_included": bool(all_models),
+        "profiled_count": len(rows),
+        "models": rows,
     }
 
 

@@ -794,7 +794,8 @@ class LedgerTailCountTests(unittest.TestCase):
     def _run_tail(self, argv):
         calls = {}
         ledger = mock.Mock()
-        ledger.tail.side_effect = lambda n: calls.setdefault("n", n)
+        ledger.tail.side_effect = (
+            lambda n: [{"seq": i} for i in range(calls.setdefault("n", n))])
         ledger.entries.return_value = list(range(50))
         ledger.chain_status.return_value = {"segments": 1, "entries": 50}
         out = io.StringIO()
@@ -807,7 +808,9 @@ class LedgerTailCountTests(unittest.TestCase):
     def test_tail_honors_positional_count(self):
         n, report = self._run_tail(["ledger", "tail", "5"])
         self.assertEqual(n, 5)
-        self.assertEqual(report["count"], 50)
+        self.assertNotIn("count", report)
+        self.assertEqual(report["tail_count"], 5)
+        self.assertEqual(report["ledger_total_entries"], 50)
 
     def test_tail_default_is_20(self):
         n, _ = self._run_tail(["ledger", "tail"])
@@ -1209,7 +1212,6 @@ class CliPresentationOwnerTests(unittest.TestCase):
     def test_cmd_spend_and_cost_with_jev(self):
         import harness.cli as cli
         from harness.config import load_settings
-        from harness.cli_report import _print_cost_table
 
         mock_gov = mock.MagicMock()
         mock_gov.key_status.return_value = {"spent": 0.01, "limit": 1.0}
@@ -1237,16 +1239,28 @@ class CliPresentationOwnerTests(unittest.TestCase):
         settings = load_settings()
         opts = mock.MagicMock()
         opts.out = None
+        opts.json = False
         opts.last = None
         opts.by_tier = False
         opts.savings = True
 
         with mock.patch("harness.cli._governor", return_value=("key", mock_gov)), \
              mock.patch("harness.cli._ledger", return_value=mock_ledger):
-            cli._cmd_spend(opts, settings)
-            cli._cmd_cost(opts, settings)
+            out = io.StringIO()
+            err = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                cli._cmd_spend(opts, settings)
+                cli._cmd_cost(opts, settings)
 
-        _print_cost_table(mock_ledger.cost_report.return_value)
+        spend_payload = json.loads(out.getvalue().splitlines()[0]
+                                   if "\n{" not in out.getvalue()
+                                   else out.getvalue().split("\n{", 1)[0])
+        self.assertEqual(spend_payload["key"]["scope"], "key:window")
+        self.assertEqual(spend_payload["session"]["scope"], "session")
+        self.assertEqual(spend_payload["jev"]["scope"], "jev_monthly")
+        self.assertIn("Lifetime ledger spend", err.getvalue())
+        self.assertIn("monthly remaining", err.getvalue())
+        self.assertIn("session: spent=", err.getvalue())
 
 
 class SiteCheckCliTests(unittest.TestCase):

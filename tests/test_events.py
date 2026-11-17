@@ -251,10 +251,35 @@ class RenderTests(unittest.TestCase):
 
     def test_ledger_tail_and_bench_shapes(self):
         tail = {"entries": [{"seq": 3, "ts": 1.0, "event": "complete",
-                             "model": "m"}], "count": 1}
+                             "model": "m"}],
+                "tail_count": 1, "ledger_total_entries": 5}
         rendered, err, _ = self._pretty(tail)
         self.assertTrue(rendered)
         self.assertIn("complete", err)
+        self.assertIn("1 shown of 5 total entries", err)
+        caps = {
+            "models": [{"model": "m/a", "context": 8192, "capability": 0.9,
+                        "reliability_structured": 0.95}],
+            "profiled_count": 1, "all_models_included": False,
+        }
+        rendered, err, _ = self._pretty(caps)
+        self.assertTrue(rendered)
+        self.assertIn("capabilities (1 profiled)", err)
+        models_free = {
+            "models": ["m/a", "m/b"],
+            "listed_count": 2, "filter_free_only": True,
+            "meta": {"source": "openrouter:/models", "fetched_at": "now"},
+        }
+        rendered, err, _ = self._pretty(models_free)
+        self.assertTrue(rendered)
+        self.assertIn("models (2 listed, filter=free-only)", err)
+        models_all = {
+            "models": [{"id": "m/a", "context": 8192, "note": "ok"}],
+            "listed_count": 1, "filter_free_only": False,
+        }
+        rendered, err, _ = self._pretty(models_all)
+        self.assertTrue(rendered)
+        self.assertIn("models (1 listed, filter=all)", err)
         bench = {"bench": {"results": [{"name": "add", "status": "ok",
                                         "cost": 0.0}],
                            "statuses": {"ok": 1}}, "cost": 0.0}
@@ -301,11 +326,35 @@ class EnrichmentTests(unittest.TestCase):
             cli._cmd_models(opts, settings)
         disc.assert_called_once()  # hermetic: no real transport /models call
         r = captured["r"]
-        self.assertEqual(r["count"], 2)
+        self.assertNotIn("count", r)
+        self.assertNotIn("free_only", r)
+        self.assertEqual(r["listed_count"], 2)
+        self.assertFalse(r["filter_free_only"])
+        self.assertTrue(r["meta"]["routing_use_free"])
         self.assertEqual([row["id"] for row in r["models"]],
                          ["a/model-a", "b/model-b"])
         self.assertEqual(r["models"][0]["context"], 32768)
         self.assertEqual(r["meta"]["source"], "openrouter:/models")
+
+    def test_capabilities_payload_labels_scope_and_count(self):
+        from harness.capability import capabilities_payload
+        import unittest.mock as m
+
+        gov = m.Mock()
+        gov.fetch_models.return_value = [
+            {"id": "a/model-a", "context_length": 32768,
+             "supported_parameters": ["response_format"],
+             "pricing": {"prompt": "0.000001", "completion": "0.000002"}},
+        ]
+        ledger = m.Mock()
+        ledger.entries.return_value = []
+        ledger.participation_report.return_value = {"per_model": {}}
+        out = capabilities_payload(
+            gov, ledger, panel_pool=["a/model-a"], apply_pool=[], judge="a/model-a",
+            all_models=False)
+        self.assertFalse(out["all_models_included"])
+        self.assertEqual(out["profiled_count"], 1)
+        self.assertNotIn("count", out)
 
     def test_run_meta_never_contains_label_or_key(self):
         from harness import cli

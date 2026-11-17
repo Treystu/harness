@@ -171,7 +171,9 @@ def _render_ledger_report(result):
 
 
 def _render_ledger_tail(result):
-    _emit(_c(_BOLD, f"== ledger tail ({result.get('count', '?')} entries) =="))
+    shown = result.get("tail_count", len(result.get("entries") or []))
+    total = result.get("ledger_total_entries", result.get("count", "?"))
+    _emit(_c(_BOLD, f"== ledger tail ({shown} shown of {total} total entries) =="))
     for entry in result.get("entries", []):
         seq = entry.get("seq", "?")
         ts = str(entry.get("ts", ""))[:19]
@@ -195,7 +197,9 @@ def _render_bench(result):
 
 
 def _render_capabilities(result):
-    _emit(_c(_BOLD, "== capabilities =="))
+    rows = result.get("models") or []
+    profiled = result.get("profiled_count", result.get("count", len(rows)))
+    _emit(_c(_BOLD, f"== capabilities ({profiled} profiled) =="))
     for r in result.get("models", []):
         if not isinstance(r, dict):
             _emit(f"  {r}")
@@ -210,7 +214,11 @@ def _render_capabilities(result):
 def _render_models(result):
     ids = result.get("models") or []
     meta = result.get("meta")
-    _emit(_c(_BOLD, f"== models ({result.get('count', len(ids))}) =="))
+    listed = result.get("listed_count", result.get("count", len(ids)))
+    scope = ("free-only" if result.get("filter_free_only") else "all"
+             if "filter_free_only" in result else "")
+    hdr = f"== models ({listed} listed" + (f", filter={scope}" if scope else "") + ") =="
+    _emit(_c(_BOLD, hdr))
     for m in ids:
         if isinstance(m, dict):
             ctx = m.get("context")

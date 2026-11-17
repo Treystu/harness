@@ -84,29 +84,39 @@ def _print_capabilities_table(out):
 
 def _print_cost_table(report):
     """Render human-readable cost analytics summary on stderr."""
-    eprint(f"[cost] Total spend: ${report.get('total_cost', 0.0):.6f} across {report.get('events_count', 0)} events "
-           f"({report.get('billable_calls', 0)} billable, {report.get('free_calls', 0)} free)")
+    events_count = report.get("events_count", 0)
+    billable = report.get("billable_calls", 0)
+    free = report.get("free_calls", 0)
+    other = report.get("other_events", max(0, events_count - billable - free))
+    scope_word = (f"Window ({report['window']}) ledger spend"
+                  if report.get("window") else "Lifetime ledger spend")
+    eprint(f"[cost] {scope_word}: ${report.get('total_cost', 0.0):.6f} "
+           f"across {events_count} events "
+           f"({billable} billable rows, {free} free rows, {other} other events)")
     if "savings" in report:
         s = report["savings"]
         eprint(f"[cost] Baseline frontier estimate: ${s.get('baseline_frontier_cost', 0.0):.6f}")
         eprint(f"[cost] Net savings: ${s.get('net_savings', 0.0):.6f} ({s.get('savings_percent', 0.0):.1f}%)")
     jev = report.get("jev")
     if jev and jev.get("calls", 0) > 0:
-        eprint(f"[cost] TypeSafe Jev: {jev.get('calls', 0):,} calls, "
+        eprint(f"[cost] TypeSafe Jev ({jev.get('month', 'monthly')}): "
+               f"{jev.get('calls', 0):,} calls, "
                f"{jev.get('input_tokens', 0):,} in / {jev.get('output_tokens', 0):,} out tokens")
-        eprint(f"[cost] TypeSafe Jev Spend: ${jev.get('cost', 0.0):.6f} / "
+        eprint(f"[cost] TypeSafe Jev monthly spend ({jev.get('month', 'current')}): "
+               f"${jev.get('cost', 0.0):.6f} / "
                f"${jev.get('monthly_credit', 5.0):.2f} monthly credit "
-               f"(${jev.get('remaining_credit', 5.0):.4f} remaining, {jev.get('used_percent', 0.0):.2f}% used)")
+               f"(${jev.get('remaining_credit', 5.0):.4f} monthly remaining, "
+               f"{jev.get('used_percent', 0.0):.2f}% used)")
 
     by_tier = report.get("by_tier")
     if by_tier:
-        eprint("\nSpend by Tier:")
-        hdr = f"{'Tier':<8} {'Calls':>8} {'Cost ($)':>12}"
+        eprint("\nSpend by Tier (Calls weighted by repeat_count):")
+        hdr = f"{'Tier':<8} {'Calls(wtd)':>10} {'Cost ($)':>12}"
         eprint(hdr)
         eprint("-" * len(hdr))
         for t in ("T0", "T1", "T2", "T3"):
             d = by_tier.get(t, {})
-            eprint(f"{t:<8} {d.get('calls', 0):>8} {d.get('cost', 0.0):>12.6f}")
+            eprint(f"{t:<8} {d.get('calls', 0):>10} {d.get('cost', 0.0):>12.6f}")
 
     by_model = report.get("by_model")
     if by_model:

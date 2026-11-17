@@ -208,8 +208,9 @@ class SpendGovernor:
                              if isinstance(remaining, (int, float))
                              and not isinstance(remaining, bool)
                              else "unknown")
-        eprint(f"[OK] using key '{label}', limit=${limit}, remaining={remaining_display} "
-               f"(resets: {data.get('limit_reset')})")
+        reset_scope = data.get("limit_reset") or "window"
+        eprint(f"[OK] using key '{label}', key_limit=${limit}, "
+               f"key_remaining={remaining_display} (resets: {reset_scope})")
         from . import events as _events
         _events.emit("spend_check", lane="key", limit=limit, remaining=remaining,
                      reset=data.get("limit_reset"), expect_label=bool(self.expect_key_label))
@@ -224,6 +225,7 @@ class SpendGovernor:
         self.key_info = {
             "label": label, "limit": limit, "remaining": remaining,
             "limit_reset": data.get("limit_reset"),
+            "limit_scope": f"key:{reset_scope}",
         }
         return self.key_info
 

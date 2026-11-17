@@ -583,6 +583,8 @@ class LedgerAnalytics:
         events_count = len(events)
         billable_calls = 0
         free_calls = 0
+        weighted_billable_calls = 0
+        weighted_free_calls = 0
         cost_estimated_calls = 0
         unpriced_calls = 0
         total_input_tokens = 0
@@ -711,8 +713,10 @@ class LedgerAnalytics:
 
             if cost_val > 0.0:
                 billable_calls += 1
+                weighted_billable_calls += weight
             elif model:
-                free_calls += weight
+                free_calls += 1
+                weighted_free_calls += weight
 
             total_cost += cost_val
             total_input_tokens += in_tok
@@ -761,6 +765,7 @@ class LedgerAnalytics:
         savings_percent = round((net_savings / baseline_cost * 100.0), 2) if baseline_cost > 0 else 0.0
         verified_count = max(len(verified_tasks), verified_completions)
 
+        other_events = max(0, events_count - billable_calls - free_calls)
         report = {
             "total_cost": total_cost,
             "measured_cost": measured_cost,
@@ -768,8 +773,13 @@ class LedgerAnalytics:
             "events_count": events_count,
             "billable_calls": billable_calls,
             "free_calls": free_calls,
+            "other_events": other_events,
+            "weighted_billable_calls": weighted_billable_calls,
+            "weighted_free_calls": weighted_free_calls,
+            "weighted_total_calls": weighted_billable_calls + weighted_free_calls,
             "window": window,
             "jev": {
+                "scope": "jev_monthly",
                 "month": f"{month_key[0]:04d}-{month_key[1]:02d}",
                 "calls": jev_calls,
                 "input_tokens": jev_input_tokens,
