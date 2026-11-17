@@ -432,5 +432,113 @@ class CancellationRecordTests(unittest.TestCase):
             cancellation_record(phase="build", grades={},
                                 cancelled_at="2026-11-17T05:00:00Z")
 
+class HulDossierRefusalPathTests(unittest.TestCase):
+    """Every added refusal/edge line must be executed (D12: changed lines).
+
+    These are the branches the positive-path tests above do not reach: type
+    refusals, invalid floors, the read-scope half of the subagent boundary, the
+    string-decision input path, receipts pass-through and the cancellation
+    refusals. They exist because a coverage gate measures them, and because an
+    unexecuted refusal is a refusal nobody has seen work.
+    """
+
+    def test_declined_candidates_refuses_non_sequence(self):
+        from harness.hul_decision import HulDecisionError, declined_candidates
+        with self.assertRaises(HulDecisionError):
+            declined_candidates("not-a-list")
+        self.assertEqual(declined_candidates(None), {})
+
+    def test_may_repropose_refuses_non_mapping_ledger(self):
+        from harness.hul_decision import HulDecisionError, may_repropose
+        with self.assertRaises(HulDecisionError):
+            may_repropose("x", ledger=["nope"])
+
+    def test_may_repropose_reports_prior_reasons(self):
+        from harness.hul_decision import declined_candidates, may_repropose
+        ledger = declined_candidates([{"decision": "run", "why": "too broad",
+                                       "input": {"skill": "s"}, "expectedGain": 1,
+                                       "declined": ["wide"]}])
+        out = may_repropose("wide", ledger=ledger)
+        self.assertEqual(out["prior_reasons"], ["too broad"])
+
+    def test_admissible_run_refuses_invalid_arguments(self):
+        from harness.hul_decision import HulDecisionError, admissible_run
+        run = {"decision": "run", "why": "w", "input": {"skill": "s"},
+               "expectedGain": 1}
+        with self.assertRaises(HulDecisionError):
+            admissible_run(run, cost=1, max_cost_per_gain=-1)
+        with self.assertRaises(HulDecisionError):
+            admissible_run(run, cost=1, max_cost_per_gain=1, min_expected_gain=-1)
+        with self.assertRaises(HulDecisionError):
+            admissible_run(run, cost=-1, max_cost_per_gain=1)
+
+    def test_admissible_run_min_expected_gain_gate(self):
+        from harness.hul_decision import admissible_run
+        run = {"decision": "run", "why": "w", "input": {"skill": "s"},
+               "expectedGain": 1}
+        out = admissible_run(run, cost=1, max_cost_per_gain=1, min_expected_gain=2)
+        self.assertFalse(out["allowed"])
+        self.assertEqual(out["reason"], "below_min_expected_gain")
+
+    def test_admissible_run_zero_cost_has_unbounded_ratio(self):
+        from harness.hul_decision import admissible_run
+        run = {"decision": "run", "why": "w", "input": {"skill": "s"},
+               "expectedGain": 1}
+        out = admissible_run(run, cost=0, max_cost_per_gain=5)
+        self.assertTrue(out["allowed"])
+        self.assertEqual(out["cost_per_gain"], float("inf"))
+
+    def test_phase_budget_refuses_negative_spend(self):
+        from harness.hul_decision import HulDecisionError, phase_budget
+        with self.assertRaises(HulDecisionError):
+            phase_budget("build", spent=-1, total_budget=10, per_phase_cap=5)
+
+    def test_phase_cap_never_exceeds_total_budget(self):
+        from harness.hul_decision import phase_budget
+        out = phase_budget("survey", spent=0, total_budget=10, per_phase_cap=50)
+        self.assertEqual(out["cap"], 10.0)
+        self.assertFalse(out["unlocked"])
+
+    def test_subagent_read_scope_is_enforced_separately(self):
+        from harness.hul_decision import subagent_scope
+        out = subagent_scope({"decision": "run", "why": "w", "read": True,
+                              "input": {"skill": "parser"}, "expectedGain": 1},
+                             may_read=["reader"], may_write=["parser"])
+        self.assertFalse(out["allowed"])
+        self.assertEqual(out["reason"], "outside_read_scope")
+
+    def test_subagent_accepts_a_json_string_decision(self):
+        from harness.hul_decision import subagent_scope
+        out = subagent_scope('{"decision": "run", "why": "w", '
+                             '"input": {"skill": "parser"}, "expectedGain": 1}',
+                             may_read=["parser"], may_write=["parser"])
+        self.assertTrue(out["allowed"])
+
+    def test_subagent_stop_is_always_within_boundary(self):
+        from harness.hul_decision import subagent_scope
+        out = subagent_scope({"decision": "stop", "why": "done"},
+                             may_read=["parser"], may_write=["parser"])
+        self.assertTrue(out["allowed"])
+        self.assertEqual(out["reason"], "stop_touches_nothing")
+
+    def test_cancellation_refuses_unknown_phase_and_missing_stamp(self):
+        from harness.hul_decision import HulDecisionError, cancellation_record
+        grades = {"spec": 1, "design": 1, "correctness": 1, "quality": 1}
+        with self.assertRaises(HulDecisionError):
+            cancellation_record(phase="someday", grades=grades,
+                                cancelled_at="2026-11-17T05:00:00Z")
+        with self.assertRaises(HulDecisionError):
+            cancellation_record(phase="build", grades=grades, cancelled_at="")
+
+    def test_cancellation_carries_the_receipt_window(self):
+        from harness.hul_decision import cancellation_record
+        grades = {"spec": 9, "design": 9, "correctness": 9, "quality": 9}
+        out = cancellation_record(
+            phase="verify", grades=grades, cancelled_at="2026-11-17T05:00:00Z",
+            receipts=[{"kind": "attempt", "model": "m", "tokens": 10,
+                       "cost": 0.1, "duration": 1.5}])
+        self.assertEqual(len(out["receipts"]), 1)
+        self.assertEqual(out["next_grade_target"], ("spec", 9))
+
 if __name__ == "__main__":
     unittest.main()
