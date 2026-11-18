@@ -460,6 +460,9 @@ class LedgerSegmentAnchorTests(unittest.TestCase):
             led = AutonomyLedger(path)
             for i in range(6):
                 led.append("offer", task_id=f"t{i}", model="m")
+            # #336: rotation evaluates and never evicts on size alone, so a
+            # missing prefix is what an operator-side loss looks like now.
+            os.unlink(led._rotated_paths()[0])
             fresh = AutonomyLedger(path)
             # Suffix rule preserved: retained links verify ...
             ok, bad = fresh.verify()
@@ -481,6 +484,7 @@ class LedgerSegmentAnchorTests(unittest.TestCase):
             led = AutonomyLedger(path)
             for i in range(6):
                 led.append("offer", task_id=f"t{i}", model="m")
+            os.unlink(led._rotated_paths()[0])  # #336: a lost prefix, not eviction
             fresh = AutonomyLedger(path)
             self.assertGreater(fresh.entries()[0]["seq"], 1)
             import hashlib
@@ -554,6 +558,7 @@ class LedgerSegmentAnchorTests(unittest.TestCase):
             led = AutonomyLedger(path)
             for i in range(6):
                 led.append("offer", task_id=f"t{i}", model="m")
+            os.unlink(led._rotated_paths()[0])  # #336: a lost prefix, not eviction
             fresh = AutonomyLedger(path)
             self.assertGreater(fresh.entries()[0]["seq"], 1)
             rotated = list(fresh._rotated_paths())

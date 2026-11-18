@@ -265,6 +265,8 @@ cheap; losing either is not.
 | `harness/routing_table.py` | task-to-model 4-tier routing table, :floor provider formatting, and gateway-level max_price ceilings |
 | `harness/jev.py` | TypeSafe AI Jev / System One structural verification client with local AST and diff fallbacks |
 | `harness/jev_packs.py` | JEV-P3 utilization packs and pure helpers (route vocabulary, file-relevance/claim/completion nouls, context pack, artifact facts) — no second Jev client |
+| `harness/ledger_compaction.py` | signed, reversible compaction of old sealed ledger segments: archive, coverage runs, signed checkpoint, undo (#336) |
+| `harness/ledger_canary.py` | canary probes on startup, daily 00:00 UTC and six-hour staleness, plus the shared evidence reader that excludes them (#336) |
 | `harness/jev_policy.py` | shared Jev decision policy: bounded packs, spend preflight, ledger evidence, and structural envelopes |
 | `harness/adjudication.py` | #453 typed adjudication contract v1: per-claim REAL/NOT_REAL/DEFER verdicts from support/risk against decided thresholds, lexicographic 5-rule aggregation to final PASS/FAIL/DEFER, NON-JEV FALLBACK labeling, advisory inputs structurally unable to override |
 | `harness/simple_request.py` | #207 bounded simple-answer helpers: stable no-tool question boundary, relevant-history slice, prompt builder, and deterministic clock answers; generated answers receive Jev review through the agent |
