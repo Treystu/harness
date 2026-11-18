@@ -328,6 +328,7 @@ cheap; losing either is not.
 | `harness/queue_bus.py` | the per-repo work queue and the laptop watcher that drains it: the one owner of the item state machine `queued -> claimed -> running -> checkpointed -> done\|blocked\|parked`, an append-only event per move, ownership binding every move after the claim, a finished item that is never replayed, and supervised launches that refuse to claim without per-run authorization. Local state only -- `harness queue` intercepts before settings load, so a watcher runs with no provider key |
 | `harness/doctor.py` | `harness doctor`: bounded environment checks for interpreter, provider readiness, local services, ledger and MCP stdio; reports safe metadata and one-line fixes |
 | `harness/server.py` | `harness serve`: localhost web UI + JSON API -- the third face; dispatch calls the same engine entry points, no new policy |
+| `harness/serve_log.py` | the one owner of the serve request log on disk: process-opened path, a startup marker naming pid/port/path before any request line (so a stale file cannot pass for the live process), UTC-stamped already-redacted lines, and a flush per line; `make_server` stays file-free without a path |
 | `harness/render.py` | the ONE human-facing pretty-printer: TTY tables of result envelopes on stderr; read-only, machine JSON stays the stdout contract |
 | `harness/bench.py` | hermetic known-answer benchmarks |
 | `harness/chat.py` | the one chat-completion path and the one assessment of what a model actually produced |
