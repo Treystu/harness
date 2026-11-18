@@ -18,6 +18,7 @@ from unittest import mock
 
 import harness
 from harness import server as server_module
+from harness.errors import HarnessError
 from harness.server import (UiRequestHandler, make_server, serve_identity,
                             _git_describe)
 
@@ -58,19 +59,34 @@ class ServeIdentityTests(unittest.TestCase):
         self.assertNotIn(" ", described)
 
     def test_a_missing_git_is_unknown_not_an_error(self):
-        with mock.patch.object(server_module.subprocess, "run",
+        # OS contact routes through harness/osal.py (the boundary test in
+        # tests/test_osal_boundary.py refuses subprocess in this module).
+        with mock.patch.object(server_module.osal, "run",
                                side_effect=OSError("no git here")):
             self.assertEqual(_git_describe(Path(".")), "unknown")
 
+    def test_the_git_call_goes_through_osal(self):
+        with mock.patch.object(server_module.osal, "run",
+                               side_effect=HarnessError("refused")) as run:
+            self.assertEqual(_git_describe(Path(".")), "unknown")
+        run.assert_called_once()
+
+    def test_a_successful_describe_returns_the_trimmed_commit(self):
+        done = mock.Mock(returncode=0, stdout="abc123\n")
+        with mock.patch.object(server_module.osal, "run",
+                               return_value=done) as run:
+            self.assertEqual(_git_describe(Path(".")), "abc123")
+        self.assertEqual(run.call_args.args[0][0], "git")
+
     def test_a_failed_describe_is_unknown(self):
         done = mock.Mock(returncode=128, stdout="")
-        with mock.patch.object(server_module.subprocess, "run",
+        with mock.patch.object(server_module.osal, "run",
                                return_value=done):
             self.assertEqual(_git_describe(Path(".")), "unknown")
 
     def test_a_blank_describe_is_unknown(self):
         done = mock.Mock(returncode=0, stdout="  \n")
-        with mock.patch.object(server_module.subprocess, "run",
+        with mock.patch.object(server_module.osal, "run",
                                return_value=done):
             self.assertEqual(_git_describe(Path(".")), "unknown")
 

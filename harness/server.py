@@ -26,7 +26,6 @@ import hmac
 import json
 import os
 import re
-import subprocess
 import secrets
 import sys
 import threading
@@ -1514,10 +1513,9 @@ def _git_describe(repo_root):
     version still identifies it.
     """
     try:
-        done = subprocess.run(
-            ["git", "-C", str(repo_root), "describe", "--always", "--dirty"],
-            capture_output=True, text=True, timeout=5)
-    except (OSError, subprocess.SubprocessError):
+        done = osal.run(["git", "-C", str(repo_root), "describe",
+                         "--always", "--dirty"], timeout=5)
+    except (OSError, HarnessError):
         return "unknown"
     commit = (done.stdout or "").strip()
     if done.returncode != 0 or not commit:
