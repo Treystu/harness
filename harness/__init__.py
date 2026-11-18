@@ -1,7 +1,8 @@
 """harness — cost-bounded multi-model verification & coding, with AI sovereignty.
 
-Pure Python stdlib, zero runtime dependencies. Exposes a library core, a
-back-compatible CLI, and a native MCP server (stdio).
+Pure Python stdlib, zero runtime dependencies; development and packaging are
+managed by uv. Exposes a library core, a back-compatible CLI, and a native MCP
+server (stdio).
 """
 import re
 from pathlib import Path
