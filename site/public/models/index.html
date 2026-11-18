@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Worldwide model statistics — Sovereign Harness</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0 auto; max-width: 62rem; padding: 2rem 1.25rem 4rem;
+           font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    h1 { font-size: 1.9rem; margin-bottom: .25rem; }
+    .lede { max-width: 46rem; color: #555; }
+    table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
+    th, td { text-align: left; padding: .55rem .5rem; border-bottom: 1px solid #ddd;
+             vertical-align: top; }
+    th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+    td.num { font-variant-numeric: tabular-nums; }
+    .no-data { color: #8a5a00; font-style: italic; }
+    .receipt { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+               color: #444; word-break: break-all; }
+    footer { margin-top: 3rem; border-top: 1px solid #ddd; padding-top: 1rem;
+             font-size: .9rem; color: #555; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</head>
+<body>
+  <h1>Worldwide model statistics</h1>
+  <p class="lede">
+    Aggregate usage, success, cost and latency per public model, from operators
+    who explicitly opted in. A figure appears only when at least
+    <strong>10 distinct verified operators</strong> had an eligible observation
+    for that model, month and metric. Otherwise this page says
+    <span class="no-data">No verified data</span> — it never estimates.
+  </p>
+
+  <p>
+    Install: <code>pip install sovereign-harness</code>. The published
+    visual-audit receipt of <strong>0.23 cents</strong> covers one driving
+    audit run: click/type/scroll against a local page, scored by the same gate
+    the harness runs. It did not assess visual design quality, accessibility,
+    or any site it was not pointed at.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Round</th><th>Model</th><th>Metric</th><th>Value</th><th>Receipt</th>
+      </tr>
+    </thead>
+    <tbody id="roster">
+      <tr><td colspan="5">Loading published figures…</td></tr>
+    </tbody>
+  </table>
+
+  <footer>
+    <p>
+      Each figure names its cohort receipt: operator count, denominator,
+      sufficient totals, formula version and the site signature. A proof over
+      private local evidence establishes consistency with that evidence — not
+      that an operator reported every task, and not that a provider delivered
+      the recorded outcome. Sharing is opt-in and revocable; turning it off
+      stops new submissions and discards unsent reports, while figures already
+      published remain available.
+    </p>
+    <p><a href="../methodology/">How these numbers are produced</a></p>
+  </footer>
+
+  <script>
+    const LABELS = {
+      calls: "Calls",
+      success_rate: "Success rate",
+      cost_per_success_micro_usd: "Cost per success (µUSD)",
+      mean_latency_ms: "Mean latency (ms)",
+    };
+
+    function cell(text, className) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (className) td.className = className;
+      return td;
+    }
+
+    function receiptText(receipt) {
+      if (!receipt) return "";
+      return "cohort " + receipt.cohort.operators + " operators · " +
+        "denominator " + receipt.cohort.denominator + " · " +
+        "formula v" + receipt.formula_version + " · " +
+        "receipt " + receipt.receipt_id.slice(0, 16) + " · " +
+        "signature " + receipt.site_signature.slice(0, 16);
+    }
+
+    fetch("models.json")
+      .then((response) => response.json())
+      .then((roster) => {
+        const body = document.getElementById("roster");
+        body.textContent = "";
+        if (!roster.figures.length) {
+          const row = document.createElement("tr");
+          const td = cell(roster.no_data_text, "no-data");
+          td.colSpan = 5;
+          row.appendChild(td);
+          body.appendChild(row);
+          return;
+        }
+        for (const figure of roster.figures) {
+          const row = document.createElement("tr");
+          row.appendChild(cell(figure.round));
+          row.appendChild(cell(figure.model));
+          row.appendChild(cell(LABELS[figure.metric] || figure.metric));
+          if (figure.state === "published") {
+            row.appendChild(cell(String(figure.value), "num"));
+            row.appendChild(cell(receiptText(figure.receipt), "receipt"));
+          } else {
+            row.appendChild(cell(roster.no_data_text, "no-data"));
+            row.appendChild(cell(figure.reason || "", "receipt"));
+          }
+          body.appendChild(row);
+        }
+      })
+      .catch(() => {
+        const body = document.getElementById("roster");
+        body.textContent = "";
+        const row = document.createElement("tr");
+        const td = cell("No verified data", "no-data");
+        td.colSpan = 5;
+        row.appendChild(td);
+        body.appendChild(row);
+      });
+  </script>
+</body>
+</html>
