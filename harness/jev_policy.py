@@ -3555,17 +3555,16 @@ class JevPolicy:
                 # A whole-call fallback must not erase a claim Jev did make: a
                 # dimension whose declared level was too uncertain to act on
                 # keeps that level and its probability on the receipt, exactly
-                # as the live path records them (#585).
+                # as the live path records them (#585). Both mappings come from
+                # the same pack, so the heuristic carries every id named here;
+                # an unmatched answer declared no level and gains no key.
                 for dim, entry in declared.items():
-                    target = dim_results.get(dim)
-                    if target is None:
+                    level = entry.get("live_level")
+                    if level is None:
                         continue
-                    if (entry.get("live_level") is None
-                            and entry.get("live_level_confidence") is None):
-                        continue
-                    target["live_level"] = entry.get("live_level")
-                    target["live_level_confidence"] = entry.get(
-                        "live_level_confidence")
+                    dim_results[dim]["live_level"] = level
+                    claim = entry["live_level_confidence"]
+                    dim_results[dim]["live_level_confidence"] = claim
             scores = {dim: d.get("score") for dim, d in dim_results.items()}
             evaluated_scores = [s for s in scores.values() if s is not None]
             passed = bar_pass(dim_results)

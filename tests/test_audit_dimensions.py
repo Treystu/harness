@@ -630,6 +630,35 @@ class EvaluateAuditDimensionsKeyedTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertTrue(events[0]["is_fallback"])
 
+    def test_partial_evidence_low_confidence_keeps_only_declared_dims(self):
+        """The merge walks every dimension the live loop built; a dimension
+        this run never evaluated carries no claim and gains no key (#585)."""
+        levels = self.levels
+        legend = {str(i): levels[i] for i in range(len(levels))}
+        probs = {str(i): (0.59 if i == 0 else 0.1025)
+                 for i in range(len(levels))}
+        answers = {f"dim_{dim}": {"type": "score", "score": 0.0,
+                                  "legend": legend, "probabilities": probs,
+                                  "confidence": 0.59}
+                   for dim in ("A", "R", "SM", "SD")}
+        transport = _JevTransport({
+            "model": "jev-test", "answers": answers,
+            "usage": {"input_tokens": 150, "output_tokens": 20},
+        })
+        gov = _CountingGovernor()
+        policy = policy_for(_keyed_settings(), transport=transport, governor=gov,
+                            ledger=self.ledger)
+        result = policy.evaluate_audit_dimensions({"A": {"score": 10.0}})
+
+        self.assertTrue(result["is_fallback"])
+        self.assertEqual(result["dimensions"]["A"]["live_level"], levels[0])
+        self.assertAlmostEqual(
+            result["dimensions"]["A"]["live_level_confidence"], 0.59, places=3)
+        for dim in ("R", "SM", "SD"):
+            self.assertEqual(result["dimensions"][dim]["level"],
+                             "not_evaluated")
+            self.assertIsNone(result["dimensions"][dim].get("live_level"))
+
     def test_transport_harness_error_falls_back_and_reservation_settled(self):
         class _BoomEvaluator:
             api_key = "test-key"
