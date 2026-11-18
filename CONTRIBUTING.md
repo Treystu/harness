@@ -14,7 +14,8 @@ command (`python -m harness.cli gates`), and `--run <name>` executes one. The
 commands live in `harness/gate_runner.py` as argv data, so this document never
 carries a command that is only correct on one operating system.
 
-Python 3.9+; pure stdlib — the package has zero runtime dependencies.
+Python 3.9+; pure stdlib — the package has zero runtime dependencies;
+development and packaging are managed by uv.
 
 ## Line endings
 
