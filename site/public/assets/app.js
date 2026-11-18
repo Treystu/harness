@@ -2,7 +2,7 @@
 // Data source: local mode (harness serve /api/*) or public mode (worker).
 export const state = {
   // Local mode = served by `harness serve` (any host/port; README default
-  // 127.0.0.1:8765). Detection must never guess ports -- the old gate hardcoded
+  // 127.0.0.1:8767). Detection must never guess ports -- the old gate hardcoded
   // a port harness never serves, so local mode was dead and the site always
   // fell back to the static snapshot (see the regression test in
   // tests/test_site_server.py). Explicit ?mode=public selects the worker view;
