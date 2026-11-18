@@ -18,6 +18,13 @@ Usage (Python):
     result["artifacts"]     # local artifact paths (same machine) or URLs
     result["cost"]          # actual USD spent, when settled
 
+Wrong-service guard (#566): the media service defaults to loopback 8765 and
+`harness serve` used to as well, so a loopback endpoint may be the harness UI
+rather than the media service. Before the first media operation, a loopback
+endpoint is probed once with a credential-free read-only GET; a positively
+identified harness UI raises :class:`MediaEndpointMismatch` and no token is
+sent. Remote endpoints are operator-declared and skip the probe.
+
 Usage (CLI, wired into harness.cli as `harness media ...`):
     harness media image "a cabin in snowy woods" --project scmessenger
 """
@@ -35,6 +42,8 @@ from .paths import get_config_dir
 # order: explicit constructor args > config file > env vars > loopback
 # default. The default is a *local* fallback (not a brand), matching the
 # `media serve` quickstart in docs/media.md.
+#: The media service's own loopback default. It stays on 8765 while the
+#: harness UI moved to 8767 (#566): the two services can then run together.
 DEFAULT_BASE = os.environ.get("MEDIA_BASE_URL", "http://127.0.0.1:8765")
 CONFIG_PATH = os.environ.get(
     "MEDIA_CONFIG_PATH",
@@ -58,6 +67,81 @@ class MediaUnavailable(Exception):
     """The media service could not be reached or refused the request."""
 
 
+class MediaEndpointMismatch(MediaUnavailable):
+    """The endpoint answered as another local service, not the media service."""
+
+
+#: Identity markers of the harness web UI. They are protocol surface, not a
+#: provider brand: ``UiRequestHandler`` sets the ``Server`` header and, since
+#: #587, the ``X-Harness-*`` headers on every response.
+HARNESS_UI_SERVER_PREFIX = "harness-ui/"
+HARNESS_UI_BODY_MARKERS = ("harness-ui/", "harness ui")
+
+#: Keys that mark a JSON answer as belonging to the media service.
+_MEDIA_PROBE_KEYS = frozenset({"balance", "currency", "jobs", "spent",
+                               "ceiling"})
+
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+_PROBE_PATH = "/v1/balance"
+
+
+def _host_of(base_url):
+    try:
+        return (urllib.parse.urlsplit(base_url).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+def is_loopback(base_url):
+    """True when ``base_url`` points at this machine's loopback interface."""
+    return _host_of(base_url) in _LOOPBACK_HOSTS
+
+
+def _header_value(headers, name):
+    if headers is None:
+        return None
+    try:
+        return headers.get(name)
+    except AttributeError:
+        return None
+
+
+def identify_service(headers, body):
+    """Classify a probe answer: ``"harness-ui"``, ``"media"`` or ``"unknown"``.
+
+    ``headers`` is the response header mapping (``None`` for a bare test
+double), ``body`` its raw bytes. A generic 401 with no body is ``unknown``:
+    it cannot identify the UI, and it is not a recognizable media challenge.
+    """
+    server = _header_value(headers, "Server") or ""
+    if (server.lower().startswith(HARNESS_UI_SERVER_PREFIX)
+            or _header_value(headers, "X-Harness-Version")
+            or _header_value(headers, "X-Harness-Commit")):
+        return "harness-ui"
+    if isinstance(body, (bytes, bytearray)):
+        text = bytes(body).decode("utf-8", "replace")
+    else:
+        text = str(body or "")
+    lowered = text.lower()
+    if any(marker in lowered for marker in HARNESS_UI_BODY_MARKERS):
+        return "harness-ui"
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        return "unknown"
+    if isinstance(payload, list):
+        return "media" if payload and isinstance(payload[0], dict) else "unknown"
+    if not isinstance(payload, dict):
+        return "unknown"
+    if _MEDIA_PROBE_KEYS & set(payload):
+        return "media"
+    if "error" in payload or "detail" in payload:
+        # The service's own note, e.g. its credential challenge. A bare 401
+        # with no body is not this case and stays unidentified.
+        return "media"
+    return "unknown"
+
+
 class MediaAdapter:
     def __init__(self, base_url=None, token=None, timeout=60, opener=None):
         base, env_token = _load_endpoint()
@@ -67,10 +151,58 @@ class MediaAdapter:
         # Injectable transport seam for hermetic tests: defaults to the real
         # urllib opener, but tests pass a fake so nothing touches the network.
         self._opener = opener or urllib.request.urlopen
+        # Remote endpoints are operator-declared; only a loopback endpoint can
+        # be the harness UI by accident, so only it needs the probe (#566).
+        self._identified = not is_loopback(self.base)
 
     # ---- transport ----
 
+    def _ensure_identified(self):
+        """Prove a loopback endpoint is the media service before spending it.
+
+        One credential-free read-only GET: no media operation is sent and no
+        token leaves the process until the answer identifies the service.
+        """
+        if self._identified:
+            return
+        request = urllib.request.Request(self.base + _PROBE_PATH, method="GET")
+        try:
+            with self._opener(request, timeout=min(self.timeout, 5.0)) as resp:
+                headers = getattr(resp, "headers", None)
+                body = resp.read()
+        except urllib.error.HTTPError as exc:
+            try:
+                headers = exc.headers
+                body = exc.read()
+            finally:
+                exc.close()
+        except (urllib.error.URLError, OSError) as exc:
+            raise MediaUnavailable(
+                "media service unreachable at {} ({}). Start it with: media "
+                "serve".format(self.base, exc)
+            ) from exc
+        kind = identify_service(headers, body)
+        if kind == "harness-ui":
+            raise MediaEndpointMismatch(
+                "the endpoint at {} answered as the Harness web UI, not the "
+                "media service; no media operation or token was sent. "
+                "`harness serve` has defaulted to 127.0.0.1:8767 since #566, "
+                "so an older or explicitly configured Harness UI is on this "
+                "port. Remedy: point MEDIA_BASE_URL (or "
+                "~/.config/harness/media.json) at the media service, or stop "
+                "the Harness UI on this port.".format(self.base))
+        if kind != "media":
+            raise MediaUnavailable(
+                "the endpoint at {} answered but did not identify itself as "
+                "the media service: no media-shaped read-only answer and no "
+                "recognizable auth challenge. This is not a credential "
+                "failure -- no token was sent. The media service should "
+                "expose a stable, credential-free identity marker."
+                .format(self.base))
+        self._identified = True
+
     def _request(self, method, path, body=None):
+        self._ensure_identified()
         data = json.dumps(body).encode() if body is not None else None
         headers = {"Content-Type": "application/json"}
         if self.token:

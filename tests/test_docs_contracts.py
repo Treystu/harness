@@ -38,6 +38,27 @@ class GuiAcceptanceDocsTests(unittest.TestCase):
         ):
             self.assertIn(required, doc, required)
 
+    def test_ui_acceptance_port_map_keeps_role_and_address_together(self):
+        """#566: both 8765 and 8767 are legitimate, so the role must ride with
+        the address -- a bare-number assertion passes with the roles reversed.
+        """
+        doc = _read("docs/ui-acceptance.md")
+        rows = [line for line in doc.splitlines() if line.startswith("|")]
+        serve = next(r for r in rows if "`harness serve`" in r)
+        media = next(r for r in rows if "media serve" in r)
+        desktop = next(r for r in rows if "`harness desktop`" in r)
+        self.assertIn("127.0.0.1:8767", serve)
+        self.assertNotIn("127.0.0.1:8765", serve)
+        self.assertIn("127.0.0.1:8765", media)
+        self.assertNotIn("127.0.0.1:8767", media)
+        self.assertIn("127.0.0.1:8766", desktop)
+
+    def test_media_doc_states_the_port_map_and_the_ui_mismatch(self):
+        doc = _read("docs/media.md")
+        self.assertIn("127.0.0.1:8765", doc)
+        self.assertIn("127.0.0.1:8767", doc)
+        self.assertIn("MediaEndpointMismatch", doc)
+
     def test_releasing_doc_separates_static_assets_from_auth_api(self):
         releasing = _read("docs/releasing.md")
         self.assertIn("`401` unauthenticated and `200` with `X-Harness-Auth`", releasing)

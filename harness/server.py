@@ -37,6 +37,7 @@ from pathlib import Path
 from typing import cast
 from urllib.parse import urlparse, parse_qs
 
+from . import __version__ as HARNESS_VERSION
 from . import events as _events
 from . import script as _script
 from .agent import AutonomousAgent
@@ -1503,8 +1504,46 @@ def _list_missions(root, *, limit=25, offset=0):
 _HANDLER_TIMEOUT = 10.0
 
 
+def _git_describe(repo_root):
+    """``git describe --always --dirty`` at ``repo_root``, or ``"unknown"``.
+
+    Read once at server start, never per request. A served head that cannot
+    name its commit is what #587 reported; an installed wheel outside a git
+    tree is a legitimate ``unknown`` rather than an error, and the package
+    version still identifies it.
+    """
+    try:
+        done = osal.run(["git", "-C", str(repo_root), "describe",
+                         "--always", "--dirty"], timeout=5)
+    except (OSError, HarnessError):
+        return "unknown"
+    commit = (done.stdout or "").strip()
+    if done.returncode != 0 or not commit:
+        return "unknown"
+    return commit
+
+
+#: One git call per process, not one per server: the identity of a running
+#: tree cannot change under it, and tests build many servers.
+_IDENTITY_CACHE = {}
+
+
+def serve_identity(repo_root=None):
+    """What this process is serving: package version + the commit it runs."""
+    root = Path(repo_root) if repo_root is not None \
+        else Path(__file__).resolve().parent.parent
+    key = str(root)
+    if key in _IDENTITY_CACHE:
+        return dict(_IDENTITY_CACHE[key])
+    ident = {"version": HARNESS_VERSION, "commit": _git_describe(root)}
+    _IDENTITY_CACHE[key] = dict(ident)
+    return ident
+
+
 class UiRequestHandler(BaseHTTPRequestHandler):
-    server_version = "harness-ui/0.1"
+    #: #587: the Server header names the package version actually serving, not
+    #: a constant that drifts from ``harness.__version__``.
+    server_version = f"harness-ui/{HARNESS_VERSION}"
     protocol_version = "HTTP/1.1"
     timeout = _HANDLER_TIMEOUT
 
@@ -1537,6 +1576,15 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         log = getattr(getattr(self, "server", None), "serve_log", None)
         if log is not None:
             log.write(f"[ui] {line}")
+
+    def end_headers(self):
+        # #587: identity rides every response, token-free, so a browser (or a
+        # bare curl) can tell which code is being served without credentials.
+        ident = getattr(self.server, "identity", None)
+        if ident:
+            self.send_header("X-Harness-Version", ident["version"])
+            self.send_header("X-Harness-Commit", ident["commit"])
+        super().end_headers()
 
     def log_error(self, format, *args):
         # Benign idle keep-alive socket timeouts on HTTP/1.1 connections should not spam logs
@@ -2012,10 +2060,12 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         with self.ui.lock:
             runs = [self.ui.run_public(r) for r in self.ui.runs.values()]
         runs.sort(key=lambda r: r["created_at"], reverse=True)
+        ident = getattr(self.server, "identity", None) or serve_identity()
         self._send_json({
             "status": "ok", "started_at": self.ui.started_at,
             "auth_required": bool(self.ui.auth_token or self.ui.owner_token),
             "events_buffered": len(self.ui.events), "runs": runs[:50],
+            "version": ident["version"], "commit": ident["commit"],
         })
 
     def _api_trust(self, q):
@@ -2512,6 +2562,9 @@ class UiServer(ThreadingHTTPServer):
     #: binds, and read by every handler through ``self.server.ui``.
     ui: "UiState"
 
+    #: Package version and served commit (#587); attached by ``make_server``.
+    identity = None
+
     #: Process-owned request log (#574). ``None`` when the caller gave no
     #: path, which keeps in-process tests off the operator's disk.
     serve_log = None
@@ -2529,7 +2582,7 @@ _DEFAULT_AUTH_TOKEN = object()
 _DEFAULT_OWNER_TOKEN = object()
 
 
-def make_server(host="127.0.0.1", port=8765,
+def make_server(host="127.0.0.1", port=8767,
                 auth_token=_DEFAULT_AUTH_TOKEN,
                 owner_token=_DEFAULT_OWNER_TOKEN, log_path=None):
     """Build the UI server with its UiState attached.
@@ -2545,6 +2598,8 @@ def make_server(host="127.0.0.1", port=8765,
     httpd = UiServer((host, port), UiRequestHandler)
     httpd.daemon_threads = True
     httpd.ui = ui
+    # #587: the identity of the code being served, read once at start.
+    httpd.identity = serve_identity()
     if log_path:
         from .serve_log import open_serve_log
 
@@ -2560,7 +2615,7 @@ def main(argv=None):
         description="Local web UI + JSON API over the harness core (loopback).")
     ap.add_argument("--host", default="127.0.0.1",
                     help="bind address (default and recommended: 127.0.0.1)")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=8767)
     ap.add_argument("--auth-token", default=os.environ.get("HARNESS_UI_AUTH_TOKEN"),
                     help="add a session token; the persistent owner shortcut remains valid")
     ap.add_argument("--open", action="store_true",
@@ -2598,6 +2653,9 @@ def main(argv=None):
         sys.exit(1)
     print(f"[OK] harness UI serving at {url} (token-protected; Ctrl-C to stop)",
           file=sys.stderr)
+    ident = httpd.identity or {}
+    print(f"[OK] serving harness {ident.get('version')} at commit "
+          f"{ident.get('commit')}", file=sys.stderr)
     print(f"[OK] user recovery shortcut saved at {shortcut}",
           file=sys.stderr)
     if httpd.serve_log is not None:
