@@ -298,13 +298,8 @@ class _Collector:
                         and not self._has_power(value)):
                     self.plain_bar_positions.append(node.targets[0].id)
                 continue
-            call = None
             if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
-                call = node.value
-            elif isinstance(node, ast.Call):
-                call = node
-            if call is not None:
-                self._record_call(call, cond, aliases)
+                self._record_call(node.value, cond, aliases)
 
 
 def _collect_flags(nodes: List[ast.stmt]) -> Dict[str, bool]:
@@ -342,13 +337,6 @@ def _consistent(cond: Dict[str, bool], state: Dict[str, bool]) -> bool:
     return all(state.get(key) == value for key, value in cond.items())
 
 
-def _state_label(cond: Dict[str, bool]) -> str:
-    if not cond:
-        return "the default state"
-    return "state " + ", ".join(
-        "{}={}".format(name, value) for name, value in sorted(cond.items()))
-
-
 def analyse_script(code: str, *, first_line: int = 1,
                    promise: bool = False, prose: str = "") -> List[PlotFinding]:
     """The static findings for one script, with no execution."""
@@ -382,7 +370,7 @@ def analyse_script(code: str, *, first_line: int = 1,
         return state
 
     # (1) panel modes vs titles, in the default state and every flag state.
-    states = [("default", default_state)] + [
+    states = [("the default state", default_state)] + [
         (name, state_for(name, not value)) for name, value in flags.items()]
     for label, state in states:
         for title in collector.titles:
@@ -400,15 +388,14 @@ def analyse_script(code: str, *, first_line: int = 1,
                     continue
                 if scale.scale == wanted:
                     continue
-                if True:
-                    findings.append(PlotFinding(
-                        "panel-title",
-                        'panel `{}` is titled "{}" but `{}.set_xscale("{}")` runs '
-                        "in {} -- the title and the axis disagree".format(
-                            title.axes, title.text, scale.axes, scale.scale,
-                            _state_label(dict(scale.cond) or label)),
-                        line_of(scale.lineno)))
-                    break
+                findings.append(PlotFinding(
+                    "panel-title",
+                    'panel `{}` is titled "{}" but `{}.set_xscale("{}")` runs '
+                    "in {} -- the title and the axis disagree".format(
+                        title.axes, title.text, scale.axes, scale.scale,
+                        label),
+                    line_of(scale.lineno)))
+                break
 
     # (2) the promised comparison vs what the default state actually draws.
     if promise and len(collector.axes) >= 2:

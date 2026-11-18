@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from harness.agent import AutonomousAgent
+from harness.errors import HarnessError
 from harness.answer_plot_consistency import (
     PlotFinding,
     analyse_script,
@@ -137,6 +138,37 @@ ax.text(x + 0.5, 0.5, "label", ha="center")
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].check, "script-parse")
         self.assertGreaterEqual(findings[0].line or 0, 7)
+
+    def test_a_renamed_parameter_still_carries_the_flag_state(self):
+        script = """
+import argparse
+import matplotlib.pyplot as plt
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--log", dest="log_mode", action="store_true")
+args = ap.parse_args()
+
+
+def panel(ax, mode):
+    if not mode:
+        ax.set_xscale("linear")
+    else:
+        ax.set_xscale("log")
+
+
+fig, (left, right) = plt.subplots(1, 2)
+panel(left, False)
+panel(right, log_mode)
+"""
+        self.assertEqual(analyse_script(script, promise=True), [])
+
+    def test_the_unroller_stops_after_forty_expansions(self):
+        lines = ['import matplotlib.pyplot as plt',
+                 'fig, (left, right) = plt.subplots(1, 2)',
+                 'def panel(ax, mode):',
+                 '    ax.set_xscale("linear")']
+        lines.extend(['panel(left, False)'] * 41)
+        self.assertEqual(analyse_script(chr(10).join(lines)), [])
 
     def test_the_promise_predicate_needs_both_scales(self):
         self.assertTrue(promises_scale_comparison("log scale and linear scale"))
@@ -263,6 +295,7 @@ class AnswerPlotLifecycleTests(unittest.TestCase):
         policy.evaluate_simple_strategy.return_value = _pre()
         policy.evaluate_answer.return_value = _post()
         completions = [
+            answer if not isinstance(answer, str) else
             {"content": answer, "model": "cheap-test-model",
              "cost": 0.000002, "input_tokens": 21, "output_tokens": 9,
              "cost_estimated": False}
@@ -310,6 +343,16 @@ class AnswerPlotLifecycleTests(unittest.TestCase):
         self.assertIn("ax_right", result["response"])
         review = result["simple_request"]["plot_consistency"]
         self.assertEqual(review["revisions"], 1)
+        self.assertTrue(review["withheld"])
+
+    def test_a_failed_revision_withholds_rather_than_shipping_the_defect(self):
+        # The revision call itself can fail; the defect must still not ship.
+        result, generate = self._run([DEFECT, HarnessError("provider down")])
+        self.assertEqual(generate.call_count, 2)
+        self.assertNotIn("import matplotlib", result["response"])
+        self.assertIn("ax_right", result["response"])
+        review = result["simple_request"]["plot_consistency"]
+        self.assertEqual(review["revisions"], 0)
         self.assertTrue(review["withheld"])
 
     def test_a_clean_candidate_is_delivered_without_a_revision(self):
