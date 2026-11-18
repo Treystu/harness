@@ -15,6 +15,7 @@ user with a bare status.
 """
 import re
 
+from .ledger_canary import evidence_rows
 from .output import eprint
 
 _RATE_LIMIT_RE = re.compile(r"\b429\b", re.IGNORECASE)
@@ -97,7 +98,9 @@ def pre_run_warning(governor=None, ledger=None, *, use_free):
         if _warned_this_process or not use_free:
             return False
         rate_limited = 0
-        for e in (ledger.tail(_PRE_RUN_WINDOW) if ledger is not None else []):
+        # #336: the pre-run gate reads task evidence only.
+        rows = evidence_rows(ledger) if ledger is not None else []
+        for e in rows[-_PRE_RUN_WINDOW:]:
             if e.get("event") != "model_result":
                 continue
             if _RATE_LIMIT_RE.search(

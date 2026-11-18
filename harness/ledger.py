@@ -67,7 +67,18 @@ class AutonomyLedger(LedgerAnalytics):
         # Soft integrity: True when load recomputed a hash/prev/seq break.
         self.chain_broken = False
         self.first_bad_seq = None
+        # #336: compaction state. Citation pins are loaded from the retained
+        # citation rows; manifests are the reviewed set the caller supplies.
+        self.canary_error = None
+        self.compaction_error = None
+        self.citation_pins = set()
+        self.compaction_manifests = set()
         self._load()
+        self.citation_pins = {
+            (entry.get("target_seq"), str(entry.get("target_hash")))
+            for entry in self._tail
+            if entry.get("event") == "citation"
+            and entry.get("target_seq") is not None}
         self._rebuild_offered_task_ids()
 
     def _rebuild_offered_task_ids(self):
@@ -176,21 +187,15 @@ class AutonomyLedger(LedgerAnalytics):
         try:
             size = os.path.getsize(self.path)
         except OSError:
-            return
+            return []
         if size < LEDGER_MAX_BYTES:
-            return
+            return []
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%f")
         rotated = f"{self.path}.{stamp}"
         try:
             os.replace(self.path, rotated)
         except OSError:
-            return
-        rotations = self._rotated_paths()
-        for old in rotations[:-LEDGER_KEEP_ROTATIONS]:
-            try:
-                os.unlink(old)
-            except OSError:
-                pass
+            return []
         self._segmented = bool(self._rotated_paths())
         # Anchor the cut: the new active file opens with a chained event
         # naming the rotated file and its tip, so a fresh loader can tell
@@ -201,6 +206,9 @@ class AutonomyLedger(LedgerAnalytics):
             self._append_segment_anchor(os.path.basename(rotated))
         except OSError as e:
             eprint(f"[ledger] segment anchor not written: {e}")
+        # #336: an old sealed segment is *evaluated*, never unlinked on size
+        # alone. The caller compacts it outside the append locks.
+        return self._rotated_paths()[:-LEDGER_KEEP_ROTATIONS]
 
     @contextmanager
     def _file_lock(self):
@@ -307,6 +315,7 @@ class AutonomyLedger(LedgerAnalytics):
         self._segmented = len(paths) > 1 or bool(self._rotated_paths())
         self.chain_broken = False
         expected_prev = None
+        broken_at = []
         for source_path in paths:
             with open(source_path, encoding="utf-8") as f:
                 for line in f:
@@ -328,7 +337,10 @@ class AutonomyLedger(LedgerAnalytics):
                         if (expected_prev is not None
                                 and entry.get("prev_hash") != expected_prev
                                 and entry.get("event") != "segment"):
-                            raise ValueError("prev_hash linkage broken")
+                            # #336: a compaction checkpoint covers an omitted
+                            # run, and it sits at the live tip -- so the break
+                            # is judged after the whole ledger is read.
+                            broken_at.append(len(self._tail))
                     except (ValueError, TypeError):
                         # Quarantine the damage, keep the intact prefix, and
                         # flag the break so verify never silently passes.
@@ -346,6 +358,93 @@ class AutonomyLedger(LedgerAnalytics):
                     self._seq = entry["seq"]
                     self._prev_hash = entry["hash"]
                     expected_prev = entry["hash"]
+        self._apply_gap_breaks(broken_at)
+
+    def _checkpoint_entries(self):
+        return [entry for entry in self._tail
+                if entry.get("event") == "compaction_checkpoint"]
+
+    def _gap_runs(self):
+        """Signed drop runs, from checkpoints this install's key verifies."""
+        from . import ledger_compaction as compaction
+
+        key = compaction.existing_signing_key()
+        if not key:
+            return []  # fail closed: unsigned coverage crosses nothing
+        return compaction.gap_runs(self._checkpoint_entries(), key)
+
+    def _apply_gap_breaks(self, broken_at):
+        """Clear a linkage break only when a signed run covers the gap."""
+        if not broken_at:
+            return
+        runs = self._gap_runs()
+        for index in broken_at:
+            entry = self._tail[index]
+            previous = self._tail[index - 1] if index else None
+            if previous is not None and self._crosses(previous, entry, runs):
+                continue
+            self.chain_broken = True
+            if self.first_bad_seq is None:
+                self.first_bad_seq = entry.get("seq")
+        if self.chain_broken:
+            eprint("[ledger] chain linkage broken outside any signed "
+                   "compaction coverage; run `harness ledger verify`.")
+
+    @staticmethod
+    def _crosses(previous, entry, runs):
+        from . import ledger_compaction as compaction
+
+        return compaction.crosses_gap(previous.get("seq"),
+                                      previous.get("hash"), entry, runs)
+
+    def sweep_compaction(self, segments=None):
+        """Evaluate old sealed segments; compaction is the only way out."""
+        targets = (self._rotated_paths()[:-LEDGER_KEEP_ROTATIONS]
+                   if segments is None else list(segments))
+        return [self._compact_old_segment(path) for path in targets]
+
+    def _compact_old_segment(self, path):
+        """Archive, checkpoint and switch one segment -- or leave it intact."""
+        from . import ledger_compaction as compaction
+
+        checkpoints = self._checkpoint_entries()
+        previous = checkpoints[-1].get("hash") if checkpoints else None
+        archive_dir = os.path.join(os.path.dirname(self.path) or ".",
+                                   "ledger-archive")
+        try:
+            return compaction.compact_segment(
+                path, archive_dir=archive_dir,
+                ledger_id=os.path.basename(self.path),
+                evaluated_at=datetime.now(timezone.utc),
+                previous_checkpoint_hash=previous,
+                key=compaction.load_or_create_signing_key(),
+                append_checkpoint=lambda checkpoint: self.append(
+                    "compaction_checkpoint", **checkpoint),
+                manifests=self.compaction_manifests,
+                pins=self.citation_pins)
+        except (OSError, HarnessError) as exc:
+            self.compaction_error = str(exc)
+            eprint("[ledger] compaction left {} intact: {}".format(
+                os.path.basename(path), exc))
+            return {"compacted": False, "reason": str(exc)}
+
+    def pin_citation(self, seq, entry_hash, *, source):
+        """Prospective citation: a relied-on row becomes permanently pinned."""
+        entry = self.append("citation", target_seq=int(seq),
+                            target_hash=str(entry_hash), source=str(source))
+        self.citation_pins.add((int(seq), str(entry_hash)))
+        return entry
+
+    def evidence_rows(self):
+        """The shared evidence reader: canaries and their children excluded."""
+        from .ledger_canary import evidence_rows
+
+        return evidence_rows(self)
+
+    def run_canaries(self, **kwargs):
+        from .ledger_canary import run_canaries
+
+        return run_canaries(self, **kwargs)
 
     def _rebase_under_lock(self):
         """Re-read the file under the append lock and advance this instance
@@ -425,7 +524,9 @@ class AutonomyLedger(LedgerAnalytics):
                 # old file away and leave the new active segment containing a
                 # line whose predecessor is not loaded by a fresh instance.
                 self._persist(_canon(body))
-                self._rotate_if_needed()
+                old_segments = self._rotate_if_needed()
+        if old_segments:
+            self.sweep_compaction(old_segments)
         return body
 
     def entries(self):
@@ -438,6 +539,7 @@ class AutonomyLedger(LedgerAnalytics):
         """Length of the longest valid hash-chain prefix. ONE walk, consumed
         by both verify() and repair() so the two can never disagree about
         what 'valid' means."""
+        runs = self._gap_runs()
         prev = None
         for i, e in enumerate(self._tail):
             body = {k: v for k, v in e.items() if k != "hash"}
@@ -448,7 +550,10 @@ class AutonomyLedger(LedgerAnalytics):
             if i == 0 and self._segmented and body.get("prev_hash") is not None:
                 prev = body.get("prev_hash")
             elif body.get("prev_hash") != prev:
-                return i
+                # #336: an omitted run is valid only when a signed coverage
+                # run's boundaries match both neighbours.
+                if i == 0 or not self._crosses(self._tail[i - 1], e, runs):
+                    return i
             calc = hashlib.sha256(_canon(body).encode("utf-8")).hexdigest()
             if calc != e["hash"]:
                 return i
@@ -541,7 +646,18 @@ class AutonomyLedger(LedgerAnalytics):
                 complete = False
             prev_tip = b["tip_hash"]
         pruned = started and not complete
+        runs = self._gap_runs()
+        covered = [{"first_seq": run["first_seq"], "last_seq": run["last_seq"],
+                    "checkpoint_seq": run["checkpoint_seq"]}
+                   for run in runs]
         return {"ok": ok, "first_bad_seq": bad,
+                # #336: an omission signed by a checkpoint is not the same as
+                # a pruned prefix whose contents are unknown.
+                "checkpoint_covered": covered,
+                "pruned_reason": ("checkpoint" if covered else
+                                  ("unsegmented_prefix" if pruned else None)),
+                "canary_error": self.canary_error,
+                "compaction_error": self.compaction_error,
                 "segmented": len(bounds) > 1, "segments": bounds,
                 "first_retained_seq": first_retained, "pruned": pruned,
                 "entries": len(self._tail),

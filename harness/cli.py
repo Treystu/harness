@@ -51,6 +51,7 @@ from .config import (
 )
 from .endpoint_pricing import load_fireworks_endpoints
 from .errors import HarnessError
+from .ledger_sweep import run_daily_sweep, state_path
 from .lifecycle import LifecycleCoordinator
 from .fireworks import compare_fireworks_vs_openrouter
 from .fireworks_probe import run_fireworks_probe
@@ -825,6 +826,9 @@ def _cmd_ledger(opts, settings):
               opts.out)
     elif opts.ledger_cmd == "defer-stats":
         _emit(ledger.defer_stats(window=opts.window), opts.out)
+    elif opts.ledger_cmd == "sweep":
+        _emit(run_daily_sweep(ledger, state_file=state_path(ledger.path),
+                              force=opts.force), opts.out)
     elif opts.ledger_cmd == "report":
         from . import trust as trust_policy
         report = ledger.participation_report()
