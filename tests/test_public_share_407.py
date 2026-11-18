@@ -538,10 +538,12 @@ class IntakeTests(unittest.TestCase):
         self.assertIn("allowlisted set", str(caught.exception))
 
     def test_a_credential_shape_is_refused_before_anything_else(self):
+        # Built at runtime so the driving-hygiene scan sees no key-shaped
+        # literal in the test source (the same rule #418's fixture follows).
+        fake_key = "-".join(("sk", "or", "v1", "abcdefghijklmnopqrstuvwx"))
         with self.assertRaises(HarnessError) as caught:
-            ps.validate_submission(
-                self.mutate(protocol="sk-or-v1-abcdefghijklmnopqrstuvwx"),
-                verify_key=ISSUER_KEY)
+            ps.validate_submission(self.mutate(protocol=fake_key),
+                                   verify_key=ISSUER_KEY)
         self.assertIn("secret-shaped", str(caught.exception))
 
     def test_a_protocol_or_version_mismatch_is_refused(self):
