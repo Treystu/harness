@@ -83,8 +83,8 @@ class JevForAttachesTheLedgerTests(unittest.TestCase):
         second = policy._account(_paid_result(), site="audit_claims")
         self.assertIn("discarded", first)
         self.assertIn("discarded", second)
-        rows = [json.loads(line) for line in
-                open(policy.ledger.path, encoding="utf-8") if line.strip()]
+        with open(policy.ledger.path, encoding="utf-8") as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
         evals = [row for row in rows if row.get("event") == "jev_eval"]
         self.assertEqual(len(evals), 2)
         self.assertEqual(evals[0]["site"], "audit_claims")
