@@ -98,7 +98,7 @@ is unchanged and still no sandbox.
   operating-system sandbox. In particular, an explicitly approved verification
   command still runs as the Harness process user, as described below.
 
-- **Authentication.** The `harness serve` (default `127.0.0.1:8765`; `--port` to override, e.g. `8800`) and `harness desktop` (default `127.0.0.1:8766`) entrypoints
+- **Authentication.** The `harness serve` (default `127.0.0.1:8767`; `--port` to override, e.g. `8800`) and `harness desktop` (default `127.0.0.1:8766`) entrypoints
   require a per-user UI token by default: `/api/status` and all other `/api/*`
   routes return `401` unauthenticated and `200` only when authenticated. See
   [ui-acceptance.md](ui-acceptance.md) for the complete first-use modal, pairing,

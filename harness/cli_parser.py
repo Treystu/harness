@@ -203,8 +203,8 @@ def build_parser():
         "doctor", help="Preflight Python, credentials, local services and ledger")
     pdoctor.add_argument("--json", action="store_true",
                          help="print the structured preflight report")
-    pdoctor.add_argument("--gui-port", type=int, default=8765,
-                         help="loopback GUI port to inspect (default: 8765)")
+    pdoctor.add_argument("--gui-port", type=int, default=8767,
+                         help="loopback GUI port to inspect (default: 8767)")
 
     psite_check = sub.add_parser(
         "site-check",
