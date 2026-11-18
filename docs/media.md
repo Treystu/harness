@@ -31,7 +31,21 @@ cd ../sovereign-media        # sibling checkout
 pip install -e .
 media auth login google-key  # free AI Studio key ($0, image gen included)
 # and/or: media auth login openai | higgsfield | fal | replicate | luma
-media serve                  # REST on http://127.0.0.1:8765
+media serve                  # REST on http://127.0.0.1:8765 (see the port map below)
+```
+
+> **Port map (#566):** `media serve` owns `127.0.0.1:8765`. `harness serve`
+> defaults to `127.0.0.1:8767` and `harness desktop` to `127.0.0.1:8766`, so all
+> three can run at once. An older or explicitly configured Harness UI still on
+> `8765` is detected by `harness/media_client.py` before a media operation or
+> token is sent (it raises `MediaEndpointMismatch`); move that UI with
+> `harness serve --port 8767`.
+
+Running the UI beside the media service:
+
+```bash
+harness serve --open         # UI on 127.0.0.1:8767
+media serve                  # media REST on 127.0.0.1:8765
 ```
 
 Remote endpoint (optional): `~/.config/harness/media.json`
