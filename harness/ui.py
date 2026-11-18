@@ -46,6 +46,9 @@ def main(argv=None, *, prog="harness-desktop"):
                     help="extra session token; persistent owner recovery stays valid")
     ap.add_argument("--browser", action="store_true",
                     help="skip the pywebview window and open the browser")
+    ap.add_argument("--log-file", default=None,
+                    help="request log this process owns (default: "
+                         "~/.harness/logs/serve.log)")
     opts = ap.parse_args(argv)
     if opts.host not in ("127.0.0.1", "localhost", "::1"):
         print("[FATAL] loopback bind only", file=sys.stderr)
@@ -57,8 +60,11 @@ def main(argv=None, *, prog="harness-desktop"):
               f"to start so recovery remains possible: {exc}", file=sys.stderr)
         sys.exit(1)
     token = opts.auth_token or os.environ.get("HARNESS_UI_AUTH_TOKEN") or owner_token
+    from .serve_log import default_log_path
+
     httpd = make_server(opts.host, opts.port, auth_token=token,
-                        owner_token=owner_token)
+                        owner_token=owner_token,
+                        log_path=opts.log_file or default_log_path())
     host, port = httpd.server_address[:2]
     url = f"http://{host}:{port}/"
     try:
