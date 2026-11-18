@@ -16,6 +16,8 @@ set. Never close an owner issue from this file; closure happens on the owner.
 | `panel-outcome-labels-absent` | 2026-11-18 | `9741066` | #474 | open — 42 defer-to-converge flips cannot be scored for false-convergence |
 | `audit-traces-not-persisted` | 2026-11-18 | `9741066` | #468, #469, #471, #472, #473, #475, #476 | open — each frozen Champion Audit program names a trace the system does not record |
 | `auth-connect-duplicate-label` | 2026-11-18 | `9741066` | #412 | open — two controls labelled "Connect browser"; the one in `auth-pair-panel` (`display:none`) is still in the accessible tree and clicking it issues no request and shows no feedback |
+| `spend-key-remaining-stale` | 2026-11-18 | `9741066` | #415 | open — the serve prints `key_remaining=$1.500000` on three consecutive key reads while every billed call in that run is refused with provider HTTP 402 `spend limit exhausted`; the surface reports headroom it does not have |
+| `gate-labels-live-drift` | 2026-11-18 | `9741066` | #467 | open — the shipped 28-case decision-gate label set scores 14/28 exact against live Jev answers (false-proceeds 0); labels were authored 2026-09-27 and live `advances_goal` lands 0.84-0.99 where the set authors 0.95-0.98 |
 
 ## Transfer entry (#451)
 
