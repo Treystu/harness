@@ -1211,6 +1211,70 @@ _INPUT_BACKENDS = {}
 #: on purpose: an operator script may branch on it.
 WINDOWS_INPUT_BACKEND_NAME = "windows-user32-focus"
 
+#: The name the full backend reports. A second stable name rather than a
+#: renamed first one: an operator script that asked for the focus-only build
+#: must keep getting that answer, and a health read must be able to tell the
+#: two builds apart without inspecting `supported_kinds`.
+WINDOWS_INPUT_BACKEND_FULL_NAME = "windows-user32-input"
+
+#: The key names the native backend will press, mapped to Windows virtual-key
+#: codes. Declared in code and closed, like every other vocabulary here: a
+#: name that is not in this table is refused together with the declared set,
+#: never resolved to a character that happens to be nearby on a keyboard.
+KEY_CODES = {
+    "backspace": 0x08,
+    "tab": 0x09,
+    "enter": 0x0D,
+    "return": 0x0D,
+    "shift": 0x10,
+    "ctrl": 0x11,
+    "control": 0x11,
+    "alt": 0x12,
+    "pause": 0x13,
+    "capslock": 0x14,
+    "escape": 0x1B,
+    "esc": 0x1B,
+    "space": 0x20,
+    "pageup": 0x21,
+    "pagedown": 0x22,
+    "end": 0x23,
+    "home": 0x24,
+    "left": 0x25,
+    "up": 0x26,
+    "right": 0x27,
+    "down": 0x28,
+    "insert": 0x2D,
+    "delete": 0x2E,
+    "win": 0x5B,
+    "meta": 0x5B,
+}
+KEY_CODES.update({f"f{index}": 0x6F + index for index in range(1, 13)})
+
+#: No combination is longer than this. Four is ctrl+alt+shift+key, which is
+#: the longest chord a real shortcut uses; a longer one is a caller bug.
+MAX_COMBO_KEYS = 4
+
+#: The scroll directions this backend will perform. A named direction rather
+#: than a pixel delta, so the vocabulary cannot smuggle an arbitrary amount of
+#: scrolling through a declared action.
+SCROLL_DIRECTIONS = ("up", "down")
+
+#: One wheel notch, in the units `MOUSEEVENTF_WHEEL` expects.
+SCROLL_DELTA = 120
+
+#: The target schema a bounded click or submit must carry. Duplicated as a
+#: literal rather than imported from :mod:`driver_core.targeting` because this
+#: module is the OS boundary and must not depend on the model that aims it;
+#: the value is pinned by a test in both homes.
+BOUNDED_TARGET_SCHEMA = "target@2"
+
+#: Windows input flags, declared once rather than spelled at each call site.
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_UNICODE = 0x0004
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_WHEEL = 0x0800
+
 
 def register_input_backend(platform, backend):
     """Register the backend that performs synthetic input on ``platform``.
@@ -1625,6 +1689,13 @@ def _bind_user32(*, ctypes_module=None, wintypes_module=None):
     user32.GetWindowTextW.restype = ctypes.c_int
     user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
     user32.SetForegroundWindow.restype = wintypes.BOOL
+    # Declared only when the entry point exists: a binding that was handed a
+    # partial table (a test double, an older export) must still describe the
+    # window operations it does have rather than fail the whole bind.
+    foreground = getattr(user32, "GetForegroundWindow", None)
+    if foreground is not None:
+        foreground.argtypes = ()
+        foreground.restype = wintypes.HWND
     return ctypes, user32, enum_proc
 
 
@@ -1751,33 +1822,232 @@ class _WindowsWindowApi:
                 f"window {handle} changed before it could be focused")
         return bool(self._user32.SetForegroundWindow(hwnd))
 
+    def foreground(self):
+        """The handle of the foreground window, or ``None`` when there is none.
 
-def native_input_backend(platform=None, *, window_api=None):
-    """Return the opt-in native backend available on ``platform``.
+        ``None`` is a condition input must refuse, not a default to type into:
+        a keystroke sent with no foreground window lands wherever the shell
+        decides, and the caller could not name the window it wrote to.
+        """
+        hwnd = self._user32.GetForegroundWindow()
+        return None if not hwnd else int(hwnd)
 
-    This backend intentionally supports only ``focus``: the current action
-    vocabulary gives clicks no coordinates or control identifier, and gives
-    typing/keys/scroll no window target. Guessing those destinations would
-    widen the exact consent the operator supplied. Other platforms and kinds
-    remain refused until they have equally bounded implementations.
+    def title_of(self, hwnd):
+        """The exact title of one window handle. Public for the input tier."""
+        return self._title_of(hwnd)
 
-    ``window_api`` supplies the small window operations used below; omitting
-    it uses the in-repo :class:`_WindowsWindowApi`. Having a backend object
-    is not permission to drive: it becomes reachable through
-    :func:`send_input` only when a host registers it, and every mutating
-    action still needs consent for its exact parameters.
+
+def parse_key_combo(combo):
+    """Resolve one declared key combination to virtual-key codes.
+
+    Declared, total and ordered: ``ctrl+s`` is two codes pressed in that
+    order and released in reverse. A name outside the table is refused with
+    the declared set; a single letter or digit is accepted as itself, which
+    is the only shorthand here, and it is a character class rather than a
+    guess. Repeating a key is refused because ``ctrl+ctrl`` is a caller bug,
+    not a chord.
     """
-    platform = platform or platform_name()
-    if platform != "windows":
-        return None
-    api = _WindowsWindowApi() if window_api is None else window_api
+    if not isinstance(combo, str) or not combo.strip():
+        raise OsalError(
+            f"a key combination must be a non-empty string, got {combo!r}")
+    tokens = [token.strip().lower() for token in combo.split("+")]
+    if any(not token for token in tokens):
+        raise OsalError(f"key combination {combo!r} has an empty token")
+    if len(tokens) > MAX_COMBO_KEYS:
+        raise OsalError(
+            f"key combination {combo!r} names {len(tokens)} keys; at most "
+            f"{MAX_COMBO_KEYS} are declared")
+    codes = []
+    for token in tokens:
+        if len(token) == 1 and token.isalpha():
+            code = ord(token.upper())
+        elif len(token) == 1 and token.isdigit():
+            code = ord(token)
+        else:
+            code = KEY_CODES.get(token)
+            if code is None:
+                raise OsalError(
+                    f"key {token!r} is not declared; declared names are "
+                    f"{sorted(KEY_CODES)}")
+        codes.append(code)
+    if len(set(codes)) != len(codes):
+        raise OsalError(f"key combination {combo!r} names a key twice")
+    return tuple(codes)
 
-    def focus_backend(kind, *, value=None, target=None):
-        if kind != "focus":
-            return False, (f"native Windows input does not support {kind!r}; "
-                           "only exact-title focus is implemented")
-        if value is not None:
-            return False, "focus accepts a window title and no value"
+
+def _bind_input_events(*, ctypes_module=None):
+    """Load ``user32``'s input entry points and declare their signatures.
+
+    Separate from :func:`_bind_user32` because it is a separate capability:
+    finding and focusing a window loads no input entry point, and the
+    focus-only build must not require them. The same test seam applies for
+    the same reason -- a wrong argument type here survives to the one machine
+    that could notice it, so it is exercised against an injected module.
+    """
+    if ctypes_module is None:
+        import ctypes as ctypes_module
+    ctypes = ctypes_module
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.SetCursorPos.argtypes = (ctypes.c_int, ctypes.c_int)
+    user32.SetCursorPos.restype = ctypes.c_int
+    user32.keybd_event.argtypes = (ctypes.c_ubyte, ctypes.c_ubyte,
+                                   ctypes.c_ulong, ctypes.c_void_p)
+    user32.keybd_event.restype = None
+    user32.mouse_event.argtypes = (ctypes.c_ulong, ctypes.c_long,
+                                   ctypes.c_long, ctypes.c_ulong,
+                                   ctypes.c_void_p)
+    user32.mouse_event.restype = None
+
+    class POINT(ctypes.Structure):
+        _fields_ = (("x", ctypes.c_long), ("y", ctypes.c_long))
+
+    user32.ClientToScreen.argtypes = (ctypes.c_void_p, ctypes.POINTER(POINT))
+    user32.ClientToScreen.restype = ctypes.c_int
+    get_dpi = getattr(user32, "GetDpiForWindow", None)
+    if get_dpi is not None:
+        get_dpi.argtypes = (ctypes.c_void_p,)
+        get_dpi.restype = ctypes.c_ulong
+    return ctypes, user32, POINT
+
+
+class _WindowsInputApi:
+    """The input half of the native backend: geometry and synthetic events.
+
+    Deliberately separate from :class:`_WindowsWindowApi`: this class owns
+    the entry points that move a cursor or synthesise a keystroke, and the
+    focus-only build never constructs it.
+
+    Events go through ``keybd_event``/``mouse_event`` rather than
+    ``SendInput``, and the tradeoff is stated rather than hidden: those two
+    send one event at a time, so a human typing during a synthetic run can
+    interleave where ``SendInput`` would inject one atomic batch. This
+    backend is supervised-only by policy, every action is verified after it
+    runs, and a struct ABI nobody can exercise on the CI that gates the
+    change is a worse risk than an interleave the verification would expose.
+    """
+
+    name = "windows-user32-sendinput"
+
+    def __init__(self, *, bind=None):
+        if platform_name() != "windows":
+            raise OsalError(
+                f"the native input API binds Windows user32, which does not "
+                f"exist on {platform_name()!r}")
+        try:
+            self._ctypes, self._user32, self._POINT = (
+                _bind_input_events() if bind is None else bind())
+        except OsalError:
+            raise
+        except Exception as exc:
+            raise OsalError(
+                f"native Windows input needs ctypes and user32: {exc}") from None
+
+    def move(self, x, y):
+        """Put the cursor at one screen point, or refuse."""
+        if not self._user32.SetCursorPos(int(x), int(y)):
+            raise OsalError(
+                f"SetCursorPos refused to move to ({int(x)}, {int(y)})")
+
+    def click(self, x, y):
+        """Move, then press and release the left button."""
+        self.move(x, y)
+        self._user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+        self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+
+    def type_text(self, text):
+        """Type one literal string as Unicode key events."""
+        if not isinstance(text, str) or not text:
+            raise OsalError(f"typing needs a non-empty string, got {text!r}")
+        # Validate the whole string before the first event. Refusing halfway
+        # would leave half the text typed and report a failure, which is the
+        # one outcome a caller cannot reason about.
+        for character in text:
+            if ord(character) > 0xFFFF:
+                raise OsalError(
+                    f"character {character!r} is outside the BMP; it is "
+                    "refused rather than sent as half a surrogate pair")
+        for character in text:
+            unit = ord(character)
+            self._user32.keybd_event(0, unit, KEYEVENTF_UNICODE, 0)
+            self._user32.keybd_event(
+                0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0)
+
+    def key(self, codes):
+        """Press the codes in order and release them in reverse."""
+        codes = tuple(int(code) for code in codes)
+        if not codes:
+            raise OsalError("a key combination needs at least one key")
+        for code in codes:
+            self._user32.keybd_event(code, 0, 0, 0)
+        for code in reversed(codes):
+            self._user32.keybd_event(code, 0, KEYEVENTF_KEYUP, 0)
+
+    def scroll(self, direction):
+        """One wheel notch in one declared direction."""
+        if direction not in SCROLL_DIRECTIONS:
+            raise OsalError(
+                f"scroll direction must be one of {list(SCROLL_DIRECTIONS)}, "
+                f"got {direction!r}")
+        delta = SCROLL_DELTA if direction == "up" else -SCROLL_DELTA
+        self._user32.mouse_event(MOUSEEVENTF_WHEEL, 0, 0, delta, 0)
+
+    def dpi_scale(self, hwnd):
+        """The window's physical-to-logical scale, or a named refusal.
+
+        Not defaulted to 1.0: on a 125% display that default aims a quarter of
+        the way off the control, and it is indistinguishable from a correct
+        conversion until the click lands somewhere else.
+        """
+        getter = getattr(self._user32, "GetDpiForWindow", None)
+        if getter is None:
+            raise OsalError(
+                "GetDpiForWindow is unavailable, so a client-logical target "
+                "cannot be converted to the screen; refusing rather than "
+                "assuming 96 DPI")
+        dpi = int(getter(int(hwnd)))
+        if dpi <= 0:
+            raise OsalError(
+                f"GetDpiForWindow returned {dpi} for window {int(hwnd)}; no "
+                "scale can be derived from it")
+        return dpi / 96.0
+
+    def client_to_screen(self, hwnd, x, y):
+        """Map one client point to screen coordinates, or refuse."""
+        point = self._POINT()
+        point.x = int(x)
+        point.y = int(y)
+        if not self._user32.ClientToScreen(int(hwnd),
+                                           self._ctypes.byref(point)):
+            raise OsalError(
+                f"ClientToScreen failed for window {int(hwnd)} at "
+                f"({int(x)}, {int(y)})")
+        return int(point.x), int(point.y)
+
+
+def windows_input_backend(*, window_api=None, input_api=None, full=False):
+    """The native Windows backend: focus-only by default, all kinds on request.
+
+    ``full=True`` adds click, type, key, scroll and submit. It is an explicit
+    argument rather than a new environment flag on purpose: the opt-ins that
+    gate *registration* (``DRIVER_ALLOW_WRITE`` and ``DRIVER_NATIVE_INPUT``)
+    are untouched and are not widened by this function. A host that wants the
+    wider backend asks for it by name and passes the result to
+    ``Driver(input_backend=...)``; a driver built from settings alone keeps
+    the focus-only backend it had before.
+
+    ``input_api`` is the test seam for the ctypes edge. The decisions worth
+    proving -- what is a bounded target, which pixel space a rectangle is in,
+    what happens when no window is focused -- live above it and are exercised
+    on every host.
+    """
+    api = _WindowsWindowApi() if window_api is None else window_api
+    kinds = INPUT_KINDS if full else ("focus",)
+    sender = None
+    if full:
+        sender = _WindowsInputApi() if input_api is None else input_api
+    name = WINDOWS_INPUT_BACKEND_FULL_NAME if full else WINDOWS_INPUT_BACKEND_NAME
+
+    def focus(kind, target):
         if not isinstance(target, str) or not target:
             return False, "focus requires a non-empty exact window title"
         matches = api.find_exact_visible(target)
@@ -1788,13 +2058,129 @@ def native_input_backend(platform=None, *, window_api=None):
             return False, f"Windows refused to focus the window titled {target!r}"
         return True, "focused exact-title window"
 
-    focus_backend.name = WINDOWS_INPUT_BACKEND_NAME
-    focus_backend.platform = platform
-    focus_backend.supported_kinds = ("focus",)
-    return freeze_input_backend(focus_backend)
+    def aimed(kind, target):
+        if (not isinstance(target, dict)
+                or target.get("schema") != BOUNDED_TARGET_SCHEMA
+                or not isinstance(target.get("rect"), list)):
+            return False, (
+                f"{kind} needs a bounded target ({BOUNDED_TARGET_SCHEMA} "
+                "with window, rect and space); a window title alone is not "
+                "an aim point, and guessing one would widen the consent")
+        title = target.get("window")
+        rect = target["rect"]
+        if not isinstance(title, str) or not title:
+            return False, f"{kind} target names no window title"
+        if len(rect) != 4 or not all(
+                isinstance(value, int) and not isinstance(value, bool)
+                for value in rect):
+            return False, f"{kind} target rect must be four integers, got {rect!r}"
+        space = target.get("space", "client-logical")
+        if space not in ("client-logical", "client-physical"):
+            return False, f"{kind} target names undeclared space {space!r}"
+        matches = api.find_exact_visible(title)
+        if len(matches) != 1:
+            return False, (f"expected one visible window titled {title!r}; "
+                           f"found {len(matches)}")
+        hwnd = matches[0]
+        if not api.focus(hwnd, title):
+            return False, f"Windows refused to focus the window titled {title!r}"
+        x, y, width, height = rect
+        point_x, point_y = x + width // 2, y + height // 2
+        try:
+            if space == "client-logical":
+                scale = sender.dpi_scale(hwnd)
+                point_x = int(round(point_x * scale))
+                point_y = int(round(point_y * scale))
+            screen_x, screen_y = sender.client_to_screen(hwnd, point_x,
+                                                        point_y)
+            sender.click(screen_x, screen_y)
+        except OsalError as exc:
+            return False, str(exc)
+        except Exception as exc:  # a sender bug is a refusal, not a crash
+            return False, f"{kind} failed: {exc}"
+        return True, (f"{kind} at client ({point_x}, {point_y}) -> screen "
+                      f"({screen_x}, {screen_y}) in window {title!r} "
+                      f"({space})")
+
+    def focused_window(kind):
+        hwnd = api.foreground()
+        if hwnd is None:
+            return None, (f"{kind} needs a foreground window; none is "
+                          "focused, and input into nothing is refused")
+        try:
+            return api.title_of(hwnd), ""
+        except OsalError as exc:
+            return None, str(exc)
+
+    def backend(kind, *, value=None, target=None):
+        if kind not in kinds:
+            return False, (f"{name} does not support {kind!r}; it supports "
+                           f"{list(kinds)}")
+        if kind == "focus":
+            if value is not None:
+                return False, "focus accepts a window title and no value"
+            return focus(kind, target)
+        if kind in ("click", "submit"):
+            if value is not None:
+                return False, f"{kind} accepts a bounded target and no value"
+            return aimed(kind, target)
+
+        title, why = focused_window(kind)
+        if title is None:
+            return False, why
+        try:
+            if kind == "type":
+                if not isinstance(value, str) or not value:
+                    return False, "type needs a non-empty string"
+                sender.type_text(value)
+                return True, (f"typed {len(value)} characters into the "
+                              f"foreground window {title!r}")
+            if kind == "key":
+                codes = parse_key_combo(value)
+                sender.key(codes)
+                return True, (f"pressed {len(codes)} keys into the "
+                              f"foreground window {title!r}")
+            if value not in SCROLL_DIRECTIONS:
+                return False, (f"scroll direction must be one of "
+                               f"{list(SCROLL_DIRECTIONS)}, got {value!r}")
+            sender.scroll(value)
+            return True, (f"scrolled {value} in the foreground window "
+                          f"{title!r}")
+        except OsalError as exc:
+            return False, str(exc)
+        except Exception as exc:  # a sender bug is a refusal, not a crash
+            return False, f"{kind} failed: {exc}"
+
+    backend.name = name
+    backend.platform = "windows"
+    backend.supported_kinds = tuple(kinds)
+    return freeze_input_backend(backend)
 
 
-def register_native_input_backend(platform=None, *, window_api=None):
+def native_input_backend(platform=None, *, window_api=None, input_api=None,
+                         full=False):
+    """Return the opt-in native backend available on ``platform``.
+
+    Focus-only by default: the conservative default is what keeps an operator
+    who set ``DRIVER_NATIVE_INPUT`` for window focusing from also arming
+    clicks and keystrokes without saying so. ``full=True`` is the explicit
+    request for the rest of the kinds; it opens no opt-in by itself and every
+    mutating action still needs consent for its exact parameters.
+
+    ``window_api``/``input_api`` supply the window and input operations;
+    omitting them uses the in-repo bindings. Having a backend object is not
+    permission to drive: it becomes reachable through :func:`send_input` only
+    when a host registers it.
+    """
+    platform = platform or platform_name()
+    if platform != "windows":
+        return None
+    return windows_input_backend(window_api=window_api, input_api=input_api,
+                                 full=full)
+
+
+def register_native_input_backend(platform=None, *, window_api=None,
+                                  input_api=None, full=False):
     """Register the in-repo native backend for this machine, and report it.
 
     This is the explicit act the empty shipped state is waiting for. It is
@@ -1815,7 +2201,8 @@ def register_native_input_backend(platform=None, *, window_api=None):
     that would refuse every request.
     """
     platform = platform or platform_name()
-    backend = native_input_backend(platform, window_api=window_api)
+    backend = native_input_backend(platform, window_api=window_api,
+                                   input_api=input_api, full=full)
     if backend is None:
         raise OsalError(
             f"no native input backend is implemented for {platform!r}; the "

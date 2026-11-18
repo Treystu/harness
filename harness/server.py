@@ -2582,7 +2582,7 @@ _DEFAULT_AUTH_TOKEN = object()
 _DEFAULT_OWNER_TOKEN = object()
 
 
-def make_server(host="127.0.0.1", port=8765,
+def make_server(host="127.0.0.1", port=8767,
                 auth_token=_DEFAULT_AUTH_TOKEN,
                 owner_token=_DEFAULT_OWNER_TOKEN, log_path=None):
     """Build the UI server with its UiState attached.
@@ -2615,7 +2615,7 @@ def main(argv=None):
         description="Local web UI + JSON API over the harness core (loopback).")
     ap.add_argument("--host", default="127.0.0.1",
                     help="bind address (default and recommended: 127.0.0.1)")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=8767)
     ap.add_argument("--auth-token", default=os.environ.get("HARNESS_UI_AUTH_TOKEN"),
                     help="add a session token; the persistent owner shortcut remains valid")
     ap.add_argument("--open", action="store_true",

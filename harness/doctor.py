@@ -453,7 +453,7 @@ def _minimal_settings():
         jev_disabled=os.environ.get("HARNESS_JEV_DISABLE") == "1")
 
 
-def run_doctor(settings, *, gui_port=8765, config_error=False):
+def run_doctor(settings, *, gui_port=8767, config_error=False):
     dns = check_dns(settings)
     checks = [
         check_python(),
