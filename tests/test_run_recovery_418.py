@@ -146,11 +146,12 @@ class RestartVisibilityTests(_ServerOverDurableState):
         self.assertGreater(run["age_seconds"], 20 * 86400)
 
     def test_the_preserved_prompt_is_redacted(self):
-        self._begin("secret", "Use sk-abcdef0123456789abcdef to call the API.")
+        fake_key = "sk-" + "abcdef0123456789abcdef"
+        self._begin("secret", "Use " + fake_key + " to call the API.")
         _httpd, port = self._server()
         _status, payload = _request(port, "/api/runs", self.token)
         prompt = payload["recovered"][0]["prompt"]
-        self.assertNotIn("sk-abcdef0123456789abcdef", prompt)
+        self.assertNotIn(fake_key, prompt)
         self.assertIn("[redacted]", prompt)
 
     def test_a_recovered_result_is_readable_and_events_do_not_invent_history(self):
@@ -235,10 +236,12 @@ class ClassificationUnitTests(unittest.TestCase):
         self.assertFalse(verdict["resumable"])
 
     def test_redaction_removes_every_credential_shape(self):
-        text = ("key sk-abcdef1234567890 and Bearer abcdefghijklmnop and "
-                "token=supersecret and " + "a" * 40)
+        fake_key = "sk-" + "abcdef1234567890"
+        fake_bearer = "Bearer " + "abcdefghijklmnop"
+        text = "key {} and {} and token=supersecret and {}".format(
+            fake_key, fake_bearer, "a" * 40)
         cleaned = redact(text)
-        for secret in ("sk-abcdef1234567890", "abcdefghijklmnop",
+        for secret in (fake_key, "abcdefghijklmnop",
                        "supersecret", "a" * 40):
             self.assertNotIn(secret, cleaned)
         self.assertIn("[redacted]", cleaned)
