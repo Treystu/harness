@@ -111,10 +111,32 @@ request still carries consent for exactly `(focus, {"target": <title>})`, and
 The default window operations are bound per instance from `user32`; a machine
 that is not Windows refuses by name rather than failing at import.
 
-The backend does not click, type, press keys, scroll or submit. Those
-actions continue to refuse until an embedding application supplies a backend
-that supports them, and the reason each of them refuses is that its declared
-parameters do not yet identify a sufficiently bounded target.
+The default build does not click, type, press keys, scroll or submit. A host
+that wants those asks for them by name: `osal.native_input_backend(full=True)`
+(or `register_native_input_backend(..., full=True)`) returns the same backend
+with all six kinds, reported as `windows-user32-input`. This is an explicit
+argument, not a new environment flag: `DRIVER_ALLOW_WRITE` and
+`DRIVER_NATIVE_INPUT` are unchanged and are not widened by it, and a driver
+built from settings alone keeps the focus-only backend.
+
+What the full build will and will not do:
+
+* `click` and `submit_irreversible` require a bounded target (`target@2` with
+  `window`, `rect` and `space`). A bare window title is refused as an aim
+  point rather than guessed at. A `client-logical` rectangle is converted with
+  the window's own DPI (`GetDpiForWindow`); if that cannot be read the request
+  refuses instead of assuming 96 DPI, because a silent 1.0 scale aims a
+  quarter of the way off the control on a 125% display.
+* `type_text`, `press_key` and `scroll` act on the foreground window and name
+  it in the result. With no foreground window they refuse: input into nothing
+  lands wherever the shell decides, and the caller could not say where it
+  wrote. Key names are a closed table (`osal.KEY_CODES`); an undeclared name
+  is refused with the declared set, and a chord is pressed in order and
+  released in reverse.
+* Events are sent with `keybd_event`/`mouse_event`, one event at a time, so a
+  human typing during a synthetic run can interleave. The backend is
+  supervised-only by policy and every action is verified after it runs; the
+  tradeoff is stated here rather than left for an operator to discover.
 
 `click` and `submit_irreversible` now have the target half of that cure
 (#481). A target is either an exact window title -- the legacy form, still

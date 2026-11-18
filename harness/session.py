@@ -196,7 +196,17 @@ def jev_for(settings, transport=None, governor=None, ledger=None,
     the shared :class:`~harness.jev_policy.JevPolicy`. Lane code must not
     construct ``JevEvaluator`` directly; if an injected evaluator is required
     (tests), pass it via ``policy_for(..., evaluator=...)``.
+
+    #588: the ledger is no longer allowed to default to ``None``. A caller that
+    omits it used to spend real money and write no ``jev_eval`` row at all;
+    here the configured ledger is attached (tagged with ``caller``, default
+    ``"jev"``), and a settings object with no ledger path still yields ``None``
+    rather than a fabricated file — in which case a billed call warns instead
+    of vanishing silently.
     """
+    caller = options.pop("caller", "jev")
+    if ledger is None:
+        ledger = maybe_ledger_for(settings, caller=caller)
     return policy_for(settings, transport=transport, governor=governor,
                       ledger=ledger, **options)
 

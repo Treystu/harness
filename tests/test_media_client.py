@@ -15,7 +15,9 @@ import urllib.error
 from contextlib import redirect_stdout, redirect_stderr
 from unittest import mock
 
-from harness.media_client import MediaAdapter, MediaUnavailable, run_cli
+from harness.media_client import (DEFAULT_BASE, MediaAdapter,
+                                  MediaEndpointMismatch, MediaUnavailable,
+                                  identify_service, is_loopback, run_cli)
 
 
 class _FakeResponse:
@@ -23,8 +25,9 @@ class _FakeResponse:
     manager yields: a `.read()` returning bytes, usable as a `with` target.
     """
 
-    def __init__(self, payload):
+    def __init__(self, payload, headers=None):
         self._body = json.dumps(payload).encode("utf-8")
+        self.headers = headers or {}
 
     def read(self):
         return self._body
@@ -45,17 +48,22 @@ def _fake_opener(responses):
     (POST job -> GET job while running -> GET job succeeded) deterministically.
     """
     calls = []
+    headers = []
 
     def opener(req, timeout=None):
         calls.append((req.get_method(), req.full_url))
+        headers.append(dict(req.headers))
         item = responses.pop(0)
         if isinstance(item, Exception):
             raise item
         if isinstance(item, type) and issubclass(item, Exception):
             raise item()
+        if isinstance(item, _FakeResponse):
+            return item
         return _FakeResponse(item)
 
     opener.calls = calls
+    opener.headers = headers
     return opener
 
 
@@ -152,6 +160,13 @@ class MediaCliTests(unittest.TestCase):
         }, clear=False)
         self._env_patch.start()
         self.addCleanup(self._env_patch.stop)
+        # DEFAULT_BASE is bound at import, so the env above does not move it.
+        # These tests are about CLI output and exit codes; endpoint identity
+        # (the loopback probe, #566) has its own class below.
+        self._base_patch = mock.patch(
+            "harness.media_client.DEFAULT_BASE", "http://media.local")
+        self._base_patch.start()
+        self.addCleanup(self._base_patch.stop)
 
     def test_cli_image_success_exit_zero(self):
         job = {"id": "job-1", "status": "queued", "kind": "image"}
@@ -357,6 +372,7 @@ class MediaOutputFlagsTests(unittest.TestCase):
                             self.token = token or "tok"
                             self.timeout = timeout
                             self._opener = _opener
+                            self._identified = True
 
                         with mock.patch.object(MediaAdapter, "__init__", fake_init), \
                              redirect_stdout(io.StringIO()), \
@@ -384,6 +400,7 @@ class MediaOutputFlagsTests(unittest.TestCase):
                     self.token = token or "tok"
                     self.timeout = timeout
                     self._opener = _opener
+                    self._identified = True
 
                 with mock.patch.object(MediaAdapter, "__init__", fake_init_down), \
                      redirect_stdout(io.StringIO()), \
@@ -411,6 +428,7 @@ class MediaOutputFlagsTests(unittest.TestCase):
                             self.token = token or "tok"
                             self.timeout = timeout
                             self._opener = _opener
+                            self._identified = True
 
                         with mock.patch.object(MediaAdapter, "__init__", fake_init_plain), \
                              redirect_stdout(buf):
@@ -427,6 +445,135 @@ class MediaOutputFlagsTests(unittest.TestCase):
                     if hasattr(sink, "close"):
                         sink.close()
 
+
+class MediaEndpointIdentityTests(unittest.TestCase):
+    """#566: a loopback endpoint must be the media service before it is used.
+
+    The harness UI and the media service both defaulted to 127.0.0.1:8765, so a
+    loopback endpoint can be the wrong service. The guard is one credential-free
+    read-only probe: no media operation and no token before it passes.
+    """
+
+    BASE = "http://127.0.0.1:8765"
+
+    def _adapter(self, responses, token="owner-secret"):
+        opener = _fake_opener(responses)
+        adapter = MediaAdapter(base_url=self.BASE, token=token, opener=opener)
+        return adapter, opener
+
+    def test_a_harness_ui_at_the_endpoint_raises_mismatch_before_any_token(self):
+        ui = _FakeResponse({"error": "not found"}, headers={
+            "Server": "harness-ui/1.4.0 Python/3.11",
+        })
+        adapter, opener = self._adapter([ui])
+        with self.assertRaises(MediaEndpointMismatch) as raised:
+            adapter.image("a cabin")
+        message = str(raised.exception)
+        self.assertIn("media service", message)
+        self.assertIn(self.BASE, message)
+        self.assertIn("MEDIA_BASE_URL", message)
+        self.assertEqual(opener.calls, [("GET", self.BASE + "/v1/balance")])
+        self.assertFalse(any("owner-secret" in str(h) for h in opener.headers))
+
+    def test_an_identified_ui_without_a_server_header_is_still_caught(self):
+        ui = _FakeResponse({"error": "not found"}, headers={
+            "X-Harness-Commit": "abc123",
+        })
+        adapter, opener = self._adapter([ui])
+        with self.assertRaises(MediaEndpointMismatch):
+            adapter.image("a cabin")
+        self.assertEqual(len(opener.calls), 1)
+
+    def test_a_bare_401_without_identity_is_unidentified_not_a_ui(self):
+        challenge = urllib.error.HTTPError(
+            url=self.BASE, code=401, msg="unauthorized", hdrs=None,
+            fp=io.BytesIO(b""))
+        adapter, opener = self._adapter([challenge])
+        with self.assertRaises(MediaUnavailable) as raised:
+            adapter.image("a cabin")
+        message = str(raised.exception)
+        self.assertNotIsInstance(raised.exception, MediaEndpointMismatch)
+        self.assertIn("did not identify", message)
+        self.assertIn("no token was sent", message)
+        self.assertEqual(len(opener.calls), 1)
+
+    def test_a_media_identity_answer_lets_the_operation_through(self):
+        balance = _FakeResponse({"balance": 4.0, "currency": "USD"})
+        job = {"id": "job-1", "status": "succeeded", "kind": "image"}
+        adapter, opener = self._adapter([balance, job])
+        result = adapter.image("a cabin", wait=False)
+        self.assertEqual(result["status"], "succeeded")
+        self.assertEqual(opener.calls, [
+            ("GET", self.BASE + "/v1/balance"),
+            ("POST", self.BASE + "/v1/jobs"),
+        ])
+        # The probe is credential-free; the operation carries the token.
+        self.assertFalse(any("owner-secret" in str(h) for h in opener.headers[:1]))
+        self.assertTrue(any("owner-secret" in str(h) for h in opener.headers[1:]))
+
+    def test_the_media_credential_challenge_is_recognized(self):
+        challenge = _http_error(401, {"error": "sign in required"})
+        job = {"id": "job-2", "status": "succeeded", "kind": "image"}
+        adapter, opener = self._adapter([challenge, job])
+        self.assertEqual(adapter.image("x", wait=False)["status"], "succeeded")
+        self.assertEqual(len(opener.calls), 2)
+
+    def test_an_unreachable_endpoint_still_says_how_to_start_it(self):
+        adapter, opener = self._adapter([urllib.error.URLError("refused")])
+        with self.assertRaises(MediaUnavailable) as raised:
+            adapter.image("a cabin")
+        self.assertIn("media serve", str(raised.exception))
+        self.assertEqual(len(opener.calls), 1)
+
+    def test_the_probe_runs_once_per_adapter(self):
+        balance = _FakeResponse({"balance": 1.0})
+        first = {"id": "a", "status": "succeeded", "kind": "image"}
+        second = {"id": "b", "status": "succeeded", "kind": "image"}
+        adapter, opener = self._adapter([balance, first, second])
+        adapter.image("one", wait=False)
+        adapter.image("two", wait=False)
+        probes = [c for c in opener.calls if c[1].endswith("/v1/balance")]
+        self.assertEqual(len(probes), 1)
+
+    def test_a_remote_endpoint_is_operator_declared_and_not_probed(self):
+        job = {"id": "job-3", "status": "succeeded", "kind": "image"}
+        opener = _fake_opener([job])
+        adapter = MediaAdapter(base_url="http://media.local", opener=opener)
+        self.assertEqual(adapter.image("x", wait=False)["status"], "succeeded")
+        self.assertEqual(opener.calls, [("POST", "http://media.local/v1/jobs")])
+
+    def test_the_identification_table_covers_every_answer_shape(self):
+        cases = [
+            ({"Server": "harness-ui/0.1 Python/3.9"}, b'{"error": "x"}',
+             "harness-ui"),
+            ({"X-Harness-Version": "0.5.0"}, b"", "harness-ui"),
+            ({}, b"<html>Harness UI</html>", "harness-ui"),
+            ({}, b'{"balance": 2.0}', "media"),
+            ({}, b'[{"jobs": 1}]', "media"),
+            (None, '{"detail": "sign in"}', "media"),
+            ({}, b"[]", "unknown"),
+            ({}, b"3", "unknown"),
+            ({}, b'{"unrelated": 1}', "unknown"),
+            ({}, b"not json", "unknown"),
+            (object(), b'{"balance": 1}', "media"),
+        ]
+        for headers, body, expected in cases:
+            with self.subTest(headers=headers, body=body):
+                self.assertEqual(identify_service(headers, body), expected)
+
+    def test_a_malformed_base_url_is_not_treated_as_loopback(self):
+        # An unparsable URL must not be probed as if it were local.
+        self.assertFalse(is_loopback("http://[::1"))
+        self.assertTrue(is_loopback("http://localhost:8765"))
+        self.assertFalse(is_loopback("http://media.example:8765"))
+
+    def test_the_defaults_keep_the_ui_off_the_media_port(self):
+        import inspect
+        from harness import server as server_module
+        self.assertEqual(
+            inspect.signature(server_module.make_server)
+            .parameters["port"].default, 8767)
+        self.assertIn("8765", DEFAULT_BASE)
 
 if __name__ == "__main__":
     unittest.main()
