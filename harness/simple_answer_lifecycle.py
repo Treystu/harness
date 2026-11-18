@@ -4,6 +4,11 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, Optional
 
+from .answer_plot_consistency import (
+    check_answer_plot_consistency,
+    revision_prompt as plot_revision_prompt,
+    withhold_script,
+)
 from .chat_policy import is_research_question, research_detour_blocked
 from .chat import governed_completion
 from .config import effective_lane_policy
@@ -461,6 +466,69 @@ class SimpleAnswerLifecycleMixin:
             else:
                 completion = None
 
+            # #568: hold the candidate before delivery. A delivered plotting
+            # script is checked statically against the request, its own panel
+            # titles and its prose -- nothing is executed. One revision is
+            # allowed while budget remains; a script that still contradicts
+            # is withheld and the user is told which claim did not verify.
+            plot_review = None
+            plot_report = check_answer_plot_consistency(effective_prompt, answer)
+            if plot_report.script_found:
+                plot_review = {
+                    "checked": True, "revisions": 0,
+                    "findings": [item.as_dict()
+                                 for item in plot_report.findings],
+                    "withheld": False,
+                }
+                if not plot_report.ok:
+                    revised = None
+                    if not pending_review and time.monotonic() < deadline:
+                        with cancellation_context(combined_cancel):
+                            try:
+                                revision = self.lifecycle.provider_call(
+                                    lifecycle_state,
+                                    lifecycle_state["request_id"]
+                                    + ":simple-plot-revision",
+                                    lambda: governed_completion(
+                                        self.transport, api_key, gov, model,
+                                        plot_revision_prompt(
+                                            effective_prompt, answer,
+                                            plot_report.findings),
+                                        allocated, label="simple-answer",
+                                        reasoning_effort=lane_effort,
+                                        preserve_billed_overrun=True,
+                                        groq_key=getattr(
+                                            self.settings, "groq_key", None),
+                                        cerebras_key=getattr(
+                                            self.settings, "cerebras_key", None)),
+                                    cost=lambda value: float(
+                                        value.get("cost") or 0.0),
+                                    retry_unknown=True)
+                                revised = str(revision["content"]).strip()
+                                revision_cost = float(
+                                    revision.get("cost") or 0.0)
+                                known_cost_total += revision_cost
+                                generation_cost += revision_cost
+                                generation_attempts += 1
+                            except (HarnessError, ProviderUsageUnknown):
+                                revised = None
+                    if revised is not None:
+                        recheck = check_answer_plot_consistency(
+                            effective_prompt, revised)
+                        plot_review["revisions"] = 1
+                        plot_review["findings"] = [item.as_dict()
+                                                   for item in recheck.findings]
+                        if recheck.ok:
+                            answer = revised
+                        else:
+                            answer = withhold_script(
+                                revised, recheck.findings)
+                            plot_review["withheld"] = True
+                    else:
+                        answer = withhold_script(
+                            answer, plot_report.findings)
+                        plot_review["withheld"] = True
+
             post = None
             post_cost = 0.0
             post_skipped = None
@@ -542,6 +610,8 @@ class SimpleAnswerLifecycleMixin:
                        if effective_prompt != prompt else {}),
                     **({"budget_overrun": budget_overrun}
                        if budget_overrun else {}),
+                    **({"plot_consistency": plot_review}
+                       if plot_review else {}),
                 },
                 **({"defer_reason": refusal,
                     "next_step": "review the refusal or clarify the request"}
