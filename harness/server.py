@@ -53,6 +53,7 @@ from .history import delete_chat_session, list_chat_sessions, load_chat_history 
 from .session import (apply_session, governor_for, ledger_for, run_meta)
 from .workspace import require_workspace, resolve_workspace_path
 from .ui_auth import load_or_create_ui_token, write_ui_handoff
+from .state_report import BackendMonitor
 
 # Single-owner delegation with patch-propagation: tests patch server.get_default_history_dir,
 # so wrappers temporarily install that patched function into harness.history before delegating.
@@ -107,6 +108,13 @@ SITE_TYPES = {
     ".svg": "image/svg+xml",
 }
 MAX_EVENT_BUFFER = 4000
+
+
+def _default_backend_probe():
+    """The doctor's MCP stdio check is *the* backend reachability check."""
+    from .doctor import check_mcp_stdio
+
+    return check_mcp_stdio
 
 # Rankings reports (advisory, read-only mirror): the `harness rankings`
 # output layout -- rankings/rankings-YYYY-MM-DD.json -- the same files the
@@ -1828,6 +1836,8 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         try:
             if path == "/api/status":
                 return self._api_status()
+            if path == "/api/diagnostics":
+                return self._api_diagnostics()
             if path == "/api/trust":
                 return self._api_trust(q)
             if path == "/api/runs":
@@ -2073,12 +2083,35 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     # -- api ----------------------------------------------------------------
+    def _state_report(self):
+        """The three answers, kept apart (#419): local, backend, requests.
+
+        ``status=ok`` used to stand in for all three. Here each one answers for
+        itself, and the request component refuses to infer a fate the backend
+        could not confirm.
+        """
+        from .state_report import local_component, report_requests
+
+        ident = getattr(self.server, "identity", None) or {}
+        monitor = getattr(self.ui, "backend_monitor", None)
+        backend = monitor.component() if monitor is not None else {
+            "state": "unknown", "endpoint": None, "checked_at": None,
+            "last_ok_at": None,
+            "error": "no backend probe is configured for this process",
+            "next_action": "",
+        }
+        return {"local": local_component(ident, self.ui.started_at),
+                "backend": backend,
+                "requests": report_requests(self.ui.recovered_requests(),
+                                            backend)}
+
     def _api_status(self):
         with self.ui.lock:
             live = [self.ui.run_public(r) for r in self.ui.runs.values()]
         live.sort(key=lambda r: r["created_at"], reverse=True)
         recovered = self.ui.recovered_requests()
         ident = getattr(self.server, "identity", None) or serve_identity()
+        report = self._state_report()
         self._send_json({
             "status": "ok", "started_at": self.ui.started_at,
             "auth_required": bool(self.ui.auth_token or self.ui.owner_token),
@@ -2088,7 +2121,21 @@ class UiRequestHandler(BaseHTTPRequestHandler):
             "run_count": len(live), "recovered_count": len(recovered),
             "runs": live[:50], "recovered": recovered[:20],
             "version": ident["version"], "commit": ident["commit"],
+            # #419: the single verdict above stays for compatibility; each
+            # question now carries its own answer.
+            "local": report["local"], "backend": report["backend"],
+            "requests": report["requests"],
         })
+
+    def _api_diagnostics(self):
+        """Copyable diagnostic summary: endpoints, timestamps, no credentials."""
+        from .state_report import diagnostics_text
+
+        report = self._state_report()
+        payload = dict(report)
+        payload["text"] = diagnostics_text(
+            report, secrets=(self.ui.auth_token, self.ui.owner_token))
+        self._send_json(payload)
 
     def _api_trust(self, q):
         """Read-only trust snapshot (CLI `trust` parity): no key, no network,
@@ -2631,11 +2678,14 @@ _DEFAULT_OWNER_TOKEN = object()
 def make_server(host="127.0.0.1", port=8767,
                 auth_token=_DEFAULT_AUTH_TOKEN,
                 owner_token=_DEFAULT_OWNER_TOKEN, log_path=None,
-                history_dir=None):
+                history_dir=None, backend_probe=None,
+                backend_probe_ttl=30.0):
     """Build the UI server with its UiState attached.
 
     ``log_path`` gives this process its own request log (#574); the marker is
     written after the bind so it names the port actually served.
+    ``backend_probe`` is the callable that answers "is the configured MCP
+    backend reachable?"; production uses the same check the doctor runs (#419).
     ``history_dir`` is where the durable request checkpoints live; restart
     recovery (#418) lists them so a request that outlived its process is not
     reported as if it never existed.
@@ -2646,6 +2696,12 @@ def make_server(host="127.0.0.1", port=8767,
         owner_token = auth_token
     ui = UiState(auth_token=auth_token, owner_token=owner_token,
                  history_dir=history_dir)
+    # #419: the backend question is asked through a probe seam -- injected by
+    # tests, defaulted to the doctor's own stdio check in production.
+    ui.backend_monitor = BackendMonitor(
+        probe=backend_probe or _default_backend_probe(),
+        ttl_seconds=backend_probe_ttl,
+        secrets=(ui.auth_token, ui.owner_token))
     httpd = UiServer((host, port), UiRequestHandler)
     httpd.daemon_threads = True
     httpd.ui = ui

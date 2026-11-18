@@ -307,6 +307,7 @@ cheap; losing either is not.
 | `harness/simple_answer_lifecycle.py` | bounded no-tool answer lane with candidate reuse and usage accounting |
 | `harness/answer_plot_consistency.py` | static claim-vs-script check for a delivered plotting answer (#568) |
 | `harness/run_recovery.py` | read-only restart recovery over durable lifecycle checkpoints (#418) |
+| `harness/state_report.py` | local health, backend reachability and request state reported apart, with credential-free diagnostics (#419) |
 | `harness/edit_lifecycle.py` | auto-edit planning, preview/approval, execution receipts, and verification adapter |
 | `harness/task_lifecycle.py` | audit, driver, and provisioning adapters for shared Jev review and resumable task state |
 | `harness/apply_gate.py` | one candidate-to-gate transaction: write, verify, preview, rewind, and terminal gate results |
