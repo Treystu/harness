@@ -259,6 +259,88 @@ close.
 
 <!-- END REGISTER_MIRROR -->
 
+## Canonical burndown register - 2026-11-18 (#295, sergeant filing)
+
+**Census (two-method, base `main` `699f677b`):** live API `gh issue list --state open` = **44** open; roadmap REGISTER_MIRROR above is stale (60 at base `8ae3346`, 2026-11-17). Every open issue appears exactly once below with class, lane, order, dependencies, and close test. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
+
+Open set (44): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 311, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 407, 412, 413, 414, 415, 419, 422, 452, 466, 467, 468, 469, 471, 472, 473, 474, 475, 476, 480, 482, 517, 567.
+
+### Train (sergeant, serial, exact green heads)
+
+| Issue | Class | Lane | State 2026-11-18 | Close test |
+| --- | --- | --- | --- | --- |
+| #419 [desktop] separate local/backend/request state | defect | sergeant/train | CAR 1 LANDED as `699f677b`; post-merge pipeline PENDING (WAIT) | post-merge 15/15 incl audit at `699f677b` green, then close |
+| #407 [visibility-site] opt-in worldwide model statistics | defect (ruling 6971448099) | sergeant/train | CAR 2: PR #619 head `9a0ceeae` rail 15/15 incl audit, BEHIND `699f677b`, routed to W1 for rebase | merge at rebased green head + post-merge green, then close |
+| #311 [local-fit] optional train/export path in CI | defect | sergeant/train | CAR 3: PR #620 head `b67967b8` rail 16/16 incl audit + local-fit leg, BEHIND | merge at rebased green head + post-merge green, then close |
+| (no issue) W2 intake rows | routing | sergeant/train | CAR 4: PR #621 head `8893d20f` rail 15/15 incl audit, BEHIND | merge at rebased green head; no issue closes |
+
+### W1 - defects + Cluster E finite deliverables (sergeant assigns, W1 cures within one pass)
+
+| Issue | Class | Order | Dependencies | Close test |
+| --- | --- | --- | --- | --- |
+| #308 waist/policy split | deliverable | W1 early | none | PR landed green + audit |
+| #309 domain evaluators vs shared dispatch | deliverable | W1 early | none | PR landed green + audit |
+| #310 provision trust-boundary split | deliverable | W1 early | none | PR landed green + audit |
+| #337 criteria-prompt library | deliverable | W1 | none | PR landed green + audit |
+| #343 web unrelated-hit rejection | defect | W1 | none | PR landed green + audit |
+| #344 web lifecycle binding | defect | W1 | none | PR landed green + audit |
+| #342 ResearchPlan + native Jev review | deliverable | W1 | none | PR landed green + audit |
+| #313 Mercury-3 diffusion LLM eval | deliverable | W1 | none | eval receipt filed, PR green |
+| #318 continuous self-improving selection | deliverable | W1 | #313 | PR landed green + audit |
+| #319 model intake pipeline | deliverable | W1 | none | PR landed green + audit |
+| #280 calibration first-rung + rotation | deliverable | W1 | none | rounds evidence + PR green |
+| #281 Proof Bench evidence | deliverable | W1 | none | bench evidence + PR green |
+| #289 uv migration | deliverable | W1 | none (gated: uv CI green first; old requirements stay) | uv CI green + PR green |
+| #277 dogfood round 2 | deliverable | W1 | none | filed report + PR green |
+| #517 Fusion Light protocol | deliverable | W1 | none (owns the protocol) | PR landed green + audit |
+| #380 Fusion Lite backend contract | deliverable | W1 | DISTINCT from #517 (record 6971094539) | contract + PR green |
+| #381 calibration | deliverable | W1 | after #380/#517; must name version calibrated | calibration receipt + PR green |
+| #382 session-start picker | tracking-low | W1 | none | PR landed green + audit |
+| #314 offline judge modules | deliverable | W1 | keeps its home (record 6971094066) | PR landed green + audit |
+| #291 Phase 0 pilot 20 cycles | deliverable | W1 | TIER 2 only, no auto-merge | 20-cycle receipt + PR green |
+
+### W2 - verification + Champion program (frozen order, #476 first)
+
+| Issue | Class | Order | Dependencies | Close test |
+| --- | --- | --- | --- | --- |
+| #422 citation verification | verification | W2 first | none | verify at current main; close on receipt or file defect found |
+| #567 session-log audit | verification | W2 | none | verify at current main; close on receipt or file defect found |
+| #413 loopback round-trip | verification | W2 | none | verify at current main; close on receipt or file defect found |
+| #414 MCP runtime identity | verification | W2 | none | verify at current main; close on receipt or file defect found |
+| #412 first-use auth handoff | verification | W2 | steps 1-3 PASS; steps 4-7 PARKED owner-access | steps 1-3 receipt; parked tail batches to owner |
+| #415 GUI live approvals | verification | W2 | PARKED spend word; bounded run AUTHORISED 6987304481, runs filed | verification receipt; owner tail parked |
+| #476 spend ceilings/terminal reserve | champion-brief | Champion 1st | billing reconciliation runs FIRST for dollar ship rules; 6 test-only helpers out of prod | filed measurement program executed, verdict vs frozen ship rule |
+| #474 panel convergence tally | champion-brief | Champion 2nd | dissent definition freezes here | same as above |
+| #468 V1 assessment gate | champion-brief | Champion 3rd | after #474 | same as above |
+| #475 retry/circuit breaking | champion-brief | Champion 4th | after #474 | same as above |
+| #469 flush-loop stop bar | champion-brief | Champion 5th | none | same as above |
+| #471 rung mapping | champion-brief | Champion 6th | none | same as above |
+| #472 capability pool ordering | champion-brief | Champion 7th | after #474 | same as above |
+| #473 router dynamic ranking | champion-brief | Champion 8th | after #472 | same as above |
+| #467 decision-gate composition | champion-brief | Champion LAST | needs #588 receipts flowing | same as above |
+| #466 Champion tracker | tracker | closes when every brief closes | all briefs above | all briefs verdict-recorded |
+
+### W3 - parked (owner-present tails; sergeant routes nothing until owner session)
+
+| Issue | Class | Note | Close test |
+| --- | --- | --- | --- |
+| #480 perception bridge | parked-tail | probe 1 live_capture PARKED owner-present | supervised run passes in owner session |
+| #482 launch_app action | parked-tail | cold launch PARKED owner-present; closure packet filed | sergeant accepts packet or supervised run passes |
+| #452 vision driver readiness | parked-tail | supervised readiness run incl Test 0 PARKED owner-present | run passes, then close |
+
+### Tracker / blocked
+
+| Issue | Class | Note | Close test |
+| --- | --- | --- | --- |
+| #294 provider-onboarding completion | blocked | blockers per record 6971095413; parked with named unblockers, counted every census | unblockers cleared + final Jev gate >= 0.90 |
+| #295 burndown tracker | tracker | closes LAST at Phase 2 (two consecutive independent full-census clean passes on unchanged candidate) | zero open obligations + verification passes |
+
+### SELF-IMPROVE (owed roadmap row, Phase 3)
+
+| ID | Work | Close test |
+| --- | --- | --- |
+| SELF-IMPROVE | RSI adoption package (ledger dispatch/harness/selfimprove-plan/ PLAN.md + ALIGNMENT.md, pointer 6971676234): bars, epoch machinery, exit rule (two consecutive fully-green cold epochs; merges stay with outside human seat; full five-class spec from first epoch, partial = zero credit) + Jev vision aspects enumerated with evidence, readied for verification | verification-ready state; adoption/launch remain separate gated acts |
+
 <!-- BEGIN ISSUE295_IMPLEMENTATION_PLAN -->
 ## Implementation preparation - 2026-10-22 (#295)
 
