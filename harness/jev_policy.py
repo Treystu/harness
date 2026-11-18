@@ -3548,8 +3548,23 @@ class JevPolicy:
             return all(float(s) >= 9.5 for s in scores)
 
         def fallback_judgment(reasons, *, model=None, cost=0.0, input_tokens=0,
-                              output_tokens=0, reservation=None, reason=None):
+                              output_tokens=0, reservation=None, reason=None,
+                              declared=None):
             dim_results = heuristic_audit_dimensions(dimension_evidence, pack_doc)
+            if declared:
+                # A whole-call fallback must not erase a claim Jev did make: a
+                # dimension whose declared level was too uncertain to act on
+                # keeps that level and its probability on the receipt, exactly
+                # as the live path records them (#585). Both mappings come from
+                # the same pack, so the heuristic carries every id named here;
+                # an unmatched answer declared no level and gains no key.
+                for dim, entry in declared.items():
+                    level = entry.get("live_level")
+                    if level is None:
+                        continue
+                    dim_results[dim]["live_level"] = level
+                    claim = entry["live_level_confidence"]
+                    dim_results[dim]["live_level_confidence"] = claim
             scores = {dim: d.get("score") for dim, d in dim_results.items()}
             evaluated_scores = [s for s in scores.values() if s is not None]
             passed = bar_pass(dim_results)
@@ -3680,7 +3695,8 @@ class JevPolicy:
                 input_tokens=int(result.input_tokens or 0),
                 output_tokens=int(result.output_tokens or 0),
                 reservation=reservation,
-                reason=self._fallback_reason_of(result, "no_declared_axes"))
+                reason=self._fallback_reason_of(result, "no_declared_axes"),
+                declared=dim_results)
 
         self._account(result, site=site, task_id=task_id, reservation=reservation)
         scores = {dim: d.get("score") for dim, d in dim_results.items()}

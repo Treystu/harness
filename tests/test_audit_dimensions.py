@@ -577,12 +577,87 @@ class EvaluateAuditDimensionsKeyedTests(unittest.TestCase):
         result = policy.evaluate_audit_dimensions(self._full_evidence(score=10.0))
 
         self.assertTrue(result["is_fallback"])
+        # An unmatched answer declared no level at all, so there is nothing to
+        # retain: the receipt must not invent a live claim (#585).
+        for dim in ("A", "R", "SM", "SD"):
+            self.assertIsNone(result["dimensions"][dim].get("live_level"))
+            self.assertIsNone(
+                result["dimensions"][dim].get("live_level_confidence"))
         # governor reservation still settled exactly once
         self.assertEqual(len(gov.reserved), 1)
         self.assertEqual(len(gov.reconciled), 1)
         events = [e for e in self.ledger.entries() if e["event"] == "jev_eval"]
         self.assertEqual(len(events), 1)
         self.assertTrue(events[0]["is_fallback"])
+
+    def test_all_dims_below_min_confidence_keeps_the_declared_claims(self):
+        """Every declared level is too uncertain to act on, so the call is a
+        whole-call fallback -- but the levels Jev did declare and their
+        probabilities stay on the receipt instead of being discarded (#585)."""
+        levels = self.levels
+
+        def uncertain(chosen_idx, prob=0.59):
+            legend = {str(i): levels[i] for i in range(len(levels))}
+            rest = round((1.0 - prob) / (len(levels) - 1), 6)
+            probs = {str(i): (prob if i == chosen_idx else rest)
+                     for i in range(len(levels))}
+            probs["0"] = round(probs["0"] + (1.0 - sum(probs.values())), 6)
+            return {"type": "score", "score": float(chosen_idx),
+                    "legend": legend, "probabilities": probs,
+                    "confidence": 0.59}
+
+        answers = {f"dim_{dim}": uncertain(0)
+                   for dim in ("A", "R", "SM", "SD")}
+        transport = _JevTransport({
+            "model": "jev-test", "answers": answers,
+            "usage": {"input_tokens": 150, "output_tokens": 20},
+        })
+        gov = _CountingGovernor()
+        policy = policy_for(_keyed_settings(), transport=transport, governor=gov,
+                            ledger=self.ledger)
+        result = policy.evaluate_audit_dimensions(self._full_evidence(score=10.0))
+
+        self.assertTrue(result["is_fallback"])
+        for dim in ("A", "R", "SM", "SD"):
+            d = result["dimensions"][dim]
+            # the uncertain claim Jev did make survives the fallback
+            self.assertEqual(d["live_level"], levels[0])
+            self.assertAlmostEqual(d["live_level_confidence"], 0.59, places=3)
+            # and the level actually acted on is the evidence-calibrated one
+            self.assertEqual(d["level_index"], 4)
+            self.assertEqual(d["source"], "heuristic")
+        events = [e for e in self.ledger.entries() if e["event"] == "jev_eval"]
+        self.assertEqual(len(events), 1)
+        self.assertTrue(events[0]["is_fallback"])
+
+    def test_partial_evidence_low_confidence_keeps_only_declared_dims(self):
+        """The merge walks every dimension the live loop built; a dimension
+        this run never evaluated carries no claim and gains no key (#585)."""
+        levels = self.levels
+        legend = {str(i): levels[i] for i in range(len(levels))}
+        probs = {str(i): (0.59 if i == 0 else 0.1025)
+                 for i in range(len(levels))}
+        answers = {f"dim_{dim}": {"type": "score", "score": 0.0,
+                                  "legend": legend, "probabilities": probs,
+                                  "confidence": 0.59}
+                   for dim in ("A", "R", "SM", "SD")}
+        transport = _JevTransport({
+            "model": "jev-test", "answers": answers,
+            "usage": {"input_tokens": 150, "output_tokens": 20},
+        })
+        gov = _CountingGovernor()
+        policy = policy_for(_keyed_settings(), transport=transport, governor=gov,
+                            ledger=self.ledger)
+        result = policy.evaluate_audit_dimensions({"A": {"score": 10.0}})
+
+        self.assertTrue(result["is_fallback"])
+        self.assertEqual(result["dimensions"]["A"]["live_level"], levels[0])
+        self.assertAlmostEqual(
+            result["dimensions"]["A"]["live_level_confidence"], 0.59, places=3)
+        for dim in ("R", "SM", "SD"):
+            self.assertEqual(result["dimensions"][dim]["level"],
+                             "not_evaluated")
+            self.assertIsNone(result["dimensions"][dim].get("live_level"))
 
     def test_transport_harness_error_falls_back_and_reservation_settled(self):
         class _BoomEvaluator:
