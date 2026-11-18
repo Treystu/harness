@@ -1248,9 +1248,10 @@ class UiState:
     PAIR_CODE_TTL = 300
     PAIR_ATTEMPTS_PER_MINUTE = 10
 
-    def __init__(self, auth_token=None, owner_token=None):
+    def __init__(self, auth_token=None, owner_token=None, history_dir=None):
         self.lock = threading.Lock()
         self.runs = {}
+        self.history_dir = history_dir
         self.events = deque(maxlen=MAX_EVENT_BUFFER)
         self.last_seq = 0
         self.auth_token = auth_token or None
@@ -1405,6 +1406,22 @@ class UiState:
         if with_result:
             out["result"] = record.get("result")
         return out
+
+    # -- restart recovery (#418) -----------------------------------------
+    def recovered_requests(self):
+        """Requests left by a previous process, read fresh on every call.
+
+        Read-only by construction: discovery never dispatches, resumes or
+        spends, so a restart cannot duplicate a provider call or a side
+        effect. The in-memory registry is empty after a restart; this is
+        what stops the listing from pretending the work never existed.
+        """
+        from .run_recovery import discover_requests
+
+        try:
+            return discover_requests(self.history_dir)
+        except (OSError, HarnessError):
+            return []
 
 
 def _settings_view():
@@ -2058,13 +2075,18 @@ class UiRequestHandler(BaseHTTPRequestHandler):
     # -- api ----------------------------------------------------------------
     def _api_status(self):
         with self.ui.lock:
-            runs = [self.ui.run_public(r) for r in self.ui.runs.values()]
-        runs.sort(key=lambda r: r["created_at"], reverse=True)
+            live = [self.ui.run_public(r) for r in self.ui.runs.values()]
+        live.sort(key=lambda r: r["created_at"], reverse=True)
+        recovered = self.ui.recovered_requests()
         ident = getattr(self.server, "identity", None) or serve_identity()
         self._send_json({
             "status": "ok", "started_at": self.ui.started_at,
             "auth_required": bool(self.ui.auth_token or self.ui.owner_token),
-            "events_buffered": len(self.ui.events), "runs": runs[:50],
+            "events_buffered": len(self.ui.events),
+            # Live and recovered counts stay separate: `status=ok` describes
+            # this process, never the fate of work it did not run (#418).
+            "run_count": len(live), "recovered_count": len(recovered),
+            "runs": live[:50], "recovered": recovered[:20],
             "version": ident["version"], "commit": ident["commit"],
         })
 
@@ -2085,8 +2107,17 @@ class UiRequestHandler(BaseHTTPRequestHandler):
     def _api_runs(self):
         with self.ui.lock:
             runs = [self.ui.run_public(r) for r in self.ui.runs.values()]
-        runs.sort(key=lambda r: r["created_at"], reverse=True)
-        self._send_json({"runs": runs})
+        recovered = self.ui.recovered_requests()
+        # One listing, both origins: a browser reconnect must be able to see
+        # the request that was running when the process died (#418), not an
+        # empty list that reads as "nothing ever ran".
+        runs.extend(recovered)
+        runs.sort(key=lambda r: r.get("created_at") or 0.0, reverse=True)
+        self._send_json({
+            "runs": runs, "recovered": recovered,
+            "run_count": len(self.ui.runs),
+            "recovered_count": len(recovered),
+        })
 
     def _api_events(self, q):
         """The global event stream (after = last seen seq). The dashboard
@@ -2104,7 +2135,22 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         with self.ui.lock:
             record = self.ui.runs.get(run_id)
         if record is None:
-            return self._error(404, f"no such run: {run_id}")
+            # A recovered run id is served from the durable checkpoint so the
+            # prompt, stage and last state stay discoverable after a restart
+            # (#418). Its stream is empty on purpose: the process that held
+            # those events is gone, and inventing a history would be a lie.
+            recovered = next((item for item in self.ui.recovered_requests()
+                              if item.get("id") == run_id), None)
+            if recovered is None:
+                return self._error(404, f"no such run: {run_id}")
+            if sub == "result":
+                return self._send_json(recovered)
+            if sub == "events":
+                return self._send_json({"events": [], "last_seq": 0,
+                                        "recovered": True})
+            return self._error(
+                409, "a recovered request has no live owner to cancel; start "
+                     "a fresh consent-bound request from its preserved prompt")
         if sub == "result":
             return self._send_json(self.ui.run_public(record, with_result=True))
         if sub == "events":
@@ -2584,17 +2630,22 @@ _DEFAULT_OWNER_TOKEN = object()
 
 def make_server(host="127.0.0.1", port=8767,
                 auth_token=_DEFAULT_AUTH_TOKEN,
-                owner_token=_DEFAULT_OWNER_TOKEN, log_path=None):
+                owner_token=_DEFAULT_OWNER_TOKEN, log_path=None,
+                history_dir=None):
     """Build the UI server with its UiState attached.
 
     ``log_path`` gives this process its own request log (#574); the marker is
     written after the bind so it names the port actually served.
+    ``history_dir`` is where the durable request checkpoints live; restart
+    recovery (#418) lists them so a request that outlived its process is not
+    reported as if it never existed.
     """
     if auth_token is _DEFAULT_AUTH_TOKEN:
         auth_token = secrets.token_urlsafe(24)
     if owner_token is _DEFAULT_OWNER_TOKEN:
         owner_token = auth_token
-    ui = UiState(auth_token=auth_token, owner_token=owner_token)
+    ui = UiState(auth_token=auth_token, owner_token=owner_token,
+                 history_dir=history_dir)
     httpd = UiServer((host, port), UiRequestHandler)
     httpd.daemon_threads = True
     httpd.ui = ui

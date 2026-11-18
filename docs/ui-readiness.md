@@ -8,6 +8,34 @@ loopback port checklist (`harness serve` default `8767`, `harness desktop`
 default `8766`, `/api/status` `401` unauthenticated vs `200` authenticated), see
 [ui-acceptance.md](ui-acceptance.md).
 
+## Restart recovery (`#418`)
+
+A request that outlives its process is not lost, and it is not reported as if
+it never existed. `harness/run_recovery.py` reads the durable per-session
+lifecycle checkpoint (`<history>/chat_checkpoints/`) in a **fresh** process and
+classifies each request honestly:
+
+| State | Meaning | Resumable |
+|---|---|---|
+| `interrupted` | the checkpoint says running/deferred/cancelled, but the process that owned it is gone (`no live owner`) | yes, unless the candidate was refused -- then a fresh consent-bound request is required |
+| `completed` / `failed` | terminal checkpoint status | no |
+| `stale` | older than the 7-day retention window | no (kept as a tombstone) |
+| `unknown` | unreadable, unparsable or unrecognised state | no |
+
+Surfaces: `GET /api/runs` lists live and recovered requests in one list (each
+recovered entry carries `recovered: true`, `state`, `reason`, `prompt`,
+`stage`, `resumable`, `next_step`); `GET /api/status` reports `run_count` and
+`recovered_count` separately so `status=ok` never implies the fate of work this
+process did not run; `GET /api/runs/{id}/result` serves a recovered record and
+its events list is empty on purpose (that event history died with its
+process). Cancelling a recovered id returns `409` with the remedy.
+
+Discovery is read-only: nothing is replayed, resumed or spent on startup, so a
+restart cannot duplicate a provider call or a side effect. Preserved prompts
+are redacted (`sk-...`, bearer tokens, `token=`/`secret=` values, long hex
+blobs). Retention is **7 days** (`RECOVERY_RETENTION_SECONDS`); files are never
+deleted by this reader.
+
 ## Producers: the structured contracts a UI consumes
 
 | Contract | Owner | Shape notes |
