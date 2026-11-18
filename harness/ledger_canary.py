@@ -178,9 +178,27 @@ def evidence_rows(ledger) -> List[Dict[str, Any]]:
     verification, probe diagnostics and spend accounting keep full-ledger
     access and do not go through this reader.
     """
-    return [entry for entry in ledger.entries()
+    return [entry for entry in _rows_of(ledger)
             if entry.get("canary") is not True
             and entry.get("event") != CANARY_EVENT]
+
+
+def _rows_of(ledger) -> List[Dict[str, Any]]:
+    """Rows behind a ledger or analytics mixin, tolerating test doubles.
+
+    `AutonomyLedger` exposes `entries()`; the bare `LedgerAnalytics` mixin it
+    inherits carries the same rows in `_tail`. Anything else -- a mock in a
+    unit test that never configured the reader -- contributes no rows.
+    """
+    entries = getattr(ledger, "entries", None)
+    if callable(entries):
+        rows = entries()
+        if isinstance(rows, list):
+            return [row for row in rows if isinstance(row, dict)]
+    tail = getattr(ledger, "_tail", None)
+    if isinstance(tail, list):
+        return [row for row in tail if isinstance(row, dict)]
+    return []
 
 
 def canary_summary(ledger) -> Dict[str, Any]:

@@ -24,6 +24,7 @@ import os
 import time
 from dataclasses import dataclass, replace
 
+from .ledger_canary import evidence_rows
 from .config import (CAPABILITIES_PATH, CAPABILITIES_TTL,
                      is_fireworks_model_path, is_meta_model_id)
 from .output import eprint
@@ -330,8 +331,7 @@ def capability_fitness(profile, task="default", json_value=None):
 
 def _evidence_rows(ledger):
     """#336: observed inputs come from the shared reader, never canary probes."""
-    reader = getattr(ledger, "evidence_rows", None)
-    return reader() if reader is not None else list(ledger.entries())
+    return evidence_rows(ledger)
 
 
 def observed_json_reliability(ledger, model_id):

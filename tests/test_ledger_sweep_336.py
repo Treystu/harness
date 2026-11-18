@@ -63,7 +63,7 @@ class SweepFixture(unittest.TestCase):
             prev = row["hash"]
         for index in range(4):
             chunk = rows[index * 3:(index + 1) * 3]
-            name = self.path + ".2026090%dT000000.000001" % (index + 1)
+            name = self.path + ".2026090{}T000000.000001".format(index + 1)
             with open(name, "wb") as handle:
                 for row in chunk:
                     handle.write((_canon(row) + "\n").encode())
@@ -155,7 +155,7 @@ class EvidenceReaderRoutingTests(unittest.TestCase):
     def seed_canaries(self):
         """Twenty-five labelled canary rows, attractive to every consumer."""
         for index in range(5):
-            task = "canary-%d" % index
+            task = "canary-{}".format(index)
             self.ledger.append("offer", task_id=task, model="m2", canary=True)
             self.ledger.append("task_outcome", task_id=task, task_family="fam",
                                outcome=1.0, model="m2", canary=True)

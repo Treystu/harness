@@ -10,6 +10,7 @@ Implements the Harness2 pattern (NOT the dependency) natively:
 Canon: docs/jev-roadmap.md (REFINE-LOOP row). Issue: #239.
 """
 
+from .ledger_canary import evidence_rows
 import fnmatch
 import json
 import os
@@ -157,8 +158,7 @@ def record_task_outcome(ledger, task_id: str, family: str,
 
 def _evidence_rows(ledger):
     """#336: refinement learns from task evidence, not from canary probes."""
-    reader = getattr(ledger, "evidence_rows", None)
-    return reader() if reader is not None else list(ledger.entries())
+    return evidence_rows(ledger)
 
 
 def get_task_outcome(ledger, task_id: str) -> Optional[Dict[str, Any]]:

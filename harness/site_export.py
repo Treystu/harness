@@ -32,6 +32,7 @@ import os
 import re
 from datetime import datetime, timezone
 
+from .ledger_canary import evidence_rows
 from .errors import HarnessError
 
 BUNDLE_SCHEMA = "site-bundle-v1"
@@ -186,7 +187,7 @@ def verify_chain(path):
             f"refusing export (run 'harness ledger repair' or investigate)")
     chain = ledger.chain_status()
     # #336: the export claims evidence, so canary probes are not counted.
-    entries = len(ledger.evidence_rows())
+    entries = len(evidence_rows(ledger))
     if entries == 0:
         raise HarnessError("ledger contains no entries; nothing to export")
     return {"verified_claim": True, "head_hash": chain.get("head_hash") or "",
