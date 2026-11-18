@@ -465,7 +465,8 @@ def admissible_run(decision, *, cost, max_cost_per_gain, min_expected_gain=0.0):
 PHASES = ("survey", "build", "verify", "terminal")
 
 
-def phase_budget(phase, *, spent, total_budget, per_phase_cap):
+def phase_budget(phase, *, total_budget, per_phase_cap,
+                 phase_spent=0.0, mission_spent=0.0, spent=None):
     """How much the current phase may still spend, after L6's unlock.
 
     Freebuff maps effort to a time target and treats the target as a *target*,
@@ -475,23 +476,48 @@ def phase_budget(phase, *, spent, total_budget, per_phase_cap):
     left -- stopping there with budget unused and required work remaining is
     exactly the failure the dossier warns about.
 
+    Two numbers, because one cannot enforce two budgets (#579): ``phase_spent``
+    is what this phase has already spent, ``mission_spent`` is what every phase
+    so far has spent. A non-terminal phase is limited by ``per_phase_cap`` and
+    by the mission's remaining room; the terminal phase draws on that room
+    alone.
+
+    ``spent`` is the pre-#579 single number. It is read as **mission** spend --
+    the reading a caller naturally uses when it sits next to ``total_budget`` --
+    because reading it as phase spend refused a fresh phase before it started.
+    Passing ``spent`` together with either explicit number is refused rather
+    than resolved silently.
+
     Returns ``{"phase", "cap", "remaining", "unlocked"}``: the cap is the
     mission total in the terminal phase and the per-phase cap otherwise.
     """
     if phase not in PHASES:
         raise HulDecisionError(f"phase must be one of {list(PHASES)}, got {phase!r}")
-    for name, value in (("spent", spent), ("total_budget", total_budget),
+    if spent is not None:
+        if mission_spent or phase_spent:
+            raise HulDecisionError(
+                "phase_budget takes spent (mission spend) or phase_spent + "
+                "mission_spent, not both; one number cannot say which phase "
+                "it belongs to (#579)")
+        mission_spent = spent
+    for name, value in (("phase_spent", phase_spent),
+                        ("mission_spent", mission_spent),
+                        ("total_budget", total_budget),
                         ("per_phase_cap", per_phase_cap)):
         if not (_is_number(value) and float(value) >= 0):
             raise HulDecisionError(
                 f"{name} must be a non-negative number, got {value!r}")
-    spent = float(spent)
+    phase_spent = float(phase_spent)
+    mission = float(mission_spent)
     total = float(total_budget)
+    per_phase_cap = float(per_phase_cap)
     terminal = phase == "terminal"
-    ceiling = total if terminal else min(float(per_phase_cap), total)
-    remaining = max(0.0, ceiling - spent)
+    ceiling = total if terminal else min(per_phase_cap, total)
+    room = max(0.0, total - mission)
+    used_in_ceiling = 0.0 if terminal else phase_spent
+    remaining = max(0.0, min(ceiling - used_in_ceiling, room))
     return {"phase": phase, "cap": ceiling, "remaining": remaining,
-            "unlocked": terminal and ceiling > float(per_phase_cap)}
+            "unlocked": terminal and ceiling > per_phase_cap}
 
 
 # --- L11: the subagent boundary ---------------------------------------------
@@ -515,10 +541,14 @@ def subagent_scope(decision, *, may_read, may_write):
             "writable namespace; an empty boundary means 'reach anything'")
     if normalised["decision"] == "stop":
         return {"allowed": True, "reason": "stop_touches_nothing"}
-    raw = decision.get("input") if isinstance(decision, dict) else None
-    if isinstance(decision, str):
-        raw = json.loads(decision).get("input")
-    target = raw.get("skill") or raw.get("label") if isinstance(raw, dict) else None
+    # #579: read the boundary from the validated input, not from the raw
+    # payload -- the raw form is whatever the caller sent (a JSON string, a
+    # mapping with extra keys), so checking it accepted or refused namespaces
+    # the validated decision never carried.
+    scoped_input = normalised.get("input")
+    target = None
+    if isinstance(scoped_input, dict):
+        target = scoped_input.get("skill") or scoped_input.get("label")
     if target is not None and target not in write_scope:
         return {"allowed": False, "reason": "outside_write_scope",
                 "target": target, "may_write": sorted(write_scope)}

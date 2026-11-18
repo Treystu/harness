@@ -1528,6 +1528,15 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         # a client put in a URL, whatever the server does with it.
         line = _TOKEN_IN_LOG_RE.sub(r"\1REDACTED", format % args)
         sys.stderr.write(f"[ui] {line}\n")
+        # #574: the process owns its request log, so a probe that gets a 200
+        # always leaves a matching record on disk. The redacted line is the
+        # one that reaches the file; the file adds only a UTC stamp.
+        # A handler can be asked to log before it is attached to a server (a
+        # bare handler built for one message, as some tests do), so the server
+        # is looked up defensively rather than assumed.
+        log = getattr(getattr(self, "server", None), "serve_log", None)
+        if log is not None:
+            log.write(f"[ui] {line}")
 
     def log_error(self, format, *args):
         # Benign idle keep-alive socket timeouts on HTTP/1.1 connections should not spam logs
@@ -2503,10 +2512,16 @@ class UiServer(ThreadingHTTPServer):
     #: binds, and read by every handler through ``self.server.ui``.
     ui: "UiState"
 
+    #: Process-owned request log (#574). ``None`` when the caller gave no
+    #: path, which keeps in-process tests off the operator's disk.
+    serve_log = None
+
     def server_close(self):
         super().server_close()
         if hasattr(self, "ui") and self.ui:
             self.ui.uninstall_event_sink()
+        if self.serve_log is not None:
+            self.serve_log.close()
         flush_all_fallbacks()
 
 
@@ -2516,8 +2531,12 @@ _DEFAULT_OWNER_TOKEN = object()
 
 def make_server(host="127.0.0.1", port=8765,
                 auth_token=_DEFAULT_AUTH_TOKEN,
-                owner_token=_DEFAULT_OWNER_TOKEN):
-    """Build the UI server with its UiState attached."""
+                owner_token=_DEFAULT_OWNER_TOKEN, log_path=None):
+    """Build the UI server with its UiState attached.
+
+    ``log_path`` gives this process its own request log (#574); the marker is
+    written after the bind so it names the port actually served.
+    """
     if auth_token is _DEFAULT_AUTH_TOKEN:
         auth_token = secrets.token_urlsafe(24)
     if owner_token is _DEFAULT_OWNER_TOKEN:
@@ -2526,6 +2545,11 @@ def make_server(host="127.0.0.1", port=8765,
     httpd = UiServer((host, port), UiRequestHandler)
     httpd.daemon_threads = True
     httpd.ui = ui
+    if log_path:
+        from .serve_log import open_serve_log
+
+        httpd.serve_log = open_serve_log(log_path,
+                                         port=httpd.server_address[1])
     ui.install_event_sink()
     return httpd
 
@@ -2541,6 +2565,10 @@ def main(argv=None):
                     help="add a session token; the persistent owner shortcut remains valid")
     ap.add_argument("--open", action="store_true",
                     help="open the tokenized UI in the default browser")
+    ap.add_argument("--log-file", default=None,
+                    help="request log this process owns (default: "
+                         "~/.harness/logs/serve.log; the process writes its "
+                         "bufsize-free append record plus a startup marker)")
     opts = ap.parse_args(argv)
     if opts.host not in ("127.0.0.1", "localhost", "::1"):
         print("[FATAL] the UI server binds loopback only; pass 127.0.0.1, "
@@ -2553,8 +2581,11 @@ def main(argv=None):
               f"to start so recovery remains possible: {exc}", file=sys.stderr)
         sys.exit(1)
     auth_token = opts.auth_token or owner_token
+    from .serve_log import default_log_path
+
+    log_path = opts.log_file or default_log_path()
     httpd = make_server(opts.host, opts.port, auth_token=auth_token,
-                        owner_token=owner_token)
+                        owner_token=owner_token, log_path=log_path)
     host, port = httpd.server_address[:2]
     url = f"http://{host}:{port}/"
     try:
@@ -2569,6 +2600,8 @@ def main(argv=None):
           file=sys.stderr)
     print(f"[OK] user recovery shortcut saved at {shortcut}",
           file=sys.stderr)
+    if httpd.serve_log is not None:
+        print(f"[OK] request log: {httpd.serve_log.path}", file=sys.stderr)
     if opts.open:
         osal.open_url(url + "#" + owner_token)
     else:
