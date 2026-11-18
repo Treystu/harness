@@ -185,7 +185,8 @@ def verify_chain(path):
             f"ledger hash chain FAILED verification at seq {first_bad}; "
             f"refusing export (run 'harness ledger repair' or investigate)")
     chain = ledger.chain_status()
-    entries = len(ledger.entries())
+    # #336: the export claims evidence, so canary probes are not counted.
+    entries = len(ledger.evidence_rows())
     if entries == 0:
         raise HarnessError("ledger contains no entries; nothing to export")
     return {"verified_claim": True, "head_hash": chain.get("head_hash") or "",

@@ -328,11 +328,17 @@ def capability_fitness(profile, task="default", json_value=None):
 
 # ------------------------- observed layer -------------------------------------
 
+def _evidence_rows(ledger):
+    """#336: observed inputs come from the shared reader, never canary probes."""
+    reader = getattr(ledger, "evidence_rows", None)
+    return reader() if reader is not None else list(ledger.entries())
+
+
 def observed_json_reliability(ledger, model_id):
     """Observed structured-JSON emission rate from model_result events."""
     hits = 0
     total = 0
-    for e in ledger.entries():
+    for e in _evidence_rows(ledger):
         if e.get("event") == "model_result" and e.get("model") == model_id and e.get("json_expected"):
             total += 1
             if e.get("json_ok"):
@@ -359,7 +365,7 @@ def json_reliable(profile, ledger, model_id):
 
 
 def observed_samples(ledger, model_id):
-    return sum(1 for e in ledger.entries()
+    return sum(1 for e in _evidence_rows(ledger)
                if e.get("event") == "model_result" and e.get("model") == model_id
                and e.get("json_expected"))
 
@@ -1194,7 +1200,8 @@ def rotate_pool_by_streak(pool, scores_by_model=None, *, head_streak=0,
 def seat_share_report(ledger_or_entries, *, pool=None, window=50):
     """Compute per-model seat share over the last ``window`` task runs (EV-4)."""
     if hasattr(ledger_or_entries, "entries"):
-        entries = list(ledger_or_entries.entries())
+        # #336: seat share is a selection input, so it reads task evidence only.
+        entries = _evidence_rows(ledger_or_entries)
     else:
         entries = list(ledger_or_entries or [])
 

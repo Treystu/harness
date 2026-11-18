@@ -155,9 +155,15 @@ def record_task_outcome(ledger, task_id: str, family: str,
     )
 
 
+def _evidence_rows(ledger):
+    """#336: refinement learns from task evidence, not from canary probes."""
+    reader = getattr(ledger, "evidence_rows", None)
+    return reader() if reader is not None else list(ledger.entries())
+
+
 def get_task_outcome(ledger, task_id: str) -> Optional[Dict[str, Any]]:
     """Return the most recent task_outcome record for a task, or None."""
-    for entry in reversed(ledger.entries()):
+    for entry in reversed(_evidence_rows(ledger)):
         if entry.get("event") == "task_outcome" and entry.get("task_id") == task_id:
             return entry
     return None
@@ -168,7 +174,7 @@ def recent_outcomes(ledger, family: str, min_outcome: float = 0.0,
                     ) -> List[Dict[str, Any]]:
     """Recent task_outcome records for a family, newest first."""
     out = []
-    for entry in reversed(ledger.entries()):
+    for entry in reversed(_evidence_rows(ledger)):
         if entry.get("event") != "task_outcome":
             continue
         if entry.get("task_family") != family:

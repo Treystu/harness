@@ -564,6 +564,11 @@ def build_parser():
     _p = pls.add_parser("repair", help="truncate the ledger to its longest valid "
                                        "hash-chain prefix (drops forked/duplicate tail)")
     _add_output_flags(_p)
+    _p = pls.add_parser("sweep", help="run the daily compaction sweep now "
+                                      "(one sweep per UTC day; cron-able)")
+    _p.add_argument("--force", action="store_true",
+                    help="sweep even if today's sweep already ran")
+    _add_output_flags(_p)
 
     pm = sub.add_parser("models", help="List live free OpenRouter models (refreshed)")
     pm.add_argument("--limit", type=int, default=40)

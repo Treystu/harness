@@ -13,6 +13,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 from .trust import REFUSE_AT_OR_BELOW
+from .ledger_canary import evidence_rows as _evidence_rows
 
 def _as_tokens(value):
     """Non-negative int token count from a ledger field; junk reads as 0."""
@@ -56,7 +57,9 @@ class LedgerAnalytics:
             self._tail = list(entries)
 
     def participation_report(self):
-        events = self._tail
+        # #336: results aggregation counts task evidence only; canary probes
+        # (and any row carrying their flag) never reach this tally.
+        events = _evidence_rows(self)
         counts = dict.fromkeys([
             "offer", "consent_accept", "consent_decline", "consent_defer",
             "consent_redirect", "consent_renew_accept", "consent_renew_defer",
@@ -379,7 +382,8 @@ class LedgerAnalytics:
         ``task_id``. Read-only summary for operators — this never silently
         retunes thresholds; threshold freeze stays an operator action.
         """
-        events = list(self._tail)
+        # #336: the calibration join reads task evidence only.
+        events = _evidence_rows(self)
         jev_by_task = defaultdict(list)
         verify_by_task = defaultdict(list)
         site_counts = defaultdict(int)
