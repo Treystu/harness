@@ -351,10 +351,36 @@ class PhaseBudgetTests(unittest.TestCase):
 
     def test_non_terminal_phase_is_capped(self):
         from harness.hul_decision import phase_budget
-        out = phase_budget("build", spent=5, total_budget=100, per_phase_cap=20)
+        out = phase_budget("build", phase_spent=5, mission_spent=5,
+                           total_budget=100, per_phase_cap=20)
         self.assertEqual(out["cap"], 20.0)
         self.assertEqual(out["remaining"], 15.0)
         self.assertFalse(out["unlocked"])
+
+    def test_cumulative_spend_does_not_refuse_a_fresh_phase(self):
+        # #579 defect 1: `spent` read as phase spend refused build before it
+        # started. The single number means mission spend, so a fresh phase
+        # still has its whole cap.
+        from harness.hul_decision import phase_budget
+        out = phase_budget("build", spent=20, total_budget=100, per_phase_cap=20)
+        self.assertEqual(out["remaining"], 20.0)
+
+    def test_a_phase_cannot_exceed_the_mission_room(self):
+        # The other half of the same defect: phase spend alone hid earlier
+        # phases, so a phase could spend into a mission that was nearly gone.
+        from harness.hul_decision import phase_budget
+        out = phase_budget("build", phase_spent=0, mission_spent=95,
+                           total_budget=100, per_phase_cap=20)
+        self.assertEqual(out["remaining"], 5.0)
+
+    def test_one_number_and_two_numbers_together_are_refused(self):
+        from harness.hul_decision import HulDecisionError, phase_budget
+        with self.assertRaises(HulDecisionError):
+            phase_budget("build", spent=5, mission_spent=5,
+                         total_budget=100, per_phase_cap=20)
+        with self.assertRaises(HulDecisionError):
+            phase_budget("build", spent=5, phase_spent=5,
+                         total_budget=100, per_phase_cap=20)
 
     def test_terminal_phase_unlocks_the_remainder(self):
         from harness.hul_decision import phase_budget
@@ -365,7 +391,8 @@ class PhaseBudgetTests(unittest.TestCase):
 
     def test_exhausted_budget_reports_zero_not_negative(self):
         from harness.hul_decision import phase_budget
-        self.assertEqual(phase_budget("verify", spent=50, total_budget=100,
+        self.assertEqual(phase_budget("verify", phase_spent=50, mission_spent=50,
+                                      total_budget=100,
                                       per_phase_cap=20)["remaining"], 0.0)
 
     def test_unknown_phase_is_refused(self):
@@ -391,6 +418,26 @@ class SubagentBoundaryTests(unittest.TestCase):
                              may_read=["parser"], may_write=["parser"])
         self.assertFalse(out["allowed"])
         self.assertEqual(out["reason"], "outside_write_scope")
+
+    def test_scope_is_read_from_the_validated_input(self):
+        # #579 defect 2: the raw payload was checked, so a name the validator
+        # trims was compared untrimmed and refused as outside the boundary.
+        from harness.hul_decision import subagent_scope
+        out = subagent_scope({"decision": "run", "why": "w",
+                              "input": {"skill": " parser "}, "expectedGain": 1},
+                             may_read=["parser"], may_write=["parser"])
+        self.assertTrue(out["allowed"])
+        self.assertEqual(out["target"], "parser")
+
+    def test_a_json_string_decision_is_scoped_the_same_way(self):
+        from harness.hul_decision import subagent_scope
+        payload = json.dumps({"decision": "run", "why": "w",
+                              "input": {"label": " deploy ", "prompt": "p"},
+                              "expectedGain": 1})
+        refused = subagent_scope(payload, may_read=["parser"], may_write=["parser"])
+        self.assertFalse(refused["allowed"])
+        self.assertEqual(refused["reason"], "outside_write_scope")
+        self.assertEqual(refused["target"], "deploy")
 
     def test_empty_boundary_is_a_declaration_error(self):
         from harness.hul_decision import HulDecisionError, subagent_scope
