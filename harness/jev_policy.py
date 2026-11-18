@@ -9,6 +9,7 @@ here — still ONE policy owner, never a second Jev client.
 import atexit
 import difflib
 import os
+import sys
 import threading
 import weakref
 import time
@@ -355,6 +356,9 @@ class JevPolicy:
         self.transport = transport
         self.governor = governor
         self.ledger = ledger
+        # #588: a billed call with nowhere to write its receipt must be
+        # visible, not silent. One warning per policy, naming the site.
+        self._ledger_missing_warned = False
         # (site, reason, state) -> [calls, unwritten]; (site, reason) ->
         # [calls, distinct states, unwritten once capped].
         self._fallback_counts: "OrderedDict[Tuple[str, str, str], List[int]]" = OrderedDict()
@@ -951,6 +955,8 @@ class JevPolicy:
             metadata["repeat_count"] = repeat
         unassessed = (settlement_error is not None
                       and preserve_event_on_settlement_error)
+        if self.ledger is None and cost > 0.0:
+            self._warn_ledger_missing(site, cost)
         if self.ledger is not None and write_row:
             self.ledger.append(
                 "jev_eval", task_id=task_id, node_id=node_id, site=site,
@@ -965,6 +971,23 @@ class JevPolicy:
                 **metadata,
             )
         return structural
+
+    def _warn_ledger_missing(self, site: str, cost: float):
+        """Say out loud that a paid judgment left no receipt (#588).
+
+        The ledger contract on this path is exactly one ``jev_eval`` per call;
+        a composition without a ledger spends the owner's money and writes no
+        row. Nothing here invents a ledger path -- the operator is told which
+        site lost its receipt and where the composition should have supplied
+        one, once per policy so a hot lane cannot flood its log.
+        """
+        if self._ledger_missing_warned:
+            return
+        self._ledger_missing_warned = True
+        print("[jev] WARNING: billed ${:.8f} at site {} with no ledger; no "
+              "jev_eval row was written. Compose with "
+              "session.jev_for(settings, ledger=...) or pass --ledger."
+              .format(cost, site), file=sys.stderr)
 
     def evaluate_diff(self, diff: str, instruction: str, file_path: str,
                       *, candidate: Optional[str] = None,
