@@ -11,7 +11,8 @@ This gate makes the optional job honest:
 
 * it **refuses to run** when the extras are missing (exit 2) instead of
   letting the guards fire and reporting a green run;
-* it runs the local-fit suites for real through ``unittest``;
+* it runs the deterministic local-fit exercise for real through
+  ``unittest``;
 * it **fails when any test was skipped** (exit 1), naming the tests, so a
   ``skipUnless`` can never be mistaken for coverage;
 * it fails when the suites ran no tests at all.
@@ -29,8 +30,12 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 #: Importable only with the ``local-fit-train`` extra.
 REQUIRED_MODULES = ("numpy", "onnx", "onnxruntime")
 
-#: The suites that train, export, reload and score a model artifact.
-SUITES = ("tests.test_local_fit_model", "tests.test_local_fit_infer")
+#: The suite that trains, exports, reloads and scores a model artifact from
+#: deterministic in-process rows. The older train/export suites read
+#: ``audits/scmessenger/_runs/*``, which .gitignore excludes, so they cannot be
+#: the exercise a checkout can run; they keep their guards for the default
+#: matrix and this suite is the job's real path.
+SUITES = ("tests.test_local_fit_optional_311",)
 
 EXIT_PASS = 0
 EXIT_VIOLATION = 1

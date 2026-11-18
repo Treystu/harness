@@ -220,9 +220,9 @@ class EntrypointTests(unittest.TestCase):
 class ContractTests(unittest.TestCase):
     """The job's scope is pinned to the issue's acceptance criteria."""
 
-    def test_the_suites_are_the_train_export_and_runtime_ones(self):
-        self.assertEqual(gate.SUITES,
-                         ("tests.test_local_fit_model", "tests.test_local_fit_infer"))
+    def test_the_suite_is_the_deterministic_train_export_exercise(self):
+        self.assertEqual(gate.SUITES, ("tests.test_local_fit_optional_311",))
+        self.assertTrue((ROOT / "tests" / "test_local_fit_optional_311.py").is_file())
 
     def test_training_dependencies_stay_out_of_the_default_install(self):
         text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -240,6 +240,12 @@ class ContractTests(unittest.TestCase):
         self.assertIn("local-fit-optional:", config)
         self.assertIn(".[dev,local-fit-train]", config)
         self.assertIn("python -m harness.local_fit.optional_ci", config)
+
+    def test_the_audit_fixture_the_old_suites_read_is_not_committed(self):
+        """Why the job runs a deterministic suite instead of the old ones."""
+        self.assertFalse((ROOT / "audits" / "scmessenger" / "_runs").is_dir())
+        self.assertIn("audits/scmessenger/_runs/",
+                      (ROOT / ".gitignore").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
