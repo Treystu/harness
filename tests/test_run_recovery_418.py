@@ -19,6 +19,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from harness.lifecycle import LifecycleCoordinator
 from harness.run_recovery import (
@@ -270,6 +271,91 @@ class ClassificationUnitTests(unittest.TestCase):
             "review": {"decision": "refused"},
         }, age_seconds=5)
         self.assertFalse(verdict["resumable"])
+
+
+class DiscoveryEdgeCaseTests(unittest.TestCase):
+    """Reader paths that must degrade to "no requests", never to an exception."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.history = Path(self._tmp.name) / "chat_history"
+        self.checkpoints = self.history / "chat_checkpoints"
+        self.checkpoints.mkdir(parents=True)
+
+    def _write_checkpoint(self):
+        LifecycleCoordinator(history_dir=self.history).begin(
+            "chat", "sess-edge", PROMPT, stage="answer_generation")
+
+    def test_a_missing_checkpoint_directory_lists_nothing(self):
+        from harness.run_recovery import discover_requests
+        self.assertEqual(discover_requests(self.history / "absent"), [])
+
+    def test_a_directory_named_like_a_checkpoint_is_not_read(self):
+        from harness.run_recovery import _read_checkpoint
+        (self.checkpoints / "odd.json").mkdir()
+        self.assertIsNone(_read_checkpoint(self.checkpoints / "odd.json"))
+
+    def test_an_oversized_checkpoint_is_ignored(self):
+        from harness.run_recovery import (
+            _MAX_CHECKPOINT_BYTES, _read_checkpoint, discover_requests)
+        big = self.checkpoints / "big.json"
+        big.write_text("x" * (_MAX_CHECKPOINT_BYTES + 1), encoding="utf-8")
+        self.assertIsNone(_read_checkpoint(big))
+        # The file is still listed: an oversized checkpoint is unknown state,
+        # never silently "nothing was running".
+        found = discover_requests(self.history)
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["state"], "unknown")
+
+    def test_a_glob_failure_is_an_empty_listing(self):
+        from harness.run_recovery import discover_requests
+        with patch.object(Path, "glob", side_effect=OSError("unreadable")):
+            self.assertEqual(discover_requests(self.history), [])
+
+    def test_an_entry_that_vanishes_before_stat_is_skipped(self):
+        from harness.run_recovery import discover_requests
+        self._write_checkpoint()
+        (self.checkpoints / "vanished.json").write_text("{}", encoding="utf-8")
+        real_stat = Path.stat
+
+        def flaky(path_self, *args, **kwargs):
+            if path_self.name == "vanished.json":
+                raise OSError("gone")
+            return real_stat(path_self, *args, **kwargs)
+
+        with patch.object(Path, "stat", flaky):
+            found = discover_requests(self.history)
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["checkpoint_status"], "running")
+
+
+class RecoveredEndpointTests(_ServerOverDurableState):
+    def test_an_unknown_run_id_is_a_404(self):
+        _httpd, port = self._server()
+        status, payload = _request(port, "/api/runs/unknown-run/result",
+                                   self.token)
+        self.assertEqual(status, 404)
+        self.assertIn("no such run", json.dumps(payload))
+
+    def test_a_recovered_run_has_no_live_owner_to_cancel(self):
+        self._begin()
+        _httpd, port = self._server()
+        _code, listing = _request(port, "/api/runs", self.token)
+        run_id = [run for run in listing["runs"] if run.get("recovered")][0]["id"]
+        status, payload = _request(
+            port, "/api/runs/{}/cancel".format(run_id), self.token)
+        self.assertEqual(status, 409)
+        self.assertIn("no live owner", json.dumps(payload))
+
+    def test_a_discovery_failure_degrades_to_an_empty_listing(self):
+        self._begin()
+        _httpd, port = self._server()
+        with patch("harness.run_recovery.discover_requests",
+                   side_effect=OSError("unreadable")):
+            status, payload = _request(port, "/api/runs", self.token)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload.get("recovered", []), [])
 
 
 if __name__ == "__main__":
