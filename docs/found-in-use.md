@@ -20,6 +20,11 @@ set. Never close an owner issue from this file; closure happens on the owner.
 | `flush-campaign-ledgers-uncommitted` | 2026-11-18 | `699f677` | #469 | open - `harness flush --campaign` writes `<campaign>.events.jsonl` beside the campaign file and nothing retains or archives it, so no campaign pass history accumulates for the frozen replay |
 | `spend-key-remaining-stale` | 2026-11-18 | `9741066` | #415 | open — the serve prints `key_remaining=$1.500000` on three consecutive key reads while every billed call in that run is refused with provider HTTP 402 `spend limit exhausted`; the surface reports headroom it does not have |
 | `gate-labels-live-drift` | 2026-11-18 | `9741066` | #467 | open — the shipped 28-case decision-gate label set scores 14/28 exact against live Jev answers (false-proceeds 0); labels were authored 2026-09-27 and live `advances_goal` lands 0.84-0.99 where the set authors 0.95-0.98 |
+| `freelane-reasoning-in-answer` | 2026-11-20 | `583120b4` | #415 | open — high: the answer field carries the free-lane model's scratchpad ("Defer message: ...", "Final decision: ...") with the required `HARNESS_DEFER:` line only at the end, so a user reads reasoning as the answer (run `add821eb7c09`) |
+| `web-records-before-plan` | 2026-11-20 | `583120b4` | #415, #342 | open — high: five web records (fetch/search/browser) for an MCP-specification question, zero on-query, produced before any approved query-bound plan record (run `add821eb7c09`) |
+| `citation-gate-unwired` | 2026-11-20 | `583120b4` | #422 | open — medium: `harness/citation_verify.py` implements the deterministic gate, but no resolver is supplied anywhere and the module has no call site outside itself, so no user path reaches it |
+
+| `campaign-trace-writer-unwired` | 2026-11-20 | `17906e2c` | #469 | open - high: `harness/flush_loop.py:392-396` forwards each campaign event to `DecisionTrace.campaign_event` only when a writer is injected, and no product call site injects one (`flush_loop.py:1261-1262`, `:1050`, `:1056`); the writer is green only because `tests/test_decision_trace_469.py:235-236` constructs it by hand, so #627's campaign retention is inert in use |
 
 ## Transfer entry (#451)
 

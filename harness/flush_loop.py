@@ -371,8 +371,13 @@ class EventLedger:
     the one that matters.
     """
 
-    def __init__(self, path):
+    def __init__(self, path, trace=None, audit_enabled=False):
         self.path = str(path)
+        # #469 / D5-1: campaign histories used to end with this sidecar. When a
+        # durable trace writer is supplied, every event is also retained in the
+        # hash-chained decision_trace family.
+        self.trace = trace
+        self.audit_enabled = bool(audit_enabled)
 
     def append(self, event):
         if not isinstance(event, dict) or not event.get("event"):
@@ -384,6 +389,12 @@ class EventLedger:
             handle.write(line + "\n")
             handle.flush()
             os.fsync(handle.fileno())
+        if self.trace is not None:
+            self.trace.campaign_event(
+                event.get("event"), campaign=str(event.get("campaign") or ""),
+                audit_enabled=self.audit_enabled,
+                payload={key: value for key, value in event.items()
+                         if key not in ("event", "campaign")})
 
     def read(self):
         if not os.path.exists(self.path):
