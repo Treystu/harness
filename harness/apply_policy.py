@@ -34,6 +34,12 @@ from .escalation import (EscalationDriver, _annotate_escalation,
 
 VERIFY_FEEDBACK_CHARS = 6000
 
+#: #472: the routed call's candidate pool (as it stood before the call, plus
+#: the order the engine will try it in) and one row per attempt it made. Both
+#: live in the trace family `harness/decision_trace.py` already owns.
+CANDIDATES_EVENT = "routing.candidates"
+ATTEMPT_EVENT = "routing.attempt"
+
 
 class ApplyEngineMixin:
     """Mixin: the apply engine's per-round machinery (see module docstring)."""
@@ -51,6 +57,64 @@ class ApplyEngineMixin:
                 model_observed=[r.get("model") for r in rounds
                                 if isinstance(r, dict)]))
         return result
+
+    def _route_trace(self):
+        """The engine's one trace writer, or None when none was supplied."""
+        return getattr(self, "trace", None)
+
+    def _record_candidates(self, req, pool_order, candidates):
+        """Persist this call's candidate pool and its order (#472).
+
+        ``pool_order`` is the pool as it stood *before* ordering (the caller's
+        configured pool, or the order the caller supplied); ``candidates`` is
+        the sequence the engine will actually try. Nothing is invented here:
+        the rank is the position the router handed over, so a reader compares
+        intended order against the attempt rows instead of trusting a summary.
+        """
+        trace = self._route_trace()
+        task_id = getattr(req, "task_id", None)
+        if trace is None or not task_id:
+            return
+        configured = list(pool_order or [])
+        payload = {
+            "lane": "apply",
+            "primary": getattr(req, "model", None),
+            "informed_order": req.profiles is not None,
+            "configured_pool": configured,
+            "pool": [{"rank": index + 1, "model": model}
+                     for index, model in enumerate(candidates)],
+            "dropped": [model for model in configured
+                        if model not in candidates],
+        }
+        ranks = {}
+        for index, model in enumerate(candidates):
+            ranks.setdefault(model, index + 1)
+        self._route_ranks = getattr(self, "_route_ranks", {})
+        self._route_ranks[task_id] = ranks
+        trace.record(CANDIDATES_EVENT, payload=payload, subject_id=task_id,
+                     call_id="apply.rotation",
+                     spec_ref="apply_policy._candidate_models")
+
+    def _record_attempt(self, req, model_id, status, fields):
+        """Persist one attempt of this routed call, in the order it happened."""
+        trace = self._route_trace()
+        task_id = getattr(req, "task_id", None)
+        if trace is None or not task_id:
+            return
+        ranks = (getattr(self, "_route_ranks", None) or {}).get(task_id) or {}
+        payload = {
+            "lane": "apply",
+            "model": model_id,
+            "rank": ranks.get(model_id),
+            "status": status,
+        }
+        for key in ("error", "http_status", "reason", "round"):
+            value = fields.get(key)
+            if value is not None:
+                payload[key] = value
+        trace.record(ATTEMPT_EVENT, payload=payload, subject_id=task_id,
+                     call_id="apply.rotation",
+                     spec_ref="apply_policy._record_billable")
 
     def _record_billable(self, req, model_id, amount, status, **fields):
         """Record every billable apply attempt, including rotated failures."""
@@ -80,6 +144,7 @@ class ApplyEngineMixin:
             raise
         self.ledger.append("model_result", task_id=req.task_id,
                            event_note="apply", **event_fields)
+        self._record_attempt(req, model_id, status, fields)
         if self.governor.spent - req.task_start_spent > req.task_max_cost:
             raise HarnessError(
                 f"actual task cost would exceed --task-max-cost ${req.task_max_cost:.6f}; refusing")
@@ -310,6 +375,7 @@ class ApplyEngineMixin:
             candidates = [m_ for m_ in candidates if m_ in known_models]
         except HarnessError:
             pass
+        self._record_candidates(req, pool_order, candidates)
         return candidates
 
     def _attempt_round(self, req, state, attempt_model):

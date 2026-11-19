@@ -13,6 +13,7 @@ and primitives; nothing here imports interfaces.
 """
 from ._http import HttpTransport
 from .apply import ApplyEngine
+from .decision_trace import DecisionTrace
 from .jev_policy import JevPolicy, policy_for
 from .ledger import AutonomyLedger
 from .router import Router
@@ -263,6 +264,9 @@ def engine_for(settings, api_key, gov, ledger, router, transport=None,
             router.cheap_judge = settings.judge
     return ApplyEngine(
         wire, api_key=api_key, governor=gov, ledger=ledger, router=router,
+        # #472: routed calls record their candidate pool and attempt order
+        # through the one trace writer bound to this session's ledger.
+        trace=DecisionTrace(ledger) if ledger else None,
         jev_policy=policy,
         default_require_consent=settings.default_require_consent,
         default_renew_consent=settings.renew_consent,
