@@ -25,8 +25,12 @@ Receipt shape (``bridge-battery@1``)::
 
 Run it::
 
-    python -m driver_core.bridge_battery            # hermetic, probe 1 blocked
-    python -m driver_core.bridge_battery --live     # owner-supervised session
+    python -m driver_core.bridge_battery                      # hermetic
+    python -m driver_core.bridge_battery --live --root <dir>  # supervised
+
+``--live`` needs the ledger root the hand answers on: probe 1 drives the
+bridge's own bus consumer, so a temporary directory would prove nothing and
+is refused rather than treated as a bridge.
 
 Exit codes: ``0`` all six probes met; ``1`` a probe failed; ``2`` the battery
 ran but the live probe is blocked (the honest state of every hermetic run).
@@ -53,13 +57,23 @@ FAILED = "failed"
 #: What the owner has to do for probe 1. Carried on the blocked receipt so the
 #: runbook travels with the verdict instead of living only in an issue comment.
 LIVE_RUNBOOK = (
-    "Probe 1 needs a supervised interactive session: (1) start driver-core's "
-    "capture service off port 8765 (8765 is the serving UI; do not stop it), "
-    "(2) set DRIVER_SCREEN to the FreeBuff desktop, (3) confirm the bridge's "
-    "kill switch is clear and a capture grant is issued for the asking seat, "
-    "(4) run this battery with --live from the non-desktop driver, (5) file "
-    "the receipt on #480 and #452. Owner-present only: no unsupervised input "
-    "or GUI run is authorised by this lane."
+    "Probe 1 is owner-present and supervised. Preconditions: an unlocked "
+    "interactive Windows session with FreeBuff visible; this checkout at "
+    "699f677b or later; one ledger root both processes can reach (call it "
+    "<root>; frames never enter git); port 8765 untouched. Steps: (1) in the "
+    "interactive session start the hand: python -m "
+    "driver_core.capture_hand --root <root> --seats driver "
+    "--require-grant; (2) as the owner issue one single-use grant: python "
+    "-c \"from driver_core import capture_hand as h; print("
+    "h.issue_capture_grant(r'<root>', seat='driver')['grant_id'])\"; (3) "
+    "from the non-desktop driver run: python -m "
+    "driver_core.bridge_battery --live --root <root> --seat driver --grant "
+    "<grant-id> --out <receipt>.json; (4) file the receipt and the hand's "
+    "answer line on #480 and #452. Pass evidence: exit 0; "
+    "bridge-battery@1 live=true met=6/6; the live_capture evidence names "
+    "the frame path, its sha256 fingerprint and fresh=true; the hand printed "
+    "one answer line for seat 'driver'. Stop the hand with Ctrl+C; write "
+    "STOP into <root> to engage the kill switch if anything is unexpected."
 )
 
 #: The six acceptance probes, in the issue's order. The ids are stable because
@@ -364,6 +378,22 @@ def probe_negative_content(*, root, clock):
                   evidence)
 
 
+def live_reader(root, *, seat=hand.DEFAULT_SEAT, grant=None,
+                timeout=hand.DEFAULT_TIMEOUT):
+    """The reader probe 1 uses: the bridge's own bus consumer.
+
+    Building a second reader here would prove only that this module can read
+    a screen, not that the *bridge* can. :func:`capture_hand.bus_capture_backend`
+    is the consumer a non-desktop driver registers, and it applies the
+    hand's freshness gate before returning a path -- so a frame this reader
+    returns is one the bridge already accepted, not one the battery dated
+    for itself. The hand must already be running on ``root``.
+    """
+    backend = hand.bus_capture_backend(root, seat=seat, grant=grant,
+                                       timeout=timeout)
+    return backend.capture
+
+
 def run_battery(*, live=False, capture=None, clock=None, root=None,
                 polls=5, max_age=hand.DEFAULT_MAX_AGE):
     """Run all six probes and return the receipt.
@@ -435,6 +465,13 @@ def main(argv=None):
                         help="probe 1 against a live, supervised session")
     parser.add_argument("--root", default=None,
                         help="the bridge ledger root (default: a temp dir)")
+    parser.add_argument("--seat", default=hand.DEFAULT_SEAT,
+                        help="the seat probe 1 presents to the hand")
+    parser.add_argument("--grant", default=None,
+                        help="a single-use grant id issued for that seat")
+    parser.add_argument("--timeout", type=float,
+                        default=hand.DEFAULT_TIMEOUT,
+                        help="how long probe 1 waits for the hand")
     parser.add_argument("--polls", type=int, default=5,
                         help="describe polls for the stability probe")
     parser.add_argument("--max-age", type=float, default=hand.DEFAULT_MAX_AGE,
@@ -443,8 +480,15 @@ def main(argv=None):
                         help="write the JSON receipt to this path")
     args = parser.parse_args(argv)
 
-    receipt = run_battery(live=args.live, root=args.root, polls=args.polls,
-                          max_age=args.max_age)
+    capture = None
+    if args.live:
+        if not args.root:
+            parser.error("--live needs --root naming the ledger the hand "
+                         "answers on")
+        capture = live_reader(args.root, seat=args.seat, grant=args.grant,
+                              timeout=args.timeout)
+    receipt = run_battery(live=args.live, capture=capture, root=args.root,
+                          polls=args.polls, max_age=args.max_age)
     text = json.dumps(receipt, indent=2, sort_keys=True)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as handle:
