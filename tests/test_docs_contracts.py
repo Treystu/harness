@@ -6,6 +6,7 @@ instructions, and canon register mirror arithmetic.
 """
 import contextlib
 import io
+import json
 import re
 import unittest
 from pathlib import Path
@@ -175,6 +176,52 @@ class RegisterMirrorParityTests(unittest.TestCase):
             actual_row_total += len(rows)
         self.assertEqual(actual_row_total, total_c)
         self.assertEqual(actual_open_total, open_c)
+
+
+class WorldwideModelsDocsTests(unittest.TestCase):
+    """#407: the disclosure, the future-only rule and the floor are pinned."""
+
+    @staticmethod
+    def _squash(text):
+        return re.sub(r"\s+", " ", text)
+
+    def test_disclosure_is_pinned_word_for_word(self):
+        from harness import public_share
+
+        doc = self._squash(_read("docs/worldwide-models.md"))
+        self.assertIn(self._squash(public_share.DISCLOSURE), doc)
+        self.assertIn("pinned in `tests/test_docs_contracts.py`", doc)
+
+    def test_doc_states_revocation_floor_receipts_and_limits(self):
+        doc = self._squash(_read("docs/worldwide-models.md"))
+        for required in (
+            "Revocation is future-only",
+            "discards unsent work",
+            "new consent period",
+            "does not authorize",
+            "Ten distinct verified operators",
+            "No verified data",
+            "stays published after one operator turns sharing off",
+            "does **not** establish",
+        ):
+            self.assertIn(required, doc, required)
+
+    def test_the_site_page_is_separate_and_states_the_rules(self):
+        page = self._squash(_read("site/public/models/index.html"))
+        self.assertIn("Worldwide model statistics", page)
+        self.assertIn("No verified data", page)
+        self.assertIn("10 distinct verified operators", page)
+        self.assertIn("pip install sovereign-harness", page)
+        self.assertIn("0.23 cents", page)
+        self.assertIn("It did not assess", page)
+        self.assertNotIn("site-bundle-v1", page)
+
+    def test_the_demo_roster_publishes_no_figures(self):
+        roster = json.loads(_read("site/public/models/models.json"))
+        self.assertEqual(roster["figures"], [])
+        self.assertEqual(roster["no_data_text"], "No verified data")
+        self.assertEqual(roster["floor"], 10)
+        self.assertIn("not deployed", roster["deployment"])
 
 
 if __name__ == "__main__":
