@@ -1,0 +1,10 @@
+{
+  "deployment": "not deployed: operator confirmation, CF_API_TOKEN and D1/KV ids are required",
+  "figures": [],
+  "floor": 10,
+  "metric_version": 1,
+  "no_data_text": "No verified data",
+  "note": "This file is the demo fixture. It carries no figures because no cohort has cleared the ten-operator floor yet; the page must say No verified data.",
+  "protocol": "public-share-v1",
+  "schema": "public-roster-v1"
+}
