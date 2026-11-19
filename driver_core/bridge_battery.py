@@ -61,8 +61,11 @@ LIVE_RUNBOOK = (
     "Probe 1 is owner-present and supervised. Preconditions: an unlocked "
     "interactive Windows session with FreeBuff visible; this checkout at "
     "699f677b or later; one ledger root both processes can reach (call it "
-    "<root>; frames never enter git); port 8765 untouched. Steps: (1) in the "
-    "interactive session start the hand: python -m "
+    "<root>; frames never enter git); DRIVER_SCREEN_OUT set in the hand's "
+    "environment to a writable PNG path the driver can read (for example "
+    "<root>/frame.png) -- Windows capture refuses by name without it; port "
+    "8765 untouched. Steps: (1) in the interactive session set "
+    "DRIVER_SCREEN_OUT to that path and start the hand: python -m "
     "driver_core.capture_hand --root <root> --seats driver "
     "--require-grant; (2) as the owner issue one single-use grant: python "
     "-c \"from driver_core import capture_hand as h; print("
@@ -399,7 +402,8 @@ def probe_negative_content(*, root, clock):
 
 
 def live_reader(root, *, seat=hand.DEFAULT_SEAT, grant=None,
-                timeout=hand.DEFAULT_TIMEOUT):
+                timeout=hand.DEFAULT_TIMEOUT,
+                max_age=hand.DEFAULT_MAX_AGE):
     """The reader probe 1 uses: the bridge's own bus consumer.
 
     Building a second reader here would prove only that this module can read
@@ -407,10 +411,14 @@ def live_reader(root, *, seat=hand.DEFAULT_SEAT, grant=None,
     is the consumer a non-desktop driver registers, and it applies the
     hand's freshness gate before returning a path -- so a frame this reader
     returns is one the bridge already accepted, not one the battery dated
-    for itself. The hand must already be running on ``root``.
+    for itself. ``max_age`` must be the same window the battery was asked
+    to enforce: the consumer's gate is the one that sees the hand's
+    ``captured_at``, and a default here would silently accept a frame the
+    operator asked to refuse (or refuse one they asked to accept). The hand
+    must already be running on ``root``.
     """
     backend = hand.bus_capture_backend(root, seat=seat, grant=grant,
-                                       timeout=timeout)
+                                       timeout=timeout, max_age=max_age)
     return backend.capture
 
 
@@ -522,7 +530,7 @@ def main(argv=None):
             parser.error("--live needs --root naming the ledger the hand "
                          "answers on")
         capture = live_reader(args.root, seat=args.seat, grant=args.grant,
-                              timeout=args.timeout)
+                              timeout=args.timeout, max_age=args.max_age)
     receipt = run_battery(live=args.live, capture=capture, root=args.root,
                           polls=args.polls, max_age=args.max_age)
     text = json.dumps(receipt, indent=2, sort_keys=True)

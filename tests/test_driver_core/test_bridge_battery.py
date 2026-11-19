@@ -235,13 +235,14 @@ class LiveWiringTests(unittest.TestCase):
         with mock.patch.object(bb.hand, "bus_capture_backend",
                                return_value=_Backend()) as build:
             reader = bb.live_reader("/tmp/ledger", seat="driver",
-                                    grant="g1", timeout=3.0)
+                                    grant="g1", timeout=3.0, max_age=2.5)
             self.assertEqual(reader(), ("/tmp/frame.png", "captured"))
         build.assert_called_once()
         kwargs = build.call_args.kwargs
         self.assertEqual(kwargs["seat"], "driver")
         self.assertEqual(kwargs["grant"], "g1")
         self.assertEqual(kwargs["timeout"], 3.0)
+        self.assertEqual(kwargs["max_age"], 2.5)
 
     def test_the_live_cli_refuses_a_temporary_root(self):
         with contextlib.redirect_stderr(io.StringIO()):
@@ -257,11 +258,12 @@ class LiveWiringTests(unittest.TestCase):
             out = os.path.join(directory, "receipt.json")
             with mock.patch.object(
                     bb, "live_reader",
-                    return_value=lambda: (path, "captured")):
+                    return_value=lambda: (path, "captured")) as build:
                 with contextlib.redirect_stdout(io.StringIO()):
                     code = bb.main(["--live", "--root", directory,
-                                    "--out", out])
+                                    "--max-age", "1.5", "--out", out])
             self.assertEqual(code, 0)
+            self.assertEqual(build.call_args.kwargs["max_age"], 1.5)
             with open(out, encoding="utf-8") as handle:
                 receipt = json.load(handle)
             self.assertTrue(receipt["live"])
