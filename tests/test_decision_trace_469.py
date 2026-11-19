@@ -120,6 +120,33 @@ class WriterReaderTests(unittest.TestCase):
                              ["before", "after"])
             self.assertEqual(len(ledger.segment_paths()), 2)
 
+    def test_reader_accepts_an_explicit_segment_list(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = _ledger(directory)
+            DecisionTrace(ledger).record("assessment.end", subject_id="run-1")
+            from_list = read_trace_events([ledger.path])
+            self.assertEqual([row["subject_id"] for row in from_list], ["run-1"])
+
+    def test_reader_tolerates_an_absent_active_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = _ledger(directory)
+            self.assertEqual(read_trace_events(ledger), [])
+            self.assertEqual(ledger.segment_paths(), [])
+
+    def test_reader_fails_closed_on_a_corrupt_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "ledger.jsonl")
+            with open(path, "w", encoding="utf-8", newline=chr(10)) as handle:
+                handle.write("{not json}" + chr(10))
+            with self.assertRaises(TraceError):
+                read_trace_events(path)
+
+    def test_a_campaign_event_needs_a_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = _ledger(directory)
+            with self.assertRaises(TraceError):
+                DecisionTrace(ledger).campaign_event("")
+
     def test_audit_enabled_entry_point_fails_closed_on_an_unavailable_sink(self):
         class _Broken:
             path = os.path.join(tempfile.gettempdir(), "unused.jsonl")

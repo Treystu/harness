@@ -157,15 +157,6 @@ class DecisionTrace:
                            spec_ref=f"campaign.event:{event.strip()}")
 
 
-def campaign_trace_from_env(ledger):
-    """A trace writer for the campaign emitter, or ``None`` when unconfigured.
-
-    Kept explicit: a caller that wants campaign histories retained passes its
-    durable ledger; nothing here invents a path or writes into a user directory.
-    """
-    return DecisionTrace(ledger) if ledger is not None else None
-
-
 def _segment_paths(ledger) -> List[str]:
     segments = getattr(ledger, "segment_paths", None)
     if callable(segments):
