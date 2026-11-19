@@ -1,0 +1,25 @@
+{
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "margin": 0.2,
+    "lead": null,
+    "advanced": null,
+    "destructive": null,
+    "supported": 0.03,
+    "cost": 2.9274e-05,
+    "model": "jev-1.14.0"
+  },
+  "lucas": {
+    "status": "pass",
+    "track": "typed",
+    "reasons": [],
+    "artifact_sha256": "e3a1fb5574381a100b356a27663c3b4f0cdd4d951b16204dd0eca8a8a1c396ec"
+  },
+  "_meta": {
+    "ledger_rows_added": 1,
+    "site": "sergeant_landing",
+    "head": "52628cbfa35abf57673dd0fe764d3fe03a3b4885",
+    "base": "4618b5f997a0f04331b26aa8452568835dfccf1e"
+  }
+}
