@@ -95,6 +95,71 @@ class WriterReaderTests(unittest.TestCase):
                 DecisionTrace(ledger).record("assessment.end",
                                              payload={"kind": "other"})
 
+    def test_terminal_detail_is_preserved(self):
+        payload = terminal(state="failed", reason="gate unreachable",
+                           detail={"cause": "no rung", "rounds": 2})
+        self.assertEqual(payload["detail"], {"cause": "no rung", "rounds": 2})
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = _ledger(directory)
+            entry = DecisionTrace(ledger).record("assessment.end",
+                                                 payload=payload)
+            self.assertEqual(entry["detail"], {"cause": "no rung", "rounds": 2})
+
+    def test_reader_accepts_a_path_shaped_source(self):
+        """A source that only exposes ``path`` is read from that file (no segments)."""
+        class _PathOnly:
+            def __init__(self, path):
+                self.path = path
+
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = _ledger(directory)
+            DecisionTrace(ledger).record("assessment.end", subject_id="run-1")
+            rows = read_trace_events(_PathOnly(ledger.path))
+            self.assertEqual([row["subject_id"] for row in rows], ["run-1"])
+
+    def test_reader_refuses_a_source_with_no_path(self):
+        class _NoPath:
+            pass
+
+        with self.assertRaises(TraceError):
+            read_trace_events(_NoPath())
+
+    def test_reader_skips_blank_lines(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "ledger.jsonl")
+            ledger = AutonomyLedger(path)
+            DecisionTrace(ledger).record("assessment.end", subject_id="run-1")
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(chr(10) + chr(10))
+            rows = read_trace_events(ledger, kinds=["assessment.end"])
+            self.assertEqual([row["subject_id"] for row in rows], ["run-1"])
+
+    def test_reader_treats_a_missing_file_as_empty(self):
+        with tempfile.TemporaryDirectory() as directory:
+            missing = os.path.join(directory, "absent.jsonl")
+            self.assertEqual(read_trace_events([missing]), [])
+            self.assertEqual(read_trace_events(AutonomyLedger(missing)), [])
+
+    def test_reader_names_the_line_that_is_not_json(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "ledger.jsonl")
+            ledger = AutonomyLedger(path)
+            DecisionTrace(ledger).record("assessment.end", subject_id="run-1")
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write("not json" + chr(10))
+            with self.assertRaises(TraceError) as caught:
+                read_trace_events(ledger)
+            self.assertIn("is not JSON", str(caught.exception))
+
+    def test_reader_filters_by_campaign(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = _ledger(directory)
+            trace = DecisionTrace(ledger)
+            trace.campaign_event("pass_admitted", campaign="keep")
+            trace.campaign_event("pass_admitted", campaign="other")
+            rows = read_trace_events(ledger, kinds=[CAMPAIGN_EVENT], campaign="keep")
+            self.assertEqual([row["campaign"] for row in rows], ["keep"])
+
     def test_reader_selects_kinds_and_ignores_other_ledger_rows(self):
         with tempfile.TemporaryDirectory() as directory:
             ledger = _ledger(directory)
