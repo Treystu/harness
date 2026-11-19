@@ -26,8 +26,6 @@ set. Never close an owner issue from this file; closure happens on the owner.
 
 | `campaign-trace-writer-unwired` | 2026-11-20 | `17906e2c` | #469 | open - high: `harness/flush_loop.py:392-396` forwards each campaign event to `DecisionTrace.campaign_event` only when a writer is injected, and no product call site injects one (`flush_loop.py:1261-1262`, `:1050`, `:1056`); the writer is green only because `tests/test_decision_trace_469.py:235-236` constructs it by hand, so #627's campaign retention is inert in use |
 
-| `driver-vocabulary-keyless-claim-false` | 2026-11-20 | `6ea96c29` | #413 | open - medium: with a DOM source declared the driver's health text still says health/verify/vocabulary are "intentionally keyless", yet `action: vocabulary` returns `decision_not_usable` at `stopped_at: decision` with `keyed: false`, so a path promised not to need a key is gated on the keyed decision tier |
-
 ## Transfer entry (#451)
 
 The Harness-in-use filings previously tracked only as GitHub issues are
