@@ -30,7 +30,10 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, cast
 from . import jev_calibration as _jcal
-from .jev_assessment import AssessmentError, parse_payload_json, verdict_for_payload
+from .decision_trace import DecisionTrace, TraceError
+from .jev_assessment import (AssessmentError, parse_payload_json,
+                             record_disposition, verdict_for_payload)
+from .ledger import AutonomyLedger
 from . import provision as _pv
 from . import refine as _refine
 from . import repo_cards as _rc
@@ -2092,11 +2095,8 @@ def _cmd_assess(opts, settings):
     if ledger_path:
         # #468: the gate's own decision is a durable trace fact. It goes
         # through the one writer (DecisionTrace over AutonomyLedger); no
-        # second sink, no second segment definition.
-        from .decision_trace import DecisionTrace, TraceError
-        from .jev_assessment import record_disposition
-        from .ledger import AutonomyLedger
-
+        # second sink, no second segment definition. Imports are module-level:
+        # this repo forbids deferred imports outside main().
         try:
             entry = record_disposition(
                 DecisionTrace(AutonomyLedger(ledger_path)), verdict,
