@@ -2087,7 +2087,28 @@ def _cmd_assess(opts, settings):
     except (AssessmentError, ValueError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, sort_keys=True))
         sys.exit(2)
-    print(json.dumps(verdict.to_dict(), indent=2, sort_keys=True))
+    report = verdict.to_dict()
+    ledger_path = getattr(opts, "trace_ledger", None)
+    if ledger_path:
+        # #468: the gate's own decision is a durable trace fact. It goes
+        # through the one writer (DecisionTrace over AutonomyLedger); no
+        # second sink, no second segment definition.
+        from .decision_trace import DecisionTrace, TraceError
+        from .jev_assessment import record_disposition
+        from .ledger import AutonomyLedger
+
+        try:
+            entry = record_disposition(
+                DecisionTrace(AutonomyLedger(ledger_path)), verdict,
+                subject_id=getattr(opts, "subject", None) or "",
+                spec_ref="cli.assess")
+        except (AssessmentError, ValueError, OSError, TraceError) as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}, sort_keys=True))
+            sys.exit(2)
+        report["trace"] = {"ledger": ledger_path,
+                           "event_id": entry["event_id"],
+                           "kind": entry["kind"]}
+    print(json.dumps(report, indent=2, sort_keys=True))
     # The exit code is the gate (this CLI's convention): 0 pass, 1 anything
     # that is not a pass. main() ignores handler returns, so say it here.
     sys.exit(0 if verdict.ok else 1)
