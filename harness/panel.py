@@ -18,6 +18,7 @@ from .chat import (_chat_reservation_slots, _extract_json, _reported_cost,
                    assess_output, chat_routed, extract_content_and_cost,
                    looks_truncated, REASONING_FALLBACK_PREFIX)
 from ._http import interruptible_sleep
+from . import attempt_trace
 from .capability import ordered_pool
 from .config import DEFAULT_MAX_TOKENS, PanelLanePolicy
 from . import events as _events
@@ -101,6 +102,8 @@ def _run_judge_attempt(*, transport, api_key, governor, judge_prompt, model,
     if cancel_check and cancel_check():
         from .errors import ToolCancelled
         raise ToolCancelled()
+    attempt_started = time.time()
+    attempt_trace.reset_wire()
     try:
         status, resp = chat_routed(transport, api_key, model,
                                    [{"role": "user", "content": judge_prompt}],
@@ -148,6 +151,10 @@ def _run_judge_attempt(*, transport, api_key, governor, judge_prompt, model,
                       synthesis_status=note)
         if retry:
             fields["retry"] = True
+        # #475: the same row carries this attempt's status and timestamps.
+        attempt_trace.record_call(http_status=status, started_at=attempt_started,
+                                  model=model)
+        fields.update(attempt_trace.row_fields(attempt_trace.take_call()))
         ledger.append("model_result", task_id=task_id, **fields)
     eprint(f"[judge] {model}: {note}" + (f" ({err})" if status != 200 else ""))
     _events.emit("judge_result", task_id=task_id, model=model,
@@ -353,13 +360,34 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
         retry_count = 0
         response_cost = 0.0
         response_cost_recorded = False
+        # #475: every attempt this seat makes, in the order it made them.
+        attempt_rows = []
+
+        def attempt_fields(status):
+            if not attempt_rows:
+                return {}
+            return {"http_status": status, "attempts": list(attempt_rows),
+                    "attempt_started_at": attempt_rows[0].get("started_at"),
+                    "attempt_ended_at": attempt_rows[-1].get("ended_at")}
+
         while True:
+            attempt_started = time.time()
+            attempt_trace.reset_wire()
             try:
                 status, resp = chat_routed(
                     transport, api_key, model,
                     [{"role": "user", "content": prompt}],
                     policy.vote.tokens, policy.vote.effort,
                     reasoning_token_budget, governor)
+                attempt_trace.record_call(
+                    http_status=status, started_at=attempt_started, model=model)
+                _call = attempt_trace.take_call()
+                for _attempt in (_call or {}).get("attempts") or []:
+                    # Number across this seat's calls, not within one call: the
+                    # brief reads one ordered sequence per seat.
+                    _attempt = dict(_attempt)
+                    _attempt["attempt"] = len(attempt_rows) + 1
+                    attempt_rows.append(_attempt)
             except ProviderSpendLimitError as exc:
                 # #538: a refusal on this seat is an availability outcome, not
                 # the end of the panel. Record it and let the caller rotate in
@@ -400,7 +428,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                               model=model, task_type="structured" if run_convergence else "panel",
                               json_expected=run_convergence,
                               json_ok=False if run_convergence else None,
-                              status="error", cost=response_cost, retry=True)
+                              status="error", cost=response_cost, retry=True,
+                              **attempt_fields(status))
             retry_count += 1
             eprint(f"[panel] {model} rate-limited; bounded retry {retry_count}/{MAX_429_RETRIES}.")
             _events.emit("rotation", task_id=task_id, model=model,
@@ -422,7 +451,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                               task_type="structured" if run_convergence else "panel",
                               json_expected=run_convergence,
                               json_ok=False if run_convergence else None,
-                              status="error", cost=cost, retries=retry_count)
+                              status="error", cost=cost, retries=retry_count,
+                              **attempt_fields(status))
             eprint(f"[panel] {model} FAILED ({status}): {err} -- rotating to next model.")
             _events.emit("rotation", task_id=task_id, model=model,
                          reason="http_error", http_status=status, error=err,
@@ -438,7 +468,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                 ledger.append("model_result", task_id=task_id, event_note="panel",
                               model=model, task_type="structured" if run_convergence else "panel",
                               json_expected=run_convergence, json_ok=False if run_convergence else None,
-                              status="error", cost=0.0, reported_cost=cost)
+                              status="error", cost=0.0, reported_cost=cost,
+                              **attempt_fields(status))
             eprint(f"[panel] {model} is BYOK-routed (paid); recorded and rotating.")
             _events.emit("rotation", task_id=task_id, model=model,
                          reason="paid_byok", reported_cost=cost)
@@ -460,7 +491,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                               task_type="structured" if run_convergence else "panel",
                               json_expected=run_convergence,
                               json_ok=False if run_convergence else None,
-                              status="error", cost=cost, retries=retry_count)
+                              status="error", cost=cost, retries=retry_count,
+                              **attempt_fields(status))
             eprint(f"[panel] {model} returned {unusable} -- rotating to next model.")
             _events.emit("rotation", task_id=task_id, model=model,
                          reason="unusable_output", detail=unusable)
@@ -479,7 +511,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
             if ledger and task_id:
                 ledger.append("model_result", task_id=task_id, event_note="panel",
                               model=model, task_type="structured", json_expected=True,
-                              json_ok=False, status="error", cost=cost)
+                              json_ok=False, status="error", cost=cost,
+                              **attempt_fields(status))
             eprint(f"[panel] {model} returned malformed/missing claim JSON -- rotating.")
             _events.emit("rotation", task_id=task_id, model=model,
                          reason="malformed_claims")
@@ -489,7 +522,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
         return {"ok": True, "result": {
             "model": model, "content": content, "finish_reason": finish_reason,
             "cost": cost, "truncated": finish_reason == "length",
-        }, "valid_claims": valid_claims, "cost": cost, "retries": retry_count}
+        }, "valid_claims": valid_claims, "cost": cost, "retries": retry_count,
+            "attempt_fields": attempt_fields(status)}
 
     # Fan out up to `target` seats at once when the transport is safe for
     # concurrent POSTs (audit #10 latency fix); hermetic fakes opt out via
@@ -532,7 +566,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                             task_type="structured" if run_convergence else "panel",
                             json_expected=run_convergence,
                             json_ok=_slot["valid_claims"] if run_convergence else None,
-                            status="ok", cost=_slot["cost"], retries=_slot["retries"])
+                            status="ok", cost=_slot["cost"], retries=_slot["retries"],
+                            **(_slot.get("attempt_fields") or {}))
                 else:
                     panel_failures.append(_slot["failure"])
                     if len(panel_results) < target:

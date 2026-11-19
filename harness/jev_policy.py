@@ -19,6 +19,7 @@ from dataclasses import replace
 from typing import (Any, Callable, Dict, Iterable, List, Optional, Sequence,
                     Tuple)
 
+from . import attempt_trace
 from .errors import HarnessError, ProviderUsageUnknown, ToolCancelled
 from .events import submit_with_context
 from .provider_errors import ProviderSpendLimitError
@@ -950,6 +951,12 @@ class JevPolicy:
             metadata["note"] = ("cache hit: identical state/questions served "
                                 "locally; no request sent, cost 0")
             structural["cache_hit"] = True
+        # #475: the per-attempt HTTP status and timestamps of the live call
+        # that produced this row. A local judgment made no call, so it carries
+        # none rather than borrowing a neighbouring call's timeline.
+        call = attempt_trace.take_call()
+        if call and not result.cache_hit:
+            metadata.update(attempt_trace.row_fields(call))
         write_row, repeat = self._dedupe_fallback(result, site)
         if repeat > 1:
             metadata["repeat_count"] = repeat

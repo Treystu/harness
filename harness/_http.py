@@ -13,7 +13,7 @@ import uuid
 import urllib.error
 import urllib.request
 from pathlib import Path
-from . import osal
+from . import attempt_trace, osal
 from .errors import ProviderUsageUnknown, ToolCancelled
 
 
@@ -405,6 +405,7 @@ class HttpTransport(Transport):
         from .events import current_provider_request, emit
         request_context = current_provider_request()
         request_id = request_context.get("request_id") or uuid.uuid4().hex
+        attempt_trace.reset_wire()
         model = request_context.get("model")
         if not model and isinstance(payload, dict):
             model = payload.get("model")
@@ -415,6 +416,19 @@ class HttpTransport(Transport):
         backend = model if model != "provider" else None
 
         def progress(phase, attempt, **fields):
+            # #475: the one place a wire attempt resolves records it for the
+            # lane that asked, so a result row can carry the attempt timeline.
+            if phase in ("response", "error", "cancelled"):
+                attempt_trace.record_wire_attempt(
+                    http_status=fields.get("http_status"),
+                    elapsed_s=fields.get("duration_s"),
+                    outcome=phase,
+                )
+            elif phase == "retry_wait":
+                attempt_trace.note_retry(
+                    retry_reason=fields.get("retry_reason"),
+                    retry_delay_s=fields.get("delay_s"),
+                )
             emit("provider_http_attempt", request_id=request_id, model=model,
                  model_attempt=request_context.get("attempt"), phase=phase,
                  wire_attempt=attempt + 1, max_wire_attempts=self.MAX_RETRIES + 1,

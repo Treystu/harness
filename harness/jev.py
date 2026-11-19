@@ -18,6 +18,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Tuple
 
+from . import attempt_trace
 from ._http import HttpTransport
 from .errors import ProviderUsageUnknown, ToolCancelled
 from .events import current_cancel_check, emit, provider_request_context
@@ -754,6 +755,12 @@ class JevEvaluator:
             emit("model_request_end", model=self.model, attempt="jev",
                  request_id=request_id, outcome="response", http_status=status,
                  duration_s=round(time.monotonic() - request_started, 2))
+            # #475: hand the attempt timeline to the row writer that already
+            # exists (JevPolicy._account). No new event or table.
+            attempt_trace.record_call(
+                http_status=status,
+                started_at=time.time() - (time.monotonic() - request_started),
+                model=self.model)
             try:
                 if status == 200 and isinstance(resp, dict):
                     usage = resp.get("usage") if isinstance(resp.get("usage"), dict) else {}
@@ -970,6 +977,10 @@ class JevEvaluator:
         emit("model_request_end", model=self.model, attempt="jev_once",
              request_id=request_id, outcome="response", http_status=status,
              duration_s=round(time.monotonic() - request_started, 2))
+        attempt_trace.record_call(
+            http_status=status,
+            started_at=time.time() - (time.monotonic() - request_started),
+            model=self.model)
 
         usage = response.get("usage") if isinstance(response, dict) else None
         (input_tokens, output_tokens, input_observed,
