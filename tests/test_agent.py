@@ -1808,7 +1808,7 @@ class TestHourglassLane(unittest.TestCase):
     worktree isolation, write attestation) resolved from the settings file.
 
     The orchestration seam scripts decomposition/triage/judge; the waist
-    gate is scripted where it really runs (harness.waist.governed_text), so
+    gate is scripted where it really runs (harness.plan_consensus.governed_text), so
     these tests exercise the armed path without a network call.
     """
 
@@ -1844,7 +1844,7 @@ class TestHourglassLane(unittest.TestCase):
 
     @staticmethod
     def _waist_seam(verdict):
-        return patch("harness.waist.governed_text",
+        return patch("harness.plan_consensus.governed_text",
                      return_value=(verdict, 0.0))
 
     def _lane(self, root):
