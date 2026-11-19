@@ -41,6 +41,18 @@ PHASE_TERMINAL = "terminal"
 _PHASES = frozenset((PHASE_ATTEMPT, PHASE_TERMINAL))
 
 
+#: The trace kind one ceiling refusal writes (#476): the facts the Champion's
+#: protective-vs-starving classification needs (which check refused, the phase,
+#: the envelope it refused against, the amount requested) and the refused
+#: call's own outcome. It rides the trace family ``harness/decision_trace.py``
+#: already owns -- there is no second stream, table, file or reader.
+REFUSAL_EVENT = "spend.refusal"
+
+#: The refused call's outcome: it did not run. The family's own vocabulary
+#: (``decision_trace.TERMINAL_STATES``).
+REFUSAL_OUTCOME = "refused"
+
+
 def normalize_phase(phase):
     """Validate a dual-budget phase name (attempt | terminal)."""
     if phase is None:
@@ -143,7 +155,7 @@ class SpendGovernor:
     def __init__(self, transport, api_key, expect_key_label=None,
                  max_cost=DEFAULT_MAX_COST, byok_prefixes_path=BYOK_PREFIXES_PATH,
                  terminal_reserve=0.0, fireworks_budget_usd=0.0,
-                 meta_budget_usd=0.0):
+                 meta_budget_usd=0.0, trace=None):
         self.transport = transport
         self.api_key = api_key
         self.expect_key_label = expect_key_label
@@ -157,6 +169,12 @@ class SpendGovernor:
         if self.terminal_reserve > self.max_cost:
             raise HarnessError(
                 "terminal_reserve must not exceed max_cost")
+        # #476: where a ceiling refusal is recorded. Any object with a
+        # ``record(kind, payload=...)`` method serves -- the session attaches a
+        # ``DecisionTrace`` over the ledger the run already holds. Left None
+        # (library use, direct construction) no row is written and the refusal
+        # raises exactly as before.
+        self.trace = trace
         self._phase = PHASE_ATTEMPT
         # Nested per-task scopes; each carries its own spent/outstanding/
         # unknown ledger, and the stack narrows enforcement min-over-stack.
@@ -357,6 +375,65 @@ class SpendGovernor:
             return list(token[3])
         return current
 
+    def attach_trace(self, trace):
+        """Bind the one trace writer so refusals are recorded (#476).
+
+        Kept a mutator so the session can attach the run's ledger after
+        :func:`harness.session.governor_for` has verified the key -- every
+        constructor call site stays exactly as it was.
+        """
+        self.trace = trace
+        return self
+
+    def _record_refusal(self, *, site, reason, requested=None, label=None,
+                        scope=None):
+        """Persist one ceiling refusal through the shared trace writer (#476).
+
+        ``site`` names the check that refused, ``requested`` is the amount that
+        did not fit, and ``envelope`` is the dual-budget snapshot it was
+        measured against, so the refusal is replayable against the numbers the
+        governor actually held. ``outcome`` is the refused call's own outcome:
+        a ceiling refusal means the call did not run.
+
+        Unknown is absent, never defaulted: a refusal the governor cannot
+        attribute to a task scope records no ``scope`` key at all, and a
+        refusal with no label records no ``label``. ``subject_id`` carries the
+        scope label when there is one, so a later terminal row for the same
+        subject can be joined through the family's own envelope.
+        """
+        record = getattr(self.trace, "record", None)
+        if record is None:
+            return None
+        env = dual_budget_envelope(
+            self.max_cost, self.spent, self.terminal_reserve,
+            phase=self._phase, outstanding=self._outstanding)
+        payload = {
+            "site": site,
+            "phase": env["phase"],
+            "outcome": REFUSAL_OUTCOME,
+            "envelope": {
+                "max_cost": env["max_cost_usd"],
+                "spent": env["spent"],
+                "outstanding": env["outstanding"],
+                "terminal_reserve": env["terminal_reserve_cost_usd"],
+                "phase_ceiling": env["phase_ceiling"],
+                "phase_remaining": env["phase_remaining"],
+            },
+            "reason": str(reason),
+        }
+        if requested is not None:
+            payload["requested"] = float(requested)
+        if label:
+            payload["label"] = str(label)
+        if scope:
+            payload["scope"] = str(scope)
+        try:
+            return record(REFUSAL_EVENT, payload=payload,
+                          subject_id=scope or None,
+                          spec_ref="spend.ceiling")
+        except Exception:  # a trace failure must never change the refusal
+            return None
+
     def _refuse_over_scope(self, targets, amount, what,
                            *, count_outstanding=True, ending="Refusing."):
         """Fail-closed scope leg: every target ledger must fit ``amount``.
@@ -372,11 +449,14 @@ class SpendGovernor:
             if count_outstanding:
                 committed += target.outstanding
             if committed + amount > target.max_cost:
-                raise HarnessError(
+                reason = (
                     f"{what} ${amount:.6f} would exceed task-scope "
                     f"'{target.label}' allowance ${target.max_cost:.6f} "
                     f"(scope spent=${target.spent:.6f}, "
                     f"outstanding=${target.outstanding:.6f}). {ending}")
+                self._record_refusal(site="task_scope", reason=reason,
+                                     requested=amount, scope=target.label)
+                raise HarnessError(reason)
 
     @staticmethod
     def _scope_settle(targets, *, spent=0.0, outstanding=0.0, unknown=0.0):
@@ -636,10 +716,13 @@ class SpendGovernor:
         with self._spend_lock:
             ceiling = self._phase_ceiling()
             if self.spent + self._outstanding + worst > ceiling:
-                raise HarnessError(
+                reason = (
                     f"Jev worst-case ${worst:.6f} for {label} exceeds remaining "
                     f"budget ${self.remaining():.6f} "
                     f"(phase={self._phase}, ceiling=${ceiling:.6f}); refusing.")
+                self._record_refusal(site="jev_preflight", reason=reason,
+                                     requested=worst, label=label)
+                raise HarnessError(reason)
             self._refuse_over_scope(
                 self._scope_targets(self._resolve_scope(None)), worst,
                 f"Jev worst-case for {label}")
@@ -674,16 +757,21 @@ class SpendGovernor:
             if self.spent + self._outstanding + total > ceiling:
                 if (self._phase == PHASE_ATTEMPT
                         and self.terminal_reserve > 0.0):
-                    raise HarnessError(
+                    reason = (
                         f"worst-case estimate ${total:.6f} would eat "
                         f"terminal_reserve ${self.terminal_reserve:.6f}; "
                         f"attempt working remaining is ${self.remaining():.6f}. "
                         f"Refusing.")
-                raise HarnessError(
-                    f"worst-case estimate ${self.spent + self._outstanding + total:.6f} "
-                    f"exceeds remaining ceiling ${ceiling:.6f} "
-                    f"(outstanding reservations: ${self._outstanding:.6f}; "
-                    f"phase={self._phase}). Refusing.")
+                else:
+                    reason = (
+                        f"worst-case estimate "
+                        f"${self.spent + self._outstanding + total:.6f} "
+                        f"exceeds remaining ceiling ${ceiling:.6f} "
+                        f"(outstanding reservations: ${self._outstanding:.6f}; "
+                        f"phase={self._phase}). Refusing.")
+                self._record_refusal(site="preflight", reason=reason,
+                                     requested=total)
+                raise HarnessError(reason)
             self._refuse_over_scope(
                 self._scope_targets(self._resolve_scope(None)), total,
                 "worst-case estimate")
@@ -722,17 +810,21 @@ class SpendGovernor:
             if self.spent + self._outstanding + amount > ceiling:
                 if (self._phase == PHASE_ATTEMPT
                         and self.terminal_reserve > 0.0):
-                    raise HarnessError(
+                    reason = (
                         f"reservation ${amount:.6f} ({label}) would eat "
                         f"terminal_reserve ${self.terminal_reserve:.6f}; "
                         f"attempt working remaining is ${self.remaining():.6f}. "
                         f"Refusing.")
-                raise HarnessError(
-                    f"reservation ${amount:.6f} would put spent+outstanding at "
-                    f"${self.spent + self._outstanding + amount:.6f}, over ceiling "
-                    f"${ceiling:.6f} "
-                    f"(${self.remaining():.6f} still unreserved; "
-                    f"phase={self._phase}). Refusing.")
+                else:
+                    reason = (
+                        f"reservation ${amount:.6f} would put spent+outstanding "
+                        f"at ${self.spent + self._outstanding + amount:.6f}, over "
+                        f"ceiling ${ceiling:.6f} "
+                        f"(${self.remaining():.6f} still unreserved; "
+                        f"phase={self._phase}). Refusing.")
+                self._record_refusal(site="reserve", reason=reason,
+                                     requested=amount, label=label)
+                raise HarnessError(reason)
             bound = self._resolve_scope(scope)
             targets = self._scope_targets(bound)
             self._refuse_over_scope(targets, amount, f"reservation ({label})")
@@ -996,15 +1088,21 @@ class SpendGovernor:
             if actual > 0.0 and self.spent + self._outstanding + actual > ceiling:
                 if (self._phase == PHASE_ATTEMPT
                         and self.terminal_reserve > 0.0):
-                    raise HarnessError(
-                        f"actual running cost ${self.spent + self._outstanding + actual:.6f} "
+                    reason = (
+                        f"actual running cost "
+                        f"${self.spent + self._outstanding + actual:.6f} "
                         f"would exceed ceiling ${ceiling:.6f} by eating terminal_reserve "
                         f"${self.terminal_reserve:.6f} (after '{label}'). Aborting.")
-                raise HarnessError(
-                    f"actual running cost ${self.spent + self._outstanding + actual:.6f} "
-                    f"would exceed ceiling ${ceiling:.6f} "
-                    f"(outstanding reservations: ${self._outstanding:.6f}; "
-                    f"after '{label}'; phase={self._phase}). Aborting.")
+                else:
+                    reason = (
+                        f"actual running cost "
+                        f"${self.spent + self._outstanding + actual:.6f} "
+                        f"would exceed ceiling ${ceiling:.6f} "
+                        f"(outstanding reservations: ${self._outstanding:.6f}; "
+                        f"after '{label}'; phase={self._phase}). Aborting.")
+                self._record_refusal(site="record_actual", reason=reason,
+                                     requested=actual, label=label)
+                raise HarnessError(reason)
             bound = self._resolve_scope(scope)
             targets = self._scope_targets(bound)
             if actual > 0.0:

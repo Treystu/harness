@@ -13,6 +13,7 @@ and primitives; nothing here imports interfaces.
 """
 from ._http import HttpTransport
 from .apply import ApplyEngine
+from .decision_trace import DecisionTrace
 from .jev_policy import JevPolicy, policy_for
 from .ledger import AutonomyLedger
 from .router import Router
@@ -286,6 +287,10 @@ def apply_session(settings, max_cost=None, transport=None, allowed_roots=None):
     (panel lane, no engine) but shares governor_for/ledger_for."""
     api_key, gov = governor_for(settings, max_cost)
     ledger = ledger_for(settings)
+    # #476: a ceiling refusal is a decision, so it is recorded on the same trace
+    # family the run already holds rather than left only in an exception text.
+    # governor_for stays exactly as it was for every other caller.
+    gov.attach_trace(DecisionTrace(ledger))
     pre_run_warning(governor=gov, ledger=ledger, use_free=settings.use_free)
     return engine_for(settings, api_key, gov, ledger, router_for(settings),
                       transport=transport, allowed_roots=allowed_roots)
