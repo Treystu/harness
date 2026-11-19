@@ -41,7 +41,7 @@ class FakeGov:
         return str(model).endswith(":free")
 
 
-def _chat(content_for):
+def _chat(content_for, byok=()):
     def fake_chat(transport, api_key, model, messages, max_tokens, effort,
                   budget, governor):
         status, content = content_for(model)
@@ -50,7 +50,7 @@ def _chat(content_for):
         return 200, {
             "choices": [{"message": {"content": content},
                          "finish_reason": "stop"}],
-            "usage": {"cost": 0.0},
+            "usage": {"cost": 0.0, "is_byok": model in byok},
         }
 
     return fake_chat
@@ -59,7 +59,7 @@ def _chat(content_for):
 class AttemptTraceTests(TestCase):
     def _run(self, *, pool=("r0", "r1"), finish_model="r1", trace=True,
              content_for=None, state_kwargs=None, allow_escalation=True,
-             task_max_cost=None, start_spent=None):
+             task_max_cost=None, start_spent=None, byok=()):
         router = Router(panel=["a"], judge="j", apply_model="a",
                         allow_escalation=allow_escalation,
                         escalation_pool=list(pool))
@@ -83,7 +83,7 @@ class AttemptTraceTests(TestCase):
 
         reader = content_for or (lambda model: (200, f"content-{model}"))
         with mock.patch("harness.escalation.chat_routed",
-                        side_effect=_chat(reader)):
+                        side_effect=_chat(reader, byok)):
             result = driver.run_with_escalation(
                 req, state, lambda st, ctx: "prompt", finish_fn)
         rows = read_trace_events(ledger, kinds=[ATTEMPT_EVENT])
@@ -127,6 +127,13 @@ class AttemptTraceTests(TestCase):
         _result, rows, _ledger, _state = self._run(content_for=content_for)
         self.assertEqual([row["status"] for row in rows], ["unusable", "ok"])
         self.assertFalse(rows[0]["realized_pass"])
+
+    def test_a_paid_byok_route_is_recorded_and_rotated(self):
+        _result, rows, _ledger, _state = self._run(byok=("r0",))
+        self.assertEqual([row["status"] for row in rows],
+                         ["byok_error", "ok"])
+        self.assertFalse(rows[0]["realized_pass"])
+        self.assertTrue(rows[1]["realized_pass"])
 
     def test_a_failed_gate_is_a_recorded_non_pass(self):
         _result, rows, _ledger, _state = self._run(finish_model="never")
