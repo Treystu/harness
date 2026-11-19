@@ -25,6 +25,8 @@ set. Never close an owner issue from this file; closure happens on the owner.
 | `citation-gate-unwired` | 2026-11-20 | `583120b4` | #422 | open — medium: `harness/citation_verify.py` implements the deterministic gate, but no resolver is supplied anywhere and the module has no call site outside itself, so no user path reaches it |
 | `ui-smoke-job-intermittent` | 2026-11-19 | `4c76ca09` | #295 | open - high: `ci/circleci: ui-playwright-smoke` fails and then passes on a byte-identical `tests/ui` tree (`git diff` is empty between `966de1dd`, `6c90298b`, `410a146c` and `4c76ca09`): failed at `966de1dd` and `4c76ca09`, passed at `6c90298b` and `410a146c`. The same 11 journeys pass 11/11 in 6.3s locally against that tree (`npm ci` + `npx playwright install chromium` + `npm test`), so the job's own browser/system install and served-fixture startup are the variable. Because `ci/circleci: audit` requires this job, one flake withholds the audit context and the pipeline reads 15/16 with audit absent rather than failed |
 
+| `campaign-trace-writer-unwired` | 2026-11-20 | `17906e2c` | #469 | open - high: `harness/flush_loop.py:392-396` forwards each campaign event to `DecisionTrace.campaign_event` only when a writer is injected, and no product call site injects one (`flush_loop.py:1261-1262`, `:1050`, `:1056`); the writer is green only because `tests/test_decision_trace_469.py:235-236` constructs it by hand, so #627's campaign retention is inert in use |
+
 ## Transfer entry (#451)
 
 The Harness-in-use filings previously tracked only as GitHub issues are

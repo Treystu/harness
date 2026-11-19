@@ -29,6 +29,7 @@ from .token_budget import USAGE_ACTUAL, USAGE_UNAVAILABLE
 from .output import eprint
 from .prompts import build_apply_prompt, consent_mechanics_text
 from .tokens import estimate_prompt_tokens
+from .decision_trace import DecisionTrace
 from .escalation import (EscalationDriver, _annotate_escalation,
                          jev_escalation_directive)
 
@@ -738,6 +739,9 @@ class ApplyEngineMixin:
                 req, state, model, new_content, cost, bool(new_content))
 
         driver = EscalationDriver(
+            # #471: the attempt trace goes through the one writer bound to the
+            # ledger this policy already owns.
+            trace=DecisionTrace(self.ledger) if self.ledger else None,
             router=self.router,
             transport=self.transport,
             api_key=self.api_key,
