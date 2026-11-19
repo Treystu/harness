@@ -322,6 +322,14 @@ Open set (41): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 
 | #467 decision-gate composition | champion-brief | Champion LAST | needs #588 receipts flowing; count provisional until W2 PR #626 lands (replayed `ce1d0084` onto `53dbc72f`, MERGEABLE) | same as above |
 | #466 Champion tracker | tracker | closes when every brief closes; persistence queue opened 2026-11-19: #468 unblocker delivered as W1 draft PR #628 (stacked on #627), order #471/#472/#475/#473/#476; #469 carried by #627 | all briefs above | all briefs verdict-recorded |
 
+### Champion brief-to-mechanism map (CANON-1)
+
+**Map of record:** [issue #466 comment 7007760683](https://github.com/Treystu/harness/issues/466#issuecomment-7007760683), filed by the sergeant per steering 6996071450 item 2 from W2's verified evidence and read at `main` `dbb54a7f`. It carries one row per brief ID `#467`-`#476` naming the mechanism site, the frozen order slot, and whether a live obligation remains.
+
+**Denominator, settled there and not restated per row:** ten brief numbers, **nine live obligations**, one closed (`#470`, published no-change measurement). The "eight mechanisms" figure is recorded as stale because no counting rule in the current record yields it. A brief is not a mechanism - `#475` names three mechanisms and `#469` three components under one stop decision - so the map counts briefs and names mechanisms separately.
+
+Inventory only: the map changes no brief, bar or frozen order, and takes or removes no completion credit.
+
 ### W3 - parked (owner-present tails; sergeant routes nothing until owner session)
 
 | Issue | Class | Note | Close test |
