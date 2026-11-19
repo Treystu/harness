@@ -178,3 +178,42 @@ class AttemptTraceTests(TestCase):
         _result, _rows, ledger, _state = self._run()
         ok, detail = ledger.verify()
         self.assertTrue(ok, detail)
+
+    def test_unknown_values_are_absent_rather_than_defaulted(self):
+        """A field the walk cannot know is left off the row, never invented."""
+        _result, rows, _ledger, _state = self._run()
+        for row in rows:
+            # Nothing failed, so there is no cause to record; an empty reason
+            # would be a fabricated fact.
+            self.assertNotIn("reason", row)
+            self.assertIsInstance(row["realized_pass"], bool)
+
+        def content_for(model):
+            return (429, "") if model == "r0" else (200, "content")
+
+        _result, rows, _ledger, _state = self._run(content_for=content_for)
+        # ...and where the cause is known it is carried, on that row only.
+        self.assertIn("reason", rows[0])
+        self.assertNotIn("reason", rows[1])
+
+    def test_rows_written_before_471_still_read(self):
+        """Legacy rows carry no rung facts and stay readable beside the new ones."""
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        ledger = AutonomyLedger(os.path.join(directory.name, "legacy.jsonl"))
+        ledger.append("offer", task_id="task-old")
+        ledger.append(
+            "model_result", task_id="task-old",
+            event_note="escalation_rung_0", model="r0", task_type="code",
+            json_expected=False, json_ok=None, status="ok", cost=0.0,
+            reported_cost=0.0)
+
+        # The pre-change ledger has no attempt rows, and reading them is not an
+        # error -- it is an empty answer.
+        self.assertEqual(read_trace_events(ledger, kinds=[ATTEMPT_EVENT]), [])
+        legacy = [e for e in ledger.tail(10) if e.get("event") == "model_result"]
+        self.assertEqual(legacy[0]["event_note"], "escalation_rung_0")
+        self.assertNotIn("start_rung", legacy[0])
+        self.assertNotIn("realized_pass", legacy[0])
+        ok, detail = ledger.verify()
+        self.assertTrue(ok, detail)
