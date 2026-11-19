@@ -263,16 +263,17 @@ close.
 
 **Census (two-method, base `main` `699f677b`):** live API `gh issue list --state open` = **44** open; roadmap REGISTER_MIRROR above is stale (60 at base `8ae3346`, 2026-11-17). Every open issue appears exactly once below with class, lane, order, dependencies, and close test. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
 
-Open set (44): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 311, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 407, 412, 413, 414, 415, 419, 422, 452, 466, 467, 468, 469, 471, 472, 473, 474, 475, 476, 480, 482, 517, 567.
+Open set (42): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 311, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 468, 469, 471, 472, 473, 474, 475, 476, 480, 482, 517, 567. (#419 closed on car-1 receipt 699f677b; #407 closed on car-2 receipt a7ca742e.)
 
 ### Train (sergeant, serial, exact green heads)
 
 | Issue | Class | Lane | State 2026-11-18 | Close test |
 | --- | --- | --- | --- | --- |
-| #419 [desktop] separate local/backend/request state | defect | sergeant/train | CAR 1 LANDED as `699f677b`; post-merge pipeline PENDING (WAIT) | post-merge 15/15 incl audit at `699f677b` green, then close |
-| #407 [visibility-site] opt-in worldwide model statistics | defect (ruling 6971448099) | sergeant/train | CAR 2: PR #619 head `9a0ceeae` rail 15/15 incl audit, BEHIND `699f677b`, routed to W1 for rebase | merge at rebased green head + post-merge green, then close |
-| #311 [local-fit] optional train/export path in CI | defect | sergeant/train | CAR 3: PR #620 head `b67967b8` rail 16/16 incl audit + local-fit leg, BEHIND | merge at rebased green head + post-merge green, then close |
-| (no issue) W2 intake rows | routing | sergeant/train | CAR 4: PR #621 head `8893d20f` rail 15/15 incl audit, BEHIND | merge at rebased green head; no issue closes |
+| #419 [desktop] separate local/backend/request state | defect | sergeant/train | CLOSED 2026-11-18 on post-merge 15/15 receipt at `699f677b` | closed |
+| #407 [visibility-site] opt-in worldwide model statistics | defect (ruling 6971448099) | sergeant/train | CLOSED 2026-11-19: PR #619 merged as `a7ca742e` (head `90d2ecca`, 15/15 incl audit vs `699f677b`); receipt on PR, Astra negatives cited | closed |
+| #311 [local-fit] optional train/export path in CI | defect | sergeant/train | PARKED 2026-11-19: PR #620 head `0b37ff7d` 16/16 SUCCESS but not mergeable vs `a7ca742e` (CONTRIBUTING.md conflict); W1 rebase cure routed | merge at rebased green head, then close |
+| (no issue) W2 intake rows | routing | sergeant/train | PARKED 2026-11-19: PR #621 head `5f3930fa` 15/15 SUCCESS but branch behind `a7ca742e`; W2 update routed | merge at updated green head; no issue closes |
+| (no issue) assessment-gate + flush-ledger trace gaps | routing | sergeant/train | QUEUED: PR #623 head `a585e782` 15/15 SUCCESS, stacked on #621; lands immediately after #621 | merge at green head; no issue closes |
 
 ### W1 - defects + Cluster E finite deliverables (sergeant assigns, W1 cures within one pass)
 
@@ -318,14 +319,14 @@ Open set (44): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 311, 313, 314, 
 | #472 capability pool ordering | champion-brief | Champion 7th | after #474 | same as above |
 | #473 router dynamic ranking | champion-brief | Champion 8th | after #472 | same as above |
 | #467 decision-gate composition | champion-brief | Champion LAST | needs #588 receipts flowing | same as above |
-| #466 Champion tracker | tracker | closes when every brief closes | all briefs above | all briefs verdict-recorded |
+| #466 Champion tracker | tracker | closes when every brief closes; D5 persistence queue routed to W1 2026-11-19 (sergeant filing) | all briefs above | all briefs verdict-recorded |
 
 ### W3 - parked (owner-present tails; sergeant routes nothing until owner session)
 
 | Issue | Class | Note | Close test |
 | --- | --- | --- | --- |
 | #480 perception bridge | parked-tail | probe 1 live_capture PARKED owner-present | supervised run passes in owner session |
-| #482 launch_app action | parked-tail | cold launch PARKED owner-present; closure packet filed | sergeant accepts packet or supervised run passes |
+| #482 launch_app action | parked-tail | code lines verified on `a7ca742e` 2026-11-19 (disposition filed); live cold launch PARKED on owner acts | supervised run passes, then close |
 | #452 vision driver readiness | parked-tail | supervised readiness run incl Test 0 PARKED owner-present | run passes, then close |
 
 ### Tracker / blocked
