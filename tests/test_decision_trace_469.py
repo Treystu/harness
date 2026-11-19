@@ -23,7 +23,9 @@ from harness.decision_trace import (
     read_trace_events,
     terminal,
 )
-from harness.flush_loop import EventLedger, record_pass, record_refusal
+from harness.flush_loop import (EventLedger, record_info_request,
+                                record_oscillation, record_pass,
+                                record_refusal, record_stop)
 from harness.ledger import AutonomyLedger
 
 
@@ -196,6 +198,64 @@ class CampaignRetentionTests(unittest.TestCase):
             sidecar = EventLedger(os.path.join(directory, "campaign.events.jsonl"))
             record_refusal(sidecar, reason="no delta", campaign="c")
             self.assertEqual(len(sidecar.read()), 1)
+
+
+class LiveTailReplayReceiptTests(unittest.TestCase):
+    """D5 verification: a campaign's live events replay identically from the trace.
+
+    Drives the real emitter functions through the sidecar the campaign writes,
+    then replays from the durable ledger: once from the live tail (active file)
+    and once after the active file has been rotated into a retained segment.
+    The two projections must be identical, and they must match what the sidecar
+    recorded -- that is the "identical replay inputs" the decision record asks
+    for, exercised end to end rather than asserted per unit.
+    """
+
+    CAMPAIGN = "campaign-live"
+
+    def _drive(self, sidecar):
+        record_pass(sidecar, identity=_Identity(), delta=("new-angle",),
+                    campaign=self.CAMPAIGN)
+        record_refusal(sidecar, reason="no delta", campaign=self.CAMPAIGN)
+        record_info_request(sidecar, aspect="gaps", missing_record="r-1",
+                            campaign=self.CAMPAIGN)
+        record_oscillation(sidecar, packet={"axis": "spec"}, campaign=self.CAMPAIGN)
+        record_stop(sidecar, campaign=self.CAMPAIGN, streak=2, basis="frozen",
+                    combined=0.91)
+
+    @staticmethod
+    def _project(rows):
+        return [(row["campaign_event"], row.get("reason"), row.get("streak"))
+                for row in rows]
+
+    def test_live_tail_and_archive_replay_identically(self):
+        with tempfile.TemporaryDirectory() as directory:
+            durable = _ledger(directory)
+            sidecar = EventLedger(os.path.join(directory, "campaign.events.jsonl"),
+                                  trace=DecisionTrace(durable))
+            self._drive(sidecar)
+
+            live = read_trace_events(durable, kinds=[CAMPAIGN_EVENT],
+                                     campaign=self.CAMPAIGN)
+            self.assertEqual([row["campaign_event"] for row in live],
+                             ["pass_admitted", "pass_refused", "info_request",
+                              "oscillation_escalated", "stop"])
+            self.assertEqual(len(durable.segment_paths()), 1)  # live tail only
+
+            # Retention: the campaign's own sidecar and the trace agree.
+            sidecar_events = [(event["event"], event.get("reason"),
+                               event.get("streak")) for event in sidecar.read()]
+            self.assertEqual(self._project(live), sidecar_events)
+
+            # Archive: rotate the live tail into a retained segment and replay.
+            os.replace(durable.path,
+                       durable.path + ".20260202T000000.000000")
+            self.assertEqual(len(durable.segment_paths()), 1)
+            archived = read_trace_events(durable, kinds=[CAMPAIGN_EVENT],
+                                         campaign=self.CAMPAIGN)
+            self.assertEqual(self._project(archived), self._project(live))
+            ok, _detail = durable.verify()
+            self.assertEqual(ok, True)
 
 
 class WindowPinningTests(unittest.TestCase):

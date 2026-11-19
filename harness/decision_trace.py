@@ -148,6 +148,12 @@ class DecisionTrace:
             raise TraceError("a campaign event needs a name")
         body = dict(payload or {})
         body.pop("event", None)  # the envelope's kind carries the name
+        # A campaign payload may already use an envelope word (the oscillation
+        # packet carries its own ``kind``). The envelope stays authoritative and
+        # the producer's field is kept under ``campaign_<key>`` rather than
+        # dropped: replay must not lose a field the sidecar still has.
+        for key in [k for k in body if k in ENVELOPE_KEYS]:
+            body["campaign_" + key] = body.pop(key)
         body["campaign"] = campaign
         body["campaign_event"] = event.strip()
         return self.record(CAMPAIGN_EVENT, payload=body,
