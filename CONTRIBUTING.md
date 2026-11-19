@@ -307,6 +307,7 @@ cheap; losing either is not.
 | `harness/hourglass_lifecycle.py` | multi-round chat answer generation and advisory Jev review |
 | `harness/simple_answer_lifecycle.py` | bounded no-tool answer lane with candidate reuse and usage accounting |
 | `harness/answer_plot_consistency.py` | static claim-vs-script check for a delivered plotting answer (#568) |
+| `harness/decision_trace.py` | D5-1 one home for durable decision traces: `trace_v1` envelope + terminal payload, one writer/reader over the active ledger file and retained segments, per-brief window pinning, and the `campaign.event` kind that retains campaign histories (#469) |
 | `harness/run_recovery.py` | read-only restart recovery over durable lifecycle checkpoints (#418) |
 | `harness/state_report.py` | local health, backend reachability and request state reported apart, with credential-free diagnostics (#419) |
 | `harness/edit_lifecycle.py` | auto-edit planning, preview/approval, execution receipts, and verification adapter |
