@@ -1,0 +1,26 @@
+{
+  "636park2": {
+    "product_jev": {
+      "verdict": "escalate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.05,
+      "cost": 2.9022e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "f0544bd9dae83b34928b0d2d6719abc84acf95f72479e2fb94c8f5eae2638627"
+    }
+  },
+  "_meta": {
+    "ledger_rows_added": 1,
+    "site": "audit_admissibility",
+    "head": "dbb54a7f50216ef537fef71f3d88b2e807d09e45"
+  }
+}
