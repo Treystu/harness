@@ -56,7 +56,7 @@ class PlanConsensusOrderTests(unittest.TestCase):
             return '{"verdict": "approve"}', 0.001
 
         from unittest.mock import patch
-        with patch("harness.waist.governed_text", side_effect=governed):
+        with patch("harness.plan_consensus.governed_text", side_effect=governed):
             plan = compose_plan(
                 transport=fake, api_key="k", governor=gov, ledger=ledger,
                 opts_goal="Update sync", candidate_files=["harness/sync.py"],
@@ -96,7 +96,7 @@ class PlanConsensusOrderTests(unittest.TestCase):
         from unittest.mock import patch
         fake = FakeTransport(models=[m("m/front", "0.000001", "0.000002")])
         gov = SpendGovernor(fake, "sk-test", max_cost=1.0)
-        with patch("harness.waist.governed_text", side_effect=governed):
+        with patch("harness.plan_consensus.governed_text", side_effect=governed):
             plan = compose_plan(
                 transport=fake, api_key="k", governor=gov, ledger=None,
                 opts_goal="Update sync", candidate_files=["harness/sync.py"],
