@@ -173,6 +173,15 @@ class AutonomyLedger(LedgerAnalytics):
                    f"{', '.join(skipped)}")
         return [os.path.join(directory, fn) for fn in names]
 
+    def segment_paths(self):
+        """Active file plus retained segments, oldest first.
+
+        Public because the trace reader spans the same set: the archive is the
+        ledger's, and a second enumeration of the rotation names would be a
+        second owner of what counts as a segment.
+        """
+        return self._ledger_paths()
+
     def _ledger_paths(self):
         return self._rotated_paths() + ([self.path] if os.path.exists(self.path) else [])
 
