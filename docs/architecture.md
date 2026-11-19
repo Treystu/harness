@@ -88,6 +88,17 @@ Harness is a dependency-light Python package with three surfaces:
 - `filesafety.py`: atomic writes, backups, and verification execution.
 - `continuation.py`: persisted continuation authority and gate identity.
 - `ledger.py`: hash-chained evidence.
+- `decision_trace.py`: the ONE home for durable decision traces (D5-1, #466
+  record 7002802650): the versioned `trace_v1` envelope (event/kind/subject/
+  call/attempt/causal ids, happened/appended times, spec ref) and the shared
+  terminal payload, one writer (`DecisionTrace.record`) appending
+  `decision_trace` rows to the hash-chained ledger, one reader spanning the
+  active file and retained segments (`ledger.segment_paths`), per-brief
+  window pinning (segments + hashes + ledger positions + coverage/gaps), and
+  the `campaign.event` kind that keeps campaign histories after the sidecar
+  is gone (#469). Fail-closed on an unavailable sink applies only to
+  audit-enabled entry points; ordinary traffic records the gap for the
+  reader instead of deferring.
 - `results.py`: apply result vocabulary and exit-code policy.
 - `rankings.py`: rankings-driven pool-candidate refresh (daily OpenRouter
   rankings -> catalog intersection -> one-vote probe gate). Advisory only:
