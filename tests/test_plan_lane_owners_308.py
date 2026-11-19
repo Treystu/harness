@@ -61,9 +61,13 @@ WAIST_ORCHESTRATION = (
 MISSING = unittest.SkipTest
 
 
+def _source_of(module) -> str:
+    with open(module.__file__, encoding="utf-8") as handle:
+        return handle.read()
+
+
 def _defined_names(module) -> set:
-    source = open(module.__file__, encoding="utf-8").read()
-    tree = ast.parse(source)
+    tree = ast.parse(_source_of(module))
     names = set()
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -130,7 +134,7 @@ class OwnerModuleTests(unittest.TestCase):
     def test_no_concern_module_imports_the_waist_at_module_scope(self):
         for module_name in OWNERS:
             module = importlib.import_module(module_name)
-            tree = ast.parse(open(module.__file__, encoding="utf-8").read())
+            tree = ast.parse(_source_of(module))
             offenders = []
             for node in tree.body:
                 if isinstance(node, ast.ImportFrom) and (node.module or "").endswith("waist"):
