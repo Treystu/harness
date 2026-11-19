@@ -211,6 +211,27 @@ jobs:
           name: Scan PR text, diff, credentials, and issue plans
           command: python scripts/driving_hygiene_ci.py
 
+  # #311: the optional local-fit train/export path. The default install has
+  # neither numpy, onnx nor onnxruntime, so the train/export tests carry
+  # skipUnless guards and every hermetic leg can pass without ever producing
+  # or scoring a model artifact. This job installs the extra and runs the
+  # gate, which refuses to start without the extras and FAILS on any skipped
+  # test -- a skip here would be a silent pass, which is the gap the audit
+  # filed. No provider or network calls; artifacts land in a temp dir only.
+  local-fit-optional:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          name: Install the optional local-fit-train extra
+          command: |
+            python -m pip install --upgrade pip
+            python -m pip install -e '.[dev,local-fit-train]'
+      - run:
+          name: Train, export, reload and score (no skips allowed)
+          command: python -m harness.local_fit.optional_ci
+          no_output_timeout: 20m
+
   ui-playwright-smoke:
     executor: python-node
     steps:
@@ -439,6 +460,9 @@ workflows:
       - driving-hygiene:
           context: github-statuses
           name: "driving-hygiene"
+      - local-fit-optional:
+          context: github-statuses
+          name: "local fit (optional train/export)"
       - ui-playwright-smoke:
           context: github-statuses
       - audit:
