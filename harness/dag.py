@@ -220,27 +220,27 @@ class TaskDAG:
 # import these names from harness.dag keep working via these shims.
 
 def build_decomposition_prompt(*args, **kwargs):
-    from .waist import build_decomposition_prompt as _impl
+    from .plan_decompose import build_decomposition_prompt as _impl
     return _impl(*args, **kwargs)
 
 def _parse_json_object(*args, **kwargs):
-    from .waist import _parse_json_object as _impl
+    from .plan_decompose import _parse_json_object as _impl
     return _impl(*args, **kwargs)
 
 def parse_decomposition_response(*args, **kwargs):
-    from .waist import parse_decomposition_response as _impl
+    from .plan_decompose import parse_decomposition_response as _impl
     return _impl(*args, **kwargs)
 
 def heuristic_decompose_goal(*args, **kwargs):
-    from .waist import heuristic_decompose_goal as _impl
+    from .plan_decompose import heuristic_decompose_goal as _impl
     return _impl(*args, **kwargs)
 
 def decompose_via_llm(*args, **kwargs):
-    from .waist import decompose_via_llm as _impl
+    from .plan_decompose import decompose_via_llm as _impl
     return _impl(*args, **kwargs)
 
 def plan_task(*args, **kwargs):
-    from .waist import plan_task as _impl
+    from .plan_consensus import plan_task as _impl
     return _impl(*args, **kwargs)
 
 def node_apply_kwargs(*args, **kwargs):
@@ -248,13 +248,13 @@ def node_apply_kwargs(*args, **kwargs):
     return _impl(*args, **kwargs)
 
 def build_waist_prompt(*args, **kwargs):
-    from .waist import build_waist_prompt as _impl
+    from .plan_consensus import build_waist_prompt as _impl
     return _impl(*args, **kwargs)
 
 def _waist_window_request(*args, **kwargs):
-    from .waist import _waist_window_request as _impl
+    from .plan_consensus import _waist_window_request as _impl
     return _impl(*args, **kwargs)
 
 def parse_waist_verdict(*args, **kwargs):
-    from .waist import parse_waist_verdict as _impl
+    from .plan_consensus import parse_waist_verdict as _impl
     return _impl(*args, **kwargs)

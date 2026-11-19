@@ -298,6 +298,11 @@ cheap; losing either is not.
 | `harness/simple_action_lifecycle.py` | bounded read-only public site checks with Jev route selection |
 | `harness/conversation_lifecycle.py` | conversational fallback generation, web evidence, and honest deferral |
 | `harness/execution_stages.py` | planning-stage composition, stage judgments, and restart guards |
+| `harness/plan_contracts.py` | the plan lane's vocabulary contract: stage/state/outcome names and the round-trip and brief bounds (#308) |
+| `harness/plan_decompose.py` | decomposition owner (M1): decomposition prompt, strict JSON recovery, response parsing, heuristic and LLM decompose (#308) |
+| `harness/plan_consensus.py` | consensus and confirmation owner (M2): consensus prompt/parse, tier classification, window reader, verdict vocabulary, `confirm_plan` (#308) |
+| `harness/plan_context.py` | context-intake owner: arguments, brief assembly, the recondense decision and wanted-stage selection (#308) |
+| `harness/plan_stages.py` | stage composition and budget owner: per-stage ceiling, state view, composition envelope, outcome and planning ladder (#308) |
 | `harness/lifecycle_types.py` | discriminated chat/audit/auto-edit/driver/provisioning states and their cross-field invariants |
 | `harness/lifecycle.py` | the single persisted request-state owner: Jev rounds, continuation, usage liability, side-effect receipts, and terminal transitions; lane adapters do not own duplicate state |
 | `harness/availability.py` | #538 per-(provider, model) availability verdicts: typed causes, TTL, bounded probe budget, `order()`, and `live_backends()` — the one owner of "which backends may be tried next", so lanes rotate to a healthy backend instead of deferring |

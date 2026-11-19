@@ -531,7 +531,7 @@ class ComposePlanTests(_WaistFixture):
             seen["label"] = label
             return '{"verdict": "approve"}', 0.0
 
-        with patch("harness.waist.governed_text", side_effect=fake_governed):
+        with patch("harness.plan_consensus.governed_text", side_effect=fake_governed):
             plan = compose_plan(
                 transport=None, api_key="k", governor=self.gov, ledger=None,
                 opts_goal="Split the work", candidate_files=["harness/sync.py"],
@@ -658,7 +658,7 @@ class ComposePlanTests(_WaistFixture):
                 raise HarnessError("HTTP 429: Provider returned error")
             return '{"verdict": "approve"}', 0.0
 
-        with patch("harness.waist.governed_text", side_effect=fake_gov):
+        with patch("harness.plan_consensus.governed_text", side_effect=fake_gov):
             plan = compose_plan(
                 transport=None, api_key="k", governor=self.gov, ledger=None,
                 opts_goal="Split the work", candidate_files=["harness/sync.py"],
@@ -680,7 +680,7 @@ class ComposePlanTests(_WaistFixture):
                 raise HarnessError("HTTP 429: Provider returned error")
             return '{"verdict": "approve"}', 0.001
 
-        with patch("harness.waist.governed_text", side_effect=fake_gov):
+        with patch("harness.plan_consensus.governed_text", side_effect=fake_gov):
             plan = compose_plan(
                 transport=None, api_key="k", governor=self.gov, ledger=None,
                 opts_goal="Split the work", candidate_files=["harness/sync.py"],
@@ -697,7 +697,7 @@ class ComposePlanTests(_WaistFixture):
         def broken(transport, api_key, governor, model, prompt, tokens, label=None):
             raise HarnessError("HTTP 429: Provider returned error")
 
-        with patch("harness.waist.governed_text", side_effect=broken):
+        with patch("harness.plan_consensus.governed_text", side_effect=broken):
             plan = compose_plan(
                 transport=None, api_key="k", governor=self.gov, ledger=None,
                 opts_goal="Split the work", candidate_files=["harness/sync.py"],
@@ -714,7 +714,7 @@ class ComposePlanTests(_WaistFixture):
         def broken(transport, api_key, governor, model, prompt, tokens, label=None):
             raise HarnessError("HTTP 429: Provider returned error")
 
-        with patch("harness.waist.governed_text", side_effect=broken):
+        with patch("harness.plan_consensus.governed_text", side_effect=broken):
             with self.assertRaises(HarnessError) as ctx:
                 compose_plan(
                     transport=None, api_key="k", governor=self.gov, ledger=None,
@@ -731,7 +731,7 @@ class ComposePlanTests(_WaistFixture):
                 "evidence": "sync.py does not need refactoring"
             }), 0.0
 
-        with patch("harness.waist.governed_text", side_effect=refuse_gov):
+        with patch("harness.plan_consensus.governed_text", side_effect=refuse_gov):
             plan = compose_plan(
                 transport=None, api_key="k", governor=self.gov, ledger=None,
                 opts_goal="Split the work", candidate_files=["harness/sync.py"],
@@ -774,7 +774,7 @@ class ComposePlanTests(_WaistFixture):
                 # Second waist check on re-planned DAG: approve
                 return json.dumps({"verdict": "approve"}), 0.0
 
-        with patch("harness.waist.governed_text", side_effect=mock_gov):
+        with patch("harness.plan_consensus.governed_text", side_effect=mock_gov):
             plan = compose_plan(
                 transport=None, api_key="k", governor=self.gov, ledger=None,
                 opts_goal="Run convergence loop", candidate_files=["harness/sync.py"],
@@ -806,7 +806,7 @@ class ComposePlanTests(_WaistFixture):
                 "evidence": "no loop in DAG"
             }), 0.0
 
-        with patch("harness.waist.governed_text", side_effect=mock_gov):
+        with patch("harness.plan_consensus.governed_text", side_effect=mock_gov):
             plan = compose_plan(
                 transport=None, api_key="k", governor=self.gov, ledger=None,
                 opts_goal="Run loop", candidate_files=["harness/sync.py"],
