@@ -41,6 +41,7 @@ import os
 import sys
 import tempfile
 import time
+import uuid
 
 from . import capture_hand as hand
 
@@ -103,6 +104,19 @@ def _frame_file(root, payload, name="frame.png"):
     with open(path, "wb") as handle:
         handle.write(payload)
     return path
+
+
+def _run_id():
+    """A per-invocation prefix for the probes' ledger request ids.
+
+    A request id is the ledger's primary key. Two runs that both posted
+    ``probe-locked`` would leave the first answer on disk, and the second
+    run would read its own request as already answered -- four probes then
+    fail on a root the operator reused. One prefix per probe call keeps
+    every run independent on a named root, which is what ``--root`` invites
+    and what a retry after a failed live probe needs.
+    """
+    return uuid.uuid4().hex[:12]
 
 
 def probe_live_capture(*, live, capture, clock, max_age):
@@ -196,7 +210,8 @@ def probe_locked(*, root, clock):
     worker = hand.CaptureHand(
         root, session_probe=lambda: hand.LOCKED, capture=capture,
         describe=lambda: ({"model": "leaked"}, ""), clock=clock)
-    hand.post_capture_request(root, "probe-locked", "capture", seat="driver")
+    rid = _run_id()
+    hand.post_capture_request(root, f"{rid}-locked", "capture", seat="driver")
     result = worker.poll_once()
     evidence = {"state": None if result is None else result.get("state"),
                 "path": None if result is None else result.get("path"),
@@ -233,14 +248,17 @@ def probe_wrong_token(*, root, clock):
         capture=lambda: (path, "captured"), describe=lambda: ({}, ""),
         clock=clock, seats=("driver",), require_grant=True)
 
+    rid = _run_id()
+
     def answered(request_id, **request):
-        hand.post_capture_request(root, request_id, "capture", **request)
+        hand.post_capture_request(root, f"{rid}-{request_id}", "capture",
+                                  **request)
         return worker.poll_once() or {}
 
-    intruder = answered("probe-seat", seat="intruder")
-    ungranted = answered("probe-nogrant", seat="driver")
+    intruder = answered("seat", seat="intruder")
+    ungranted = answered("nogrant", seat="driver")
     other = hand.issue_capture_grant(root, seat="other", clock=clock)
-    wrong_seat = answered("probe-wronggrant", seat="driver",
+    wrong_seat = answered("wronggrant", seat="driver",
                           grant=other["grant_id"])
 
     cases = {
@@ -292,14 +310,15 @@ def probe_fingerprint_stability(*, root, clock, polls=5):
         root, session_probe=lambda: hand.INTERACTIVE,
         capture=lambda: (path, "captured"), describe=describe, clock=clock,
         dedupe=True)
-    hand.post_capture_request(root, "probe-fp-capture", "capture",
+    rid = _run_id()
+    hand.post_capture_request(root, f"{rid}-capture", "capture",
                               seat="driver")
     worker.poll_once()
     fingerprint = hand.frame_fingerprint(path)
 
     deduped = 0
     for index in range(polls):
-        request_id = f"probe-fp-{index}"
+        request_id = f"{rid}-{index}"
         hand.post_capture_request(root, request_id, "describe", seat="driver",
                                   fingerprint=fingerprint)
         result = worker.poll_once() or {}
@@ -339,22 +358,23 @@ def probe_negative_content(*, root, clock):
             return {"model": handle.read().strip()}, "described"
 
     write("model-A")
+    rid = _run_id()
     worker = hand.CaptureHand(
         root, session_probe=lambda: hand.INTERACTIVE,
         capture=lambda: (path, "captured"), describe=describe, clock=clock,
         dedupe=True)
-    hand.post_capture_request(root, "probe-neg-a", "capture", seat="driver")
+    hand.post_capture_request(root, f"{rid}-a", "capture", seat="driver")
     worker.poll_once()
     first = hand.frame_fingerprint(path)
-    hand.post_capture_request(root, "probe-neg-a-describe", "describe",
+    hand.post_capture_request(root, f"{rid}-a-describe", "describe",
                               seat="driver", fingerprint=first)
     before = worker.poll_once() or {}
 
     write("model-B")
-    hand.post_capture_request(root, "probe-neg-b", "capture", seat="driver")
+    hand.post_capture_request(root, f"{rid}-b", "capture", seat="driver")
     worker.poll_once()
     second = hand.frame_fingerprint(path)
-    hand.post_capture_request(root, "probe-neg-b-describe", "describe",
+    hand.post_capture_request(root, f"{rid}-b-describe", "describe",
                               seat="driver", fingerprint=second)
     after = worker.poll_once() or {}
 
@@ -411,17 +431,33 @@ def run_battery(*, live=False, capture=None, clock=None, root=None,
         root = temporary.name
     root = os.path.abspath(root)
     os.makedirs(root, exist_ok=True)
+    scratch = None
+    hermetic_root = root
+    if live:
+        # Probe 1 talks to the real hand on ``root``. Probes 2-6 build their
+        # own hands, so an unanswered live request left on the operator's
+        # ledger would be the oldest pending answer they see -- and a failed
+        # probe 1 would poison four probes that did nothing wrong. They also
+        # must not litter the ledger the hand is watching. One scratch
+        # ledger per live run keeps both boundaries.
+        scratch = tempfile.TemporaryDirectory(
+            prefix="bridge-battery-probes-")
+        hermetic_root = os.path.abspath(scratch.name)
     try:
         probes = [
             probe_live_capture(live=live, capture=capture, clock=now,
                                max_age=max_age),
-            probe_stale_frame(root=root, clock=now, max_age=max_age),
-            probe_locked(root=root, clock=now),
-            probe_wrong_token(root=root, clock=now),
-            probe_fingerprint_stability(root=root, clock=now, polls=polls),
-            probe_negative_content(root=root, clock=now),
+            probe_stale_frame(root=hermetic_root, clock=now,
+                              max_age=max_age),
+            probe_locked(root=hermetic_root, clock=now),
+            probe_wrong_token(root=hermetic_root, clock=now),
+            probe_fingerprint_stability(root=hermetic_root, clock=now,
+                                        polls=polls),
+            probe_negative_content(root=hermetic_root, clock=now),
         ]
     finally:
+        if scratch is not None:
+            scratch.cleanup()
         if temporary is not None:
             temporary.cleanup()
     met = [p["id"] for p in probes if p["state"] == MET]

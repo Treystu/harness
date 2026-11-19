@@ -16,6 +16,8 @@ set. Never close an owner issue from this file; closure happens on the owner.
 | `panel-outcome-labels-absent` | 2026-11-18 | `9741066` | #474 | open — 42 defer-to-converge flips cannot be scored for false-convergence |
 | `audit-traces-not-persisted` | 2026-11-18 | `9741066` | #468, #469, #471, #472, #473, #475, #476 | open — each frozen Champion Audit program names a trace the system does not record |
 | `auth-connect-duplicate-label` | 2026-11-18 | `9741066` | #412 | open — two controls labelled "Connect browser"; the one in `auth-pair-panel` (`display:none`) is still in the accessible tree and clicking it issues no request and shows no feedback |
+| `bridge-hand-no-process-entry` | 2026-11-19 | `a7ca742` | #480 | open — BR2's hand has no process entry point: `python -m driver_core.capture_hand --root <dir> --status` exits 0 and does nothing (no `main()`, no output); cure in #625 |
+| `bridge-battery-ledger-not-isolated` | 2026-11-19 | `a7ca742` | #480 | open — a second run on a named `--root` reads the first run's answers as its own (`met 1/6`, exit 1), and a failed live probe leaves a pending request the later probes can answer; cure in #625 |
 
 ## Transfer entry (#451)
 

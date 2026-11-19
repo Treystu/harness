@@ -72,6 +72,29 @@ class HermeticRunTests(unittest.TestCase):
             self.assertFalse(receipt["passed"])
             self.assertTrue(os.listdir(directory))
 
+    def test_a_failed_live_probe_does_not_poison_the_other_probes(self):
+        """An unanswered live request must not become probe 3's answer."""
+        with tempfile.TemporaryDirectory() as directory:
+            reader = bb.live_reader(directory, timeout=0.05)
+            receipt = bb.run_battery(live=True, capture=reader, root=directory)
+        states = {p["id"]: p["state"] for p in receipt["probes"]}
+        self.assertEqual(states["live_capture"], bb.FAILED)
+        self.assertEqual(receipt["met"], 5)
+        self.assertEqual(
+            [p["id"] for p in receipt["probes"] if p["state"] == bb.FAILED],
+            ["live_capture"])
+
+    def test_a_named_root_can_run_twice(self):
+        """A retry on the operator's root must not read the last run's answers."""
+        with _root() as directory:
+            first = bb.run_battery(root=directory)
+            second = bb.run_battery(root=directory)
+        self.assertEqual(first["met"], 5)
+        self.assertEqual(second["met"], 5)
+        self.assertEqual(second["blocked"], ["live_capture"])
+        self.assertFalse(
+            any(p["state"] == bb.FAILED for p in second["probes"]))
+
 
 class LiveProbeTests(unittest.TestCase):
     def test_a_live_run_with_a_reader_meets_all_six(self):
