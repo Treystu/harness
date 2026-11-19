@@ -259,11 +259,11 @@ close.
 
 <!-- END REGISTER_MIRROR -->
 
-## Canonical burndown register - 2026-11-18 (#295, sergeant filing)
+## Canonical burndown register - 2026-11-19 (#295, sergeant filing)
 
-**Census (two-method, base `main` `699f677b`):** live API `gh issue list --state open` = **44** open; roadmap REGISTER_MIRROR above is stale (60 at base `8ae3346`, 2026-11-17). Every open issue appears exactly once below with class, lane, order, dependencies, and close test. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
+**Census (two-method, base `main` `7acd2df3`):** live API `gh issue list --state open` = **41** open; roadmap inventory below lists every one exactly once (plus tracker/non-issue rows). REGISTER_MIRROR above is stale (60 at base `8ae3346`, 2026-11-17). Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
 
-Open set (42): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 311, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 468, 469, 471, 472, 473, 474, 475, 476, 480, 482, 517, 567. (#419 closed on car-1 receipt 699f677b; #407 closed on car-2 receipt a7ca742e.)
+Open set (41): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 468, 469, 471, 472, 473, 474, 475, 476, 480, 482, 517, 567. (#419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; cars 3-4 carry no issue.)
 
 ### Train (sergeant, serial, exact green heads)
 
@@ -271,9 +271,10 @@ Open set (42): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 311, 313, 314, 
 | --- | --- | --- | --- | --- |
 | #419 [desktop] separate local/backend/request state | defect | sergeant/train | CLOSED 2026-11-18 on post-merge 15/15 receipt at `699f677b` | closed |
 | #407 [visibility-site] opt-in worldwide model statistics | defect (ruling 6971448099) | sergeant/train | CLOSED 2026-11-19: PR #619 merged as `a7ca742e` (head `90d2ecca`, 15/15 incl audit vs `699f677b`); receipt on PR, Astra negatives cited | closed |
-| #311 [local-fit] optional train/export path in CI | defect | sergeant/train | PARKED 2026-11-19: PR #620 head `0b37ff7d` 16/16 SUCCESS but not mergeable vs `a7ca742e` (CONTRIBUTING.md conflict); W1 rebase cure routed | merge at rebased green head, then close |
-| (no issue) W2 intake rows | routing | sergeant/train | PARKED 2026-11-19: PR #621 head `5f3930fa` 15/15 SUCCESS but branch behind `a7ca742e`; W2 update routed | merge at updated green head; no issue closes |
-| (no issue) assessment-gate + flush-ledger trace gaps | routing | sergeant/train | QUEUED: PR #623 head `a585e782` 15/15 SUCCESS, stacked on #621; lands immediately after #621 | merge at green head; no issue closes |
+| #311 [local-fit] optional train/export path in CI | defect | sergeant/train | CLOSED 2026-11-19: PR #620 merged as `8187bc3c` (head `4817a4fe`, 16/16 incl audit); receipt on PR | closed |
+| (no issue) W2 intake rows | routing | sergeant/train | CLOSED 2026-11-19: PR #621 merged as `53dbc72f` (head `38486706`, 16/16 incl audit vs `8187bc3c`); receipt on PR | closed |
+| (no issue) assessment-gate + flush-ledger trace gaps | routing | sergeant/train | CLOSED 2026-11-19: PR #623 merged as `7acd2df3` (head `ddcb3b20`, 16/16 incl audit vs `53dbc72f`, W2 replay); receipt on PR | closed |
+| (no issue) this register | routing | sergeant/train | THIS PR #622: merged `origin/main` `7acd2df3`, refreshed rows to live truth; lands in dependency-safe slot per 6996071450 item 5 | merge at green head; no issue closes |
 
 ### W1 - defects + Cluster E finite deliverables (sergeant assigns, W1 cures within one pass)
 
@@ -318,8 +319,8 @@ Open set (42): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 311, 313, 314, 
 | #471 rung mapping | champion-brief | Champion 6th | none | same as above |
 | #472 capability pool ordering | champion-brief | Champion 7th | after #474 | same as above |
 | #473 router dynamic ranking | champion-brief | Champion 8th | after #472 | same as above |
-| #467 decision-gate composition | champion-brief | Champion LAST | needs #588 receipts flowing | same as above |
-| #466 Champion tracker | tracker | closes when every brief closes; D5 persistence queue routed to W1 2026-11-19 (sergeant filing) | all briefs above | all briefs verdict-recorded |
+| #467 decision-gate composition | champion-brief | Champion LAST | needs #588 receipts flowing; count provisional until W2 PR #626 lands (replayed `ce1d0084` onto `53dbc72f`, MERGEABLE) | same as above |
+| #466 Champion tracker | tracker | closes when every brief closes; persistence queue opened 2026-11-19: #468 unblocker delivered as W1 draft PR #628 (stacked on #627), order #471/#472/#475/#473/#476; #469 carried by #627 | all briefs above | all briefs verdict-recorded |
 
 ### W3 - parked (owner-present tails; sergeant routes nothing until owner session)
 
