@@ -1,0 +1,13 @@
+<stdin>:17: SyntaxWarning: "\|" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\|"? A raw string is also an option.
+module: C:\Users\SCM\Documents\GitHub\Harness\harness\citation_verify.py
+has verify_citation: True | has audit_citations: True
+audit keys: ['citation_verified', 'citations', 'claims', 'ok', 'summary', 'unresolved']
+citation_verified: False
+may_label: False
+citation rows: 1
+row0: {"status": "not_verifiable", "reasons": ["resolver_error: no DOI resolver was supplied"], "metadata_source": "injected-resolver"}
+--- import census outside the module ---
+HEAD:tests/test_citation_verify.py:5:from harness.citation_verify import (
+HEAD:tests/test_d12cov_audit_evidence.py:21:from harness import citation_verify as cv
+HEAD:tests/test_d12cov_audit_evidence.py:23:from harness.citation_verify import (
+
