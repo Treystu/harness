@@ -24,6 +24,8 @@ set. Never close an owner issue from this file; closure happens on the owner.
 | `web-records-before-plan` | 2026-11-20 | `583120b4` | #415, #342 | open — high: five web records (fetch/search/browser) for an MCP-specification question, zero on-query, produced before any approved query-bound plan record (run `add821eb7c09`) |
 | `citation-gate-unwired` | 2026-11-20 | `583120b4` | #422 | open — medium: `harness/citation_verify.py` implements the deterministic gate, but no resolver is supplied anywhere and the module has no call site outside itself, so no user path reaches it |
 
+| `campaign-trace-writer-unwired` | 2026-11-20 | `17906e2c` | #469 | open - high: `harness/flush_loop.py:392-396` forwards each campaign event to `DecisionTrace.campaign_event` only when a writer is injected, and no product call site injects one (`flush_loop.py:1261-1262`, `:1050`, `:1056`); the writer is green only because `tests/test_decision_trace_469.py:235-236` constructs it by hand, so #627's campaign retention is inert in use |
+
 ## Transfer entry (#451)
 
 The Harness-in-use filings previously tracked only as GitHub issues are
