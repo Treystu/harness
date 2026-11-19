@@ -86,7 +86,7 @@ class ComposedCeilingTests(unittest.TestCase):
             return '{"verdict": "approve"}', 0.0
 
         from unittest.mock import patch
-        with patch("harness.waist.governed_text", side_effect=approve):
+        with patch("harness.plan_consensus.governed_text", side_effect=approve):
             plan = compose_plan(
                 transport=fake, api_key="k", governor=gov, ledger=None,
                 opts_goal="Fix typo", candidate_files=["a.py"],
