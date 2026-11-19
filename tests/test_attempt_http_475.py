@@ -194,6 +194,39 @@ class JevAttemptTimelineTests(unittest.TestCase):
         self.assertFalse(attempt_trace.active())
 
 
+class WireRecorderTests(unittest.TestCase):
+    """The collection point itself, including the retry annotation."""
+
+    def test_each_wire_attempt_and_its_retry_annotation_are_recorded(self):
+        self.assertFalse(attempt_trace.active())
+        attempt_trace.reset_wire()
+        self.assertTrue(attempt_trace.active())
+        attempt_trace.record_wire_attempt(http_status=429, elapsed_s=0.5,
+                                          outcome="response")
+        attempt_trace.note_retry(retry_reason="rate_limited",
+                                 retry_delay_s=0.5)
+        attempt_trace.record_wire_attempt(http_status=200, elapsed_s=0.2,
+                                          outcome="response")
+        attempt_trace.record_call(http_status=200, started_at=1.0)
+        call = attempt_trace.take_call()
+        attempts = call["attempts"]
+        self.assertEqual([a["attempt"] for a in attempts], [1, 2])
+        self.assertEqual([a["http_status"] for a in attempts], [429, 200])
+        self.assertEqual(attempts[0].get("retry_reason"), "rate_limited")
+        self.assertEqual(attempts[0].get("retry_delay_s"), 0.5)
+        self.assertEqual(attempts[0]["duration_ms"], 500)
+        self.assertNotIn("retry_reason", attempts[1])
+        self.assertFalse(attempt_trace.active())
+
+    def test_recording_is_inert_when_no_lane_opened_a_call(self):
+        self.assertFalse(attempt_trace.active())
+        self.assertIsNone(attempt_trace.take_call())
+        attempt_trace.record_wire_attempt(http_status=429, elapsed_s=0.1)
+        attempt_trace.note_retry(retry_reason="rate_limited", retry_delay_s=1.0)
+        self.assertIsNone(attempt_trace.take_call())
+        self.assertEqual(attempt_trace.row_fields(None), {})
+
+
 class LandedRowToleranceTests(unittest.TestCase):
     def test_a_row_written_before_475_reads_as_an_empty_timeline(self):
         """Migration: landed JSONL has no timeline; the reader says so."""
