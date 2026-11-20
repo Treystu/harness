@@ -38,10 +38,12 @@ close.
   (`type:issue is:open`, `60`). The previous mirror printed 65 at
   `4aaa65f1`; the delta is named below rather than absorbed.
 - Across the wave tables below (`W0`-`W10`), **108** tracked issue rows appear:
-  **54** `OPEN` and **54** `CLOSED`. The arithmetic reconciles: `108 - 54 = 54`.
+  **52** `OPEN` and **56** `CLOSED`. The arithmetic reconciles: `108 - 56 = 52`.
 - **6 open issues are filed but not yet placed in a wave**, named here
   rather than dropped: `#573`, `#574`, `#579`, `#585`, `#587`, `#588`.
-  With them, `54 + 6 = 60`, which is the live count above. Placing them is a taxonomy act for the register's owner;
+  With them, `52 + 6 = 58`; the live count has since fallen below the `60`
+  printed above (other lanes closed issues after that read), and this mirror
+  does not re-derive the placed/unplaced split in a row-only PR. Placing them is a taxonomy act for the register's owner;
   this mirror does not invent a placement.
 - Closed since the previous mirror, among tracked rows: `#463` (closed
   2026-11-17 per oversight decision tick 400: transport/host, `harness-oc`
@@ -84,13 +86,13 @@ close.
 | --- | --- | --- |
 | W0 - Rail and gate truth - blocks landing anything else | 4 | 0 |
 | W1 - Active queue - the filed order | 2 | 0 |
-| W2 - Verification and surface truth | 37 | 10 |
+| W2 - Verification and surface truth | 37 | 9 |
 | W3 - Driver and perception | 5 | 5 |
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
 | W5 - Research and retrieval | 4 | 3 |
 | W6 - Spend, routing and calibration | 15 | 10 |
 | W7 - Structure and scoped defects | 18 | 8 |
-| W8 - Champion Audit program | 12 | 11 |
+| W8 - Champion Audit program | 12 | 10 |
 | W9 - Tracking and low priority | 5 | 5 |
 | W10 - Mode, proposals and parked - owner | 3 | 2 |
 
@@ -110,7 +112,7 @@ close.
 | [#275](https://github.com/Treystu/harness/issues/275) Hourglass/HUL: integrate Freebuff mission-mode findings (full dossier) | CLOSED | L1-L7/L10-L12 landed via PR `#576` (`562c557`); closed 2026-11-17T07:16Z with receipts on #295 |
 | [#489](https://github.com/Treystu/harness/issues/489) [jev] External Jev calibration draft: validation verdict — do not integrate as written; scoped residue for the lane | CLOSED | PR #551 (`a144ce28`): `harness/jev_conformance.py`, `harness/jev_calibration.py`, `tests/test_jev_conformance.py`, `tests/test_jev_deferral_reporting.py` |
 
-### W2 - Verification and surface truth - 10 open
+### W2 - Verification and surface truth - 9 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -222,7 +224,7 @@ close.
 | [#568](https://github.com/Treystu/harness/issues/568) [apply] Orders-of-magnitude answer delivers two linear panels titled 'Log10 scale' and prose that contradicts its own code | OPEN | none |
 | [#569](https://github.com/Treystu/harness/issues/569) [guard] Held write reports an internal restart/consent state string and tells the operator to review planned changes it never showed | OPEN | none |
 
-### W8 - Champion Audit program - 11 open
+### W8 - Champion Audit program - 10 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
