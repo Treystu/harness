@@ -25,8 +25,12 @@ Receipt shape (``bridge-battery@1``)::
 
 Run it::
 
-    python -m driver_core.bridge_battery            # hermetic, probe 1 blocked
-    python -m driver_core.bridge_battery --live     # owner-supervised session
+    python -m driver_core.bridge_battery                      # hermetic
+    python -m driver_core.bridge_battery --live --root <dir>  # supervised
+
+``--live`` needs the ledger root the hand answers on: probe 1 drives the
+bridge's own bus consumer, so a temporary directory would prove nothing and
+is refused rather than treated as a bridge.
 
 Exit codes: ``0`` all six probes met; ``1`` a probe failed; ``2`` the battery
 ran but the live probe is blocked (the honest state of every hermetic run).
@@ -37,6 +41,7 @@ import os
 import sys
 import tempfile
 import time
+import uuid
 
 from . import capture_hand as hand
 
@@ -53,13 +58,26 @@ FAILED = "failed"
 #: What the owner has to do for probe 1. Carried on the blocked receipt so the
 #: runbook travels with the verdict instead of living only in an issue comment.
 LIVE_RUNBOOK = (
-    "Probe 1 needs a supervised interactive session: (1) start driver-core's "
-    "capture service off port 8765 (8765 is the serving UI; do not stop it), "
-    "(2) set DRIVER_SCREEN to the FreeBuff desktop, (3) confirm the bridge's "
-    "kill switch is clear and a capture grant is issued for the asking seat, "
-    "(4) run this battery with --live from the non-desktop driver, (5) file "
-    "the receipt on #480 and #452. Owner-present only: no unsupervised input "
-    "or GUI run is authorised by this lane."
+    "Probe 1 is owner-present and supervised. Preconditions: an unlocked "
+    "interactive Windows session with FreeBuff visible; this checkout at "
+    "699f677b or later; one ledger root both processes can reach (call it "
+    "<root>; frames never enter git); DRIVER_SCREEN_OUT set in the hand's "
+    "environment to a writable PNG path the driver can read (for example "
+    "<root>/frame.png) -- Windows capture refuses by name without it; port "
+    "8765 untouched. Steps: (1) in the interactive session set "
+    "DRIVER_SCREEN_OUT to that path and start the hand: python -m "
+    "driver_core.capture_hand --root <root> --seats driver "
+    "--require-grant; (2) as the owner issue one single-use grant: python "
+    "-c \"from driver_core import capture_hand as h; print("
+    "h.issue_capture_grant(r'<root>', seat='driver')['grant_id'])\"; (3) "
+    "from the non-desktop driver run: python -m "
+    "driver_core.bridge_battery --live --root <root> --seat driver --grant "
+    "<grant-id> --out <receipt>.json; (4) file the receipt and the hand's "
+    "answer line on #480 and #452. Pass evidence: exit 0; "
+    "bridge-battery@1 live=true met=6/6; the live_capture evidence names "
+    "the frame path, its sha256 fingerprint and fresh=true; the hand printed "
+    "one answer line for seat 'driver'. Stop the hand with Ctrl+C; write "
+    "STOP into <root> to engage the kill switch if anything is unexpected."
 )
 
 #: The six acceptance probes, in the issue's order. The ids are stable because
@@ -89,6 +107,19 @@ def _frame_file(root, payload, name="frame.png"):
     with open(path, "wb") as handle:
         handle.write(payload)
     return path
+
+
+def _run_id():
+    """A per-invocation prefix for the probes' ledger request ids.
+
+    A request id is the ledger's primary key. Two runs that both posted
+    ``probe-locked`` would leave the first answer on disk, and the second
+    run would read its own request as already answered -- four probes then
+    fail on a root the operator reused. One prefix per probe call keeps
+    every run independent on a named root, which is what ``--root`` invites
+    and what a retry after a failed live probe needs.
+    """
+    return uuid.uuid4().hex[:12]
 
 
 def probe_live_capture(*, live, capture, clock, max_age):
@@ -182,7 +213,8 @@ def probe_locked(*, root, clock):
     worker = hand.CaptureHand(
         root, session_probe=lambda: hand.LOCKED, capture=capture,
         describe=lambda: ({"model": "leaked"}, ""), clock=clock)
-    hand.post_capture_request(root, "probe-locked", "capture", seat="driver")
+    rid = _run_id()
+    hand.post_capture_request(root, f"{rid}-locked", "capture", seat="driver")
     result = worker.poll_once()
     evidence = {"state": None if result is None else result.get("state"),
                 "path": None if result is None else result.get("path"),
@@ -219,14 +251,17 @@ def probe_wrong_token(*, root, clock):
         capture=lambda: (path, "captured"), describe=lambda: ({}, ""),
         clock=clock, seats=("driver",), require_grant=True)
 
+    rid = _run_id()
+
     def answered(request_id, **request):
-        hand.post_capture_request(root, request_id, "capture", **request)
+        hand.post_capture_request(root, f"{rid}-{request_id}", "capture",
+                                  **request)
         return worker.poll_once() or {}
 
-    intruder = answered("probe-seat", seat="intruder")
-    ungranted = answered("probe-nogrant", seat="driver")
+    intruder = answered("seat", seat="intruder")
+    ungranted = answered("nogrant", seat="driver")
     other = hand.issue_capture_grant(root, seat="other", clock=clock)
-    wrong_seat = answered("probe-wronggrant", seat="driver",
+    wrong_seat = answered("wronggrant", seat="driver",
                           grant=other["grant_id"])
 
     cases = {
@@ -278,14 +313,15 @@ def probe_fingerprint_stability(*, root, clock, polls=5):
         root, session_probe=lambda: hand.INTERACTIVE,
         capture=lambda: (path, "captured"), describe=describe, clock=clock,
         dedupe=True)
-    hand.post_capture_request(root, "probe-fp-capture", "capture",
+    rid = _run_id()
+    hand.post_capture_request(root, f"{rid}-capture", "capture",
                               seat="driver")
     worker.poll_once()
     fingerprint = hand.frame_fingerprint(path)
 
     deduped = 0
     for index in range(polls):
-        request_id = f"probe-fp-{index}"
+        request_id = f"{rid}-{index}"
         hand.post_capture_request(root, request_id, "describe", seat="driver",
                                   fingerprint=fingerprint)
         result = worker.poll_once() or {}
@@ -325,22 +361,23 @@ def probe_negative_content(*, root, clock):
             return {"model": handle.read().strip()}, "described"
 
     write("model-A")
+    rid = _run_id()
     worker = hand.CaptureHand(
         root, session_probe=lambda: hand.INTERACTIVE,
         capture=lambda: (path, "captured"), describe=describe, clock=clock,
         dedupe=True)
-    hand.post_capture_request(root, "probe-neg-a", "capture", seat="driver")
+    hand.post_capture_request(root, f"{rid}-a", "capture", seat="driver")
     worker.poll_once()
     first = hand.frame_fingerprint(path)
-    hand.post_capture_request(root, "probe-neg-a-describe", "describe",
+    hand.post_capture_request(root, f"{rid}-a-describe", "describe",
                               seat="driver", fingerprint=first)
     before = worker.poll_once() or {}
 
     write("model-B")
-    hand.post_capture_request(root, "probe-neg-b", "capture", seat="driver")
+    hand.post_capture_request(root, f"{rid}-b", "capture", seat="driver")
     worker.poll_once()
     second = hand.frame_fingerprint(path)
-    hand.post_capture_request(root, "probe-neg-b-describe", "describe",
+    hand.post_capture_request(root, f"{rid}-b-describe", "describe",
                               seat="driver", fingerprint=second)
     after = worker.poll_once() or {}
 
@@ -364,6 +401,27 @@ def probe_negative_content(*, root, clock):
                   evidence)
 
 
+def live_reader(root, *, seat=hand.DEFAULT_SEAT, grant=None,
+                timeout=hand.DEFAULT_TIMEOUT,
+                max_age=hand.DEFAULT_MAX_AGE):
+    """The reader probe 1 uses: the bridge's own bus consumer.
+
+    Building a second reader here would prove only that this module can read
+    a screen, not that the *bridge* can. :func:`capture_hand.bus_capture_backend`
+    is the consumer a non-desktop driver registers, and it applies the
+    hand's freshness gate before returning a path -- so a frame this reader
+    returns is one the bridge already accepted, not one the battery dated
+    for itself. ``max_age`` must be the same window the battery was asked
+    to enforce: the consumer's gate is the one that sees the hand's
+    ``captured_at``, and a default here would silently accept a frame the
+    operator asked to refuse (or refuse one they asked to accept). The hand
+    must already be running on ``root``.
+    """
+    backend = hand.bus_capture_backend(root, seat=seat, grant=grant,
+                                       timeout=timeout, max_age=max_age)
+    return backend.capture
+
+
 def run_battery(*, live=False, capture=None, clock=None, root=None,
                 polls=5, max_age=hand.DEFAULT_MAX_AGE):
     """Run all six probes and return the receipt.
@@ -381,17 +439,33 @@ def run_battery(*, live=False, capture=None, clock=None, root=None,
         root = temporary.name
     root = os.path.abspath(root)
     os.makedirs(root, exist_ok=True)
+    scratch = None
+    hermetic_root = root
+    if live:
+        # Probe 1 talks to the real hand on ``root``. Probes 2-6 build their
+        # own hands, so an unanswered live request left on the operator's
+        # ledger would be the oldest pending answer they see -- and a failed
+        # probe 1 would poison four probes that did nothing wrong. They also
+        # must not litter the ledger the hand is watching. One scratch
+        # ledger per live run keeps both boundaries.
+        scratch = tempfile.TemporaryDirectory(
+            prefix="bridge-battery-probes-")
+        hermetic_root = os.path.abspath(scratch.name)
     try:
         probes = [
             probe_live_capture(live=live, capture=capture, clock=now,
                                max_age=max_age),
-            probe_stale_frame(root=root, clock=now, max_age=max_age),
-            probe_locked(root=root, clock=now),
-            probe_wrong_token(root=root, clock=now),
-            probe_fingerprint_stability(root=root, clock=now, polls=polls),
-            probe_negative_content(root=root, clock=now),
+            probe_stale_frame(root=hermetic_root, clock=now,
+                              max_age=max_age),
+            probe_locked(root=hermetic_root, clock=now),
+            probe_wrong_token(root=hermetic_root, clock=now),
+            probe_fingerprint_stability(root=hermetic_root, clock=now,
+                                        polls=polls),
+            probe_negative_content(root=hermetic_root, clock=now),
         ]
     finally:
+        if scratch is not None:
+            scratch.cleanup()
         if temporary is not None:
             temporary.cleanup()
     met = [p["id"] for p in probes if p["state"] == MET]
@@ -435,6 +509,13 @@ def main(argv=None):
                         help="probe 1 against a live, supervised session")
     parser.add_argument("--root", default=None,
                         help="the bridge ledger root (default: a temp dir)")
+    parser.add_argument("--seat", default=hand.DEFAULT_SEAT,
+                        help="the seat probe 1 presents to the hand")
+    parser.add_argument("--grant", default=None,
+                        help="a single-use grant id issued for that seat")
+    parser.add_argument("--timeout", type=float,
+                        default=hand.DEFAULT_TIMEOUT,
+                        help="how long probe 1 waits for the hand")
     parser.add_argument("--polls", type=int, default=5,
                         help="describe polls for the stability probe")
     parser.add_argument("--max-age", type=float, default=hand.DEFAULT_MAX_AGE,
@@ -443,8 +524,15 @@ def main(argv=None):
                         help="write the JSON receipt to this path")
     args = parser.parse_args(argv)
 
-    receipt = run_battery(live=args.live, root=args.root, polls=args.polls,
-                          max_age=args.max_age)
+    capture = None
+    if args.live:
+        if not args.root:
+            parser.error("--live needs --root naming the ledger the hand "
+                         "answers on")
+        capture = live_reader(args.root, seat=args.seat, grant=args.grant,
+                              timeout=args.timeout, max_age=args.max_age)
+    receipt = run_battery(live=args.live, capture=capture, root=args.root,
+                          polls=args.polls, max_age=args.max_age)
     text = json.dumps(receipt, indent=2, sort_keys=True)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as handle:
