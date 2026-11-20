@@ -67,9 +67,14 @@ def fetch_json(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, Any]:
     except urllib.error.HTTPError as exc:
         mapping = {401: "blocked", 403: "blocked", 402: "paywalled",
                    404: "unavailable", 429: "rate_limited"}
+        code = int(exc.code)
+        # The error object owns the response stream. Leaving it open leaks the
+        # descriptor and surfaces as a ResourceWarning on any later GC, which
+        # the hermetic audit treats as a failure of the whole suite.
+        exc.close()
         raise ResolverTransportError(
-            f"HTTP {exc.code}", status=mapping.get(exc.code, "http_error"),
-            http_status=int(exc.code)) from exc
+            f"HTTP {code}", status=mapping.get(code, "http_error"),
+            http_status=code) from exc
     except (socket.timeout, TimeoutError) as exc:
         raise ResolverTransportError("request timed out", status="timeout") from exc
     except urllib.error.URLError as exc:
