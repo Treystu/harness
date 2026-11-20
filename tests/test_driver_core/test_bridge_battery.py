@@ -5,11 +5,15 @@ below are mostly about the refusals: a hermetic run is ``blocked`` on probe 1,
 a live run with no reader is ``blocked`` rather than met, a reader that raises
 is ``failed``, and a receipt always carries every key.
 """
+import contextlib
+import io
 import json
 import os
 import tempfile
+import threading
 import time
 import unittest
+from unittest import mock
 
 from driver_core import bridge_battery as bb
 from driver_core import capture_hand as hand
@@ -67,6 +71,29 @@ class HermeticRunTests(unittest.TestCase):
             self.assertTrue(os.path.isdir(directory))
             self.assertFalse(receipt["passed"])
             self.assertTrue(os.listdir(directory))
+
+    def test_a_failed_live_probe_does_not_poison_the_other_probes(self):
+        """An unanswered live request must not become probe 3's answer."""
+        with tempfile.TemporaryDirectory() as directory:
+            reader = bb.live_reader(directory, timeout=0.05)
+            receipt = bb.run_battery(live=True, capture=reader, root=directory)
+        states = {p["id"]: p["state"] for p in receipt["probes"]}
+        self.assertEqual(states["live_capture"], bb.FAILED)
+        self.assertEqual(receipt["met"], 5)
+        self.assertEqual(
+            [p["id"] for p in receipt["probes"] if p["state"] == bb.FAILED],
+            ["live_capture"])
+
+    def test_a_named_root_can_run_twice(self):
+        """A retry on the operator's root must not read the last run's answers."""
+        with _root() as directory:
+            first = bb.run_battery(root=directory)
+            second = bb.run_battery(root=directory)
+        self.assertEqual(first["met"], 5)
+        self.assertEqual(second["met"], 5)
+        self.assertEqual(second["blocked"], ["live_capture"])
+        self.assertFalse(
+            any(p["state"] == bb.FAILED for p in second["probes"]))
 
 
 class LiveProbeTests(unittest.TestCase):
@@ -195,6 +222,107 @@ class NegativeContentProbeTests(unittest.TestCase):
             self.assertEqual(probe["evidence"]["fields_after"]["model"],
                              "model-B")
             self.assertFalse(probe["evidence"]["deduped_after"])
+
+
+class LiveWiringTests(unittest.TestCase):
+    """Probe 1 must run the bridge's consumer, not a reader built here."""
+
+    def test_live_reader_is_the_bus_consumer(self):
+        class _Backend:
+            def capture(self):
+                return "/tmp/frame.png", "captured"
+
+        with mock.patch.object(bb.hand, "bus_capture_backend",
+                               return_value=_Backend()) as build:
+            reader = bb.live_reader("/tmp/ledger", seat="driver",
+                                    grant="g1", timeout=3.0, max_age=2.5)
+            self.assertEqual(reader(), ("/tmp/frame.png", "captured"))
+        build.assert_called_once()
+        kwargs = build.call_args.kwargs
+        self.assertEqual(kwargs["seat"], "driver")
+        self.assertEqual(kwargs["grant"], "g1")
+        self.assertEqual(kwargs["timeout"], 3.0)
+        self.assertEqual(kwargs["max_age"], 2.5)
+
+    def test_the_live_cli_refuses_a_temporary_root(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as caught:
+                bb.main(["--live"])
+        self.assertEqual(caught.exception.code, 2)
+
+    def test_the_live_cli_runs_probe_one_through_the_reader(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "live.png")
+            with open(path, "wb") as handle:
+                handle.write(b"live-frame")
+            out = os.path.join(directory, "receipt.json")
+            with mock.patch.object(
+                    bb, "live_reader",
+                    return_value=lambda: (path, "captured")) as build:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = bb.main(["--live", "--root", directory,
+                                    "--max-age", "1.5", "--out", out])
+            self.assertEqual(code, 0)
+            self.assertEqual(build.call_args.kwargs["max_age"], 1.5)
+            with open(out, encoding="utf-8") as handle:
+                receipt = json.load(handle)
+            self.assertTrue(receipt["live"])
+            self.assertEqual(receipt["met"], 6)
+            probe = receipt["probes"][0]
+            self.assertEqual(probe["evidence"]["path"], path)
+            self.assertEqual(len(probe["evidence"]["fingerprint"]), 64)
+
+    def test_probe_one_travels_the_bus_to_a_hand_and_back(self):
+        """The whole wire, with a fake reader where the desktop would be.
+
+        Probe 1 is run against the real ``live_reader`` and a real
+        :class:`CaptureHand` in another thread over one ledger root; only
+        the pixels are a fixture, so no unsupervised capture happens.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "frame.png")
+            with open(path, "wb") as handle:
+                handle.write(b"live-frame")
+            worker = bb.hand.CaptureHand(
+                directory, session_probe=lambda: bb.hand.INTERACTIVE,
+                capture=lambda: (path, ""), describe=lambda: ({}, ""),
+                seats=("driver",), require_grant=True)
+            stop = threading.Event()
+
+            def answer():
+                while not stop.is_set():
+                    worker.poll_once()
+                    time.sleep(0.005)
+
+            thread = threading.Thread(target=answer, daemon=True)
+            thread.start()
+            try:
+                grant = bb.hand.issue_capture_grant(directory, seat="driver")
+                reader = bb.live_reader(directory, seat="driver",
+                                        grant=grant["grant_id"], timeout=5.0)
+                probe = bb.probe_live_capture(
+                    live=True, capture=reader, clock=time.time,
+                    max_age=bb.hand.DEFAULT_MAX_AGE)
+            finally:
+                stop.set()
+                thread.join(timeout=5.0)
+            self.assertEqual(probe["state"], bb.MET, probe["detail"])
+            self.assertEqual(probe["evidence"]["path"], path)
+            self.assertTrue(probe["evidence"]["fresh"])
+
+    def test_a_live_reader_refusal_is_a_failed_probe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            out = os.path.join(directory, "receipt.json")
+            with mock.patch.object(
+                    bb, "live_reader",
+                    return_value=lambda: (None, "locked")):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    code = bb.main(["--live", "--root", directory,
+                                    "--out", out])
+            self.assertEqual(code, 1)
+            with open(out, encoding="utf-8") as handle:
+                receipt = json.load(handle)
+            self.assertEqual(receipt["probes"][0]["state"], bb.FAILED)
 
 
 class ReceiptRenderingTests(unittest.TestCase):
