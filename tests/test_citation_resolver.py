@@ -5,7 +5,6 @@ separately; these pin the adapter's half of the contract -- canonical metadata o
 success, and a closed-set status (never invented metadata) on every failure.
 """
 import unittest
-import urllib.request
 
 from harness.citation_resolver import (
     DEFAULT_BASE_URL, RegistryResolver, ResolverTransportError, crossref_metadata,
@@ -143,6 +142,7 @@ class GateIntegrationTests(unittest.TestCase):
 class TransportTests(unittest.TestCase):
     def _fetch_with(self, outcome):
         import urllib.error
+        import urllib.request
         original = urllib.request.urlopen
 
         def _fake(request, timeout=None):
