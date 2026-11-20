@@ -662,8 +662,17 @@ def campaign_trace(trace_path=None):
         return None
     from .decision_trace import DecisionTrace
     from .ledger import AutonomyLedger
-    return DecisionTrace(AutonomyLedger(str(trace_path),
-                                       caller="flush-campaign"))
+    try:
+        durable = AutonomyLedger(str(trace_path), caller="flush-campaign")
+    except Exception:  # noqa: BLE001 - the sink is optional for campaign runs
+        # The writer is constructed eagerly, so an unreadable ledger (an
+        # unreadable file, a directory in its place, invalid UTF-8) would
+        # otherwise abort a campaign that has nothing to do with tracing.
+        # DecisionTrace.record cannot absorb this: the failure happens before
+        # the writer exists. Degrade to no trace and let the reader show the
+        # gap, which is the same fail-open contract ordinary traffic has.
+        return None
+    return DecisionTrace(durable)
 
 
 def record_oscillation(ledger, *, packet, campaign=""):

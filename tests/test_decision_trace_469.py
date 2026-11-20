@@ -418,6 +418,20 @@ class ProductCampaignWiringTests(unittest.TestCase):
     def test_the_writer_can_be_disabled_explicitly(self):
         self.assertIsNone(campaign_trace(trace_path=False))
 
+    def test_an_unreadable_trace_ledger_does_not_abort_the_campaign(self):
+        """An optional sink must never break a replay that used to work."""
+        with tempfile.TemporaryDirectory() as directory:
+            unreadable = os.path.join(directory, "not-a-ledger")
+            os.makedirs(unreadable)
+            self.assertIsNone(campaign_trace(trace_path=unreadable))
+            result = run_campaign_file(
+                str(self._campaign(directory)),
+                ledger_path=os.path.join(directory, "campaign.events.jsonl"),
+                trace_path=unreadable)
+            self.assertEqual(len(result["passes"]), 1)
+            self.assertTrue(os.path.exists(
+                os.path.join(directory, "campaign.events.jsonl")))
+
 
 if __name__ == "__main__":
     unittest.main()
