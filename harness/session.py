@@ -13,6 +13,7 @@ and primitives; nothing here imports interfaces.
 """
 from ._http import HttpTransport
 from .apply import ApplyEngine
+from .decision_trace import DecisionTrace
 from .jev_policy import JevPolicy, policy_for
 from .ledger import AutonomyLedger
 from .router import Router
@@ -225,7 +226,7 @@ def attest_model_for(settings):
         else settings.judge
 
 
-def router_for(settings, *, jev_policy=None):
+def router_for(settings, *, jev_policy=None, ledger=None):
     """The lane router from the settings' curated pools.
 
     Legacy single ``escalation_model`` keeps precedence over the multi-rung
@@ -237,6 +238,10 @@ def router_for(settings, *, jev_policy=None):
     # Prefer the smartest per-tier judge only when escalation is actually
     # allowed; otherwise keep the configured settings.judge.
     judge = attest_model_for(settings)
+    # #473: a rotation decision is a decision, so it is recorded on the same
+    # trace family the run already holds -- never a second stream. No ledger
+    # (library use, most tests) means no row and unchanged routing.
+    trace = DecisionTrace(ledger) if ledger is not None else None
     return Router(settings.panel, judge, settings.apply_model,
                   settings.escalation_model, settings.allow_escalation,
                   panel_pool=settings.panel_pool, apply_pool=settings.apply_pool,
@@ -246,7 +251,7 @@ def router_for(settings, *, jev_policy=None):
                   frontier_model=getattr(settings, "frontier_model", None),
                   use_free=settings.use_free,
                   cheap_judge=settings.judge,
-                  jev_policy=jev_policy)
+                  jev_policy=jev_policy, trace=trace)
 
 
 def engine_for(settings, api_key, gov, ledger, router, transport=None,
@@ -287,7 +292,8 @@ def apply_session(settings, max_cost=None, transport=None, allowed_roots=None):
     api_key, gov = governor_for(settings, max_cost)
     ledger = ledger_for(settings)
     pre_run_warning(governor=gov, ledger=ledger, use_free=settings.use_free)
-    return engine_for(settings, api_key, gov, ledger, router_for(settings),
+    return engine_for(settings, api_key, gov, ledger,
+                      router_for(settings, ledger=ledger),
                       transport=transport, allowed_roots=allowed_roots)
 
 

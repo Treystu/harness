@@ -1,0 +1,47 @@
+{
+  "413-correction": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.08,
+      "cost": 2.6292000000000002e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "ded4180a810f3ea401c97a19de5e3d40fc6ba8ba1b5c68a8956e8f115e39de6d"
+    }
+  },
+  "639-reply": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.08,
+      "cost": 2.5452000000000003e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "7cfb6443ef85a87ef80d8ddbaa859913c7a53676e6011ab97777fd2e9e479770"
+    }
+  },
+  "_meta": {
+    "ledger_rows_added": 2,
+    "total_jev_cost_usd": 5.174e-05,
+    "site": "audit_admissibility",
+    "head_under_test": "cdc72fde239afae00d18545a937d60a331b9bdf2",
+    "product_identity": "04fb1cd03ca57aed223535162e7590cee888ed67"
+  }
+}

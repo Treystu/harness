@@ -1,0 +1,43 @@
+{
+  "canon1-map": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.07,
+      "cost": 2.6082000000000002e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "08ee5c9e19128e11b1ac5c42eb15e4a298cc90fc64dc9c33eb3ed4d97a89ebf1"
+    }
+  },
+  "_meta": {
+    "ledger_rows_added": 1,
+    "total_jev_cost_usd": 5.233e-05,
+    "site": "audit_admissibility",
+    "head_under_test": "51e208a542b7dc28a11ce120d01113bfd44b2585"
+  },
+  "295-status-17": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "e93eb1d3a283c468616fbcabc18cfaf2ba850d17b0e3414783b636950fccfc4a"
+    }
+  }
+}
