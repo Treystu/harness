@@ -1,0 +1,18 @@
+[OK] harness UI serving at http://127.0.0.1:8798/ (token-protected; Ctrl-C to stop)
+[OK] serving harness 0.5.1 at commit v0.5.1-177-gcdc72fd-dirty
+[OK] user recovery shortcut saved at C:\Users\SCM\.config\harness\gui-open.url
+[OK] request log: evidence\lane-sessions\w2-2026-11-20\serve-8798-turn14.log
+[OK] use `harness serve --open` or `harness desktop` to open an authenticated UI
+[ui] "GET / HTTP/1.1" 200 -
+[ui] "POST /api/driver/start HTTP/1.1" 200 -
+[ui] "GET /api/driver/health HTTP/1.1" 200 -
+[ui] "GET /api/driver/vocabulary HTTP/1.1" 200 -
+[ui] "GET /api/driver/vocabulary HTTP/1.1" 401 -
+[ui] "GET /api/driver/verify HTTP/1.1" 200 -
+[ui] "GET /api/driver/schemas HTTP/1.1" 200 -
+[ui] "GET / HTTP/1.1" 200 -
+[ui] "POST /api/driver/step HTTP/1.1" 200 -
+[ui] "GET / HTTP/1.1" 200 -
+[ui] "POST /api/driver/step HTTP/1.1" 200 -
+[ui] "POST /api/driver/step HTTP/1.1" 400 -
+[ui] "POST /api/driver/step HTTP/1.1" 400 -
