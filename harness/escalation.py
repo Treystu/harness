@@ -211,18 +211,29 @@ def escalation_evidence_fields(evidence):
     }
 
 
+#: The trace kind this driver writes (#471): one row per attempted rung,
+#: carrying the walk's start rung, the rung actually tried, and whether that
+#: attempt's verify gate realized a pass. It lives in the trace family
+#: `harness/decision_trace.py` already owns -- there is no second sink.
+ATTEMPT_EVENT = "escalation.attempt"
+
+
 class EscalationDriver:
     """Walk the escalation ladder and finish each candidate through the gate."""
 
     def __init__(self, router, transport, api_key, governor, ledger, task_id,
                  reasoning_token_budget=0.4, max_tokens=4096,
-                 task_start_spent=None, task_max_cost=None, reasoning_effort=None):
+                 task_start_spent=None, task_max_cost=None, reasoning_effort=None,
+                 trace=None):
         self.router = router
         self.transport = transport
         self.api_key = api_key
         self.governor = governor
         self.ledger = ledger
         self.task_id = task_id
+        # Optional: the one trace writer (DecisionTrace over AutonomyLedger).
+        # A driver built without it behaves exactly as before.
+        self.trace = trace
         self.reasoning_token_budget = reasoning_token_budget
         self.max_tokens = max_tokens
         # Lane policy (ONE owner: config.effective_lane_policy): an escalation
@@ -348,6 +359,10 @@ class EscalationDriver:
                     "cost": error_cost, "content": "",
                 })
                 self._ledger(model, rung, "error", error_cost, reason=error)
+                self._record_attempt(start_rung=start_rung, rung=rung,
+                                     model=model, status="api_error",
+                                     realized_pass=False, cost=error_cost,
+                                     reason=error)
                 # Saturation is not impossibility: a rate-limited (429) or
                 # overloaded (503) rung rotates to the next, more capable
                 # rung -- that is the ladder's whole point. Anything else
@@ -366,6 +381,10 @@ class EscalationDriver:
                     "cost": 0.0, "content": "",
                 })
                 self._ledger(model, rung, "error", 0.0, reason="paid BYOK route")
+                self._record_attempt(start_rung=start_rung, rung=rung,
+                                     model=model, status="byok_error",
+                                     realized_pass=False, cost=0.0,
+                                     reason="paid BYOK route")
                 continue
 
             self.governor.record_actual(cost, model)
@@ -384,6 +403,10 @@ class EscalationDriver:
                     "content": "",
                 })
                 self._ledger(model, rung, "error", cost, reason=unusable)
+                self._record_attempt(start_rung=start_rung, rung=rung,
+                                     model=model, status="unusable",
+                                     realized_pass=False, cost=cost,
+                                     reason=unusable)
                 continue
 
             self.escalation_history.append({
@@ -396,7 +419,14 @@ class EscalationDriver:
             self._ledger(model, rung, "ok", cost)
 
             result = finish_fn(model, content, cost)
-            if result and result.get("status") == "ok":
+            realized = bool(result and result.get("status") == "ok")
+            # The gate's verdict for THIS attempt, recorded beside the rungs:
+            # a reader re-derives ordering and promotion from these rows
+            # instead of trusting a summary computed here.
+            self._record_attempt(start_rung=start_rung, rung=rung,
+                                 model=model, status="ok",
+                                 realized_pass=realized, cost=cost)
+            if realized:
                 # The walk SUCCEEDED here: this is the only place that knows
                 # both the primary that failed (req.model) and the rung that
                 # passed the gate. Provenance lands here -- never at a
@@ -411,6 +441,35 @@ class EscalationDriver:
             # unless finish_fn already produced a terminal deferral.
 
         return None
+
+    def _record_attempt(self, *, start_rung, rung, model, status,
+                        realized_pass, cost=None, reason=None):
+        """Persist one attempted rung through the shared trace writer (#471).
+
+        ``start_rung`` is where this walk began, ``rung`` is the rung actually
+        attempted, and ``realized_pass`` is the verify gate's own result for
+        this attempt. Nothing is written when no trace was supplied, and a
+        refusal never reaches here -- a refused walk attempts no rung, so it
+        records nothing.
+        """
+        if self.trace is None or not self.task_id:
+            return
+        payload = {
+            "start_rung": int(start_rung),
+            "rung": int(rung),
+            "ladder_size": len(self.router.escalation_pool),
+            "model": model,
+            "status": status,
+            "realized_pass": bool(realized_pass),
+        }
+        if cost is not None:
+            payload["cost"] = float(cost)
+        if reason:
+            payload["reason"] = str(reason)
+        self.trace.record(ATTEMPT_EVENT, payload=payload,
+                          subject_id=self.task_id,
+                          attempt_id=f"rung-{int(rung)}",
+                          spec_ref="escalation.run_with_escalation")
 
     def _get_rung_context(self, state, rung, condensed):
         if rung == 0 or not condensed:

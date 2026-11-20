@@ -168,6 +168,13 @@ def build_parser():
                        "judgement (lane workflow; the audit bar is unchanged)")
     passess.add_argument("--input", default="-",
                          help="JSON file with the aspect judgements, or - for stdin")
+    passess.add_argument("--trace-ledger", default=None,
+                         help="Append this assessment's five distributions and "
+                              "disposition to the hash-chained ledger at PATH "
+                              "(needs --subject)")
+    passess.add_argument("--subject", default=None,
+                         help="What was assessed (with --trace-ledger); the "
+                              "trace subject_id")
 
     # Overlay verification (#434): compose a shipped tree with a change and
     # run one command against the result. The base tree is never written to;

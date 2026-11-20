@@ -67,6 +67,16 @@ The assessment gate is implemented in `harness/jev_assessment.py` and runs as
 dispositions only: `authority` in every verdict says so, and
 `production_gate` says the audit and phase-completion bars are unchanged.
 
+With `--trace-ledger PATH --subject <what was assessed>` the gate also appends
+its own decision to the hash-chained ledger as one `assessment.disposition`
+event: the five aspect distributions exactly as judged (band probabilities
+unrounded, irrelevant aspects kept with their reason and an empty
+distribution) plus the disposition and its notes, risks and investigate list.
+The write uses the shared `trace_v1` writer (`harness/decision_trace.py`) over
+`AutonomyLedger`; there is no second sink and no second definition of a
+segment, so an assessment can be replayed from the retained ledger after the
+run that produced it is gone (#468).
+
 **Aggregation rule (declared, because the policy's point scores and a live
 Jev distribution are different objects):** an aspect is in a band when that
 band holds a strict majority (> 0.5) of the declared distribution. A tie or

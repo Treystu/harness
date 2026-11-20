@@ -1,0 +1,416 @@
+{
+  "413": {
+    "health": {
+      "health_detail": "set DRIVER_JEV_API_KEY in the process environment to enable model-backed extraction and Jev decisions; health, verify and vocabulary are intentionally keyless",
+      "key_provisioning": "unkeyed",
+      "keyed": false,
+      "sources": [
+        "dom"
+      ],
+      "status": 200
+    },
+    "schemas_get": {
+      "count": 3,
+      "status": 200
+    },
+    "start": {
+      "body": {
+        "health": {
+          "key_provisioning": {
+            "detail": "set DRIVER_JEV_API_KEY in the process environment to enable model-backed extraction and Jev decisions; health, verify and vocabulary are intentionally keyless",
+            "docs": "docs/driver.md#headless-key-provisioning",
+            "state": "unkeyed",
+            "variable": "DRIVER_JEV_API_KEY"
+          },
+          "keyed": false,
+          "ok": true,
+          "settings": {
+            "allow_write": false,
+            "base_url": "http://127.0.0.1:8791",
+            "confidence_threshold": 0.71,
+            "dry_run": false,
+            "extractor_pool": [],
+            "host": "127.0.0.1",
+            "jev_model": "jev-latest",
+            "jev_primary_mode": false,
+            "keyed": false,
+            "launch_app_enabled": false,
+            "min_agreement": 1.0,
+            "native_input_enabled": false,
+            "port": 8791,
+            "quorum": 2,
+            "run_ceiling_usd": 5.0,
+            "step_ceiling_usd": 0.5,
+            "vision_verify_enabled": false
+          },
+          "sources": [
+            "dom"
+          ],
+          "status": "up",
+          "version": "3.6.0",
+          "vocabulary": {
+            "actions": [
+              {
+                "class": "read_only",
+                "description": "Capture the current target state and produce a verified extraction of the declared schema.",
+                "executable": true,
+                "executor": "observe",
+                "name": "observe",
+                "needs": [],
+                "normalisers": {},
+                "params": [],
+                "refused_until_backend": false,
+                "target": "any"
+              },
+              {
+                "class": "read_only",
+                "description": "Read one already-extracted field from the current verified state.",
+                "executable": true,
+                "executor": "read_value",
+                "name": "read_value",
+                "needs": [],
+                "normalisers": {},
+                "params": [
+                  "field"
+                ],
+                "refused_until_backend": false,
+                "target": "state"
+              },
+              {
+                "class": "read_only",
+                "description": "Declare that the correct response to the current state is to change nothing.",
+                "executable": true,
+                "executor": "no_action",
+                "name": "no_action",
+                "needs": [],
+                "normalisers": {},
+                "params": [],
+                "refused_until_backend": false,
+                "target": "any"
+              },
+              {
+                "class": "read_only",
+                "description": "Run a declared read-only command and return its stdout, exit code and stderr.",
+                "executable": true,
+                "executor": "run_probe",
+                "name": "run_probe",
+                "needs": [],
+                "normalisers": {},
+                "params": [
+                  "command"
+                ],
+                "refused_until_backend": false,
+                "target": "cli"
+              },
+              {
+                "class": "read_only",
+                "description": "Call a declared read-only MCP tool and return its structured result.",
+                "executable": false,
+                "executor": "call_read_tool",
+                "name": "call_read_tool",
+                "needs": [
+                  "executor 'call_read_tool' is not registered."
+                ],
+                "normalisers": {},
+                "params": [
+                  "tool"
+                ],
+                "refused_until_backend": true,
+                "target": "mcp"
+              },
+              {
+                "class": "read_only",
+                "description": "Read text content from a declared DOM or accessibility tree node.",
+                "executable": false,
+                "executor": "read_dom",
+                "name": "read_dom",
+                "needs": [
+                  "executor 'read_dom' is not registered."
+                ],
+                "normalisers": {},
+                "params": [
+                  "selector"
+                ],
+                "refused_until_backend": true,
+                "target": "dom"
+              },
+              {
+                "class": "mutating",
+                "description": "Bring a declared window or element to the foreground.",
+                "executable": false,
+                "executor": "focus",
+                "name": "focus",
+                "needs": [
+                  "executor 'focus' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them.",
+                  "register an input backend for windows (driver_core.osal.register_input_backend); no registered backend exists, so focus is declared, not executable"
+                ],
+                "normalisers": {},
+                "params": [
+                  "target"
+                ],
+                "refused_until_backend": true,
+                "target": "any"
+              },
+              {
+                "class": "mutating",
+                "description": "Click a declared, resolved element.",
+                "executable": false,
+                "executor": "click",
+                "name": "click",
+                "needs": [
+                  "executor 'click' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them.",
+                  "register an input backend for windows (driver_core.osal.register_input_backend); no registered backend exists, so click is declared, not executable"
+                ],
+                "normalisers": {
+                  "target": "resolve_target"
+                },
+                "params": [
+                  "target"
+                ],
+                "refused_until_backend": true,
+                "target": "any"
+              },
+              {
+                "class": "mutating",
+                "description": "Type a literal string into the focused element.",
+                "executable": false,
+                "executor": "type_text",
+                "name": "type_text",
+                "needs": [
+                  "executor 'type_text' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them.",
+                  "register an input backend for windows (driver_core.osal.register_input_backend); no registered backend exists, so type_text is declared, not executable"
+                ],
+                "normalisers": {},
+                "params": [
+                  "text"
+                ],
+                "refused_until_backend": true,
+                "target": "any"
+              },
+              {
+                "class": "mutating",
+                "description": "Send a declared key combination to the focused element.",
+                "executable": false,
+                "executor": "press_key",
+                "name": "press_key",
+                "needs": [
+                  "executor 'press_key' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them.",
+                  "register an input backend for windows (driver_core.osal.register_input_backend); no registered backend exists, so press_key is declared, not executable"
+                ],
+                "normalisers": {},
+                "params": [
+                  "keys"
+                ],
+                "refused_until_backend": true,
+                "target": "any"
+              },
+              {
+                "class": "mutating",
+                "description": "Scroll the focused scrollable region.",
+                "executable": false,
+                "executor": "scroll",
+                "name": "scroll",
+                "needs": [
+                  "executor 'scroll' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them.",
+                  "register an input backend for windows (driver_core.osal.register_input_backend); no registered backend exists, so scroll is declared, not executable"
+                ],
+                "normalisers": {},
+                "params": [
+                  "direction"
+                ],
+                "refused_until_backend": true,
+                "target": "any"
+              },
+              {
+                "class": "mutating",
+                "description": "Launch one application declared in the code-owned allowlist, named exactly as the allowlist names it.",
+                "executable": false,
+                "executor": "launch_app",
+                "name": "launch_app",
+                "needs": [
+                  "executor 'launch_app' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them."
+                ],
+                "normalisers": {},
+                "params": [
+                  "app_name"
+                ],
+                "refused_until_backend": true,
+                "target": "any"
+              },
+              {
+                "class": "mutating",
+                "description": "Write a file through the backup-and-atomic-write policy.",
+                "executable": false,
+                "executor": "write_file",
+                "name": "write_file",
+                "needs": [
+                  "executor 'write_file' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them."
+                ],
+                "normalisers": {
+                  "path": "resolve_path"
+                },
+                "params": [
+                  "path",
+                  "content"
+                ],
+                "refused_until_backend": true,
+                "target": "filesystem"
+              },
+              {
+                "class": "irreversible",
+                "description": "Delete a file. Never batched; always a fresh human confirmation.",
+                "executable": false,
+                "executor": "delete_file",
+                "name": "delete_file",
+                "needs": [
+                  "executor 'delete_file' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them."
+                ],
+                "normalisers": {
+                  "path": "resolve_path"
+                },
+                "params": [
+                  "path"
+                ],
+                "refused_until_backend": true,
+                "target": "filesystem"
+              },
+              {
+                "class": "irreversible",
+                "description": "Activate a control whose effect cannot be undone by this system. Never batched; always a fresh human confirmation.",
+                "executable": false,
+                "executor": "submit_irreversible",
+                "name": "submit_irreversible",
+                "needs": [
+                  "executor 'submit_irreversible' is not registered. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them.",
+                  "register an input backend for windows (driver_core.osal.register_input_backend); no registered backend exists, so submit_irreversible is declared, not executable"
+                ],
+                "normalisers": {
+                  "target": "resolve_target"
+                },
+                "params": [
+                  "target"
+                ],
+                "refused_until_backend": true,
+                "target": "any"
+              }
+            ],
+            "id": "driver-core-actions",
+            "version": "1.1.0"
+          }
+        },
+        "status": "running"
+      },
+      "status": 200
+    },
+    "step": {
+      "plain_step": {
+        "envelope": {
+          "cost_usd": 0.0,
+          "detail": "decision status 'unkeyed': no decision key configured",
+          "error": null,
+          "keyed": null,
+          "ok": false,
+          "reason": "decision_not_usable",
+          "stopped_at": "decision"
+        },
+        "request": {
+          "schema": "dom",
+          "target": "http://127.0.0.1:8798/"
+        },
+        "status": 200
+      },
+      "step_action_only": {
+        "envelope": {
+          "cost_usd": null,
+          "detail": null,
+          "error": "field 'target' is required and must be a string",
+          "keyed": null,
+          "ok": null,
+          "reason": null,
+          "stopped_at": null
+        },
+        "request": {
+          "action": "vocabulary"
+        },
+        "status": 400
+      },
+      "step_no_schema": {
+        "envelope": {
+          "cost_usd": null,
+          "detail": null,
+          "error": "driver service returned HTTP 400: schema is required; declare one of ['cli', 'dom', 'gui', 'mcp', 'screen']",
+          "keyed": null,
+          "ok": null,
+          "reason": null,
+          "stopped_at": null
+        },
+        "request": {
+          "action": "read_dom",
+          "target": "http://127.0.0.1:8798/"
+        },
+        "status": 400
+      },
+      "turn13_body": {
+        "envelope": {
+          "cost_usd": 0.0,
+          "detail": "decision status 'unkeyed': no decision key configured",
+          "error": null,
+          "keyed": null,
+          "ok": false,
+          "reason": "decision_not_usable",
+          "stopped_at": "decision"
+        },
+        "request": {
+          "action": "vocabulary",
+          "schema": "dom",
+          "target": "http://127.0.0.1:8798/"
+        },
+        "status": 200
+      }
+    },
+    "verify_get": {
+      "keys": [
+        "audit",
+        "budget",
+        "ok"
+      ],
+      "ok": true,
+      "status": 200
+    },
+    "vocabulary_get": {
+      "action_count": 15,
+      "executable_false": 11,
+      "executable_true": 4,
+      "first_action": {
+        "class": "read_only",
+        "description": "Capture the current target state and produce a verified extraction of the declared schema.",
+        "executable": true,
+        "executor": "observe",
+        "name": "observe",
+        "needs": [],
+        "normalisers": {},
+        "params": [],
+        "refused_until_backend": false,
+        "target": "any"
+      },
+      "keys": [
+        "ok",
+        "vocabulary"
+      ],
+      "noauth_status": 401,
+      "ok": true,
+      "status": 200,
+      "vocabulary_keys": [
+        "actions",
+        "id",
+        "version"
+      ]
+    }
+  },
+  "_meta": {
+    "base": "http://127.0.0.1:8798",
+    "head": "cdc72fde239afae00d18545a937d60a331b9bdf2",
+    "main": "04fb1cd03ca57aed223535162e7590cee888ed67",
+    "routing_files_identical_to_main": true
+  }
+}

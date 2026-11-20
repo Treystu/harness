@@ -1,0 +1,65 @@
+{
+  "468-verdict": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.05,
+      "cost": 2.7048000000000003e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "3d63d64fa7a79ee39945e78717704342238c4a05c80f36c0583ef3d3016bb03e"
+    }
+  },
+  "469-verdict": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.05,
+      "cost": 2.7132e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "bb51d2bb89e6f4894902986e6a63293537df4c2c327e13ec8df72fc3e8b85d86"
+    }
+  },
+  "canon1": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.11,
+      "cost": 2.6922e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "d9ed600a3a15d75858b2789c90a8e543aa1e7d7b8cce478bc042534170457fe2"
+    }
+  },
+  "_meta": {
+    "ledger_rows_added": 4,
+    "total_jev_cost_usd": 8.11e-05,
+    "site": "audit_admissibility",
+    "head_under_test": "fb27ee895f43638cade271bcd9af33d2276b0136"
+  }
+}
