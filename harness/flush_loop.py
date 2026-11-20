@@ -639,6 +639,33 @@ def record_stop(ledger, *, campaign="", streak, basis, combined):
     return event
 
 
+def campaign_trace(trace_path=None):
+    """The durable writer a campaign run retains its history through (#469).
+
+    The emitter has accepted a ``trace`` sink since #627, but no product call
+    site supplied one, so campaign histories only ever reached the unretained
+    ``<campaign>.events.jsonl`` sidecar and W469 had no replayable corpus. The
+    default is the configured run ledger -- the same hash chain every other
+    producer writes -- and ``trace_path`` overrides it for tests and isolated
+    runs. ``trace_path=False`` disables the writer explicitly.
+
+    The writer is not audit-enabled here: an unreachable sink leaves an
+    ``unrecorded`` row for the reader to expose instead of failing a campaign
+    that already did its work.
+    """
+    if trace_path is False:
+        return None
+    if trace_path is None:
+        from .config import load_settings
+        trace_path = load_settings().ledger_path
+    if not trace_path:
+        return None
+    from .decision_trace import DecisionTrace
+    from .ledger import AutonomyLedger
+    return DecisionTrace(AutonomyLedger(str(trace_path),
+                                       caller="flush-campaign"))
+
+
 def record_oscillation(ledger, *, packet, campaign=""):
     """Log one combined cure packet for a detected oscillation cycle."""
     event = {
@@ -1143,7 +1170,8 @@ def run_canary_suite_file(suite_path, *, ledger_path=None):
 
 
 def run_campaign_file(campaign_path, *, ledger_path=None,
-                      extended_instruments=False, cold_run=False):
+                      extended_instruments=False, cold_run=False,
+                      trace_path=None):
     """Replay a campaign file. The CLI and MCP both call this one owner."""
     campaign_path = Path(campaign_path)
     if not campaign_path.is_file():
@@ -1259,7 +1287,8 @@ def run_campaign_file(campaign_path, *, ledger_path=None,
         raise FlushError(
             f"a cold run needs a clean ledger; {chosen_ledger} already exists")
     loop = FlushLoop(
-        ledger=EventLedger(chosen_ledger), judges=judges,
+        ledger=EventLedger(chosen_ledger, trace=campaign_trace(trace_path)),
+        judges=judges,
         supported_instruments=supported,
         campaign=str(campaign.get("campaign") or campaign_path.stem),
         judge_version=campaign.get("judge_version"))
