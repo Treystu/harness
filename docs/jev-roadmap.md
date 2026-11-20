@@ -38,10 +38,12 @@ close.
   (`type:issue is:open`, `60`). The previous mirror printed 65 at
   `4aaa65f1`; the delta is named below rather than absorbed.
 - Across the wave tables below (`W0`-`W10`), **108** tracked issue rows appear:
-  **54** `OPEN` and **54** `CLOSED`. The arithmetic reconciles: `108 - 54 = 54`.
+  **52** `OPEN` and **56** `CLOSED`. The arithmetic reconciles: `108 - 56 = 52`.
 - **6 open issues are filed but not yet placed in a wave**, named here
   rather than dropped: `#573`, `#574`, `#579`, `#585`, `#587`, `#588`.
-  With them, `54 + 6 = 60`, which is the live count above. Placing them is a taxonomy act for the register's owner;
+  With them, `52 + 6 = 58`; the live count has since fallen below the `60`
+  printed above (other lanes closed issues after that read), and this mirror
+  does not re-derive the placed/unplaced split in a row-only PR. Placing them is a taxonomy act for the register's owner;
   this mirror does not invent a placement.
 - Closed since the previous mirror, among tracked rows: `#463` (closed
   2026-11-17 per oversight decision tick 400: transport/host, `harness-oc`
@@ -84,13 +86,13 @@ close.
 | --- | --- | --- |
 | W0 - Rail and gate truth - blocks landing anything else | 4 | 0 |
 | W1 - Active queue - the filed order | 2 | 0 |
-| W2 - Verification and surface truth | 37 | 10 |
+| W2 - Verification and surface truth | 37 | 9 |
 | W3 - Driver and perception | 5 | 5 |
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
 | W5 - Research and retrieval | 4 | 3 |
 | W6 - Spend, routing and calibration | 15 | 10 |
 | W7 - Structure and scoped defects | 18 | 8 |
-| W8 - Champion Audit program | 12 | 11 |
+| W8 - Champion Audit program | 12 | 10 |
 | W9 - Tracking and low priority | 5 | 5 |
 | W10 - Mode, proposals and parked - owner | 3 | 2 |
 
@@ -110,7 +112,7 @@ close.
 | [#275](https://github.com/Treystu/harness/issues/275) Hourglass/HUL: integrate Freebuff mission-mode findings (full dossier) | CLOSED | L1-L7/L10-L12 landed via PR `#576` (`562c557`); closed 2026-11-17T07:16Z with receipts on #295 |
 | [#489](https://github.com/Treystu/harness/issues/489) [jev] External Jev calibration draft: validation verdict — do not integrate as written; scoped residue for the lane | CLOSED | PR #551 (`a144ce28`): `harness/jev_conformance.py`, `harness/jev_calibration.py`, `tests/test_jev_conformance.py`, `tests/test_jev_deferral_reporting.py` |
 
-### W2 - Verification and surface truth - 10 open
+### W2 - Verification and surface truth - 9 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -122,13 +124,13 @@ close.
 | [#290](https://github.com/Treystu/harness/issues/290) [docs] Hermetic/audit triage runbook: environment failures vs real failures | CLOSED | `harness/triage.py`, `docs/audit-triage.md`, `tests/test_triage_runbook.py` |
 | [#292](https://github.com/Treystu/harness/issues/292) [driver-core] Sync vendored driver_core v3.4.0 to standalone v3.5.0 + CI drift check | CLOSED | `driver_core/UPSTREAM.json`, `tests/test_driver_core_drift.py` |
 | [#412](https://github.com/Treystu/harness/issues/412) [gui] Verify first-use auth handoff live UX (audit: OPEN) | OPEN | none |
-| [#413](https://github.com/Treystu/harness/issues/413) [driver] Verify loopback-browser round-trip end to end (audit: NOT VERIFIED) | OPEN | none |
+| [#413](https://github.com/Treystu/harness/issues/413) [driver] Verify loopback-browser round-trip end to end (audit: NOT VERIFIED) | OPEN | re-checked 2026-11-20 (`7051162639`): no listener on 8791 and `driver-core` not on PATH; needs `driver-core serve` on the operator host before any acceptance criterion can run |
 | [#414](https://github.com/Treystu/harness/issues/414) [mcp] Verify installed MCP runtime identity via real-client check (audit: NOT VERIFIED) | OPEN | none |
 | [#415](https://github.com/Treystu/harness/issues/415) [gui] Live model/Jev semantic approvals via GUI (audit: NOT RUN) | OPEN | none |
 | [#416](https://github.com/Treystu/harness/issues/416) [docs] GUI first-use acceptance doc + serve/auth doc corrections | CLOSED | PR `#564` (`125ef82c`, Slice 3G); closed 2026-11-17T04:42Z |
 | [#418](https://github.com/Treystu/harness/issues/418) [desktop] Preserve and recover long-running requests after restarts | OPEN | none |
 | [#419](https://github.com/Treystu/harness/issues/419) [desktop] Separate local server health from backend and request status | OPEN | none |
-| [#422](https://github.com/Treystu/harness/issues/422) [research] Verify citation metadata and claim-to-source support | OPEN | `harness/citation_verify.py` + `tests/test_citation_verify.py` landed; live metadata adapter & `#342`/`#344` lifecycle integration open |
+| [#422](https://github.com/Treystu/harness/issues/422) [research] Verify citation metadata and claim-to-source support | OPEN | `harness/citation_verify.py` + tests landed; the live metadata adapter now lands as `harness/citation_resolver.py` (PR #645); the report-path call site is the remaining product wiring |
 | [#423](https://github.com/Treystu/harness/issues/423) [audit] Add a resumable full-source Jev audit command | CLOSED | `harness/source_audit.py`, `tests/test_source_audit.py` |
 | [#424](https://github.com/Treystu/harness/issues/424) [docs] Align System One feature claims with shipped status | CLOSED | PR `#564` (`125ef82c`, Slice 3G); closed 2026-11-17T04:42Z |
 | [#425](https://github.com/Treystu/harness/issues/425) [driver-core] Refuse append when an existing audit chain is invalid | CLOSED | `driver_core/audit.py`, `tests/test_driver_core/test_budget_audit.py` |
@@ -149,7 +151,7 @@ close.
 | [#561](https://github.com/Treystu/harness/issues/561) [docs] closure comments cite commits that do not exist or are not on main (5 issues splice a SHA) | CLOSED | verified SHA comments on `#549`, `#550`, `#552`, `#555`, `#556`, `#325` + mirror PR #562 |
 | [#565](https://github.com/Treystu/harness/issues/565) [docs] canon mirror still prints #329 OPEN against API closed, so the register count (58) is off by one | CLOSED | PR `#564` (`125ef82c`, Slice 3G; `#329` fixed there); closed 2026-11-17T04:42Z |
 | [#566](https://github.com/Treystu/harness/issues/566) [desktop] loopback port has three homes: 8765 for the harness UI and the media service, an undocumented 8766 for the desktop entry | OPEN | none |
-| [#567](https://github.com/Treystu/harness/issues/567) [audit] session-log audit 2026-11-16 -- orders-of-magnitude session | OPEN | read-only session-log audit tracker |
+| [#567](https://github.com/Treystu/harness/issues/567) [audit] session-log audit 2026-11-16 -- orders-of-magnitude session | CLOSED | audit lock closed 2026-11-20 (`7051047426`): items 3-6 complete on the record; the untimed window is named unrecoverable, not waived |
 | [#570](https://github.com/Treystu/harness/issues/570) [observability] Persisted chat turns carry no timestamp or role, so a rebuilt session cannot be ordered | CLOSED | none |
 
 ### W3 - Driver and perception - 5 open
@@ -222,7 +224,7 @@ close.
 | [#568](https://github.com/Treystu/harness/issues/568) [apply] Orders-of-magnitude answer delivers two linear panels titled 'Log10 scale' and prose that contradicts its own code | OPEN | none |
 | [#569](https://github.com/Treystu/harness/issues/569) [guard] Held write reports an internal restart/consent state string and tells the operator to review planned changes it never showed | OPEN | none |
 
-### W8 - Champion Audit program - 11 open
+### W8 - Champion Audit program - 10 open
 
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
@@ -230,14 +232,14 @@ close.
 | [#466](https://github.com/Treystu/harness/issues/466) TRACKER — Champion Audit: decision-mechanism evaluation program | OPEN | none |
 | [#467](https://github.com/Treystu/harness/issues/467) Champion Audit: Jev decision-gate composition | OPEN | register: #466 |
 | [#468](https://github.com/Treystu/harness/issues/468) Champion Audit: V1 assessment gate (band aggregation) | OPEN | register: #466 |
-| [#469](https://github.com/Treystu/harness/issues/469) Champion Audit: Flush-loop stop bar and oscillation breaker | OPEN | register: #466 |
+| [#469](https://github.com/Treystu/harness/issues/469) Champion Audit: Flush-loop stop bar and oscillation breaker | OPEN | register: #466; the W469 blocker (no product trace writer) is cured by PR #644, so the window opens at the first real campaign start |
 | [#470](https://github.com/Treystu/harness/issues/470) Champion Audit: Sliding-scale task-tier classification | CLOSED | HAR-SAMS no-change measurement published |
 | [#471](https://github.com/Treystu/harness/issues/471) Champion Audit: Jev-directed escalation rung mapping | OPEN | register: #466 |
 | [#472](https://github.com/Treystu/harness/issues/472) Champion Audit: Capability pool ordering (reliability composite) | OPEN | register: #466 |
 | [#473](https://github.com/Treystu/harness/issues/473) Champion Audit: Router dynamic ranking (the second orderer) | OPEN | register: #466 |
 | [#474](https://github.com/Treystu/harness/issues/474) Champion Audit: Panel convergence tally | OPEN | register: #466 |
 | [#475](https://github.com/Treystu/harness/issues/475) Champion Audit: Failure retry and circuit breaking | OPEN | register: #466 |
-| [#476](https://github.com/Treystu/harness/issues/476) Champion Audit: Spend ceilings, terminal reserve, and dynamic sizing | OPEN | register: #466 |
+| [#476](https://github.com/Treystu/harness/issues/476) Champion Audit: Spend ceilings, terminal reserve, and dynamic sizing | CLOSED | register: #466; no-change on the measured margin (`7050816622`) — challenger starves 63/2666 and fails the >=30% reduction in all six cells, champion has zero observed cap breaches; replay `evidence/lane-sessions/lane1-2026-11-20/replay-476.json` |
 
 ### W9 - Tracking and low priority - 5 open
 
@@ -265,7 +267,7 @@ close.
 
 **Merge jurisdiction (filing 7002532495 item 2, carried here because this is the register):** Lane 1 merges Phase 1 and Phase 2 lane code on a green rail at the exact head against current main. **RSI adoption and self-modification merges are not lane work** and belong to the outside human seat, gated separately. A merge of that class is never filed as a lane landing and never counted in this register's burn.
 
-Open set (37): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 469, 474, 475, 476, 480, 482, 517, 567. (#419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; #468 closed on the W468 verdict at `548c2331`; #471, #472 and #473 closed by PRs #630, #633 and #641; cars 3-4 carry no issue.)
+Open set (35): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 469, 474, 475, 480, 482, 517. (#476 closed as no-change (`7050816622`); #567 closed on the audit reconciliation (`7051047426`; #419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; #468 closed on the W468 verdict at `548c2331`; #471, #472 and #473 closed by PRs #630, #633 and #641; cars 3-4 carry no issue.)
 
 ### Train (sergeant, serial, exact green heads)
 
