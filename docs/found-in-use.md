@@ -29,6 +29,8 @@ set. Never close an owner issue from this file; closure happens on the owner.
 
 | `campaign-trace-writer-unwired` | 2026-11-20 | `17906e2c` | #469 | open - high: `harness/flush_loop.py:392-396` forwards each campaign event to `DecisionTrace.campaign_event` only when a writer is injected, and no product call site injects one (`flush_loop.py:1261-1262`, `:1050`, `:1056`); the writer is green only because `tests/test_decision_trace_469.py:235-236` constructs it by hand, so #627's campaign retention is inert in use |
 
+| `bridge-battery-live-probe-clock` | 2026-11-19 | `d916a7bb` | #295 | open - medium: `tests/test_driver_core/test_bridge_battery.py::LiveProbeTests::test_a_live_frame_outside_the_window_is_a_failure` asserts the battery reports `failed` for a capture outside a 0s window with the clock advanced 30s, but it reports `met`; reproduces 3/3 in isolation on `d916a7bb`, and that test file plus `harness/driver_core` are byte-identical to `origin/main`, so the defect is main-side and not any lane diff |
+
 ## Transfer entry (#451)
 
 The Harness-in-use filings previously tracked only as GitHub issues are
