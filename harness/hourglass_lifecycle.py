@@ -500,7 +500,12 @@ class HourglassLifecycleMixin:
         """
         if not isinstance(checkpoint.get("context"), str):
             return False, "no-saved-context"
+        # ``request_prompt`` is what this build records; checkpoints written
+        # before it existed still carry the request that produced the context
+        # as ``prompt``, and continuation reuse binds to that just as strictly.
         saved_prompt = checkpoint.get("request_prompt")
+        if saved_prompt is None:
+            saved_prompt = checkpoint.get("prompt")
         if (not isinstance(saved_prompt, str)
                 or _request_identity(saved_prompt)
                 != _request_identity(prompt)):

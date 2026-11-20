@@ -75,7 +75,20 @@ class CheckpointContextBindingTests(unittest.TestCase):
                 cp, "what is the capital of Chile"),
             (True, "reusable"))
 
-    def test_legacy_checkpoint_without_a_request_identity_is_not_reused(self):
+    def test_legacy_checkpoint_binds_to_its_saved_prompt(self):
+        # Checkpoints written before request_prompt existed carry the request
+        # as ``prompt``; continuation reuse still binds to it, both ways.
+        cp = _checkpoint(sources=_SOURCES, age=1.0)
+        cp["prompt"] = cp.pop("request_prompt")
+        self.assertEqual(
+            self.holder._checkpoint_context_reusable(
+                cp, "what is the capital of Chile"),
+            (True, "reusable"))
+        self.assertEqual(
+            self.holder._checkpoint_context_reusable(cp, "something else"),
+            (False, "request-changed"))
+
+    def test_checkpoint_with_no_request_identity_is_not_reused(self):
         cp = _checkpoint(sources=_SOURCES, age=1.0)
         del cp["request_prompt"]
         self.assertEqual(
