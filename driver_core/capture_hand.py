@@ -71,11 +71,13 @@ The seats and the grant requirement are opt-in (``seats=None``,
 ``require_grant=False``), which is what keeps a BR2/BR3 deployment working
 exactly as it did; a deployment that declares them gets default-deny.
 """
+import argparse
 import hashlib
 import json
 import math
 import os
 import re
+import sys
 import time
 import uuid
 
@@ -953,3 +955,80 @@ def register_bus_capture_backend(root, platform=None, **kwargs):
     backend = bus_capture_backend(root, platform=platform, **kwargs)
     osal.register_capture_backend(platform, backend)
     return backend
+
+
+def _answer_line(result):
+    """One JSON line per answered request. The ledger keeps the record."""
+    return json.dumps({"answered": result.get("request_id"),
+                       "kind": result.get("kind"),
+                       "state": result.get("state"),
+                       "detail": result.get("detail")}, sort_keys=True)
+
+
+def main(argv=None):
+    """The hand's process entry point (BR2).
+
+    BR2's hand is a *process* that runs inside the interactive session and
+    answers the driver on the other side of a shared ledger. This is that
+    process: ``--root`` is the ledger both sides see, ``--seats`` and
+    ``--require-grant`` declare the owner's gates (off by default, exactly
+    as the class is), and each answer is printed as one JSON line so the
+    operator has a receipt of what the hand did.
+
+    ``--status`` reports the hand's state without answering anything.
+    ``--once`` answers at most one request and exits, which is how a
+    supervised proof runs it without leaving a process behind.
+    """
+    parser = argparse.ArgumentParser(
+        prog="driver_core.capture_hand",
+        description="#480 BR2: answer capture requests from this session.")
+    parser.add_argument("--root", required=True,
+                        help="the ledger root the driver and hand share")
+    parser.add_argument("--seats", nargs="*", default=None,
+                        help="allowed seat names (default: no allowlist)")
+    parser.add_argument("--require-grant", action="store_true",
+                        help="refuse requests that carry no valid grant")
+    parser.add_argument("--no-dedupe", action="store_true",
+                        help="describe every frame instead of deduping")
+    parser.add_argument("--poll", type=float, default=POLL_INTERVAL,
+                        help="idle poll interval in seconds")
+    parser.add_argument("--once", action="store_true",
+                        help="answer at most one request, then exit")
+    parser.add_argument("--status", action="store_true",
+                        help="print the hand's status and exit")
+    args = parser.parse_args(argv)
+
+    worker = CaptureHand(
+        args.root, seats=tuple(args.seats or ()),
+        require_grant=args.require_grant, dedupe=not args.no_dedupe)
+    try:
+        os.makedirs(worker.root, exist_ok=True)
+    except OSError as exc:
+        print(f"cannot use the ledger root {worker.root!r}: {exc}",
+              file=sys.stderr)
+        return 1
+    status = worker.status()
+    if args.status:
+        print(json.dumps(status, sort_keys=True))
+        return 0
+    print(json.dumps({"hand": "started", **status}, sort_keys=True))
+
+    interval = max(0.01, float(args.poll))
+    try:
+        while True:
+            result = worker.poll_once()
+            if result is not None:
+                print(_answer_line(result), flush=True)
+                if args.once:
+                    return 0
+            elif args.once:
+                return 0
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print(json.dumps({"hand": "stopped", "reason": "interrupt"},
+                         sort_keys=True))
+        return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
