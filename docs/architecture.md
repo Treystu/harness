@@ -88,23 +88,56 @@ Harness is a dependency-light Python package with three surfaces:
 - `filesafety.py`: atomic writes, backups, and verification execution.
 - `continuation.py`: persisted continuation authority and gate identity.
 - `ledger.py`: hash-chained evidence.
+- `decision_trace.py`: the ONE home for durable decision traces (D5-1, #466
+  record 7002802650): the versioned `trace_v1` envelope (event/kind/subject/
+  call/attempt/causal ids, happened/appended times, spec ref) and the shared
+  terminal payload, one writer (`DecisionTrace.record`) appending
+  `decision_trace` rows to the hash-chained ledger, one reader spanning the
+  active file and retained segments (`ledger.segment_paths`), per-brief
+  window pinning (segments + hashes + ledger positions + coverage/gaps), and
+  the `campaign.event` kind that keeps campaign histories after the sidecar
+  is gone (#469). Fail-closed on an unavailable sink applies only to
+  audit-enabled entry points; ordinary traffic records the gap for the
+  reader instead of deferring.
 - `results.py`: apply result vocabulary and exit-code policy.
 - `rankings.py`: rankings-driven pool-candidate refresh (daily OpenRouter
   rankings -> catalog intersection -> one-vote probe gate). Advisory only:
   it never mutates configuration.
 - `dag.py`: DAG data only (`DAGNode`, `TaskDAG`, validation, topological
   batches, serialization).
-- `waist.py`: the plan lane (M1/M2) -- decomposition prompt/parse, tier
-  classification (`plan_task`), single-pass fitting
+- `plan_contracts.py`: the plan lane's vocabulary contract -- stage, state
+  and outcome names plus the round-trip/brief bounds. Stage composition,
+  context intake, consensus and the waist import these instead of
+  redefining them (#308).
+- `plan_decompose.py`: decomposition owner (M1) -- `build_decomposition_prompt`,
+  the strict JSON recovery helpers, `parse_decomposition_response`,
+  `decomposition_repair_record`, `heuristic_decompose_goal` and
+  `decompose_via_llm`. Nothing here knows about consensus or budgets (#308).
+- `plan_consensus.py`: consensus and confirmation owner (M2) -- the consensus
+  prompt/parse, tier classification (`plan_task`), the window reader
+  (`read_window`), the verdict vocabulary and the confirmation gate
+  (`confirm_plan`). The gate resolves its own frontier rung (never a
+  decomposition seam) and fail-closes on a refusal or an unreachable rung;
+  spend still flows through the caller's one governor (#308).
+- `plan_context.py`: context-intake owner -- `compose_arguments`, brief
+  assembly (`intake_brief`), the recondense decision and the wanted-stage
+  selection (`resolve_stages`), which the recondense evidence drives. It
+  reads files through a caller-supplied reader; it never spends or
+  dispatches (#308).
+- `plan_stages.py`: stage composition and budget owner -- `compose_stages`,
+  the per-stage ceiling (`stage_budget`), the state view
+  (`stage_states`), `composition_envelope`, `plan_outcome` and the
+  `planning_ladder` (#308).
+- `waist.py`: the plan-lane composition root. It keeps `compose_plan`, the
+  planning loop (`run_planning`/`PlanningOutcome`), single-pass fitting
   (`chunk_oversized_nodes`: a target past the engine's rewrite cap or
   output budget becomes ONE node with the `backend: "diff"` hint, while an
   instruction past `MAX_INSTRUCTION_CHARS` or a target larger than the
   rung's declared read budget -- `capability.source_budget_for` -- splits
-  into ordered chunks), per-node routing kwargs (`node_apply_kwargs`), the
-  confirmation gate (`confirm_plan`), and `compose_plan`. Callers plan by
-  calling `compose_plan`; the confirmation gate resolves its own frontier
-  rung (never a decomposition seam) and fail-closes on a refusal or an
-  unreachable rung.
+  into ordered chunks), per-node routing kwargs (`node_apply_kwargs`) and
+  the ladder resolvers. Callers plan by calling `compose_plan`; the
+  concerns above are owned by their own modules and remain importable from
+  the waist for existing callers (`_COMPAT_308`).
 - `worktree.py`: `WorktreeIsolation` -- create/audit/**commit**/merge/discard
   per-node worktrees. `merge(handle, paths)` commits the node's declared work
   before merging the branch: a worker writes files but a branch carries only

@@ -25,7 +25,7 @@ class WaistUnreachableRefusesTests(unittest.TestCase):
         def broken(transport, api_key, governor, model, prompt, tokens, label=None):
             raise HarnessError("HTTP 429: Provider returned error")
 
-        with patch("harness.waist.governed_text", side_effect=broken):
+        with patch("harness.plan_consensus.governed_text", side_effect=broken):
             plan = compose_plan(
                 transport=fake, api_key="k", governor=gov, ledger=None,
                 opts_goal="Split the work",
@@ -49,7 +49,7 @@ class WaistUnreachableRefusesTests(unittest.TestCase):
         def broken(transport, api_key, governor, model, prompt, tokens, label=None):
             raise HarnessError("HTTP 429: Provider returned error")
 
-        with patch("harness.waist.governed_text", side_effect=broken):
+        with patch("harness.plan_consensus.governed_text", side_effect=broken):
             with self.assertRaises(HarnessError) as ctx:
                 compose_plan(
                     transport=fake, api_key="k", governor=gov, ledger=None,

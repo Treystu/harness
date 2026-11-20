@@ -22,6 +22,11 @@ from .sliding_scale import (
 )
 
 
+#: Kind of the trace row a rotation writes (#473). One row per rotation
+#: decision, carrying the health that produced the order and the order itself.
+ROTATION_EVENT = "router.rotation"
+
+
 def dedup(seq):
     out = []
     for x in seq:
@@ -30,12 +35,27 @@ def dedup(seq):
     return out
 
 
+def read_rotations(source, *, lane=None):
+    """Read recorded rotation rows from a ledger or ledger path.
+
+    The reader is the trace family's own -- this is a convenience view, not a
+    second reader. A ledger with no rotation rows returns ``[]``, which is what
+    every ledger written before #473 looks like.
+    """
+    from .decision_trace import read_trace_events
+
+    events = read_trace_events(source, kinds=[ROTATION_EVENT])
+    if lane is None:
+        return events
+    return [e for e in events if e.get("lane") == lane]
+
+
 class Router:
     def __init__(self, panel, judge, apply_model, escalation_model=None,
                  allow_escalation=False, panel_pool=None, apply_pool=None,
                  specialist_pool=None, convergence_model=None,
                  escalation_pool=None, frontier_model=None, use_free=True,
-                 cheap_judge=None, jev_policy=None):
+                 cheap_judge=None, jev_policy=None, trace=None):
         self.panel = list(panel)
         self.judge = judge
         self.cheap_judge = cheap_judge or judge
@@ -60,6 +80,11 @@ class Router:
         self.escalation_pool = list(escalation_pool or [])
         self._escalation_rung = 0  # current rung index during auto-escalation
         self.frontier_model = resolve_frontier_model(frontier_model, use_free=use_free)
+        # #473: where a rotation decision is recorded. Any object with a
+        # ``record(kind, payload=...)`` method serves -- the session supplies a
+        # ``DecisionTrace`` over the ledger the run already holds. Left None
+        # (tests, library use) no row is written and routing is unchanged.
+        self.trace = trace
 
     def note_model_result(self, model, ok, latency_ms=None):
         """Record one observed attempt outcome for `model`.
@@ -88,7 +113,7 @@ class Router:
         entry = self._model_health.get(model)
         return dict(entry) if entry else None
 
-    def _rotation_ordered(self, pool):
+    def _rotation_ordered(self, pool, lane="pool"):
         """The pool as rotation should walk it, given what we observed.
 
         The declared head is returned untouched: it is the operator's
@@ -96,21 +121,57 @@ class Router:
         both depend on the default pick never moving. Only the tail is
         ranked, and only once something has actually been observed -- an
         unobserved pool is served exactly as declared.
+
+        With a trace attached, the decision is recorded (#473): the declared
+        order, the order rotation will walk, whether observed health shaped
+        it, and the health of the models that were actually observed. A model
+        nothing was observed for is absent from ``health`` rather than given a
+        default; a pool with nothing observed writes ``ranked: false`` and no
+        ``health`` key at all.
         """
         pool = list(pool or [])
         if len(pool) < 2:
             return pool
         tail = pool[1:]
-        if not any(m in self._model_health for m in tail):
+        observed = {m: dict(self._model_health[m]) for m in tail
+                    if m in self._model_health}
+        if not observed:
+            self._record_rotation(lane=lane, declared=list(pool),
+                                  ordered=list(pool), ranked=False,
+                                  health=None)
             return pool
         ranked = rank_models_dynamically(
             tail, health_status=self._model_health,
             prefer_paid=not self.use_free)
-        return [pool[0]] + list(ranked)
+        ordered = [pool[0]] + list(ranked)
+        self._record_rotation(lane=lane, declared=list(pool), ordered=ordered,
+                              ranked=True, health=observed)
+        return ordered
+
+    def _record_rotation(self, *, lane, declared, ordered, ranked, health):
+        """One row per rotation decision, on the trace the run already holds."""
+        record = getattr(self.trace, "record", None)
+        if record is None:
+            return None
+        payload = {
+            "lane": lane,
+            "declared": list(declared),
+            "ordered": list(ordered),
+            "ranked": bool(ranked),
+            "pool_size": len(declared),
+            "primary": declared[0] if declared else None,
+        }
+        # Absent, never fabricated: a model with no observation has no entry.
+        if health:
+            payload["health"] = {m: dict(h) for m, h in health.items()}
+        try:
+            return record(ROTATION_EVENT, payload=payload)
+        except Exception:  # a trace failure must never change routing
+            return None
 
     @property
     def panel_pool(self):
-        return self._rotation_ordered(self._panel_pool)
+        return self._rotation_ordered(self._panel_pool, lane="panel")
 
     @panel_pool.setter
     def panel_pool(self, value):
@@ -118,7 +179,7 @@ class Router:
 
     @property
     def apply_pool(self):
-        return self._rotation_ordered(self._apply_pool)
+        return self._rotation_ordered(self._apply_pool, lane="apply")
 
     @apply_pool.setter
     def apply_pool(self, value):
@@ -126,7 +187,7 @@ class Router:
 
     @property
     def specialist_pool(self):
-        return self._rotation_ordered(self._specialist_pool)
+        return self._rotation_ordered(self._specialist_pool, lane="specialist")
 
     @specialist_pool.setter
     def specialist_pool(self, value):
@@ -134,7 +195,7 @@ class Router:
 
     @property
     def escalation_pool(self):
-        return self._rotation_ordered(self._escalation_pool)
+        return self._rotation_ordered(self._escalation_pool, lane="escalation")
 
     @escalation_pool.setter
     def escalation_pool(self, value):
