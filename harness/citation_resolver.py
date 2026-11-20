@@ -70,8 +70,13 @@ def fetch_json(url: str, *, timeout: float = DEFAULT_TIMEOUT) -> Dict[str, Any]:
         code = int(exc.code)
         # The error object owns the response stream. Leaving it open leaks the
         # descriptor and surfaces as a ResourceWarning on any later GC, which
-        # the hermetic audit treats as a failure of the whole suite.
-        exc.close()
+        # the hermetic audit treats as a failure of the whole suite. A
+        # hand-built error object may carry no stream at all (and close()
+        # itself raises there), so the release is best-effort by design.
+        try:
+            exc.close()
+        except Exception:
+            pass
         raise ResolverTransportError(
             f"HTTP {code}", status=mapping.get(code, "http_error"),
             http_status=code) from exc
