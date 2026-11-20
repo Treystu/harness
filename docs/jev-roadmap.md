@@ -1,7 +1,7 @@
 # Jev Full-Functionality Roadmap
 
 **Status:** active tracking doc  
-**Canon register:** the wave list on [issue #295](https://github.com/Treystu/harness/issues/295) **governs this file**: where a row here and that filing disagree, the filing wins. **Register of record:** the enumerated wave list filed on [issue #295](https://github.com/Treystu/harness/issues/295#issuecomment-6789137044) (2026-11-11), kept true by the **register mirror** immediately below (2026-11-13), which is generated from live issue state and carries every open issue exactly once, in execution order, with owner-side rows marked. This document keeps design, phases and the dated evidence ledger; that filing and its mirror, not the tables below, are the live count and order.  
+**Canon register:** the wave list on [issue #295](https://github.com/Treystu/harness/issues/295) **governs this file**: where a row here and that filing disagree, the filing wins. **Register of record:** the **Canonical burndown register - 2026-11-19** section below, refreshed to live issue state in the same PR that changes it, with its census taken at that PR's own base. It is the **sole** register: the 2026-11-17 REGISTER_MIRROR further down is retired as a register and kept only as dated history (60 open at `8ae3346`), so no reader takes its count as live. This document keeps design, phases and the dated evidence ledger; where a row here and the #295 filing disagree, the filing wins.  
 **Implementer lanes:** Claude Code (`CLAUDE.md`, `/isolated-mission`), Codex, and Freebuff share this canon; use lane-specific handoffs as seat state, not parallel plans.
 **Historical audit date:** 2026-09-22 (Claude dogfood audit: 9 components, 31 confirmed findings — see `DF-*` below); current repository sweep: 2026-10-14 (kept as the dated evidence sweep; it is no longer the open-issue count, which the #295 register of record above owns).
 **Live probe:** TypeSafe `POST https://api.typesafe.ai/v1/systemone` succeeded with key at `~/.config/harness/jev.env`
@@ -261,9 +261,11 @@ close.
 
 ## Canonical burndown register - 2026-11-19 (#295, sergeant filing)
 
-**Census (two-method, base `main` `7acd2df3`):** live API `gh issue list --state open` = **41** open; roadmap inventory below lists every one exactly once (plus tracker/non-issue rows). REGISTER_MIRROR above is stale (60 at base `8ae3346`, 2026-11-17). Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
+**Census (two-method, base `main` `b709e252`):** live API `gh issue list --state open` = **37** open; the search API `type:issue is:open` agrees at 37. The open set is enumerated in full on the next line, so the count is checkable rather than asserted. The 2026-11-17 REGISTER_MIRROR above is retired as a register (60 at base `8ae3346`) and is history only. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
 
-Open set (41): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 468, 469, 471, 472, 473, 474, 475, 476, 480, 482, 517, 567. (#419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; cars 3-4 carry no issue.)
+**Merge jurisdiction (filing 7002532495 item 2, carried here because this is the register):** Lane 1 merges Phase 1 and Phase 2 lane code on a green rail at the exact head against current main. **RSI adoption and self-modification merges are not lane work** and belong to the outside human seat, gated separately. A merge of that class is never filed as a lane landing and never counted in this register's burn.
+
+Open set (37): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 469, 474, 475, 476, 480, 482, 517, 567. (#419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; #468 closed on the W468 verdict at `548c2331`; #471, #472 and #473 closed by PRs #630, #633 and #641; cars 3-4 carry no issue.)
 
 ### Train (sergeant, serial, exact green heads)
 
@@ -312,13 +314,13 @@ Open set (41): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 
 | #412 first-use auth handoff | verification | W2 | steps 1-3 PASS; steps 4-7 PARKED owner-access | steps 1-3 receipt; parked tail batches to owner |
 | #415 GUI live approvals | verification | W2 | PARKED spend word; bounded run AUTHORISED 6987304481, runs filed | verification receipt; owner tail parked |
 | #476 spend ceilings/terminal reserve | champion-brief | Champion 1st | billing reconciliation runs FIRST for dollar ship rules; 6 test-only helpers out of prod | filed measurement program executed, verdict vs frozen ship rule |
-| #474 panel convergence tally | champion-brief | Champion 2nd | dissent definition freezes here | same as above |
-| #468 V1 assessment gate | champion-brief | Champion 3rd | after #474 | same as above |
-| #475 retry/circuit breaking | champion-brief | Champion 4th | after #474 | same as above |
+| #474 panel convergence tally | champion-brief | Champion 2nd | dissent definition freezes here; **its measurement is already executed — the remaining step is record-and-close, so no later champion row waits on it** | same as above |
+| #468 V1 assessment gate | champion-brief | Champion 3rd | none in effect (#474 is record-and-close, not a blocker); **CLOSED 2026-11-20** on the W468 verdict at `548c2331` | closed |
+| #475 retry/circuit breaking | champion-brief | Champion 4th | none in effect (#474 is record-and-close); producer built, landing barred by a consumed re-gate returning investigate (7023601721) — its terminal class is the plan's recorded-disposition step | same as above |
 | #469 flush-loop stop bar | champion-brief | Champion 5th | none | same as above |
-| #471 rung mapping | champion-brief | Champion 6th | none | same as above |
-| #472 capability pool ordering | champion-brief | Champion 7th | after #474 | same as above |
-| #473 router dynamic ranking | champion-brief | Champion 8th | after #472 | same as above |
+| #471 rung mapping | champion-brief | Champion 6th | none | **CLOSED 2026-11-20: PR #630** (`51e208a`), landed green at the exact head |
+| #472 capability pool ordering | champion-brief | Champion 7th | none in effect (#474 is record-and-close); **CLOSED 2026-11-20: PR #633** (`d0722dd`) | closed |
+| #473 router dynamic ranking | champion-brief | Champion 8th | after #472, both landed; **CLOSED 2026-11-20: PR #641** (`e3f930e`) | closed |
 | #467 decision-gate composition | champion-brief | Champion LAST | needs #588 receipts flowing; count provisional until W2 PR #626 lands (replayed `ce1d0084` onto `53dbc72f`, MERGEABLE) | same as above |
 | #466 Champion tracker | tracker | closes when every brief closes; persistence queue opened 2026-11-19: #468 unblocker delivered as W1 draft PR #628 (stacked on #627), order #471/#472/#475/#473/#476; #469 carried by #627 | all briefs above | all briefs verdict-recorded |
 
@@ -481,6 +483,8 @@ one merge occurs at a time. Every row inherits G0-G4 below.
 | [#295](https://github.com/Sovereign-Communication/harness/issues/295) | Tracker | all child dispositions | Evidence-backed closure/disposition, one phase PR/merge, green merge-result CI; roadmap owns plan, tracker owns execution receipts. |
 
 ### Shared research contract (#342 -> #343/#344)
+
+_Order note (2026-11-20): this heading records the **design** relationship only. The operative register above carries #343, #344 and #342 with no listed dependencies, in that queue order, and the register is the operative home for order. Do not re-derive a dependency from this heading._
 
 One owner receives effective request plus bounded typed model proposal:
 needed/reason, queries/URLs, domains, freshness, evidence requirements/min_sources/
