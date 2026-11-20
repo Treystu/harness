@@ -77,12 +77,15 @@ class ApplyEngine(ApplyEngineMixin):
                  default_task_max_cost=0.10, use_free=False,
                  allowed_roots=None, jev_policy=None, min_confidence=0.70,
                  default_require_diff_authorization=False,
-                 default_attest_model=None):
+                 default_attest_model=None, trace=None):
         self.transport = transport
         self.api_key = api_key
         self.governor = governor
         self.ledger = ledger
         self.router = router
+        # Optional: the one trace writer (DecisionTrace over this ledger).
+        # An engine built without it writes exactly the rows it wrote before.
+        self.trace = trace
         self.jev_policy = jev_policy
         self.min_confidence = float(min_confidence)
         self.default_require_consent = default_require_consent
