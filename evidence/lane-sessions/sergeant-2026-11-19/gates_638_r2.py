@@ -16,7 +16,7 @@ Merge proposition (read live at filing time):
   description line-for-line (payload audit clean, unlike #626's refresh).
 - Ready-mark: W1 explicitly handed the call to this lane ("one word from
   ready on your call", W1 turn 12); sergeant marks ready, head unchanged.
-- Body close-scan: one keyword ("Fixes #475") neutralized to "Delivers #475"
+- Body close-scan: the single auto-close keyword on #475 was neutralized to "Delivers #475"
   by body edit pre-merge (PR metadata only, branch untouched); closure of
   #475 is the sergeant's, on this receipt.
 - Carries #475 (OPEN, "Champion Audit: Failure retry and circuit breaking"),
