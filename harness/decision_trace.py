@@ -195,7 +195,12 @@ def read_trace_events(source, *, kinds: Optional[Sequence[str]] = None,
     skipped; a trace row from another ``trace_version`` is returned as-is (the
     reader never silently upgrades a record it cannot interpret).
     """
-    paths = source if isinstance(source, (list, tuple)) else _segment_paths(source)
+    if isinstance(source, str):
+        paths = [source]  # the docstring's "``AutonomyLedger`` or a ledger path"
+    elif isinstance(source, (list, tuple)):
+        paths = list(source)
+    else:
+        paths = _segment_paths(source)
     wanted = set(kinds) if kinds else None
     events: List[Dict[str, Any]] = []
     for path in paths:
