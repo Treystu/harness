@@ -1,0 +1,14 @@
+=== harness serve start 2026-11-19T18:18:10Z pid=25716 port=8798 log=evidence\lane-sessions\w2-2026-11-20\serve-8798-turn14.log ===
+2026-11-19T18:18:11Z [ui] "GET / HTTP/1.1" 200 -
+2026-11-19T18:18:19Z [ui] "POST /api/driver/start HTTP/1.1" 200 -
+2026-11-19T18:18:19Z [ui] "GET /api/driver/health HTTP/1.1" 200 -
+2026-11-19T18:18:19Z [ui] "GET /api/driver/vocabulary HTTP/1.1" 200 -
+2026-11-19T18:18:19Z [ui] "GET /api/driver/vocabulary HTTP/1.1" 401 -
+2026-11-19T18:18:19Z [ui] "GET /api/driver/verify HTTP/1.1" 200 -
+2026-11-19T18:18:19Z [ui] "GET /api/driver/schemas HTTP/1.1" 200 -
+2026-11-19T18:18:19Z [ui] "GET / HTTP/1.1" 200 -
+2026-11-19T18:18:20Z [ui] "POST /api/driver/step HTTP/1.1" 200 -
+2026-11-19T18:18:20Z [ui] "GET / HTTP/1.1" 200 -
+2026-11-19T18:18:20Z [ui] "POST /api/driver/step HTTP/1.1" 200 -
+2026-11-19T18:18:20Z [ui] "POST /api/driver/step HTTP/1.1" 400 -
+2026-11-19T18:18:20Z [ui] "POST /api/driver/step HTTP/1.1" 400 -

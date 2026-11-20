@@ -153,7 +153,7 @@ class ExtraCoverageTests(unittest.TestCase):
             calls.append("waist")
             return '{"verdict": "amend", "nodes": [{"node_id": "n1", "instruction": "Do the real write work now", "target_files": ["harness/sync.py"], "dependencies": []}]}', 0.0
 
-        with patch("harness.waist.governed_text", side_effect=governed):
+        with patch("harness.plan_consensus.governed_text", side_effect=governed):
             plan = compose_plan(
                 transport=fake, api_key="k", governor=gov, ledger=None,
                 opts_goal="Update sync", candidate_files=["harness/sync.py"],

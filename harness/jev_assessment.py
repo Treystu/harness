@@ -297,6 +297,65 @@ def assess(judgments, *, stalled_rounds: int = 0,
         decision=PASS, aspects=aspects, notes=note, composer=composer)
 
 
+#: The trace kind this gate writes. One name, in the trace family the design
+#: record (#466, D5-1) already owns; the gate does not open a second one.
+DISPOSITION_EVENT = "assessment.disposition"
+
+
+def disposition_payload(verdict: AssessmentVerdict) -> Dict[str, Any]:
+    """The five distributions and the disposition, as one trace payload.
+
+    The distributions are carried *exactly* as the judgement declared them --
+    no renormalising, no rounding, no dropping a band -- because the whole
+    point of persisting them is that a later reader can re-derive the band
+    majority rather than trust this run's arithmetic. An aspect that was
+    declared irrelevant keeps its reason and an empty distribution.
+    """
+    if not isinstance(verdict, AssessmentVerdict):
+        raise AssessmentError(
+            "a disposition payload needs an AssessmentVerdict; got "
+            f"{type(verdict).__name__}")
+    return {
+        "decision": verdict.decision,
+        "ok": verdict.ok,
+        "stalled": verdict.stalled,
+        "authority": AUTHORITY,
+        "production_gate": PRODUCTION_GATE,
+        "aspects": [aspect.to_dict() for aspect in verdict.aspects],
+        "notes": list(verdict.notes),
+        "investigate": list(verdict.investigate),
+        "risks": list(verdict.risks),
+        # Carried as a flag: the composer verdict is referenced by identity
+        # elsewhere and must not be duplicated into this record.
+        "composer_present": verdict.composer is not None,
+    }
+
+
+def record_disposition(trace, verdict: AssessmentVerdict, *, subject_id: str,
+                       call_id: Optional[str] = None,
+                       spec_ref: Optional[str] = None,
+                       audit_enabled: bool = False) -> Dict[str, Any]:
+    """Persist one assessment through the ledger trace writer (#468).
+
+    ``trace`` is a ``harness.decision_trace.DecisionTrace`` bound to the
+    hash-chained ledger -- the one writer. Callers that run an audit-enabled
+    pass get the writer's fail-closed behaviour unchanged; this function adds
+    no second sink and no retry of its own.
+    """
+    if not isinstance(subject_id, str) or not subject_id.strip():
+        raise AssessmentError(
+            "an assessment record needs the subject it assessed; "
+            "subject_id must be a non-empty string")
+    return trace.record(
+        DISPOSITION_EVENT,
+        payload=disposition_payload(verdict),
+        subject_id=subject_id.strip(),
+        call_id=call_id,
+        spec_ref=spec_ref or "jev_assessment.assess",
+        audit_enabled=audit_enabled,
+    )
+
+
 def from_payload(payload: Dict[str, Any]) -> List[AspectJudgment]:
     """Build the five judgements from a CLI/JSON payload.
 

@@ -284,6 +284,7 @@ cheap; losing either is not.
 | `harness/site_export.py` | SITE-1 fail-closed exporter: verified ledger + consent → sanitized site-bundle-v1 (allowlist sanitize + credential scan before any bytes land) |
 | `harness/site_aggregate.py` | SITE-3 capability/$ metrics over exported bundles (gated-runs-only headlines, frontier warrant rate, modeled hourglass savings with stated basis) + KV rollup fold |
 | `harness/public_share.py` | #407 worldwide model statistics: the opt-in consent record with future-only revocation and its queue, sufficient-statistics reports (secret shares, binding commitment, round-bound proof), the intake validator's exact wire allowlist, and the publisher's ten-operator floor, receipts and no-data state |
+| `harness/local_fit/optional_ci.py` | #311 gate for the optional local-fit job: refuses to run without the `local-fit-train` extras, runs the train/export/reload/score suites for real, and fails on any skipped test so a `skipUnless` can never read as coverage |
 | `harness/log_items.py` | JEV-LOG code-owned log item extraction + mechanical tallies ($0; header-token levels; bounded continuations) — judgment happens later via `jev_policy`, never here |
 | `harness/log_analysis.py` | JEV-LOG Stage D batch + Stage E aggregate artifact; Stage B draft prompt + operator freeze gate (a draft is never valid without explicit approval) — no second Jev client |
 | `harness/repo_items.py` | JEV-P6 code-owned whole-repo inventory ($0): kinds, sizes, AST symbols, imports, headings, test/gate facts, import-graph centrality + mechanical tallies; bounded element state for typed calls — no judgments happen here |
@@ -298,6 +299,11 @@ cheap; losing either is not.
 | `harness/simple_action_lifecycle.py` | bounded read-only public site checks with Jev route selection |
 | `harness/conversation_lifecycle.py` | conversational fallback generation, web evidence, and honest deferral |
 | `harness/execution_stages.py` | planning-stage composition, stage judgments, and restart guards |
+| `harness/plan_contracts.py` | the plan lane's vocabulary contract: stage/state/outcome names and the round-trip and brief bounds (#308) |
+| `harness/plan_decompose.py` | decomposition owner (M1): decomposition prompt, strict JSON recovery, response parsing, heuristic and LLM decompose (#308) |
+| `harness/plan_consensus.py` | consensus and confirmation owner (M2): consensus prompt/parse, tier classification, window reader, verdict vocabulary, `confirm_plan` (#308) |
+| `harness/plan_context.py` | context-intake owner: arguments, brief assembly, the recondense decision and wanted-stage selection (#308) |
+| `harness/plan_stages.py` | stage composition and budget owner: per-stage ceiling, state view, composition envelope, outcome and planning ladder (#308) |
 | `harness/lifecycle_types.py` | discriminated chat/audit/auto-edit/driver/provisioning states and their cross-field invariants |
 | `harness/lifecycle.py` | the single persisted request-state owner: Jev rounds, continuation, usage liability, side-effect receipts, and terminal transitions; lane adapters do not own duplicate state |
 | `harness/availability.py` | #538 per-(provider, model) availability verdicts: typed causes, TTL, bounded probe budget, `order()`, and `live_backends()` — the one owner of "which backends may be tried next", so lanes rotate to a healthy backend instead of deferring |
@@ -307,6 +313,7 @@ cheap; losing either is not.
 | `harness/hourglass_lifecycle.py` | multi-round chat answer generation and advisory Jev review |
 | `harness/simple_answer_lifecycle.py` | bounded no-tool answer lane with candidate reuse and usage accounting |
 | `harness/answer_plot_consistency.py` | static claim-vs-script check for a delivered plotting answer (#568) |
+| `harness/decision_trace.py` | D5-1 one home for durable decision traces: `trace_v1` envelope + terminal payload, one writer/reader over the active ledger file and retained segments, per-brief window pinning, and the `campaign.event` kind that retains campaign histories (#469) |
 | `harness/run_recovery.py` | read-only restart recovery over durable lifecycle checkpoints (#418) |
 | `harness/state_report.py` | local health, backend reachability and request state reported apart, with credential-free diagnostics (#419) |
 | `harness/edit_lifecycle.py` | auto-edit planning, preview/approval, execution receipts, and verification adapter |
