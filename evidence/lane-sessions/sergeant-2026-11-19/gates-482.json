@@ -1,0 +1,26 @@
+{
+  "482": {
+    "product_jev": {
+      "verdict": "escalate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.08,
+      "cost": 2.9778000000000002e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "4e637b3f1fb95c8c8cf16cddd115765a59c50d67a34ea8fd219402753baedc61"
+    }
+  },
+  "_meta": {
+    "ledger_rows_added": 1,
+    "site": "audit_admissibility",
+    "head": "dbb54a7f50216ef537fef71f3d88b2e807d09e45"
+  }
+}
