@@ -1,0 +1,104 @@
+{
+  "567": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.18,
+      "cost": 2.6544000000000002e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "6a4a01500e8e9b82227216a2ca80f4341b37dea4234d2c7480f6445facdc5749"
+    }
+  },
+  "413": {
+    "product_jev": {
+      "verdict": "escalate",
+      "disposition": "escalate",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.13,
+      "cost": 2.6418000000000004e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "c3daa197a718444d61092608dd8d6c0344b3a12303eaf181260576e53411068f"
+    }
+  },
+  "414": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.06,
+      "cost": 2.6292000000000002e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "ef8af5fa551a574a22d3d440bef1c375b4f764357c63d7336dbde5ae0cbd0a65"
+    }
+  },
+  "422": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.07,
+      "cost": 2.6334000000000002e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "7ad61775786ccc7ed5b37e36dd9f218ec30bfb94c3157a734a7dc29588cd23b2"
+    }
+  },
+  "intake-413": {
+    "product_jev": {
+      "verdict": "escalate",
+      "disposition": "needs_improvement",
+      "margin": 0.2,
+      "lead": null,
+      "advanced": null,
+      "destructive": null,
+      "supported": 0.12,
+      "cost": 2.604e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "188006f183c66f6892047f78828b58b7ec2cf58bfe3906c36f709a0d7cc9a4a4"
+    }
+  },
+  "_meta": {
+    "ledger_rows_added": 5,
+    "total_jev_cost_usd": 0.00013163,
+    "site": "audit_admissibility",
+    "head_under_test": "6ea96c29fed9373e8a591085ca3173d18c9edd1b",
+    "product_identity": "4618b5f997a0f04331b26aa8452568835dfccf1e"
+  }
+}
