@@ -173,3 +173,32 @@ PRs" as live, because six landings have happened since (`a4dd345`, `280ee3d4`,
   #422 acceptance live.
 - **BLOCKERS:** authenticated GitHub API (writes + census). Nothing else.
 - **IDLE:** none.
+
+## 8. Push receipts (verbatim, `cloud_git`)
+
+1. `standup/lane1-2026-11-21`, `HEAD` `c76defb`, `statusCode: 0`:
+
+```
+remote: 
+remote: Create a pull request for 'standup/lane1-2026-11-21' on GitHub by visiting:        
+remote:      https://github.com/Treystu/harness/pull/new/standup/lane1-2026-11-21
+remote: 
+To https://github.com/Treystu/harness.git
+ * [new branch]      HEAD -> standup/lane1-2026-11-21
+```
+
+2. `HEAD` `b14e5cd` (push receipt recorded in the refresh), `statusCode: 0`:
+
+```
+To https://github.com/Treystu/harness.git
+   c76defb..b14e5cd  HEAD -> standup/lane1-2026-11-21
+```
+
+3. `HEAD` `d1d8e7c` (this turn's filings + the intake cure), `statusCode: 0`:
+
+```
+To https://github.com/Treystu/harness.git
+   b14e5cd..d1d8e7c  HEAD -> standup/lane1-2026-11-21
+```
+
+Three pushes, three successes, no force, no write to `main`.
