@@ -347,7 +347,12 @@ def _subject_core_label(query):
 
 
 def _result_mentions_subject(results, label):
-    """True when at least one result references the subject brand label."""
+    """True when at least one result references the subject brand label.
+
+    Batch-level, and kept only for callers that ask that question. Relevance
+    admission is per candidate (:func:`admit_candidates`): one matching hit
+    must not admit its unrelated neighbours (#343).
+    """
     if not label:
         return True
     needle = label.lower()
@@ -356,6 +361,36 @@ def _result_mentions_subject(results, label):
         if needle in blob.lower():
             return True
     return False
+
+
+def _candidate_matches_subject(result, label):
+    """True when THIS candidate references the subject brand label.
+
+    ``admit_candidates`` returns before this runs when the query names no
+    subject, so the label is never empty here and the guard would be dead.
+    """
+    blob = " ".join(str(result.get(k) or "") for k in ("title", "url", "snippet"))
+    return str(label).lower() in blob.lower()
+
+
+def admit_candidates(query, results):
+    """Admit search hits individually against the query's named subject.
+
+    When the query names a specific site, each candidate must reference that
+    subject itself. A batch where one hit matches is not evidence for the
+    others: the recorded failure was a calculator hit beside a Microsoft
+    mailbox-audit hit, both handed to the model because one of them matched.
+
+    Returns ``(accepted, rejected_count)``. With no named subject the gate is
+    inert and every candidate is accepted, so ordinary topical searches keep
+    their behaviour.
+    """
+    subject = _subject_core_label(query)
+    if not subject:
+        return list(results), 0
+    accepted = [r for r in results
+                if _candidate_matches_subject(r, subject)]
+    return accepted, len(results) - len(accepted)
 
 
 def _parse_results(page_html, max_results):
@@ -428,15 +463,17 @@ def search_web(query, max_results=5, timeout=12.0):
     # (search engines answer an obscure query with an unrelated fallback).
     # Handing that to the model as "evidence" is the fabrication vector this
     # module exists to prevent, so refuse honestly instead.
-    subject = _subject_core_label(q)
-    if subject and not _result_mentions_subject(results, subject):
+    results, rejected = admit_candidates(q, results)
+    if not results:
+        subject = _subject_core_label(q)
         emit("web_search", phase="end", ok=False, query=q,
              reason="off_subject_results")
         raise HarnessError(
             f"web search returned no results about '{subject}' "
             "(the results were off-subject)")
 
-    emit("web_search", phase="end", ok=True, query=q, results=len(results))
+    emit("web_search", phase="end", ok=True, query=q, results=len(results),
+         **{"rejected_off_subject": rejected} if rejected else {})
     return results
 
 
