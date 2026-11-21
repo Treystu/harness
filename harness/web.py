@@ -364,9 +364,11 @@ def _result_mentions_subject(results, label):
 
 
 def _candidate_matches_subject(result, label):
-    """True when THIS candidate references the subject brand label."""
-    if not label:
-        return True
+    """True when THIS candidate references the subject brand label.
+
+    ``admit_candidates`` returns before this runs when the query names no
+    subject, so the label is never empty here and the guard would be dead.
+    """
     blob = " ".join(str(result.get(k) or "") for k in ("title", "url", "snippet"))
     return str(label).lower() in blob.lower()
 
