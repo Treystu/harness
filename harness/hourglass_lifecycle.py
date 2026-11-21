@@ -6,7 +6,7 @@ effects are recorded through the shared lifecycle coordinator.
 import hashlib
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from . import script as _script
 from .chat_policy import (
@@ -79,6 +79,17 @@ from .simple_request import (
 from .token_budget import resolve_lane_max_tokens as _resolve_lane_max_tokens
 from .web import extract_site_target, resolve_fetch_allowlist
 from .workspace import resolve_workspace_path
+
+
+#: How long gathered web evidence stays reusable on a resumed request. A
+#: checkpoint older than this re-gathers instead of delivering stale snippets
+#: as current evidence (#344).
+_CONTEXT_REUSE_MAX_AGE_S = 300.0
+
+
+def _request_identity(prompt: str) -> str:
+    """Normalised identity of the effective request, for checkpoint binding."""
+    return " ".join(str(prompt or "").split()).lower()
 
 
 class HourglassLifecycleMixin:
@@ -473,6 +484,45 @@ class HourglassLifecycleMixin:
                 + reserved, 8)
         checkpoint["usage_unknown"] = bool(
             checkpoint.get("usage_unknown") or getattr(exc, "usage_unknown", False))
+    def _checkpoint_context_reusable(
+            self, checkpoint: ChatResumePayload, prompt: str
+    ) -> Tuple[bool, str]:
+        """Whether a resumed checkpoint's gathered context may be reused.
+
+        Reuse is bound to the *current* effective request (#344): a saved
+        context belongs to the request that produced it, so a changed request
+        cannot inherit its evidence, and web evidence older than
+        ``_CONTEXT_REUSE_MAX_AGE_S`` is stale regardless of whether this turn
+        asked for web -- an answer route that reuses day-old snippets is the
+        case this predicate exists to stop.
+
+        Returns ``(reusable, reason)``; ``reason`` is the recorded why-not.
+        """
+        if not isinstance(checkpoint.get("context"), str):
+            return False, "no-saved-context"
+        # ``request_prompt`` is what this build records; checkpoints written
+        # before it existed still carry the request that produced the context
+        # as ``prompt``, and continuation reuse binds to that just as strictly.
+        saved_prompt = checkpoint.get("request_prompt")
+        if saved_prompt is None:
+            saved_prompt = checkpoint.get("prompt")
+        if (not isinstance(saved_prompt, str)
+                or _request_identity(saved_prompt)
+                != _request_identity(prompt)):
+            return False, "request-changed"
+        if not self._hourglass_context_matches(checkpoint):
+            return False, "workspace-changed"
+        sources = checkpoint.get("web_sources") or []
+        if sources:
+            try:
+                age = time.time() - float(
+                    checkpoint.get("context_updated_at") or 0.0)
+            except (TypeError, ValueError):
+                return False, "unreadable-context-age"
+            if age > _CONTEXT_REUSE_MAX_AGE_S:
+                return False, "evidence-stale"
+        return True, "reusable"
+
     def _hourglass_context_matches(self, checkpoint: ChatResumePayload) -> bool:
         expected_root = str(checkpoint.get("workspace_root") or "")
         actual_root = str(self.root_dir or "")
@@ -807,12 +857,13 @@ class HourglassLifecycleMixin:
             return result
 
         saved_context = checkpoint.get("context")
-        context_current = (resuming and isinstance(saved_context, str)
-                           and self._hourglass_context_matches(checkpoint))
-        web_fresh = (
-            not web or time.time() - float(
-                checkpoint.get("context_updated_at") or 0.0) <= 300.0)
-        if context_current and web_fresh:
+        reusable, reuse_reason = (False, "not-resuming")
+        if resuming:
+            reusable, reuse_reason = self._checkpoint_context_reusable(
+                checkpoint, prompt)
+            emit("chat_context", phase="end", reused=reusable,
+                 reason=reuse_reason)
+        if reusable:
             context = saved_context
             context_files = list(checkpoint.get("context_files") or [])
             context_tokens = int(checkpoint.get("context_tokens") or 0)
@@ -862,8 +913,9 @@ class HourglassLifecycleMixin:
                 "context_updated_at": time.time(),
                 "workspace_root": str(self.root_dir or ""),
                 "workspace_context_used": workspace_needed,
+                "request_prompt": prompt,
             })
-            if resuming and not (context_current and web_fresh):
+            if resuming and not reusable:
                 checkpoint["answer"] = None
                 checkpoint["prior"] = None
                 checkpoint["rounds"] = []
