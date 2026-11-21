@@ -109,4 +109,13 @@ Every difference (live 36 vs that filing):
 
 ## Push-test result
 
-Recorded here after the push attempt (platform connected git).
+- Direct `git push origin HEAD` (unauthenticated cloud egress): FAILED as
+  expected — `fatal: could not read Username for 'https://github.com': No
+  such device or address`. The mission's CLOUD EXECUTION NOTE is confirmed:
+  the gh CLI / raw git push path is unauthenticated here.
+- Platform connected git (`cloud_git` push to
+  `freebuff/dd7daf0d70253bde4832d672`): SUCCEEDED — `HEAD ->
+  freebuff/dd7daf0d70253bde4832d672` (new branch), commit `2e96740`.
+  So in-repo filings push fine through the platform path; GitHub API acts
+  (issue comments, PR actions) remain blocked and are filed verbatim above
+  for oversight execution.
