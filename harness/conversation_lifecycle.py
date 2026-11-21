@@ -1,9 +1,15 @@
 """Conversational fallback generation and web evidence handling."""
 
 import re
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from .chat import assess_output, chat_routed, extract_content_and_cost, looks_truncated
+from .citation_resolver import (
+    REPORT_CITATION_TIMEOUT,
+    RegistryResolver,
+    audit_report_citations,
+)
 from .chat_policy import (
     DEFAULT_CHAT_SYSTEM_PROMPT,
     _MAX_WEB_CONTEXT_CHARS,
@@ -31,6 +37,40 @@ from .results import _http_error
 from .session import governor_for, ledger_for
 from .token_budget import resolve_lane_max_tokens as _resolve_lane_max_tokens
 from .web import gather_web_context, named_target_hosts, resolve_fetch_allowlist
+
+
+def _report_citation_resolver():
+    """The registry resolver the report path audits citations with (#422).
+
+    A module seam so a test can answer as a registry without reaching the
+    network; production uses the one adapter #645 published. The timeout is
+    short on purpose: an unresolved citation is a better report than a late
+    one, and the gate treats a timeout as evidence, not as an error to hide.
+    """
+    return RegistryResolver(timeout=REPORT_CITATION_TIMEOUT)
+
+
+def _citation_audit_unavailable(reason: str, request_id=None,
+                                retrieved_at: Optional[str] = None) -> Dict[str, Any]:
+    """The artifact for a report whose citation audit could not be built.
+
+    Honest insufficiency in the same shape the gate produces, so a consumer
+    reads one schema whether the audit ran or not.
+    """
+    return {
+        "ok": False,
+        "citation_verified": False,
+        "label": "not_verified",
+        "citations": [],
+        "claims": [],
+        "unresolved": [],
+        "reasons": [f"citation_audit_unavailable: {reason}"],
+        "summary": {"citations": 0, "claims": 0, "supported": 0,
+                    "partially_supported": 0, "contradicted": 0,
+                    "not_verifiable": 0},
+        "report": {"sources": 0, "doi_citations": 0,
+                   "request_id": request_id, "retrieved_at": retrieved_at},
+    }
 
 
 class ConversationLifecycleMixin:
@@ -407,6 +447,11 @@ class ConversationLifecycleMixin:
             "web_sources": [
                 {k: s[k] for k in ("kind", "ok", "url") if k in s} for s in web_sources
             ],
+            # #422: the report ships with its citation audit, produced by the
+            # gate from the sources this turn actually retrieved. The label is
+            # the gate's decision; this path never adds one of its own.
+            "citation_audit": self._report_citation_audit(
+                web_sources, session_id or None),
         }
 
         result["context"] = {
@@ -420,6 +465,29 @@ class ConversationLifecycleMixin:
             save_chat_turn(session_id, result, self.history_dir)
         emit("chat_response", intent="conversation", cost=cost, model=model)
         return result
+
+    def _report_citation_audit(self, web_sources: List[Dict[str, Any]],
+                               request_id: Optional[str] = None) -> Dict[str, Any]:
+        """#422 report-path call site: audit the citations before the report ships.
+
+        The deterministic gate (`citation_verify`) and the registry adapter
+        (`citation_resolver`, #645) both exist; this is the product wiring that
+        reaches them, so a report's own sources carry a per-citation status and
+        the `citation_verified` label can only appear when the gate grants it.
+
+        Never fatal: a registry or transport failure is recorded as the
+        insufficient evidence it is, the same way the gate records an
+        unavailable resolver instead of promoting the citation.
+        """
+        retrieved_at = datetime.now(timezone.utc).replace(
+            microsecond=0).isoformat()
+        try:
+            return audit_report_citations(
+                web_sources, resolver=_report_citation_resolver(),
+                retrieved_at=retrieved_at, request_id=request_id)
+        except Exception as exc:  # noqa: BLE001 - a report is never lost to this
+            return _citation_audit_unavailable(
+                f"{type(exc).__name__}: {exc}", request_id, retrieved_at)
 
     def _context_recall_judge(self, remembered: str, recent: str, gov: Any,
                               session_id: str):

@@ -30,13 +30,25 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .citation_verify import normalize_doi
+from .citation_verify import (
+    audit_citations,
+    may_label_citation_verified,
+    normalize_doi,
+)
 
 #: Crossref's work endpoint. Named here so a caller can override it, not so the
 #: rest of the module assumes it.
 DEFAULT_BASE_URL = "https://api.crossref.org/works"
 DEFAULT_TIMEOUT = 15.0
 DEFAULT_SOURCE = "crossref"
+#: A report audits at most this many DOI citations per answer, so one slow
+#: registry cannot turn a chat turn into a wait.
+MAX_REPORT_CITATIONS = 3
+#: Short by design: a report is better with an unresolved citation than late.
+REPORT_CITATION_TIMEOUT = 5.0
+#: Bibliography fields a source may carry. Only the ones present are supplied;
+#: an absent field stays absent so the gate records it as unresolved.
+BIBLIOGRAPHIC_FIELDS = ("title", "authors", "year", "venue", "version")
 
 
 class ResolverTransportError(Exception):
@@ -204,3 +216,81 @@ class RegistryResolver:
             "metadata_source": f"{self.source}:{resolved_doi}",
             "status": "ok",
         }
+
+
+def citation_records(web_sources, *, retrieved_at, request_id=None,
+                     max_citations=MAX_REPORT_CITATIONS):
+    """Map gathered web sources onto the gate's citation/source/claim records.
+
+    Only what the retrieval actually returned is supplied: the URL, the text
+    it captured, and the DOI the URL names (``https://doi.org/10.x/y``) or the
+    source carries explicitly, plus any bibliography field a caller attached.
+    A field the source does not carry stays absent, which ``citation_verify``
+    records as unresolved instead of filling in -- the honest-insufficiency
+    contract #422 asks for.
+    """
+    citations = []
+    claims = []
+    sources = []
+    for index, raw in enumerate(web_sources or ()):
+        if not isinstance(raw, Mapping) or not raw.get("ok"):
+            continue
+        url = str(raw.get("url") or "").strip()
+        if not url:
+            continue
+        source_id = f"web-{index + 1}"
+        metadata = raw.get("metadata")
+        metadata = dict(metadata) if isinstance(metadata, Mapping) else {}
+        doi = normalize_doi(raw.get("doi") or metadata.get("doi") or url)
+        sources.append({
+            "source_id": source_id,
+            "url": url,
+            "source_class": "web",
+            "retrieved_at": retrieved_at,
+            "passage": str(raw.get("text") or ""),
+            "locator": url,
+            "doi": doi,
+            "retrieval_status": "ok",
+            "request_id": request_id,
+        })
+        # One claim per source: the report asserts the source supports it, and
+        # the gate decides whether that assertion has the evidence to stand.
+        claims.append({"claim_id": source_id, "source_ids": [source_id]})
+        if not doi or len(citations) >= max_citations:
+            continue
+        citation: Dict[str, Any] = {
+            "citation_id": source_id, "doi": doi, "url": url,
+        }
+        for name in BIBLIOGRAPHIC_FIELDS:
+            value = raw.get(name, metadata.get(name))
+            if value not in (None, "", []):
+                citation[name] = value
+        citations.append(citation)
+    return citations, claims, sources
+
+
+def audit_report_citations(web_sources, *, resolver, retrieved_at,
+                           request_id=None,
+                           max_citations=MAX_REPORT_CITATIONS):
+    """Audit one report's citations from gathered web sources (#422).
+
+    This is the half the report path owns: hand ``citation_verify`` the
+    records the retrieval produced and the registry resolver that answers for
+    them, so the artifact reports each citation's status rather than an
+    unverified claim of verification. The label is the gate's to grant, never
+    this function's to add.
+    """
+    citations, claims, sources = citation_records(
+        web_sources, retrieved_at=retrieved_at, request_id=request_id,
+        max_citations=max_citations)
+    audit = audit_citations(citations, claims, sources, resolver=resolver)
+    audit["report"] = {
+        "sources": len(sources),
+        "doi_citations": len(citations),
+        "request_id": request_id,
+        "retrieved_at": retrieved_at,
+        "max_citations": max_citations,
+    }
+    audit["label"] = ("citation_verified"
+                      if may_label_citation_verified(audit) else "not_verified")
+    return audit
