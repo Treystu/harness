@@ -23,9 +23,10 @@ from harness.decision_trace import (
     read_trace_events,
     terminal,
 )
-from harness.flush_loop import (EventLedger, record_info_request,
+from harness.flush_loop import (EventLedger, campaign_trace, record_info_request,
                                 record_oscillation, record_pass,
-                                record_refusal, record_stop)
+                                record_refusal, record_stop,
+                                run_campaign_file)
 from harness.ledger import AutonomyLedger
 
 
@@ -361,6 +362,79 @@ class WindowPinningTests(unittest.TestCase):
             with self.assertRaises(TraceError):
                 pin_window(ledger, brief="", revision="r", selector="s",
                            unit_ids=[], out_path=os.path.join(directory, "w.json"))
+
+
+class ProductCampaignWiringTests(unittest.TestCase):
+    """#469: the campaign entry point must supply the writer, not only the tests."""
+
+    def _campaign(self, directory):
+        path = os.path.join(directory, "campaign.json")
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({
+                "campaign": "w469-entry",
+                "passes": [{
+                    "angles": ["flaw-hunt"],
+                    "aspects": ["scale"],
+                    "records": [{"id": "ev-1", "content": "the pack"}],
+                    "verdicts": {"scale": {"basis": "dossier:ev-1@v1",
+                                           "scores": {"completeness": 96}}},
+                }],
+            }, handle)
+        return path
+
+    def test_a_product_campaign_run_retains_its_events(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace_path = os.path.join(directory, "run.jsonl")
+            run_campaign_file(
+                str(self._campaign(directory)),
+                ledger_path=os.path.join(directory, "campaign.events.jsonl"),
+                trace_path=trace_path)
+            rows = read_trace_events(_ledger(directory, "run.jsonl"),
+                                     kinds=[CAMPAIGN_EVENT])
+            self.assertTrue(rows)
+            self.assertEqual({row["campaign"] for row in rows}, {"w469-entry"})
+            self.assertIn("pass_admitted",
+                          [row["campaign_event"] for row in rows])
+            ok, _detail = _ledger(directory, "run.jsonl").verify()
+            self.assertEqual(ok, True)
+
+    def test_the_trace_retains_a_stop_row_with_its_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace_path = os.path.join(directory, "run.jsonl")
+            sidecar = EventLedger(
+                os.path.join(directory, "campaign.events.jsonl"),
+                trace=campaign_trace(trace_path=trace_path))
+            record_stop(sidecar, campaign="w469-entry", streak=2,
+                        basis="dossier:ev-1@v1", combined=93.5)
+            rows = read_trace_events(_ledger(directory, "run.jsonl"),
+                                     kinds=[CAMPAIGN_EVENT])
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["campaign_event"], "stop")
+            self.assertEqual(rows[0]["campaign"], "w469-entry")
+            self.assertEqual(rows[0]["streak"], 2)
+            self.assertEqual(rows[0]["basis"], "dossier:ev-1@v1")
+            self.assertEqual(rows[0]["combined"], 93.5)
+
+    def test_the_writer_can_be_disabled_explicitly(self):
+        self.assertIsNone(campaign_trace(trace_path=False))
+
+    def test_an_empty_trace_path_is_a_disabled_writer(self):
+        """A caller that resolves no ledger path gets no writer, not a crash."""
+        self.assertIsNone(campaign_trace(trace_path=""))
+
+    def test_an_unreadable_trace_ledger_does_not_abort_the_campaign(self):
+        """An optional sink must never break a replay that used to work."""
+        with tempfile.TemporaryDirectory() as directory:
+            unreadable = os.path.join(directory, "not-a-ledger")
+            os.makedirs(unreadable)
+            self.assertIsNone(campaign_trace(trace_path=unreadable))
+            result = run_campaign_file(
+                str(self._campaign(directory)),
+                ledger_path=os.path.join(directory, "campaign.events.jsonl"),
+                trace_path=unreadable)
+            self.assertEqual(len(result["passes"]), 1)
+            self.assertTrue(os.path.exists(
+                os.path.join(directory, "campaign.events.jsonl")))
 
 
 if __name__ == "__main__":
