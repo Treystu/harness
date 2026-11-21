@@ -8,7 +8,18 @@ record from oversight, not invented by this lane. Ledger STATUS unreachable
 (private repo); API writes blocked — verbatim #295 text at the bottom for
 oversight execution. This filing + its push land the same turn.
 
-## 0. Authorities (all cited, none invented)
+## 0. Reconciliation (scoring-01 → scoring-02)
+
+`scoring-01.md` filed the evidence table with formal scoring BLOCKED on the
+then-unreachable rubric. The rubric arrived the same day via oversight mirror
+1 (`efbbd6d`). **This file completes that scoring on the same surface:**
+every (a)–(f) criterion is now scored from evidence on reachable surfaces,
+NOT EVIDENCED with the missing surface named wherever it cannot be
+evidenced, no verdict invented. No separate `scoring-01` verdict file is
+needed or filed; this reconciliation is appended without touching the
+gate-quoted verdict artifact text in §2 (Lucas sha unaffected).
+
+## 0b. Authorities (all cited, none invented)
 
 - **Proof criteria (oversight mirror 1):** (a) every turn ends on a named
   outcome-ladder rung with a produced artifact; (b) zero starvation stops;
