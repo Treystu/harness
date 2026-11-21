@@ -31,7 +31,7 @@ turn.
 | --- | --- | --- |
 | git read | `git ls-remote --heads origin` | works - 865 refs listed, `refs/heads/main` = `280ee3d4` |
 | git fetch | `git fetch origin lane/burndown:refs/remotes/origin/lane/burndown` | works - `86165805a648797519a8e7542198c99f924d1ea2` |
-| git write | `cloud_git` push of this file's branch | see "Push receipt" below, verbatim |
+| git write | `cloud_git` push of this file's branch | **WORKS** - exit 0, `[new branch] HEAD -> standup/lane1-2026-11-21` (verbatim below) |
 | GitHub API | `gh auth status` | "You are not logged into any GitHub hosts" |
 | GitHub API | anonymous `GET api.github.com/repos/Treystu/harness` | `403 API rate limit exceeded` (shared-IP limit, not a credential verdict) |
 
@@ -53,9 +53,24 @@ pattern the sibling lanes used, and Lane 1's landing work will base on current
 Appended in a second commit after the first push completed, so the receipt is
 the actual tool output rather than a prediction:
 
+`cloud_git` with `operation: push`, `branch: standup/lane1-2026-11-21`, from
+`HEAD` = `c76defb1493ec47badadb3cab193c4a34184d0ea`. Returned `statusCode: 0`,
+verbatim:
+
 ```
-PUSH-RECEIPT-PLACEHOLDER
+remote: 
+remote: Create a pull request for 'standup/lane1-2026-11-21' on GitHub by visiting:        
+remote:      https://github.com/Treystu/harness/pull/new/standup/lane1-2026-11-21
+remote: 
+To https://github.com/Treystu/harness.git
+ * [new branch]      HEAD -> standup/lane1-2026-11-21
 ```
+
+**Verdict: the git write surface is open and the lane's filings can land.**
+The steering correction is confirmed in the affirmative: the absent `gh`/env
+credential says nothing about transport, and transport is the surface this lane
+files on. `standup/lane1-2026-11-21` now carries this refresh and the #467
+record at `c76defb`.
 
 ## #295 check-in (text for oversight to mirror onto #295)
 
