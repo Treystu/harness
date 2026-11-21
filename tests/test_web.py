@@ -458,7 +458,9 @@ class SubjectRelevanceGateTests(unittest.TestCase):
                 web.search_web(q)
         self.assertIn("off-subject", str(ctx.exception))
 
-    def test_a_result_mentioning_the_subject_keeps_the_evidence(self):
+    def test_a_result_mentioning_the_subject_keeps_its_evidence_only(self):
+        # #343: the matching hit is kept; its unrelated neighbour is not. The
+        # batch-level gate used to admit both because one of them matched.
         page = self._bing([
             ("Movie Showtimes near Seattle", "https://www.fandango.com/s", "c"),
             ("Free Off Grid Calculator review", "https://blog.example/f",
@@ -469,9 +471,43 @@ class SubjectRelevanceGateTests(unittest.TestCase):
         with mock.patch.object(web, "_http_get",
                                return_value=(200, page, "https://bing/")):
             results = web.search_web(q)
-        self.assertEqual(len(results), 2)
+        self.assertEqual(len(results), 1)
         self.assertIn("freeoffgridcalculator",
-                      (results[1]["snippet"] + results[1]["url"]))
+                      (results[0]["snippet"] + results[0]["url"]))
+
+    def test_the_recorded_mixed_batch_drops_the_unrelated_hit(self):
+        # The exact case #343 records: one calculator hit beside a Microsoft
+        # Exchange mailbox-audit hit. Only the calculator may reach the model.
+        page = self._bing([
+            ("Free Off Grid Calculator",
+             "https://www.freeoffgridcalculator.com/", "solar sizing"),
+            ("Audit mailbox permissions in Exchange Online",
+             "https://learn.microsoft.com/exchange/audit", "mailbox audit"),
+        ])
+        q = web.extract_query(
+            "audit www.freeoffgridcalculator.com for user friendliness")
+        with mock.patch.object(web, "_http_get",
+                               return_value=(200, page, "https://bing/")):
+            results = web.search_web(q)
+        self.assertEqual([r["url"] for r in results],
+                         ["https://www.freeoffgridcalculator.com/"])
+
+    def test_admit_candidates_keeps_every_hit_for_a_topical_query(self):
+        hits = [{"title": "a", "url": "https://a.example/x", "snippet": ""},
+                {"title": "b", "url": "https://b.example/y", "snippet": ""}]
+        accepted, rejected = web.admit_candidates("riemann bound", hits)
+        self.assertEqual(len(accepted), 2)
+        self.assertEqual(rejected, 0)
+
+    def test_admit_candidates_counts_rejections(self):
+        hits = [{"title": "example site", "url": "https://example.com/",
+                 "snippet": ""},
+                {"title": "unrelated", "url": "https://unrelated.test/z",
+                 "snippet": ""}]
+        accepted, rejected = web.admit_candidates("check example.com", hits)
+        self.assertEqual([r["url"] for r in accepted],
+                         ["https://example.com/"])
+        self.assertEqual(rejected, 1)
 
     def test_topical_query_without_a_site_subject_is_unaffected(self):
         # No bare domain in the query -> the gate is inert (existing topical
