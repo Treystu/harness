@@ -93,10 +93,21 @@ differences** — 36 = 36, 0 = 0, `280ee3d4` = `280ee3d4…`.
 > Push: platform connected-git ok (receipt in filing); raw git push +
 > gh/API writes blocked (unauthenticated / quota 0).
 
-## Push-test result
+## Push-test result (verbatim, this turn)
 
 - Direct `git push` (unauthenticated cloud egress): FAILED as before —
   `fatal: could not read Username for 'https://github.com': No such device
   or address` (recorded in `standup-census-01.md`).
-- Platform connected git (`cloud_git` push of this branch): see receipt
-  appended below after the push attempt.
+- `cloud_git` push with no branch (defaults to main): REFUSED by remote —
+  `GH006: Protected branch update failed for refs/heads/main` (plus 12
+  required status checks). Correct: this lane never pushes main.
+- `cloud_git` push to `freebuff/dd7daf0d70253bde4832d672`: initially
+  REJECTED `fetch first` — the remote tip held oversight's mirror commit
+  `efbbd6d` (rubric + Lane 1 last filed census), one ahead of local. Fetched
+  (`git fetch origin freebuff/dd7daf0d70253bde4832d672`), merged
+  (`d2f4be4`, clean ort merge, disjoint files), then pushed the merge.
+- So the git write surface is open via the platform transport; raw git /
+  `gh` / API writes remain blocked (unauthenticated / quota 0). This filing
+  (`cfb4718`), the merge (`d2f4be4`), and the formal scoring
+  (`scoring-02.md`) all push through the platform path; final receipt for
+  this turn's push is appended in the next commit after the attempt.
