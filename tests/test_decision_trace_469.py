@@ -418,6 +418,10 @@ class ProductCampaignWiringTests(unittest.TestCase):
     def test_the_writer_can_be_disabled_explicitly(self):
         self.assertIsNone(campaign_trace(trace_path=False))
 
+    def test_an_empty_trace_path_is_a_disabled_writer(self):
+        """A caller that resolves no ledger path gets no writer, not a crash."""
+        self.assertIsNone(campaign_trace(trace_path=""))
+
     def test_an_unreadable_trace_ledger_does_not_abort_the_campaign(self):
         """An optional sink must never break a replay that used to work."""
         with tempfile.TemporaryDirectory() as directory:
