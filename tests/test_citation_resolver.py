@@ -182,3 +182,98 @@ class TransportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MappingEdgeCaseTests(unittest.TestCase):
+    """Every failure shape maps to a closed status, never invented metadata."""
+
+    def test_a_non_mapping_author_entry_is_skipped(self):
+        payload = {"message": {"DOI": DOI, "author": [
+            "Ada Lovelace", {"given": "Grace", "family": "Hopper"}]}}
+        self.assertEqual(crossref_metadata(payload)["authors"], ["Grace Hopper"])
+
+    def test_an_author_with_only_a_literal_name_is_kept(self):
+        payload = {"message": {"DOI": DOI, "author": [{"name": "The Consortium"}]}}
+        self.assertEqual(crossref_metadata(payload)["authors"], ["The Consortium"])
+
+    def test_an_unparseable_issue_year_is_omitted_not_guessed(self):
+        payload = {"message": {"DOI": DOI, "issued": {"date-parts": [["in press"]]}}}
+        self.assertNotIn("year", crossref_metadata(payload))
+
+    def test_a_mapper_that_finds_no_record_is_not_found(self):
+        resolver = RegistryResolver(
+            fetch=lambda url, timeout=None: {"message": {}},
+            mapper=lambda payload: None)
+        result = resolver.resolve(DOI)
+        self.assertEqual(result["found"], False)
+        self.assertNotIn("metadata", result)
+
+
+class TransportEdgeCaseTests(unittest.TestCase):
+    """The transport classifies each failure once, and never masks it."""
+
+    def _fetch_with(self, outcome):
+        import urllib.request
+        original = urllib.request.urlopen
+
+        def _fake(request, timeout=None):
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+
+        urllib.request.urlopen = _fake
+        self.addCleanup(lambda: setattr(urllib.request, "urlopen", original))
+        return fetch_json("http://registry.test/10.1234/abc")
+
+    def test_a_socket_timeout_is_a_timeout(self):
+        import socket
+        with self.assertRaises(ResolverTransportError) as raised:
+            self._fetch_with(socket.timeout("slow registry"))
+        self.assertEqual(raised.exception.status, "timeout")
+
+    def test_a_url_error_carrying_a_timeout_is_a_timeout(self):
+        import socket
+        import urllib.error
+        with self.assertRaises(ResolverTransportError) as raised:
+            self._fetch_with(urllib.error.URLError(socket.timeout("slow")))
+        self.assertEqual(raised.exception.status, "timeout")
+
+    def test_a_url_error_with_another_reason_is_unavailable(self):
+        import urllib.error
+        with self.assertRaises(ResolverTransportError) as raised:
+            self._fetch_with(urllib.error.URLError("connection refused"))
+        self.assertEqual(raised.exception.status, "unavailable")
+        self.assertIn("connection refused", str(raised.exception))
+
+    def test_a_non_200_response_without_an_http_error_is_classified(self):
+        class _Response:
+            status = 503
+
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        with self.assertRaises(ResolverTransportError) as raised:
+            self._fetch_with(_Response())
+        # A bare response carries the class of failure, not an HTTPError's code.
+        self.assertEqual(
+            (raised.exception.status, raised.exception.http_status),
+            ("http_error", None))
+
+    def test_a_stream_less_error_object_does_not_mask_the_failure(self):
+        import urllib.error
+
+        class _Unclosable(urllib.error.HTTPError):
+            def close(self):
+                raise RuntimeError("no stream to close")
+
+        with self.assertRaises(ResolverTransportError) as raised:
+            self._fetch_with(_Unclosable(
+                "http://registry.test", 500, "Server Error", {}, None))
+        self.assertEqual(raised.exception.http_status, 500)
+        self.assertEqual(raised.exception.status, "http_error")
