@@ -111,3 +111,9 @@ differences** — 36 = 36, 0 = 0, `280ee3d4` = `280ee3d4…`.
   (`cfb4718`), the merge (`d2f4be4`), and the formal scoring
   (`scoring-02.md`) all push through the platform path; final receipt for
   this turn's push is appended in the next commit after the attempt.
+
+**Final receipt (appended post-push):** `cloud_git` push of this branch
+succeeded — `efbbd6d..7f89ab8 HEAD -> freebuff/dd7daf0d70253bde4832d672`
+(`statusCode: 0`). Carries: PUSH 02 filing (`cfb4718`), oversight-mirror
+merge (`d2f4be4`), formal scoring 02 (`7f89ab8`). Verdicts filed the same
+turn they were issued, per the mission rule.
