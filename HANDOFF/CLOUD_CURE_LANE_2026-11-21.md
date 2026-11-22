@@ -81,3 +81,85 @@ in this lane will claim that number.
 
 No new turn at or after 00:00 HST (2026-11-22). State is filed on the branch
 before that cutoff.
+
+## Result at this head (a632b8c, on top of main 32f8f84)
+
+Queue worked in order. Every change is on `standup/harness-cure-2026-11-21`;
+nothing was pushed to `main`, and no Lane-1 territory (#343/#344, #422
+acceptance, #415, W469, RSI #649-#652) was touched.
+
+### #653 - serve scrubber (DONE)
+
+`harness/server.py`: `_TOKEN_IN_LOG_RE` now matches the enumerated credential
+family (`api_key`, `access_token`, `password`, `token`, `key`, `auth`), keeps
+the parameter name, redacts only the value, and still stops at `&`, whitespace
+or a quote. The one owner is unchanged: `log_message` applies it to stderr and
+the #574 on-disk log together. Longer names are listed first so `api_key=` is
+not matched as `key=`; `author=` is untouched (an equality is required).
+
+Tests (`tests/test_serve_scrub_653.py`, 8): each enumerated name through the
+pattern; case-insensitivity; the `api_key`/`key` ordering; a name without `=`
+left alone; each name through `log_message` asserting both sinks; and one real
+HTTP request asserting the file holds `api_key=REDACTED` and no secret.
+
+### #654 - GUI renders version/commit (WIRED, served-side verified)
+
+`harness/ui/index.html`: a quiet `#harness-identity` line inside the input
+footer. `harness/ui/app.js`: `loadHarnessIdentity()` fetches `/api/status`
+(the payload that carries `version` + `commit`) and paints
+`Harness v<version> (<short commit>)`; it never opens a modal and never raises
+an error banner. `harness/ui/app.css`: the persistent, muted style.
+
+Verified against a served instance (not by reading source): `GET /` -> 200 with
+`id="harness-identity"`, `GET /api/status` -> 200 with
+`version=0.5.1`, `commit=v0.5.1-198-g985f421-dirty`, matching
+`X-Harness-Version` / `X-Harness-Commit` headers, `GET /app.js` -> 200 with the
+render code. **The rendered pixels were not viewed: this workspace has no
+browser, so the visual placement is unverified.** Tests:
+`tests/test_ui_identity_654.py` (5).
+
+### #655 - loopback split (UNIFIED, 8766 retired)
+
+New `harness/loopback.py` states the rule once:
+`HARNESS_BASE_PORT` (default 8765) + media offset 0 (8765) + serve offset 2
+(8767). `make_server` and `harness serve --port` default to `serve_port()`;
+`harness/ui.py` now defaults to the same `serve_port()` and the
+`default=8766` desktop default is gone; `harness doctor --gui-port` and
+`media_client.DEFAULT_BASE` derive from the same owner. Docs updated:
+`docs/ui-acceptance.md` (port map + the rule), `docs/media.md`,
+`docs/security.md`, `docs/ui-readiness.md`, `README.md`.
+Tests: `tests/test_loopback_655.py` (8) plus the updated doc contract.
+
+### #656 - test isolation (guard + script DONE; contamination count NOT MEASURED)
+
+`tests/conftest.py` installs a session guard at `pytest_configure` /
+`pytest_sessionstart`: `HARNESS_HOME`, `HARNESS_CONFIG_DIR` and
+`HARNESS_LEDGER` all point into one ephemeral directory that is removed at
+exit, restored on teardown, and overridable by a test that sets its own.
+`scripts/cleanup_test_records.py` removes test rows from a ledger, dry run by
+default, `--apply` to write, backup on by default, count printed either way.
+Tests: `tests/test_test_isolation_656.py` (7).
+
+**Part (2), the contamination re-measure, is NOT DONE here and is not faked.**
+It needs the laptop operator database. Named local-lane act: read the operator
+ledger, run `scripts/cleanup_test_records.py --ledger <path>` (dry run) for the
+current test-run-vs-total count, and file that number on #656.
+
+## Gates actually run at this head
+
+`python3 -m unittest` on: `test_serve_scrub_653`, `test_loopback_655`,
+`test_ui_identity_654`, `test_test_isolation_656`, `test_serve_log_574`,
+`test_media_client`, `test_docs_contracts` -> 86 tests OK.
+`test_server`, `test_site_server`, `test_serve_identity_587`,
+`test_driver_core.test_serve_base_url` -> 174 tests OK.
+CircleCI statuses were **not** read: that read needs the authenticated GitHub
+API this workspace does not have, and a queued or absent run is not green.
+This head is therefore green locally and unverified on CI.
+
+## GitHub acts oversight must mirror (this workspace cannot perform them)
+
+1. Comment the result above on #653, #654, #655 and #656 (this lane has no
+   authenticated `gh`, so no issue comment can be posted here).
+2. Open the draft PR `standup/harness-cure-2026-11-21` -> `main` (branch is
+   pushed; PR creation needs the authenticated API).
+3. Read CircleCI statuses on the exact head and land only if green.
