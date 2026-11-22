@@ -73,6 +73,8 @@ from .jev_packs import (
     heuristic_file_relevance,
     heuristic_result_relevance,
     MAX_RESULT_REVIEW,
+    RESEARCH_PLAN_SITE,
+    research_plan_question_pack,
     result_relevance_question_pack,
     heuristic_repo_axes,
     heuristic_requires_iteration,
@@ -2153,6 +2155,146 @@ class JevPolicy:
         structural.update({"results": verdicts, "reviewed": False,
                            "outage": True, "outage_reason": reason})
         return replace(result, answers={"results": verdicts}), structural
+
+    def evaluate_research_plan(self, plan_state: Dict[str, Any], *,
+                               plan_hash: str, request_hash: str,
+                               revision: int = 0,
+                               site: str = RESEARCH_PLAN_SITE,
+                               task_id: Optional[str] = None,
+                               max_input_tokens: int = JEV_MAX_INPUT_TOKENS):
+        """#342: the ONE native judgment that can approve external retrieval.
+
+        The plan itself is built and validated by :mod:`harness.research_plan`;
+        this method owns only the typed call. It answers ``accept`` /
+        ``revise`` / ``decline`` plus one relevance noul per exact query, and
+        code bands those answers: an accept whose acknowledgements are
+        incomplete, that rejects a query, or that falls under the policy's
+        confidence floor is reported as ``decline`` with its reason. Every way
+        the reviewer can fail -- unkeyed, refusal, spend limit, transport
+        error, unusable answer -- reports ``unavailable`` with ``native``
+        false, so no local heuristic preview can ever become approval.
+        """
+        base = {"plan_hash": str(plan_hash),
+                "request_hash": str(request_hash),
+                "revision": int(revision)}
+        if not self.keyed:
+            result, structural = self._record_refusal(
+                "unkeyed Jev cannot approve a research plan; retrieval stays "
+                "closed", site=site, task_id=task_id,
+                code="plan_review_unkeyed")
+            structural.update(base, decision="unavailable", native=False,
+                              reviewed=False, query_verdicts=[],
+                              outage=True,
+                              outage_reason="reviewer_unkeyed")
+            return replace(result, answers={"decision": "unavailable",
+                                            "query_verdicts": []}), structural
+        reservation = None
+        try:
+            reservation = self._preflight(
+                site=site, max_input_tokens=max_input_tokens)
+            result = self.evaluator.evaluate(
+                plan_state, research_plan_question_pack(plan_state))
+            if result.is_fallback:
+                return self._plan_review_closed(
+                    base, result, site=site, task_id=task_id,
+                    reservation=reservation,
+                    reason=self._fallback_reason_of(
+                        result, "plan_reviewer_unanswered"))
+            decision, verdicts, reason = self._band_plan_answers(
+                result.answers, plan_state,
+                confidence=float(result.confidence or 0.0))
+            reviewed = replace(result, answers={
+                "decision": decision, "query_verdicts": verdicts})
+            structural = self._account(
+                reviewed, site=site, task_id=task_id,
+                reservation=reservation)
+            if decision == "accept":
+                structural.update(base, decision=decision, native=True,
+                                  reviewed=True, query_verdicts=verdicts,
+                                  outage=False)
+            else:
+                structural.update(base, decision=decision, native=True,
+                                  reviewed=True, query_verdicts=verdicts,
+                                  outage=False,
+                                  decision_reason=reason)
+            return reviewed, structural
+        except (ToolCancelled, ProviderUsageUnknown):
+            self._release(reservation)
+            raise
+        except ProviderSpendLimitError as exc:
+            self._release_after_provider_limit(
+                reservation, exc, task_id=task_id)
+            return self._plan_review_unavailable(
+                base, str(exc), site=site, task_id=task_id,
+                code="plan_reviewer_spend_limit")
+        except HarnessError as exc:
+            self._release(reservation)
+            return self._plan_review_unavailable(
+                base, str(exc), site=site, task_id=task_id)
+
+    def _band_plan_answers(self, answers: Optional[Dict[str, Any]],
+                           plan_state: Dict[str, Any], *,
+                           confidence: float
+                           ) -> Tuple[str, List[bool], str]:
+        """Read the typed decision and every per-query answer, or refuse.
+
+        A missing or unparseable per-query answer is not approval; the whole
+        judgment becomes ``invalid`` rather than accepting the answered part.
+        """
+        raw = (answers or {}).get("plan_decision")
+        choice = raw.get("choice") if isinstance(raw, dict) else raw
+        choice = str(choice or "").strip().lower()
+        queries = list(plan_state.get("queries") or [])
+        verdicts: List[bool] = []
+        complete = True
+        for index in range(len(queries)):
+            answer = (answers or {}).get(f"query_{index}_relevant")
+            probability = (answer.get("noul") if isinstance(answer, dict)
+                           else answer)
+            if isinstance(probability, (int, float)):
+                verdicts.append(float(probability) >= 0.5)
+            else:
+                verdicts.append(False)
+                complete = False
+        if queries and not complete:
+            return "invalid", verdicts, "incomplete query review"
+        if choice not in ("accept", "revise", "decline"):
+            return "invalid", verdicts, "reviewer returned no usable decision"
+        if choice == "accept" and not all(verdicts or [True]):
+            return "decline", verdicts, "at least one query was not accepted"
+        floor = float(getattr(self, "min_confidence", 0.70) or 0.70)
+        # A noul-only pack reports no Choice confidence (0.0), which the rest
+        # of the policy reads as "not reported" -- only a reported-low
+        # confidence is a decline.
+        if choice == "accept" and 0.0 < confidence < floor:
+            return "decline", verdicts, "confidence below the approval floor"
+        return choice, verdicts, ""
+
+    def _plan_review_closed(self, base: Dict[str, Any],
+                            result: JevEvaluationResult, *,
+                            site: str, task_id: Optional[str],
+                            reservation, reason: str):
+        """Book the answering call, then report the plan unapproved."""
+        settled = replace(result, answers={"decision": "unavailable",
+                                           "query_verdicts": []})
+        structural = self._account(
+            settled, site=site, task_id=task_id, reservation=reservation)
+        structural.update(base, decision="unavailable", native=False,
+                          reviewed=False, query_verdicts=[],
+                          outage=True, outage_reason=reason)
+        return settled, structural
+
+    def _plan_review_unavailable(self, base: Dict[str, Any], reason: str, *,
+                                 site: str, task_id: Optional[str],
+                                 code: str = "plan_reviewer_outage"):
+        """Refusal/spend/transport: a receipt, never an approval."""
+        result, structural = self._record_refusal(
+            reason, site=site, task_id=task_id, code=code)
+        structural.update(base, decision="unavailable", native=False,
+                          reviewed=False, query_verdicts=[],
+                          outage=True, outage_reason=reason)
+        return replace(result, answers={"decision": "unavailable",
+                                        "query_verdicts": []}), structural
 
     def evaluate_claim_support(self, claims, source_context: str, *,
                                enabled: bool = False,
