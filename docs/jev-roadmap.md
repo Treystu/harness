@@ -37,8 +37,11 @@ close.
   `gh issue list --state open --limit 400` (`60`) and the search API
   (`type:issue is:open`, `60`). The previous mirror printed 65 at
   `4aaa65f1`; the delta is named below rather than absorbed.
-- Across the wave tables below (`W0`-`W10`), **108** tracked issue rows appear:
-  **52** `OPEN` and **56** `CLOSED`. The arithmetic reconciles: `108 - 56 = 52`.
+- Across the wave tables below (`W0`-`W10`), **109** tracked issue rows appear:
+  **52** `OPEN` and **57** `CLOSED`. The arithmetic reconciles: `109 - 57 = 52`.
+  (2026-11-22: the #343 row moved to `CLOSED` and the #660 row was added for
+  the two acceptance lines that were unbuilt at that close, so the row count
+  rises by one while the open count is unchanged.)
 - **6 open issues are filed but not yet placed in a wave**, named here
   rather than dropped: `#573`, `#574`, `#579`, `#585`, `#587`, `#588`.
   With them, `52 + 6 = 58`; the live count has since fallen below the `60`
@@ -89,7 +92,7 @@ close.
 | W2 - Verification and surface truth | 37 | 9 |
 | W3 - Driver and perception | 5 | 5 |
 | W4 - Project execution envelope - fenced skip-over | 3 | 0 |
-| W5 - Research and retrieval | 4 | 3 |
+| W5 - Research and retrieval | 5 | 3 |
 | W6 - Spend, routing and calibration | 15 | 10 |
 | W7 - Structure and scoped defects | 18 | 8 |
 | W8 - Champion Audit program | 12 | 10 |
