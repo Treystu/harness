@@ -596,13 +596,18 @@ def build_parser():
     _add_output_flags(pb)
 
     plint = sub.add_parser("lint-claims",
-                           help="Lint a claims manifest against its quoted source "
-                                "(hermetic: no network)")
+                           help="Lint a claims manifest against its quoted source, "
+                                "and audit its citations when the manifest "
+                                "declares them (the claim half never uses the "
+                                "network)")
     plint.add_argument("--claims-file", required=True)
     plint.add_argument("--source-file", required=True)
     plint.add_argument("--definitions-file", default=None)
     plint.add_argument("--claim-context", default=None)
     plint.add_argument("--show-prompt", action="store_true")
+    plint.add_argument("--no-network", action="store_true",
+                      help="audit declared citations without contacting a "
+                           "registry; every DOI then stays not_verifiable")
     _add_output_flags(plint)
 
     pbr = sub.add_parser("brief",
