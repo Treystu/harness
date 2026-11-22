@@ -75,6 +75,16 @@ class ClientRenderTests(unittest.TestCase):
         self.assertIn("state.commit", app)
         self.assertIn("el.hidden = false", app)
 
+    def test_the_short_commit_extracts_the_describe_suffix(self):
+        # A `git describe` string (v0.5.1-200-g3f2e9eb) must yield "3f2e9eb";
+        # slicing the describe prefix would render "Harness v0.5.1 (v0.5.1-)".
+        app = (ROOT / "harness" / "ui" / "app.js").read_text(encoding="utf-8")
+        self.assertIn(r"-g([0-9a-f]{7,40})", app)
+        self.assertNotEqual(
+            app.split("function shortCommit", 1)[1].split("}\n", 1)[0]
+            .strip().splitlines()[-1].strip(),
+            "return value.slice(0, 7);")
+
     def test_the_identity_is_not_hidden_by_default_in_css(self):
         css = (ROOT / "harness" / "ui" / "app.css").read_text(encoding="utf-8")
         self.assertIn(".harness-identity", css)

@@ -358,7 +358,13 @@ let routeRequestSeq = 0;
 function shortCommit(commit) {
   const value = String(commit || "").trim();
   if (!value || value === "unknown") return "";
-  return value.slice(0, 7);
+  // The server sends a `git describe` string (v0.5.1-200-g3f2e9eb[-dirty]),
+  // not a bare sha: slice the value after `-g`, never the describe prefix.
+  const described = value.match(/-g([0-9a-f]{7,40})(?:-dirty)?$/i);
+  if (described) return described[1].slice(0, 7);
+  const bare = value.match(/^[0-9a-f]{7,40}(?:-dirty)?$/i);
+  if (bare) return value.slice(0, 7);
+  return value;
 }
 
 async function loadHarnessIdentity() {
