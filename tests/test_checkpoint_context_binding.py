@@ -56,6 +56,20 @@ class CheckpointContextBindingTests(unittest.TestCase):
         self.assertFalse(reusable)
         self.assertEqual(reason, "request-changed")
 
+    def test_declined_retrieval_cannot_inherit_saved_web_evidence(self):
+        cp = _checkpoint(sources=_SOURCES, age=5.0)
+        self.assertEqual(
+            self.holder._checkpoint_context_reusable(
+                cp, "what is the capital of Chile", retrieval_allowed=False),
+            (False, "retrieval-declined"))
+
+    def test_declined_retrieval_without_web_evidence_still_reuses_context(self):
+        cp = _checkpoint(sources=[], age=5.0)
+        self.assertEqual(
+            self.holder._checkpoint_context_reusable(
+                cp, "what is the capital of Chile", retrieval_allowed=False),
+            (True, "reusable"))
+
     def test_day_old_evidence_is_stale_even_on_a_non_web_route(self):
         cp = _checkpoint(sources=_SOURCES, age=24 * 3600.0)
         reusable, reason = self.holder._checkpoint_context_reusable(
