@@ -7,6 +7,15 @@ _NO_WEB_DISCLOSURE = (
     "knowledge, labeled as such."
 )
 
+#: Read next to every evidence block, so "search snippet" can never be read as
+#: page content (#660, line 2 of the #343 acceptance list).
+_EVIDENCE_LEGEND = (
+    'Each source names what was read: "search snippet" is only the search '
+    'engine\'s excerpt, not the page; "rendered page" is text extracted from '
+    "the page itself. A claim found only in a snippet must not be stated as "
+    "page content."
+)
+
 _WEB_CAPABILITY_NOTE = (
     "[Capability note] Web tools ARE attached this run: one web search, plus "
     "page fetch for the built-in hosts ({hosts}) AND for any public site the "

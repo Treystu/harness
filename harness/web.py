@@ -32,6 +32,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from typing import Any, Dict, Optional
 
 from .errors import HarnessError, ToolCancelled
 from .events import current_cancel_check, emit
@@ -718,6 +719,49 @@ def fetch_url(url, allowed_hosts, timeout=12.0, max_chars=6000,
             "text": text}
 
 
+#: What part of a source an evidence item is (#660, line 2 of the #343
+#: acceptance list). Every source gathered here records one of these, so the
+#: model is never handed a search excerpt labelled as page content.
+EVIDENCE_SNIPPET = "snippet"
+EVIDENCE_RENDERED = "rendered"
+_EVIDENCE_WORDS = {EVIDENCE_SNIPPET: "snippet", EVIDENCE_RENDERED: "rendered page"}
+
+
+def evidence_provenance(source: Dict[str, Any]) -> Optional[str]:
+    """Which part of the source this evidence item is, or ``None``.
+
+    The recorded field wins, because a producer knows what it read. The kind
+    is only a fallback for sources persisted before the field existed: a
+    search hit is a snippet and a fetched page is its rendered body. An
+    unrecognised recorded value is not guessed at -- a mislabelled item is
+    worse than an unlabelled one.
+    """
+    recorded = str(source.get("evidence") or "").strip()
+    if recorded:
+        # A producer said what it read; if that is not a part we know, the
+        # honest answer is "unlabelled", never a guess from the kind.
+        return recorded if recorded in (EVIDENCE_SNIPPET,
+                                       EVIDENCE_RENDERED) else None
+    kind = str(source.get("kind") or "")
+    if kind == "search":
+        return EVIDENCE_SNIPPET
+    if kind == "fetch":
+        return EVIDENCE_RENDERED
+    return None
+
+
+def source_label(source: Dict[str, Any]) -> str:
+    """The label the model reads for one source, naming what was read."""
+    kind = str(source.get("kind") or "").strip()
+    provenance = evidence_provenance(source)
+    if provenance is None:
+        return kind or "source"
+    words = _EVIDENCE_WORDS[provenance]
+    if not kind or kind in words.split():
+        return f"search {words}" if provenance == EVIDENCE_SNIPPET else words
+    return f"{kind} {words}"
+
+
 def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_any_public=False, named_hosts=None, fetch_url_fn=None, search_web_fn=None, find_urls_fn=None, extract_query_fn=None, max_sources=3):
     """Single-owner web evidence gathering for one chat turn.
 
@@ -753,6 +797,7 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
                 body = str(page.get("text") or "")
                 if body.strip():
                     sources.append({"kind": "fetch", "ok": True,
+                                    "evidence": EVIDENCE_RENDERED,
                                     "url": page["url"],
                                     "title": page["title"], "text": body})
                 else:
@@ -802,13 +847,13 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
                         emit("web_fetch", phase="reject", url=page.get("url"),
                              reason="off_subject_page")
                     else:
-                        sources.append({"kind": "fetch", "ok": True, "url": page["url"], "title": page["title"], "text": page["text"]})
+                        sources.append({"kind": "fetch", "ok": True, "evidence": EVIDENCE_RENDERED, "url": page["url"], "title": page["title"], "text": page["text"]})
                         continue
                 except ToolCancelled:
                     raise
                 except Exception:
                     pass
-            sources.append({"kind": "search", "ok": True, "url": r["url"], "title": r["title"], "text": r["snippet"]})
+            sources.append({"kind": "search", "ok": True, "evidence": EVIDENCE_SNIPPET, "url": r["url"], "title": r["title"], "text": r["snippet"]})
     except HarnessError as e:
         sources.append({"kind": "search", "ok": False, "note": str(e)})
     return sources

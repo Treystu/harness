@@ -328,7 +328,7 @@ class HourglassAnswerOnceTests(unittest.TestCase):
                 agent._hourglass_answer_once(
                     "q", "context", governor=gov, api_key="k", web=True, web_sources=sources)
             sysmsg = mc.call_args[1]["messages"][0]["content"]
-            self.assertIn("SOURCE (fetch): Example https://example.com", sysmsg)
+            self.assertIn("SOURCE (fetch rendered page): Example https://example.com", sysmsg)
             self.assertIn("SOURCE (search) FAILED: https://bad.com failed", sysmsg)
 
     def test_role_messages_and_remembered_facts_reach_the_model(self):

@@ -22,6 +22,7 @@ from .chat_policy import (
     _MAX_WORKSPACE_REVIEW_FILES,
     _MAX_WORKSPACE_REVIEW_TOKENS,
     _NO_WEB_DISCLOSURE,
+    _EVIDENCE_LEGEND,
     _WEB_CAPABILITY_NOTE
 )
 from .chat import (
@@ -77,7 +78,7 @@ from .simple_request import (
     is_workspace_inspection_request,
 )
 from .token_budget import resolve_lane_max_tokens as _resolve_lane_max_tokens
-from .web import extract_site_target, resolve_fetch_allowlist
+from .web import extract_site_target, resolve_fetch_allowlist, source_label
 from .workspace import resolve_workspace_path
 
 
@@ -229,7 +230,9 @@ class HourglassLifecycleMixin:
             for source in web_sources:
                 if source.get("ok"):
                     body = str(source.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
-                    context += "\n\nWEB EVIDENCE:\n" + body
+                    context += (f"\n\nWEB EVIDENCE ({source_label(source)}): "
+                                f"{source.get('title') or ''} "
+                                f"{source.get('url') or ''}\n" + body)
             context = context[:context_limit]
         if detour_note is not None:
             web_sources.append({"kind": "detour", "ok": False,
@@ -290,11 +293,15 @@ class HourglassLifecycleMixin:
             lines = []
             for source in (web_sources or []):
                 if source.get("ok"):
-                    lines.append(f"SOURCE ({source.get('kind')}): {source.get('title') or ''} {source.get('url')}\n" + str(source.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS])
+                    lines.append(f"SOURCE ({source_label(source)}): {source.get('title') or ''} {source.get('url')}\n" + str(source.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS])
                 else:
+                    # A failed source read nothing, so it carries no
+                    # evidence provenance -- only the kind that failed.
                     lines.append(f"SOURCE ({source.get('kind')}) FAILED: {source.get('url') or ''} {source.get('note')}")
             if lines:
-                system += "\n\n[Web tool results for this turn -- cite only these; do not invent others]\n" + "\n\n".join(lines)
+                system += ("\n\n[Web tool results for this turn -- cite only "
+                           "these; do not invent others. " + _EVIDENCE_LEGEND
+                           + "]\n" + "\n\n".join(lines))
         else:
             system += "\n\n" + _NO_WEB_DISCLOSURE
         if context:
