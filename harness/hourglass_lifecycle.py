@@ -485,16 +485,18 @@ class HourglassLifecycleMixin:
         checkpoint["usage_unknown"] = bool(
             checkpoint.get("usage_unknown") or getattr(exc, "usage_unknown", False))
     def _checkpoint_context_reusable(
-            self, checkpoint: ChatResumePayload, prompt: str
+            self, checkpoint: ChatResumePayload, prompt: str, *,
+            retrieval_allowed: bool = True
     ) -> Tuple[bool, str]:
         """Whether a resumed checkpoint's gathered context may be reused.
 
-        Reuse is bound to the *current* effective request (#344): a saved
-        context belongs to the request that produced it, so a changed request
-        cannot inherit its evidence, and web evidence older than
-        ``_CONTEXT_REUSE_MAX_AGE_S`` is stale regardless of whether this turn
-        asked for web -- an answer route that reuses day-old snippets is the
-        case this predicate exists to stop.
+        Reuse is bound to the *current* effective request and its retrieval
+        decision (#344): a saved context belongs to the request that produced
+        it, so a changed request cannot inherit its evidence, web evidence is
+        incompatible with a turn that declines retrieval, and evidence older
+        than ``_CONTEXT_REUSE_MAX_AGE_S`` is stale regardless of whether this
+        turn asked for web -- an answer route that reuses day-old snippets is
+        the case this predicate exists to stop.
 
         Returns ``(reusable, reason)``; ``reason`` is the recorded why-not.
         """
@@ -513,6 +515,11 @@ class HourglassLifecycleMixin:
         if not self._hourglass_context_matches(checkpoint):
             return False, "workspace-changed"
         sources = checkpoint.get("web_sources") or []
+        if sources and not retrieval_allowed:
+            # Evidence gathered for a research decision is not evidence for a
+            # turn that declined retrieval; inheriting it would answer from
+            # sources the current request never asked for.
+            return False, "retrieval-declined"
         if sources:
             try:
                 age = time.time() - float(
@@ -860,7 +867,7 @@ class HourglassLifecycleMixin:
         reusable, reuse_reason = (False, "not-resuming")
         if resuming:
             reusable, reuse_reason = self._checkpoint_context_reusable(
-                checkpoint, prompt)
+                checkpoint, prompt, retrieval_allowed=web)
             emit("chat_context", phase="end", reused=reusable,
                  reason=reuse_reason)
         if reusable:
