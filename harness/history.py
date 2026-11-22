@@ -49,6 +49,10 @@ class ChatResumePayload(TypedDict, total=False):
     route_preflight: Dict[str, Any]
     route_request_prompt: str
     route_recorded_at: float
+    #: #344: the accepted research plan this route decision was made under,
+    #: and the native receipt that approved it.
+    approved_plan_hash: str
+    plan_approval: Dict[str, Any]
     context: str
     context_files: List[str]
     context_tokens: int

@@ -4,10 +4,11 @@ The recorded remainder was a resumed checkpoint whose saved ``route_preflight``
 was reused for a changed request: the old routing judgment (including a native
 web-research or answer choice) was inherited by a turn nothing had routed. The
 binding here is the routing receipt that exists in the checkpoint -- what was
-chosen, whether it was native, and the request it was chosen for. The
-approved-ResearchPlan hash and Jev receipt fields the issue's addendum names do
-not exist in the tree (#342 owns the plan), so the plan half is named as a gap
-rather than invented.
+chosen, whether it was native, and the request it was chosen for -- plus, since
+#342 landed the plan owner, the accepted ResearchPlan hash and the native
+receipt that approved it. A checkpoint written before plan binding keeps its
+request-only binding; one that records a plan cannot be reused without that
+same plan and its accepting native receipt.
 """
 import tempfile
 import time
@@ -21,6 +22,12 @@ from harness.config import load_settings
 from harness.hourglass_lifecycle import (
     HourglassLifecycleMixin,
     _request_identity,
+)
+from harness.research_plan import (
+    PlanApproval,
+    PlanQuery,
+    ResearchPlan,
+    request_hash_for,
 )
 
 
@@ -56,6 +63,27 @@ def _checkpoint(prompt="What is 2 + 2?", route=None, identity=None):
 
 _WEB_ROUTE = {"source": "jev_request_workflow", "choice": "web-research",
               "native": True, "cost": 0.002}
+
+
+def _plan(query="Rust 1.84 release notes"):
+    prompt = "What changed in the Rust 1.84 release?"
+    return ResearchPlan(
+        goal=prompt, request_id="req-344",
+        request_hash=request_hash_for("req-344", prompt),
+        queries=(PlanQuery("q1", query, "read the changelog"),),
+        domains=("blog.rust-lang.org",), freshness="last 30 days",
+        evidence_requirements=("official changelog",),
+        max_results=3, max_sources=3, timeout_s=10.0,
+        max_tokens=2000, max_spend_usd=0.01,
+        capabilities=("search",))
+
+
+def _receipt(plan, *, decision="accept", native=True, **overrides):
+    receipt = {"decision": decision, "native": native,
+               "plan_hash": plan.hash(), "request_hash": plan.request_hash,
+               "revision": plan.revision, "consent_id": "consent-344"}
+    receipt.update(overrides)
+    return receipt
 
 
 class SavedRouteBindingTests(unittest.TestCase):
@@ -229,6 +257,147 @@ class RouteReuseThroughTheAdapterTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "ok")
             policy.evaluate_request_workflow.assert_not_called()
+
+    def _run_bound(self, agent, session_id, checkpoint, prompt, **extra):
+        with patch("harness.hourglass_lifecycle.governor_for",
+                   return_value=("key", MagicMock())), \
+             patch("harness.hourglass_lifecycle.ledger_for",
+                   return_value=MagicMock()), \
+             patch("harness.hourglass_lifecycle.policy_for",
+                   return_value=_policy()), \
+             patch.object(
+                 agent, "_hourglass_request_context",
+                 return_value=("rebuilt context", {},
+                               SimpleNamespace(estimated_tokens=5), [])), \
+             patch.object(
+                 agent, "_hourglass_answer_once",
+                 return_value={"answer": "notes say so", "model": "cheap",
+                               "cost": 0.002}), \
+             patch.object(agent, "_jev_answer_envelope",
+                          return_value=_envelope()):
+            return agent.run_hourglass_request(
+                prompt, session_id=session_id, max_rounds=1,
+                resume_state=checkpoint, **extra)
+
+    def test_the_accepted_plan_is_persisted_with_its_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = AutonomousAgent(settings=_settings(),
+                                    history_dir=Path(tmp))
+            plan = _plan()
+            approval = PlanApproval(
+                decision="accept", native=True, plan_hash=plan.hash(),
+                request_hash=plan.request_hash, revision=0,
+                consent_id="consent-344")
+            prompt = "What changed in the Rust 1.84 release?"
+            self._run_bound(agent, "plan-write", None, prompt,
+                            research_plan=plan, plan_approval=approval)
+            saved = agent.lifecycle.load("plan-write")["data"]
+            self.assertEqual(saved["approved_plan_hash"], plan.hash())
+            self.assertEqual(saved["plan_approval"]["decision"], "accept")
+            self.assertTrue(saved["plan_approval"]["native"])
+            self.assertEqual(saved["plan_approval"]["consent_id"],
+                             "consent-344")
+
+    def test_a_changed_plan_routes_again_instead_of_inheriting(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = AutonomousAgent(settings=_settings(),
+                                    history_dir=Path(tmp))
+            first = _plan()
+            prompt = "What changed in the Rust 1.84 release?"
+            checkpoint = _checkpoint(prompt=prompt, route=dict(_WEB_ROUTE))
+            checkpoint["approved_plan_hash"] = first.hash()
+            checkpoint["plan_approval"] = _receipt(first)
+            policy = _policy()
+            with patch("harness.hourglass_lifecycle.governor_for",
+                       return_value=("key", MagicMock())), \
+                 patch("harness.hourglass_lifecycle.ledger_for",
+                       return_value=MagicMock()), \
+                 patch("harness.hourglass_lifecycle.policy_for",
+                       return_value=policy), \
+                 patch.object(
+                     agent, "_hourglass_request_context",
+                     return_value=("rebuilt context", {},
+                                   SimpleNamespace(estimated_tokens=5), [])), \
+                 patch.object(
+                     agent, "_hourglass_answer_once",
+                     return_value={"answer": "notes say so", "model": "cheap",
+                                   "cost": 0.002}), \
+                 patch.object(agent, "_jev_answer_envelope",
+                              return_value=_envelope()):
+                agent.run_hourglass_request(
+                    prompt, session_id="plan-changed", max_rounds=1,
+                    resume_state=checkpoint,
+                    research_plan=_plan("Rust 1.85 release notes"))
+            policy.evaluate_request_workflow.assert_called()
+
+
+class PlanBindingTests(unittest.TestCase):
+    """#344: the saved decision is also bound to the accepted plan."""
+
+    def setUp(self):
+        self.holder = _Holder()
+        self.plan = _plan()
+        self.prompt = "What changed in the Rust 1.84 release?"
+
+    def _check(self, plan_fields=None, plan=None, approval=None):
+        checkpoint = _checkpoint(prompt=self.prompt, route=_WEB_ROUTE,
+                                 identity=self.prompt)
+        if plan_fields is not None:
+            checkpoint.update(plan_fields)
+        return self.holder._saved_route_decision_reusable(
+            checkpoint, self.prompt, plan=plan, approval=approval)
+
+    def test_the_same_plan_with_its_native_receipt_is_reusable(self):
+        fields = {"approved_plan_hash": self.plan.hash(),
+                  "plan_approval": _receipt(self.plan)}
+        self.assertEqual(self._check(fields, plan=self.plan),
+                         (True, "reusable"))
+
+    def test_a_changed_plan_routes_again(self):
+        fields = {"approved_plan_hash": self.plan.hash(),
+                  "plan_approval": _receipt(self.plan)}
+        self.assertEqual(
+            self._check(fields, plan=_plan("Rust 1.85 release notes")),
+            (False, "plan-changed"))
+
+    def test_a_missing_live_plan_is_not_reused(self):
+        fields = {"approved_plan_hash": self.plan.hash(),
+                  "plan_approval": _receipt(self.plan)}
+        self.assertEqual(self._check(fields, plan=None),
+                         (False, "plan-unknown"))
+
+    def test_a_plan_the_checkpoint_never_saw_is_not_reused(self):
+        self.assertEqual(self._check(None, plan=self.plan),
+                         (False, "plan-unrecorded"))
+
+    def test_a_checkpoint_without_plan_fields_keeps_request_binding(self):
+        self.assertEqual(self._check(None), (True, "reusable"))
+
+    def test_the_receipt_must_exist_and_be_native_and_accepting(self):
+        base = {"approved_plan_hash": self.plan.hash()}
+        cases = [
+            ({}, "plan-receipt-missing"),
+            ({"plan_approval": _receipt(self.plan, native=False)},
+             "plan-receipt-not-native"),
+            ({"plan_approval": _receipt(self.plan, decision="decline")},
+             "plan-receipt-declined"),
+            ({"plan_approval": _receipt(self.plan, plan_hash="other")},
+             "plan-receipt-mismatch"),
+        ]
+        for fields, expected in cases:
+            merged = dict(base)
+            merged.update(fields)
+            reason = self._check(merged, plan=self.plan)[1]
+            self.assertEqual(reason, expected)
+
+    def test_a_live_approval_for_another_plan_is_not_reused(self):
+        fields = {"approved_plan_hash": self.plan.hash(),
+                  "plan_approval": _receipt(self.plan)}
+        other = PlanApproval(decision="accept", native=True,
+                            plan_hash="another-plan",
+                            request_hash=self.plan.request_hash, revision=0)
+        self.assertEqual(self._check(fields, plan=self.plan, approval=other),
+                         (False, "plan-approval-mismatch"))
 
 
 if __name__ == "__main__":
