@@ -194,3 +194,14 @@ hidden:        false
 rather than a suite test. Pixel placement is still unviewed (no browser here);
 what is now verified is that the real client code paints the correct label into
 the served element.
+
+## Final gate at the filed head (d1246a0)
+
+`python3 -m unittest` on `test_serve_scrub_653`, `test_loopback_655`,
+`test_ui_identity_654`, `test_test_isolation_656`, `test_serve_log_574`,
+`test_media_client`, `test_docs_contracts`, `test_server`
+-> **211 tests, OK**, at `d1246a0` (2026-11-21 23:40 HST).
+`test_site_server`, `test_serve_identity_587` and
+`test_driver_core.test_serve_base_url` passed earlier at `a632b8c` (174 tests)
+over an unchanged server surface. CircleCI still unread (no authenticated API
+here); landing is therefore oversight's call on the exact head, not this lane's.
