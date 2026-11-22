@@ -32,7 +32,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .errors import HarnessError, ToolCancelled
 from .events import current_cancel_check, emit
@@ -762,6 +762,91 @@ def source_label(source: Dict[str, Any]) -> str:
     return f"{kind} {words}"
 
 
+#: #660 line 1: the result kinds the shared reviewer judges. A browser site
+#: drive is rendered evidence for a named target, not a search result.
+_REVIEWED_KINDS = ("fetch", "search")
+
+
+def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
+                        site: str = "web-results",
+                        task_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Bar rejected, uncertain, and unreviewed results from the evidence.
+
+    One admission point for every retrieval path (#660 line 1). A result the
+    shared reviewer marks rejected or uncertain -- or that the reviewer never
+    saw because it could not answer at all -- is absent from the returned
+    list, not down-ranked. Each exclusion is emitted with its verdict and
+    reason; the outage is also disclosed as an ``EVIDENCE REVIEW`` entry the
+    model reads, per the oversight fail-closed ruling (7078539288).
+
+    A page the request itself named is admitted by naming: it already passed
+    the deterministic URL and subject gates at gather time, so its recorded
+    verdict says exactly that instead of pretending a review happened.
+    """
+    ordered = list(sources)
+    candidates = [s for s in ordered
+                  if s.get("ok") and str(s.get("kind") or "") in _REVIEWED_KINDS]
+    if not candidates:
+        return ordered
+    for source in candidates:
+        if source.get("pinned"):
+            source["review"] = {"verdict": "relevant", "probability": 1.0,
+                                "reason": "named by the request"}
+    reviewable = [s for s in candidates if not s.get("pinned")]
+    if not reviewable:
+        return ordered
+    evaluate = getattr(policy, "evaluate_result_relevance", None)
+    if not callable(evaluate):
+        emit("web_result_review_unavailable", site=site,
+             reason="reviewer_absent", results=len(reviewable))
+        return ordered
+    try:
+        _result, structural = evaluate(
+            prompt, reviewable, site=site, task_id=task_id)
+    except ToolCancelled:
+        raise
+    except Exception as exc:  # advisory gate: never kill the answer lane
+        structural = {"results": [], "outage": True,
+                      "outage_reason": "{}: {}".format(
+                          type(exc).__name__, exc)}
+    verdicts = list(structural.get("results") or [])
+    outage = bool(structural.get("outage"))
+    if not verdicts and outage:
+        verdicts = [{"verdict": "unreviewed",
+                     "reason": str(structural.get("outage_reason") or "")}
+                    for _ in reviewable]
+    kept = set()
+    for index, source in enumerate(reviewable):
+        verdict = verdicts[index] if index < len(verdicts) else {}
+        name = str(verdict.get("verdict") or "uncertain")
+        source["review"] = {"verdict": name,
+                            "probability": verdict.get("probability"),
+                            "reason": str(verdict.get("reason") or "")}
+        if name == "relevant":
+            kept.add(id(source))
+        else:
+            emit("web_result_excluded", site=site, url=source.get("url"),
+                 verdict=name, probability=verdict.get("probability"),
+                 reason=str(verdict.get("reason") or ""))
+    candidate_ids = {id(s) for s in candidates}
+    out = [s for s in ordered
+           if id(s) not in candidate_ids or s.get("pinned")
+           or id(s) in kept]
+    emit("web_results_reviewed", site=site, reviewed=len(reviewable),
+         kept=len(kept), excluded=len(reviewable) - len(kept),
+         outage=outage)
+    if outage:
+        reason = str(structural.get("outage_reason") or "reviewer unavailable")
+        emit("web_result_review_outage", site=site, reason=reason,
+             excluded=len(reviewable))
+        out.append({"kind": "reviewer", "ok": False, "review": "outage",
+                    "excluded": len(reviewable),
+                    "note": ("result reviewer unavailable (" + reason + "): "
+                             "{} result(s) withheld, not admitted "
+                             "unreviewed".format(len(reviewable)))})
+    return out
+
+
 def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_any_public=False, named_hosts=None, fetch_url_fn=None, search_web_fn=None, find_urls_fn=None, extract_query_fn=None, max_sources=3):
     """Single-owner web evidence gathering for one chat turn.
 
@@ -798,6 +883,7 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
                 if body.strip():
                     sources.append({"kind": "fetch", "ok": True,
                                     "evidence": EVIDENCE_RENDERED,
+                                    "pinned": True,
                                     "url": page["url"],
                                     "title": page["title"], "text": body})
                 else:

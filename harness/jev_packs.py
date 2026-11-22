@@ -33,6 +33,9 @@ ROUTE_TIER_HINT = {
 }
 MAX_FILE_TRIAGE = 15
 MAX_CLAIM_SUPPORT_PACK = 8
+#: #660 line 1: a web turn gathers at most this many results, so the result
+#: relevance pack never exceeds what the gatherer already keeps.
+MAX_RESULT_REVIEW = 6
 MAX_CONTEXT_PACK_CHARS = 1200
 
 SITE_REACHABILITY_SITE = "site_reachability"
@@ -688,6 +691,43 @@ def file_relevance_question_pack(paths: Sequence[str]) -> Dict[str, Dict[str, An
             "The file plausibly needs to be read or modified to serve the goal.",
             "The file is unrelated to the goal.")
     return pack
+
+
+def result_relevance_question_pack(
+        results: Sequence[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Noul relevance pack over gathered web results (#660 line 1).
+
+    One question per result, phrased on the result's own identity so a
+    rejection can be reported by URL. Code owns the banding of the answer;
+    Jev owns only the bounded semantic judgment.
+    """
+    pack: Dict[str, Dict[str, Any]] = {}
+    for index, item in enumerate(list(results)[:MAX_RESULT_REVIEW]):
+        label = str(item.get("url") or item.get("title") or "")[:200]
+        pack[f"result_{index}_relevant"] = _noul(
+            f"Is the web result {label!r} relevant to this request?",
+            "The result addresses, or materially informs, the request.",
+            "The result is unrelated to the request.")
+    return pack
+
+
+def heuristic_result_relevance(prompt: str,
+                               results: Sequence[Dict[str, Any]]
+                               ) -> List[Dict[str, Any]]:
+    """Local verdicts when no native reviewer is installed (#660 line 1).
+
+    A term count cannot decide semantic relevance, and pretending it can
+    drops evidence the search engine itself matched -- a generic request
+    ("verify the claim") shares no terms with the right page. So this fallback
+    never rejects: it admits and states the signal it actually used, which is
+    the query match plus the deterministic URL/subject gates at gather time.
+    The typed verdict is still recorded, and the method is named, so nothing
+    is presented as a semantic review that did not happen.
+    """
+    return [{"probability": 0.9,
+             "reason": ("no native reviewer configured; admitted on the "
+                        "query match and the gather-time URL gates")}
+            for _item in list(results)[:MAX_RESULT_REVIEW]]
 
 
 def claim_support_question_pack(n_claims: int) -> Dict[str, Dict[str, Any]]:
