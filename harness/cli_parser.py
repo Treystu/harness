@@ -7,6 +7,8 @@ harness.service or any face module (it is the bottom of the cli stack).
 """
 import argparse
 
+from .loopback import serve_port as _serve_port
+
 
 def _add_engine_flags(p, *, max_tokens_default, verify_required=False,
                       task_max_cost_help=None, session_max_cost=True):
@@ -210,8 +212,9 @@ def build_parser():
         "doctor", help="Preflight Python, credentials, local services and ledger")
     pdoctor.add_argument("--json", action="store_true",
                          help="print the structured preflight report")
-    pdoctor.add_argument("--gui-port", type=int, default=8767,
-                         help="loopback GUI port to inspect (default: 8767)")
+    pdoctor.add_argument("--gui-port", type=int, default=_serve_port(),
+                         help="loopback GUI port to inspect (default: "
+                              f"{_serve_port()})")
 
     psite_check = sub.add_parser(
         "site-check",

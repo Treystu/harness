@@ -990,3 +990,15 @@ header {
   padding: 10px 12px;
   border-top: 1px solid var(--line);
 }
+
+/* #654: the serving build, quiet and persistent under the input bar. */
+.harness-identity {
+  padding: 2px 14px 6px;
+  color: var(--muted, #8b949e);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: right;
+  letter-spacing: 0.01em;
+  user-select: text;
+}

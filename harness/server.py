@@ -48,6 +48,7 @@ from .config import (HARD_MAX_COST, HARD_TASK_MAX_COST, load_settings,
                      resolve_api_key, update_config)
 from .errors import HarnessError, ToolCancelled
 from .jev_policy import flush_all_fallbacks
+from .loopback import serve_port
 from . import osal
 from .history import delete_chat_session, list_chat_sessions, load_chat_history as _history_load_chat_history
 from .session import (apply_session, governor_for, ledger_for, run_meta)
@@ -124,7 +125,16 @@ def _default_backend_probe():
 RANKINGS_REPORT_DIR = "rankings"
 RANKINGS_REPORT_RE = re.compile(r"^rankings-\d{4}-\d{2}-\d{2}.*\.json$")
 RUN_ID_RE = re.compile(r"^/api/runs/([A-Za-z0-9_-]{1,64})$")
-_TOKEN_IN_LOG_RE = re.compile(r"(token=)[^&\s\"]+", re.IGNORECASE)
+# #653: the credential-parameter family, not just `token=`. A browser carries
+# the owner credential in the URL as ?token=, and a provider key can arrive as
+# ?key= / ?api_key= / ?access_token= / ?auth= / ?password=. The name is kept
+# and only the value is redacted, so a log line stays readable. Longer names
+# come first so `api_key=` is not matched as `key=`.
+_CREDENTIAL_PARAMS = ("api_key", "access_token", "password", "token", "key",
+                      "auth")
+_TOKEN_IN_LOG_RE = re.compile(
+    r"((?:" + "|".join(_CREDENTIAL_PARAMS) + r")=)[^&\s\"]+",
+    re.IGNORECASE)
 RUN_SUB_RE = re.compile(r"^/api/runs/([A-Za-z0-9_-]{1,64})/(result|events|cancel)$")
 # DF-UI-2: mission id grammar mirrors mission_record._MISSION_ID_RE (the one
 # owner for what a valid pack directory name is); an id this fails to match
@@ -2675,7 +2685,7 @@ _DEFAULT_AUTH_TOKEN = object()
 _DEFAULT_OWNER_TOKEN = object()
 
 
-def make_server(host="127.0.0.1", port=8767,
+def make_server(host="127.0.0.1", port=serve_port(),
                 auth_token=_DEFAULT_AUTH_TOKEN,
                 owner_token=_DEFAULT_OWNER_TOKEN, log_path=None,
                 history_dir=None, backend_probe=None,
@@ -2690,6 +2700,10 @@ def make_server(host="127.0.0.1", port=8767,
     recovery (#418) lists them so a request that outlived its process is not
     reported as if it never existed.
     """
+    if port is None:
+        # #655: one base port owns the harness-owned loopback family
+        # (harness/loopback.py); 0 still asks the OS for an ephemeral port.
+        port = serve_port()
     if auth_token is _DEFAULT_AUTH_TOKEN:
         auth_token = secrets.token_urlsafe(24)
     if owner_token is _DEFAULT_OWNER_TOKEN:
@@ -2722,7 +2736,7 @@ def main(argv=None):
         description="Local web UI + JSON API over the harness core (loopback).")
     ap.add_argument("--host", default="127.0.0.1",
                     help="bind address (default and recommended: 127.0.0.1)")
-    ap.add_argument("--port", type=int, default=8767)
+    ap.add_argument("--port", type=int, default=serve_port())
     ap.add_argument("--auth-token", default=os.environ.get("HARNESS_UI_AUTH_TOKEN"),
                     help="add a session token; the persistent owner shortcut remains valid")
     ap.add_argument("--open", action="store_true",

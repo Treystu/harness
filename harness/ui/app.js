@@ -352,8 +352,37 @@ let eventSeq = 0;
 let routeRequestSeq = 0;
 
 // Initialize
+// #654: the GUI renders the version and commit the server already exposes on
+// /api/status (identity also rides the X-Harness-Version / X-Harness-Commit
+// headers). Persistent and quiet: one line under the input, never a modal.
+function shortCommit(commit) {
+  const value = String(commit || "").trim();
+  if (!value || value === "unknown") return "";
+  return value.slice(0, 7);
+}
+
+async function loadHarnessIdentity() {
+  const el = document.getElementById("harness-identity");
+  if (!el) return;
+  let state = null;
+  try {
+    state = await api("/api/status");
+  } catch (_e) {
+    return; // A build label is never worth an error banner.
+  }
+  const version = String((state && state.version) || "").trim();
+  const commit = shortCommit(state && state.commit);
+  if (!version && !commit) return;
+  el.textContent = commit
+    ? `Harness v${version || "?"} (${commit})`
+    : `Harness v${version}`;
+  el.title = `Serving build: version ${version || "unknown"}, commit ${(state && state.commit) || "unknown"}`;
+  el.hidden = false;
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   setupDriverNl();
+  loadHarnessIdentity();
   setupInputHandlers();
   setupHeaderControls();
   setupSidebar();

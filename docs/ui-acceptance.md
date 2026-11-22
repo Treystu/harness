@@ -10,7 +10,7 @@ recovery, and loopback serving across `harness serve` and `harness desktop`
 | Surface | Default bind / target | Auth requirement | Override |
 |---|---|---|---|
 | `harness serve` (`harness/server.py`, `make_server`) | `127.0.0.1:8767` | Required for all `/api/*` routes (`401` unauthenticated, `200` authenticated) | `--port <port>` (e.g. `--port 8800`) |
-| `harness desktop` / `harness-desktop` (`harness/ui.py`) | `127.0.0.1:8766` | Required for all `/api/*` routes (reuses owner token via URL fragment) | `--port <port>` |
+| `harness desktop` / `harness-desktop` (`harness/ui.py`) | `127.0.0.1:8767` | Required for all `/api/*` routes (reuses owner token via URL fragment) | `--port <port>` |
 | External `media serve` (when run separately) | `127.0.0.1:8765` | Optional bearer token (`MEDIA_TOKEN`) | `MEDIA_BASE_URL` or server `--port` |
 
 Key endpoint and default-port facts:
@@ -18,12 +18,15 @@ Key endpoint and default-port facts:
 - **Default UI port is `8767`, never `8800`:** `make_server`, `harness serve`
   and `harness doctor --gui-port` all default to `127.0.0.1:8767` since `#566`.
   Port `8800` is used only when passed explicitly with `--port 8800`.
-- **`harness desktop` defaults to `127.0.0.1:8766`:** distinct from `8767` so
-  a standalone desktop window does not collide with a running `harness serve`
-  instance.
-- **Each loopback port has one role (`#566`):** `harness serve` owns `8767`,
-  `harness desktop` owns `8766`, and external `media serve` keeps `8765`. All
-  three can run at once. An older or explicitly configured Harness UI still on
+- **`harness desktop` defaults to `127.0.0.1:8767`, the serve port (`#655`):**
+  the desktop shell runs the serve surface, so it binds the serve port. The
+  stale `8766` default is retired; run one of them on a different `--port` if
+  both are needed at once.
+- **One base port owns the family (`#655`, `harness/loopback.py`):**
+  `HARNESS_BASE_PORT` (default `8765`) plus offsets -- media is `base + 0`
+  (`8765`) and serve/desktop is `base + 2` (`8767`). One operator setting moves
+  the harness-owned family together. An older or explicitly configured Harness
+  UI still on
   `8765` is caught by `harness/media_client.py` before a media operation or
   token is sent (`MediaEndpointMismatch`); move that UI with `--port 8767` (see
   [media.md](media.md)).

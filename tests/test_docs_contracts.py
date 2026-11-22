@@ -25,7 +25,9 @@ class GuiAcceptanceDocsTests(unittest.TestCase):
     def test_ui_acceptance_doc_covers_ports_auth_pairing_and_recovery(self):
         doc = _read("docs/ui-acceptance.md")
         self.assertIn("127.0.0.1:8765", doc)
-        self.assertIn("127.0.0.1:8766", doc)
+        # #655: the bare 8766 desktop default is retired; the rule is named.
+        self.assertNotIn("127.0.0.1:8766", doc)
+        self.assertIn("HARNESS_BASE_PORT", doc)
         self.assertIn("8800", doc)
         self.assertIn("401", doc)
         self.assertIn("200", doc)
@@ -52,7 +54,8 @@ class GuiAcceptanceDocsTests(unittest.TestCase):
         self.assertNotIn("127.0.0.1:8765", serve)
         self.assertIn("127.0.0.1:8765", media)
         self.assertNotIn("127.0.0.1:8767", media)
-        self.assertIn("127.0.0.1:8766", desktop)
+        # #655: desktop runs the serve surface, so it names the serve port.
+        self.assertIn("127.0.0.1:8767", desktop)
 
     def test_media_doc_states_the_port_map_and_the_ui_mismatch(self):
         doc = _read("docs/media.md")
