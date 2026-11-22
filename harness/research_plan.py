@@ -411,6 +411,57 @@ def _approval_check(plan: ResearchPlan, approval: PlanApproval, *,
     return PlanCheck.accept()
 
 
+def saved_plan_approval(
+        plan: Optional[ResearchPlan], *,
+        plan_hash: Any = "", receipt: Any = None
+) -> Optional[PlanApproval]:
+    """Rebuild the recorded accepting receipt for this exact live plan.
+
+    #344 names valid resume as not replaying billed retrieval or reassigning
+    an old judgment: a resumed turn whose plan is byte-identical to the one a
+    native judgment accepted may adopt that recorded receipt instead of paying
+    for a second review. Only an exact match may be adopted -- same plan hash,
+    same request hash, same revision and an ``accept`` that was native -- so a
+    changed plan, a changed request, an unrecorded plan or a decline returns
+    ``None`` and the caller asks again.
+
+    This rebuilds the *recorded* receipt; it never manufactures one. Expiry is
+    preserved, so :func:`validate_plan` still rejects an out-of-date consent.
+    """
+    if plan is None or not isinstance(receipt, dict) or not receipt:
+        return None
+    recorded = str(plan_hash or "")
+    if not recorded or recorded != plan.hash():
+        return None
+    if not bool(receipt.get("native")):
+        return None
+    if str(receipt.get("decision") or "") != DECISION_ACCEPT:
+        return None
+    if str(receipt.get("plan_hash") or "") != recorded:
+        return None
+    if str(receipt.get("request_hash") or "") != str(plan.request_hash or ""):
+        return None
+    try:
+        revision = int(receipt.get("revision") or 0)
+    except (TypeError, ValueError):
+        return None
+    if revision != int(plan.revision):
+        return None
+    verdicts = receipt.get("query_verdicts")
+    return PlanApproval(
+        decision=DECISION_ACCEPT,
+        native=True,
+        plan_hash=recorded,
+        request_hash=str(plan.request_hash or ""),
+        revision=revision,
+        confidence=float(receipt.get("confidence") or 0.0),
+        consent_id=str(receipt.get("consent_id") or ""),
+        issued_at=float(receipt.get("issued_at") or 0.0),
+        expires_at=float(receipt.get("expires_at") or 0.0),
+        query_verdicts=tuple(bool(v) for v in (verdicts or ())),
+    )
+
+
 def approval_from_judgment(plan: ResearchPlan, judgment: Dict[str, Any],
                            *, consent_id: str = "", issued_at: float = 0.0,
                            expires_at: float = 0.0) -> PlanApproval:
@@ -517,6 +568,7 @@ def decide_research_plan(
         prompt: str, *, policy: Any, request_id: str,
         task_id: Optional[str] = None, now: Optional[float] = None,
         capabilities: Sequence[str] = ("search", "fetch"),
+        saved_plan: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Optional[ResearchPlan], Optional[PlanApproval], Dict[str, Any]]:
     """Propose one plan and band one native judgment on it.
 
@@ -549,6 +601,32 @@ def decide_research_plan(
     if proposal is None:
         emit("research_plan_gate", phase="blocked", code=why)
         return None, None, record
+    if saved_plan:
+        # #344: an identical plan that a native judgment already accepted does
+        # not need a second billed review. The adoption still passes through
+        # validate_plan below, so an expired receipt or a drifted request
+        # binding falls back to a fresh judgment rather than riding in.
+        reused = saved_plan_approval(
+            proposal,
+            plan_hash=saved_plan.get("plan_hash"),
+            receipt=saved_plan.get("receipt"))
+        if reused is not None:
+            check = validate_plan(
+                proposal, request_id=request_id, prompt=prompt,
+                capabilities=capabilities, approval=reused, now=now)
+            if check.ok:
+                record.update({
+                    "state": "accepted", "native": True,
+                    "decision": reused.decision, "reason": "",
+                    "cost": 0.0, "reused": True,
+                })
+                emit("research_plan_gate", phase="accepted", code="",
+                     plan_hash=plan_hash, native=True,
+                     decision=reused.decision, reused=True)
+                return proposal, reused, record
+            record["reuse_reason"] = f"{check.code}: {check.reason}"
+            emit("research_plan_gate", phase="reuse-rejected",
+                 code=check.code, plan_hash=plan_hash)
     evaluate = getattr(policy, "evaluate_research_plan", None)
     if not callable(evaluate):
         record.update(state="unavailable", reason="policy_missing")
@@ -749,6 +827,7 @@ __all__ = [
     "only_quoted",
     "plan_authorizes_url",
     "propose_plan",
+    "saved_plan_approval",
     "quoted_context",
     "request_hash_for",
     "validate_plan",

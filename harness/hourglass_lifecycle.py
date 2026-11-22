@@ -54,6 +54,7 @@ from .provider_errors import ProviderSpendLimitError
 from .research_plan import (
     decide_research_plan,
     plan_authorizes_url,
+    saved_plan_approval,
     validate_plan,
 )
 from .repo_scope import (
@@ -691,6 +692,7 @@ class HourglassLifecycleMixin:
             self, prompt: str, *, policy, request_id: str,
             task_id: Optional[str] = None, now: Optional[float] = None,
             capabilities: Tuple[str, ...] = ("search", "fetch"),
+            saved_plan: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Optional[Any], Optional[Any], Dict[str, Any]]:
         """Propose a research plan and band one native judgment on it.
 
@@ -701,7 +703,7 @@ class HourglassLifecycleMixin:
         """
         return decide_research_plan(
             prompt, policy=policy, request_id=request_id, task_id=task_id,
-            now=now, capabilities=capabilities)
+            now=now, capabilities=capabilities, saved_plan=saved_plan)
 
     def run_hourglass_request(
             self, prompt: str, *, session_id: Optional[str] = None,
@@ -965,6 +967,14 @@ class HourglassLifecycleMixin:
                 "workspace-inspection", "workspace_inspection"}
                 and self.root_dir is None):
             return self._workspace_context_deferred(prompt, sid)
+        saved_plan = None
+        if resuming:
+            # #344: a resumed turn may adopt the acceptance this checkpoint
+            # recorded, but only for the identical plan; the gate decides.
+            saved_plan = {
+                "plan_hash": str(checkpoint.get("approved_plan_hash") or ""),
+                "receipt": checkpoint.get("plan_approval"),
+            }
         if web and research_plan is None:
             # #342: route choice only proposes retrieval. The plan is proposed
             # here, judged once by native Jev, and only acceptance keeps web
@@ -973,7 +983,8 @@ class HourglassLifecycleMixin:
             proposed, approval, plan_record = self._research_plan_decision(
                 prompt, policy=policy,
                 request_id=str(lifecycle_state["request_id"]),
-                task_id=sid)
+                task_id=sid, now=(time.time() if saved_plan else None),
+                saved_plan=saved_plan)
             total_cost += float(plan_record.get("cost") or 0.0)
             checkpoint["research_plan_gate"] = plan_record
             if proposed is not None:
@@ -982,11 +993,20 @@ class HourglassLifecycleMixin:
             if approval is None:
                 web = False
         elif web:
+            reused_receipt = False
+            if plan_approval is None and saved_plan:
+                # A caller that re-supplies the identical plan on resume gets
+                # the recorded acceptance instead of a silent decline.
+                plan_approval = saved_plan_approval(
+                    research_plan, plan_hash=saved_plan.get("plan_hash"),
+                    receipt=saved_plan.get("receipt"))
+                reused_receipt = plan_approval is not None
             check = validate_plan(
                 research_plan,
                 request_id=str(lifecycle_state["request_id"]),
                 prompt=prompt, capabilities=("search", "fetch"),
-                approval=plan_approval)
+                approval=plan_approval,
+                now=(time.time() if reused_receipt else None))
             checkpoint["research_plan_gate"] = {
                 "source": "research_plan_gate", "proposed": True,
                 "plan_hash": str(getattr(research_plan, "hash", lambda: "")()),
@@ -994,8 +1014,11 @@ class HourglassLifecycleMixin:
                 "native": bool(getattr(plan_approval, "native", False)),
                 "decision": str(getattr(plan_approval, "decision", "") or ""),
                 "reason": "" if check.ok else f"{check.code}: {check.reason}",
-                "cost": 0.0,
+                "cost": 0.0, "reused": reused_receipt,
             }
+            if reused_receipt:
+                emit("research_plan_gate", phase="reused", code="",
+                     plan_hash=checkpoint["research_plan_gate"]["plan_hash"])
             if not check.ok:
                 web = False
         if research_plan is not None:
@@ -1004,18 +1027,14 @@ class HourglassLifecycleMixin:
             hasher = getattr(research_plan, "hash", None)
             checkpoint["approved_plan_hash"] = (
                 str(hasher() or "") if callable(hasher) else "")
-            checkpoint["plan_approval"] = {
-                "decision": str(getattr(plan_approval, "decision", "") or ""),
-                "native": bool(getattr(plan_approval, "native", False)),
-                "plan_hash": str(
-                    getattr(plan_approval, "plan_hash", "") or ""),
-                "request_hash": str(
-                    getattr(plan_approval, "request_hash", "") or ""),
-                "revision": int(
-                    getattr(plan_approval, "revision", 0) or 0),
-                "consent_id": str(
-                    getattr(plan_approval, "consent_id", "") or ""),
-            }
+            # The whole receipt is recorded, not a subset: a later resume can
+            # only adopt it if the per-query verdicts and expiry come with it.
+            payload = getattr(plan_approval, "payload", None)
+            checkpoint["plan_approval"] = (
+                dict(payload()) if callable(payload) else {
+                    "decision": "", "native": False, "plan_hash": "",
+                    "request_hash": "", "revision": 0, "consent_id": "",
+                })
         checkpoint["known_cost"] = round(total_cost, 8)
         checkpoint["web_requested"] = web
         checkpoint["intent"] = intent
