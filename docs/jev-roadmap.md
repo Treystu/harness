@@ -177,8 +177,9 @@ close.
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
 | [#342](https://github.com/Treystu/harness/issues/342) [research] Implement the missing shared model-proposed ResearchPlan and native Jev review lifecycle | OPEN | register: #345, #346, #324 (closed) |
-| [#343](https://github.com/Treystu/harness/issues/343) [web] Reject unrelated hits individually instead of accepting a mixed target-site result batch | OPEN | PR #647 (`fecc4692`) per-candidate admission; PR #658 (`4fa960ce`) fetched-page subject gate on the final URL plus request-entry coverage of the recorded mixed case. Remaining, named on the issue: the shared native result reviewer for semantic relevance, and an explicit snippet-versus-rendered-evidence distinction. |
-| [#344](https://github.com/Treystu/harness/issues/344) [lifecycle] Bind resumed web context to the current request and retrieval decision | OPEN | PR #648 (`6602e00d`) checkpoint reuse bound to request identity and to a 300 s freshness window on every route. Remaining, named on the issue: a declined-retrieval control, approved-plan/receipt binding (checkpoint schema fields do not exist), saved native-route reuse across a changed request, and a control driven through a public lifecycle adapter. |
+| [#343](https://github.com/Treystu/harness/issues/343) [web] Reject unrelated hits individually instead of accepting a mixed target-site result batch | CLOSED | Closed by the operator at 2026-11-22T08:43:02Z with no close comment. Landed on the line: PR #647 (`fecc4692`) per-candidate admission; PR #658 (`4fa960ce`) fetched-page subject gate on the final URL plus request-entry coverage of the recorded mixed case. The two acceptance lines that were unbuilt at the close are tracked in #660, not in a completion claim. |
+| [#344](https://github.com/Treystu/harness/issues/344) [lifecycle] Bind resumed web context to the current request and retrieval decision | OPEN | PR #648 (`6602e00d`) checkpoint reuse bound to request identity and to a 300 s freshness window on every route; PR #661 (`03306b0e`) binds reuse to the current retrieval decision (`retrieval-declined`) and drives declined and changed-request controls through `run_hourglass_request`. Remaining, named on the issue: approved-plan/receipt binding (checkpoint schema fields do not exist) and saved native-route reuse across a changed request. |
+| [#660](https://github.com/Treystu/harness/issues/660) [web] Shared native result reviewer and the snippet-versus-rendered-evidence distinction | OPEN | Filed 2026-11-22 per oversight decision `7076933398`, carrying verbatim the two #343 acceptance lines that were unbuilt when the operator closed #343. No code landed yet. |
 | [#420](https://github.com/Treystu/harness/issues/420) [site] Use the TypeSafe System One contract for route judgments | CLOSED | PR #560 (`22340d87`) |
 
 ### W6 - Spend, routing and calibration - 10 open
@@ -263,11 +264,11 @@ close.
 
 ## Canonical burndown register - 2026-11-19 (#295, sergeant filing)
 
-**Census (two-method, base `main` `b709e252`):** live API `gh issue list --state open` = **37** open; the search API `type:issue is:open` agrees at 37. The open set is enumerated in full on the next line, so the count is checkable rather than asserted. The 2026-11-17 REGISTER_MIRROR above is retired as a register (60 at base `8ae3346`) and is history only. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
+**Census (two-method, live 2026-11-22):** `gh issue list --state open` = **40** open; the search API `type:issue is:open` agrees at 40. The open set is enumerated in full on the next line, so the count is checkable rather than asserted. The 2026-11-17 REGISTER_MIRROR above is retired as a register (60 at base `8ae3346`) and is history only. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
 
 **Merge jurisdiction (filing 7002532495 item 2, carried here because this is the register):** Lane 1 merges Phase 1 and Phase 2 lane code on a green rail at the exact head against current main. **RSI adoption and self-modification merges are not lane work** and belong to the outside human seat, gated separately. A merge of that class is never filed as a lane landing and never counted in this register's burn.
 
-Open set (35): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 319, 337, 342, 343, 344, 380, 381, 382, 412, 413, 414, 415, 422, 452, 466, 467, 469, 474, 475, 480, 482, 517. (#476 closed as no-change (`7050816622`); #567 closed on the audit reconciliation (`7051047426`; #419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; #468 closed on the W468 verdict at `548c2331`; #471, #472 and #473 closed by PRs #630, #633 and #641; cars 3-4 carry no issue.)
+Open set (40): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 319, 337, 342, 344, 380, 381, 382, 412, 413, 415, 422, 452, 466, 469, 475, 480, 482, 517, 649, 650, 651, 652, 653, 654, 655, 656, 660. (#343 closed by the operator at 2026-11-22T08:43:02Z with no close comment; the two acceptance lines unbuilt at that close are filed as #660.) (#476 closed as no-change (`7050816622`); #567 closed on the audit reconciliation (`7051047426`; #419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; #468 closed on the W468 verdict at `548c2331`; #471, #472 and #473 closed by PRs #630, #633 and #641; cars 3-4 carry no issue.)
 
 ### Train (sergeant, serial, exact green heads)
 
@@ -290,6 +291,7 @@ Open set (35): 277, 280, 281, 289, 291, 294, 295, 308, 309, 310, 313, 314, 318, 
 | #337 criteria-prompt library | deliverable | W1 | none | PR landed green + audit |
 | #343 web unrelated-hit rejection | defect | W1 | none | PR landed green + audit |
 | #344 web lifecycle binding | defect | W1 | none | PR landed green + audit |
+| #660 web result reviewer + evidence labelling | defect | W1 | none | PR landed green + audit |
 | #342 ResearchPlan + native Jev review | deliverable | W1 | none | PR landed green + audit |
 | #313 Mercury-3 diffusion LLM eval | deliverable | W1 | none | eval receipt filed, PR green |
 | #318 continuous self-improving selection | deliverable | W1 | #313 | PR landed green + audit |
