@@ -546,6 +546,36 @@ class HourglassLifecycleMixin:
                 return False, "evidence-stale"
         return True, "reusable"
 
+    def _saved_route_decision_reusable(
+            self, checkpoint: ChatResumePayload, prompt: str
+    ) -> Tuple[bool, str]:
+        """Whether a resumed checkpoint's saved route decision still applies.
+
+        The saved ``route_preflight`` is the routing receipt: it records what
+        Jev, or the simple strategy fallback, chose for the request that
+        produced it -- including whether the choice was native. Reusing it for a
+        different request would inherit a routing judgment nothing made, so a
+        resumed turn with a changed request must ask again instead of adopting
+        the old decision (#344). An unchanged continuation still reuses it, and
+        does not pay for the review twice.
+
+        Returns ``(reusable, reason)``; ``reason`` is the recorded why-not.
+        """
+        saved = checkpoint.get("route_preflight")
+        if not isinstance(saved, dict) or not saved:
+            return False, "no-saved-route"
+        # ``route_request_prompt`` is the request the decision was made for.
+        # Checkpoints written before it existed carry that request as
+        # ``prompt``, and the binding is just as strict for them.
+        recorded = checkpoint.get("route_request_prompt")
+        if recorded is None:
+            recorded = checkpoint.get("prompt")
+        if not isinstance(recorded, str) or not recorded.strip():
+            return False, "route-request-unknown"
+        if _request_identity(recorded) != _request_identity(prompt):
+            return False, "request-changed"
+        return True, "reusable"
+
     def _hourglass_context_matches(self, checkpoint: ChatResumePayload) -> bool:
         expected_root = str(checkpoint.get("workspace_root") or "")
         actual_root = str(self.root_dir or "")
@@ -739,8 +769,16 @@ class HourglassLifecycleMixin:
                 gov.record_actual(total_cost, "chat-route-preflight", lane="answer")
             checkpoint["known_cost"] = round(total_cost, 8)
 
-        route_preflight = (request_preflight
-                           or checkpoint.get("route_preflight"))
+        route_preflight = request_preflight
+        if not route_preflight and resuming:
+            # A saved routing receipt belongs to the request it judged; only a
+            # continuation of that same request may adopt it.
+            route_reusable, route_reuse_reason = (
+                self._saved_route_decision_reusable(checkpoint, prompt))
+            route_preflight = (checkpoint.get("route_preflight")
+                               if route_reusable else None)
+            emit("chat_route", phase="end", reused=route_reusable,
+                 reason=route_reuse_reason)
         if (not isinstance(route_preflight, dict)
                 and not callable(getattr(policy,
                                          "evaluate_request_workflow", None))):
@@ -811,6 +849,8 @@ class HourglassLifecycleMixin:
                      reason_code="invalid_judgment_shape")
             total_cost += float(route_preflight.get("cost") or 0.0)
         checkpoint["route_preflight"] = route_preflight
+        checkpoint["route_request_prompt"] = prompt
+        checkpoint["route_recorded_at"] = time.time()
         checkpoint["known_cost"] = round(total_cost, 8)
         selected_workspace = (
             is_workspace_inspection_request(prompt)

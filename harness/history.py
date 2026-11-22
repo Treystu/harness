@@ -47,6 +47,8 @@ class ChatResumePayload(TypedDict, total=False):
     next_round: int
     rounds: List[Dict[str, Any]]
     route_preflight: Dict[str, Any]
+    route_request_prompt: str
+    route_recorded_at: float
     context: str
     context_files: List[str]
     context_tokens: int
