@@ -547,6 +547,40 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
         self.assertIn("NO web tools", sysmsg)
         self.assertIn("NO internet access", sysmsg)
 
+    def test_recorded_mixed_search_case_is_filtered_at_the_request_entry(self):
+        # #343 recorded case: an audit of www.freeoffgridcalculator.com whose
+        # search answered with one calculator hit beside a Microsoft Exchange
+        # mailbox-audit hit. Driven through the real chat request path with the
+        # real parser and gate; only the HTTP seam is patched.
+        from harness.errors import HarnessError as _HE
+        page = (
+            '<html><body><ol id="b_results">'
+            '<li class="b_algo"><h2>'
+            '<a href="https://www.freeoffgridcalculator.com/">'
+            'Free Off Grid Calculator</a></h2><p>solar sizing</p></li>'
+            '<li class="b_algo"><h2>'
+            '<a href="https://learn.microsoft.com/exchange/audit">'
+            'Audit mailbox permissions in Exchange Online</a></h2>'
+            '<p>mailbox audit</p></li></ol></body></html>').encode()
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(Path(tmp))
+            with patch("harness.web._http_get",
+                       return_value=(200, page,
+                                     "https://www.bing.com/search?q=x")), \
+                 patch("harness.web.fetch_url",
+                       side_effect=_HE("web fetch HTTP 404")), \
+                 patch("harness.conversation_lifecycle.chat_routed",
+                       return_value=(200, self._mock_resp())) as mc, \
+                 patch("harness.conversation_lifecycle.governor_for",
+                       return_value=(None, MagicMock())):
+                agent.run_prompt(
+                    "audit www.freeoffgridcalculator.com for user friendliness",
+                    session_id="w343", web=True)
+                sysmsg = mc.call_args[1]["messages"][0]["content"]
+        self.assertIn("freeoffgridcalculator", sysmsg)
+        self.assertNotIn("Exchange", sysmsg)
+        self.assertNotIn("mailbox", sysmsg)
+
     def test_all_fetches_failed_falls_back_to_search(self):
         # The fetch-failed incident: a URL-prompt turn where the fetch died
         # left the model with ONLY the failure note. Now a search follows so

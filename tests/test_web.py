@@ -958,6 +958,69 @@ class FetchAllowlistConfigTests(unittest.TestCase):
         self.assertEqual(web._sanitize_host(" Example.COM "), "example.com")
 
 
+class FinalUrlSubjectGateTests(unittest.TestCase):
+    """#343: the subject gate is asked again about the fetched page.
+
+    Candidate admission judges the snippet. A candidate whose page redirects
+    away from the subject, or whose page never names it, must not promote its
+    page text into evidence for that subject.
+    """
+
+    RESULTS = [{"title": "Free Off Grid Calculator review",
+                "url": "https://blog.example/f",
+                "snippet": "the freeoffgridcalculator.com interface"}]
+
+    def _gather(self, prompt, page, results=None):
+        def fetch(url, allowed_hosts=None, allow_any_public=False):
+            return dict(page)
+
+        return web.gather_web_context(
+            prompt, allowed_hosts=["blog.example"],
+            fetch_url_fn=fetch,
+            search_web_fn=lambda q: list(
+                self.RESULTS if results is None else results),
+            find_urls_fn=lambda p: [],
+            extract_query_fn=lambda p: p)
+
+    def test_page_that_never_names_the_subject_keeps_only_the_snippet(self):
+        sources = self._gather(
+            "audit www.freeoffgridcalculator.com for usability",
+            {"url": "https://blog.example/f",
+             "title": "Audit mailbox permissions",
+             "text": "Exchange Online mailbox audit"})
+        self.assertEqual(len(sources), 1)
+        self.assertEqual(sources[0]["kind"], "search")
+        self.assertNotIn("Exchange", sources[0]["text"])
+
+    def test_page_that_names_the_subject_still_enriches(self):
+        sources = self._gather(
+            "audit www.freeoffgridcalculator.com for usability",
+            {"url": "https://blog.example/f",
+             "title": "Free Off Grid Calculator",
+             "text": "freeoffgridcalculator.com solar sizing"})
+        self.assertEqual(sources[0]["kind"], "fetch")
+        self.assertIn("solar", sources[0]["text"])
+
+    def test_the_judgment_uses_the_final_url_the_fetch_landed_on(self):
+        # The fetch landed on a different host and the page never names the
+        # subject, so nothing on it counts as evidence for the subject.
+        sources = self._gather(
+            "audit www.freeoffgridcalculator.com for usability",
+            {"url": "https://mailbox.example/audit",
+             "title": "Mailbox audit", "text": "mailbox audit"})
+        self.assertEqual(sources[0]["kind"], "search")
+
+    def test_a_topical_query_keeps_its_page_evidence(self):
+        sources = self._gather(
+            "what is the riemann bound",
+            {"url": "https://blog.example/f", "title": "Riemann bound",
+             "text": "zero-free region"},
+            results=[{"title": "Riemann bound",
+                      "url": "https://blog.example/f",
+                      "snippet": "zero-free region"}])
+        self.assertEqual(sources[0]["kind"], "fetch")
+
+
 if __name__ == "__main__":
     unittest.main()
 
