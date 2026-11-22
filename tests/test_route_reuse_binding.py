@@ -27,7 +27,11 @@ from harness.research_plan import (
     PlanApproval,
     PlanQuery,
     ResearchPlan,
+    approval_from_judgment,
+    decide_research_plan,
+    propose_plan,
     request_hash_for,
+    saved_plan_approval,
 )
 
 
@@ -398,6 +402,175 @@ class PlanBindingTests(unittest.TestCase):
                             request_hash=self.plan.request_hash, revision=0)
         self.assertEqual(self._check(fields, plan=self.plan, approval=other),
                          (False, "plan-approval-mismatch"))
+
+
+class SavedPlanReceiptReuseTests(unittest.TestCase):
+    """#344: an identical plan adopts its recorded acceptance.
+
+    The recorded remainder: a resumed hourglass turn re-proposed and
+    re-reviewed the same plan instead of reusing the acceptance it had already
+    been granted. Reuse is limited to the exact recorded plan and receipt; an
+    expired receipt falls back to a fresh native judgment, and nothing here
+    manufactures an approval that no judgment issued.
+    """
+
+    prompt = "What changed in the Rust 1.84 release?"
+    request_id = "req-reuse"
+
+    def _proposal(self):
+        plan, why = propose_plan(self.prompt, request_id=self.request_id)
+        self.assertEqual(why, "")
+        self.assertIsNotNone(plan)
+        return plan
+
+    def _accepting(self, plan, **overrides):
+        approval = approval_from_judgment(
+            plan,
+            {"decision": "accept", "native": True, "confidence": 0.9,
+             "query_verdicts": [True] * len(plan.queries)},
+            consent_id=f"{self.request_id}:research-plan")
+        if overrides:
+            payload = dict(approval.payload())
+            payload.update(overrides)
+            return payload
+        return approval.payload()
+
+    def test_a_native_acceptance_for_the_same_plan_is_rebuilt(self):
+        plan = self._proposal()
+        rebuilt = saved_plan_approval(
+            plan, plan_hash=plan.hash(), receipt=self._accepting(plan))
+        self.assertIsNotNone(rebuilt)
+        self.assertEqual(rebuilt.decision, "accept")
+        self.assertTrue(rebuilt.native)
+        self.assertEqual(rebuilt.plan_hash, plan.hash())
+        self.assertEqual(rebuilt.query_verdicts, (True,) * len(plan.queries))
+
+    def test_a_different_plan_is_not_reused(self):
+        plan = self._proposal()
+        receipt = self._accepting(plan)
+        other = self._proposal().revised(goal="Something else entirely")
+        self.assertIsNone(saved_plan_approval(
+            other, plan_hash=plan.hash(), receipt=receipt))
+
+    def test_a_missing_or_declining_or_non_native_receipt_is_not_reused(self):
+        plan = self._proposal()
+        cases = [
+            None,
+            {},
+            self._accepting(plan, native=False),
+            self._accepting(plan, decision="unavailable"),
+            self._accepting(plan, plan_hash="other-plan"),
+            self._accepting(plan, request_hash="other-request"),
+            self._accepting(plan, revision=plan.revision + 1),
+        ]
+        for receipt in cases:
+            self.assertIsNone(saved_plan_approval(
+                plan, plan_hash=plan.hash(), receipt=receipt), msg=receipt)
+
+    def test_the_gate_reuses_the_recorded_acceptance_without_re_reviewing(self):
+        plan = self._proposal()
+        policy = MagicMock()
+        policy.evaluate_research_plan.side_effect = AssertionError(
+            "the identical plan was reviewed twice")
+        accepted, approval, record = decide_research_plan(
+            self.prompt, policy=policy, request_id=self.request_id,
+            saved_plan={"plan_hash": plan.hash(),
+                        "receipt": self._accepting(plan)})
+        policy.evaluate_research_plan.assert_not_called()
+        self.assertEqual(accepted.hash(), plan.hash())
+        self.assertIsNotNone(approval)
+        self.assertEqual(record["state"], "accepted")
+        self.assertTrue(record["reused"])
+        self.assertEqual(record["cost"], 0.0)
+
+    def test_an_expired_acceptance_is_reviewed_again(self):
+        plan = self._proposal()
+        policy = MagicMock()
+        policy.evaluate_research_plan.return_value = (
+            SimpleNamespace(),
+            {"native": True, "decision": "accept", "confidence": 0.9,
+             "query_verdicts": [True] * len(plan.queries), "cost": 0.002},
+        )
+        expired = self._accepting(plan, expires_at=time.time() - 5.0)
+        _plan_out, approval, record = decide_research_plan(
+            self.prompt, policy=policy, request_id=self.request_id,
+            now=time.time(),
+            saved_plan={"plan_hash": plan.hash(), "receipt": expired})
+        policy.evaluate_research_plan.assert_called_once()
+        self.assertEqual(record["state"], "accepted")
+        self.assertNotIn("reused", record)
+        self.assertIsNotNone(approval)
+
+
+class ResumeReusesTheRecordedPlanTests(unittest.TestCase):
+    """The resumed hourglass request pays no second plan review.
+
+    The checkpoint records the accepted plan's hash and receipt, not its body,
+    so a caller that re-supplies no plan still re-routes (`plan-unknown`) and
+    re-proposes -- a free local draft. What it no longer does is pay for a
+    second native plan judgment when that draft is byte-identical to the plan
+    already accepted.
+    """
+
+    def test_a_resumed_request_with_the_recorded_plan_is_not_reviewed_again(
+            self):
+        prompt = "What changed in the Rust 1.84 release?"
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = AutonomousAgent(settings=_settings(),
+                                    history_dir=Path(tmp))
+            session_id = "resume-plan-reuse"
+            state = agent.lifecycle.begin(
+                "chat", session_id, prompt, stage="route",
+                max_review_rounds=1, data={"route": "hourglass"})
+            request_id = state["request_id"]
+            plan, why = propose_plan(prompt, request_id=request_id)
+            self.assertEqual(why, "")
+            approval = approval_from_judgment(
+                plan, {"decision": "accept", "native": True,
+                       "confidence": 0.9,
+                       "query_verdicts": [True] * len(plan.queries)})
+            checkpoint = _checkpoint(prompt=prompt, route=dict(_WEB_ROUTE),
+                                     identity=prompt)
+            checkpoint["approved_plan_hash"] = plan.hash()
+            checkpoint["plan_approval"] = dict(approval.payload())
+            policy = _policy()
+            policy.evaluate_request_workflow.return_value = (
+                SimpleNamespace(
+                    answers={"workflow_tier": {"choice": "web-research"}},
+                    is_fallback=False),
+                {"cost": 0.0},
+            )
+            policy.evaluate_research_plan.side_effect = AssertionError(
+                "the accepted plan was reviewed twice")
+            webs = []
+            with patch("harness.hourglass_lifecycle.governor_for",
+                       return_value=("key", MagicMock())), \
+                 patch("harness.hourglass_lifecycle.ledger_for",
+                       return_value=MagicMock()), \
+                 patch("harness.hourglass_lifecycle.policy_for",
+                       return_value=policy), \
+                 patch.object(
+                     agent, "_hourglass_request_context",
+                     side_effect=AssertionError("saved context was lost")), \
+                 patch.object(
+                     agent, "_hourglass_answer_once",
+                     side_effect=lambda *a, **k: (
+                         webs.append(k.get("web")) or {
+                             "answer": "the changelog says so",
+                             "model": "cheap", "cost": 0.002})), \
+                 patch.object(agent, "_jev_answer_envelope",
+                              return_value=_envelope()):
+                result = agent.run_hourglass_request(
+                    prompt, session_id=session_id, max_rounds=1,
+                    resume_state=checkpoint)
+            self.assertEqual(result["status"], "ok")
+            policy.evaluate_request_workflow.assert_called_once()
+            self.assertEqual(webs, [True])
+            saved = agent.lifecycle.load(session_id)["data"]
+            self.assertEqual(saved["approved_plan_hash"], plan.hash())
+            self.assertTrue(saved["research_plan_gate"]["reused"])
+            self.assertEqual(saved["research_plan_gate"]["state"], "accepted")
+            self.assertEqual(saved["research_plan_gate"]["cost"], 0.0)
 
 
 if __name__ == "__main__":
