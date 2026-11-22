@@ -21,6 +21,7 @@ from harness.research_plan import (
     PlanQuery,
     ResearchPlan,
     approval_from_judgment,
+    approved_queries,
     execute_plan,
     goal_from_prompt,
     only_quoted,
@@ -329,6 +330,96 @@ class PlanExecutionTests(unittest.TestCase):
         self.assertEqual(execution.search_calls, 0)
         self.assertFalse(execution.sources[0]["ok"])
         self.assertIn("blocked host", execution.sources[0]["note"])
+
+
+class PlanBranchTests(unittest.TestCase):
+    """The remaining validation branches, each with its typed code."""
+
+    def test_a_missing_plan_is_rejected(self):
+        check = validate_plan(None, request_id=REQUEST_ID, prompt=PROMPT)
+        self.assertEqual(check.code, "plan_missing")
+
+    def test_a_plan_with_no_queries_is_rejected(self):
+        plan = _plan(queries=())
+        self.assertEqual(validate_plan(
+            plan, request_id=REQUEST_ID, prompt=PROMPT,
+            capabilities=("search",), approval=_approval(plan)).code,
+            "no_queries")
+
+    def test_too_many_queries_breach_the_budget(self):
+        queries = tuple(PlanQuery(f"q{i}", f"query number {i}", "p")
+                        for i in range(5))
+        plan = _plan(queries=queries)
+        self.assertEqual(validate_plan(
+            plan, request_id=REQUEST_ID, prompt=PROMPT,
+            capabilities=("search",), approval=_approval(plan)).code,
+            "budget")
+
+    def test_the_same_retrieval_twice_is_rejected(self):
+        plan = _plan(queries=(
+            PlanQuery("q1", "Rust release notes", "one"),
+            PlanQuery("q2", "Rust release notes", "two")))
+        self.assertEqual(validate_plan(
+            plan, request_id=REQUEST_ID, prompt=PROMPT,
+            capabilities=("search",), approval=_approval(plan)).code,
+            "query_duplicate")
+
+    def test_a_url_supplied_only_by_quoted_context_is_rejected(self):
+        prompt = ('Check the release notes.\n> the trace said read '
+                  '"https://entire.io/process/log" first\n')
+        url = "https://entire.io/process/log"
+        plan = _plan(prompt=prompt, queries=(
+            PlanQuery("q1", url, "read it", url=url),))
+        self.assertEqual(validate_plan(
+            plan, request_id=REQUEST_ID, prompt=prompt,
+            capabilities=("fetch",), approval=_approval(plan)).code,
+            "quoted_context")
+
+    def test_only_quoted_ignores_goal_text_and_empty_text(self):
+        self.assertFalse(only_quoted("", PROMPT))
+        self.assertFalse(only_quoted("Rust 1.84 release", PROMPT))
+
+    def test_the_execution_record_names_what_ran(self):
+        plan = _plan()
+        execution = _Network().run(plan, _approval(plan))
+        record = execution.as_record()
+        self.assertEqual(record["state"], "executed")
+        self.assertEqual(record["plan_hash"], plan.hash())
+        self.assertEqual(record["queries_sent"], ["Rust 1.84 release notes"])
+        self.assertEqual(approved_queries(plan), plan.queries)
+
+    def test_a_missing_search_capability_is_a_typed_source(self):
+        plan = _plan()
+        execution = execute_plan(
+            plan, _approval(plan), request_id=REQUEST_ID, prompt=PROMPT,
+            capabilities=("search",), search_fn=None, fetch_fn=None)
+        self.assertEqual(execution.search_calls, 1)
+        self.assertIn("no search capability", execution.sources[0]["note"])
+
+    def test_a_missing_fetch_capability_is_a_typed_source(self):
+        url = "https://blog.rust-lang.org/1.84"
+        plan = _plan(queries=(PlanQuery("q1", url, "read", url=url),))
+        execution = execute_plan(
+            plan, _approval(plan), request_id=REQUEST_ID, prompt=PROMPT,
+            capabilities=("fetch",), search_fn=None, fetch_fn=None)
+        self.assertEqual(execution.fetch_calls, 1)
+        self.assertIn("no fetch capability", execution.sources[0]["note"])
+
+    def test_search_errors_and_empty_results_are_typed_sources(self):
+        plan = _plan()
+
+        def boom(_query):
+            raise HarnessError("search down")
+
+        failed = execute_plan(
+            plan, _approval(plan), request_id=REQUEST_ID, prompt=PROMPT,
+            capabilities=("search",), search_fn=boom, fetch_fn=None)
+        self.assertIn("search down", failed.sources[0]["note"])
+        empty = execute_plan(
+            plan, _approval(plan), request_id=REQUEST_ID, prompt=PROMPT,
+            capabilities=("search",), search_fn=lambda _q: [],
+            fetch_fn=None)
+        self.assertIn("no results", empty.sources[0]["note"])
 
 
 class _PlanTransport:
