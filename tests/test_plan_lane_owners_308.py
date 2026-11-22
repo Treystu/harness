@@ -30,6 +30,15 @@ OWNERS = {
         "recondense_decision",
         "resolve_stages",
     ),
+    "harness.plan_evidence": (
+        "DEFAULT_MAX_PLAN_NODES",
+        "_conflicts",
+        "_curated_brief",
+        "_evidence_request",
+        "_jev_sufficiency",
+        "_unrepresented",
+        "_validated_plan",
+    ),
     "harness.plan_stages": (
         "compose_stages",
         "stage_budget",
@@ -130,6 +139,17 @@ class OwnerModuleTests(unittest.TestCase):
         missing = [name for name in compat if not hasattr(waist, name)]
         self.assertEqual(missing, [], f"compatibility surface broken: {missing}")
         self.assertTrue(waist._COMPAT_308, "the compatibility declaration is empty")
+
+    def test_waist_consumes_the_evidence_owner_not_a_copy(self):
+        """The planning loop calls the owner's helpers, not a local copy."""
+        from harness import plan_evidence, waist
+
+        for name in ("_curated_brief", "_unrepresented", "_conflicts",
+                     "_evidence_request", "_jev_sufficiency",
+                     "_validated_plan", "DEFAULT_MAX_PLAN_NODES"):
+            with self.subTest(name=name):
+                self.assertIs(getattr(waist, name),
+                              getattr(plan_evidence, name))
 
     def test_no_concern_module_imports_the_waist_at_module_scope(self):
         for module_name in OWNERS:
