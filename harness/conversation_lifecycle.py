@@ -482,7 +482,8 @@ class ConversationLifecycleMixin:
 
     def _gather_web_context(self, prompt: str,
                             named_hosts=None, *, jev_policy=None,
-                            task_id: Optional[str] = None
+                            task_id: Optional[str] = None,
+                            plan=None, approval=None, request_id: str = ""
                             ) -> List[Dict[str, Any]]:
         # Web owns the network seams; pass those module functions through so
         # policy and hermetic test patches remain at the single owner.
@@ -499,6 +500,9 @@ class ConversationLifecycleMixin:
             find_urls_fn=_web.find_urls,
             extract_query_fn=_web.extract_query,
             max_sources=_MAX_WEB_SOURCES,
+            plan=plan,
+            approval=approval,
+            request_id=request_id,
         )
         # #660 line 1: ONE admission point for every retrieval path, so the
         # hourglass lane inheriting this method cannot drift from the chat lane.

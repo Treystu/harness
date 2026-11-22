@@ -434,6 +434,100 @@ def approval_from_judgment(plan: ResearchPlan, judgment: Dict[str, Any],
     )
 
 
+# ---- proposal (a heuristic draft; never approval) ---------------------------
+
+PROPOSED_MAX_QUERIES = 2
+PROPOSED_GOAL_CHARS = 600
+PROPOSED_FRESHNESS = "current"
+PROPOSED_EVIDENCE = ("readable text that answers the stated goal",)
+_TRAILING_PUNCT = ".,;:!?"
+_URL_RE = re.compile(r"https?://[^\s<>\"'`)\]]+", re.I)
+
+
+def goal_urls(goal: str) -> List[str]:
+    """The exact URLs named by the effective goal, in order, de-duplicated.
+
+    Callers pass :func:`goal_from_prompt` output, so a URL that only appears
+    inside a quoted log or a fenced block is not named by the goal and never
+    reaches a plan.
+    """
+    seen: set = set()
+    urls: List[str] = []
+    for match in _URL_RE.finditer(goal or ""):
+        url = match.group(0).rstrip(_TRAILING_PUNCT)
+        if not url or url.lower() in seen:
+            continue
+        seen.add(url.lower())
+        urls.append(url)
+    return urls
+
+
+def propose_plan(prompt: str, *, request_id: str,
+                 capabilities: Iterable[str] = ("search", "fetch"),
+                 max_queries: int = PROPOSED_MAX_QUERIES,
+                 freshness: str = PROPOSED_FRESHNESS,
+                 evidence_requirements: Sequence[str] = ()
+                 ) -> Tuple[Optional[ResearchPlan], str]:
+    """Draft a bounded plan from the effective goal.
+
+    This is the *proposal* half of #342 and nothing more: it derives the goal,
+    the exact named URLs (or one search query), the capability set those
+    actions need, and the declared limits. It can never approve retrieval --
+    only a native judgment passed through :func:`approval_from_judgment` can.
+
+    Returns ``(plan, "")`` or ``(None, why_not)``; the reason names the
+    condition that stopped the draft.
+    """
+    goal = goal_from_prompt(prompt)
+    if len(goal.strip()) < MIN_QUERY_CHARS:
+        return None, "goal_too_short"
+    available = _capability_set(capabilities)
+    if not available:
+        return None, "capability_missing"
+    queries: List[PlanQuery] = []
+    for index, url in enumerate(goal_urls(goal)[:max_queries], start=1):
+        if "fetch" not in available:
+            return None, "capability_missing"
+        queries.append(PlanQuery(
+            query_id=f"q{index}", query=url, url=url,
+            purpose="read the page the request names"))
+    if not queries:
+        if "search" not in available:
+            return None, "capability_missing"
+        queries.append(PlanQuery(
+            query_id="q1", query=goal[:MAX_QUERY_CHARS].strip(),
+            purpose="find current information for the goal"))
+    return ResearchPlan(
+        goal=goal[:PROPOSED_GOAL_CHARS],
+        request_id=str(request_id or ""),
+        request_hash=request_hash_for(request_id, prompt),
+        queries=tuple(queries),
+        freshness=str(freshness or PROPOSED_FRESHNESS),
+        evidence_requirements=tuple(
+            evidence_requirements or PROPOSED_EVIDENCE),
+        capabilities=tuple(sorted({q.kind for q in queries})),
+    ), ""
+
+
+def _url_identity(url: str) -> str:
+    return str(url or "").strip().rstrip("/").lower()
+
+
+def plan_authorizes_url(plan: Optional[ResearchPlan], url: str) -> bool:
+    """Does this plan name ``url`` as one exact action it proposes?
+
+    The direct browser renderer is a network path of its own (#342/#426): it
+    runs only for a URL an accepted plan already names, never for a URL a
+    heuristic extracted.
+    """
+    if plan is None:
+        return False
+    key = _url_identity(url)
+    if not key:
+        return False
+    return any(q.url and _url_identity(q.url) == key for q in plan.queries)
+
+
 # ---- bounded execution -----------------------------------------------------
 
 def execute_plan(plan: Optional[ResearchPlan],
@@ -570,7 +664,10 @@ __all__ = [
     "approved_queries",
     "execute_plan",
     "goal_from_prompt",
+    "goal_urls",
     "only_quoted",
+    "plan_authorizes_url",
+    "propose_plan",
     "quoted_context",
     "request_hash_for",
     "validate_plan",

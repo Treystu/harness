@@ -29,6 +29,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+from tests._researchplan import accepted_plan
+
 from harness.availability import (
     ACCOUNT_FUNDING,
     DEFAULT_TTL_SECONDS,
@@ -289,12 +291,15 @@ class ArtifactDetourTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             agent = self._agent(tmp)
             gathered = mock.MagicMock()
+            prompt = ("make a script that runs in windows to generate "
+                      "the image")
+            plan, approval = accepted_plan(prompt)
             with mock.patch.object(agent, "_gather_web_context", gathered), \
                     mock.patch("harness.hourglass_lifecycle.emit") as emit_mock:
                 _context, _files, _brief, sources = (
                     agent._hourglass_request_context(
-                        "make a script that runs in windows to generate "
-                        "the image", web=True))
+                        prompt, web=True, plan=plan, approval=approval,
+                        request_id="req-1"))
         gathered.assert_not_called()
         self.assertIn("research_detour_blocked",
                       [call.args[0] for call in emit_mock.call_args_list
@@ -309,13 +314,15 @@ class ArtifactDetourTests(unittest.TestCase):
             agent = self._agent(tmp)
             empty = [{"kind": "web", "ok": True, "url": "https://x.test/a",
                       "text": "   "}]
+            prompt = "What is the latest news about Python releases?"
+            plan, approval = accepted_plan(prompt)
             with mock.patch.object(agent, "_gather_web_context",
                                    return_value=empty), \
                     mock.patch("harness.hourglass_lifecycle.emit") as emit_mock:
                 _context, _files, _brief, sources = (
                     agent._hourglass_request_context(
-                        "What is the latest news about Python releases?",
-                        web=True))
+                        prompt, web=True, plan=plan, approval=approval,
+                        request_id="req-1"))
         self.assertIn("research_detour_aborted",
                       [call.args[0] for call in emit_mock.call_args_list
                        if call.args])
