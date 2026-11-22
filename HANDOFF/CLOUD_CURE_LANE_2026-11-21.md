@@ -205,3 +205,14 @@ the served element.
 `test_driver_core.test_serve_base_url` passed earlier at `a632b8c` (174 tests)
 over an unchanged server surface. CircleCI still unread (no authenticated API
 here); landing is therefore oversight's call on the exact head, not this lane's.
+
+## Base moved during the session (re-based by merge, gates re-run)
+
+`main` advanced from `32f8f84` to `03306b0` ("fix(lifecycle): bind resumed
+evidence reuse to the current retrieval decision (#344) (#661)") while this lane
+worked. That commit is Lane 1's fence area and was **not** modified here; it was
+merged into this branch unmodified so the lane head sits on the current base.
+
+Merge `e033b51` (no conflicts; only `harness/hourglass_lifecycle.py` and two
+tests came in). Gates re-run at `e033b51`: the same eight modules ->
+**211 tests, OK** (2026-11-21 23:43 HST). Final filed head: `e033b51`.
