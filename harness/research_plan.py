@@ -26,8 +26,12 @@ the whole contract is testable without a public network.
 import hashlib
 import json
 import re
+import time
 from dataclasses import dataclass, replace
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
+
+from .errors import ToolCancelled
+from .events import emit
 
 from .errors import HarnessError
 
@@ -509,6 +513,82 @@ def propose_plan(prompt: str, *, request_id: str,
     ), ""
 
 
+def decide_research_plan(
+        prompt: str, *, policy: Any, request_id: str,
+        task_id: Optional[str] = None, now: Optional[float] = None,
+        capabilities: Sequence[str] = ("search", "fetch"),
+) -> Tuple[Optional[ResearchPlan], Optional[PlanApproval], Dict[str, Any]]:
+    """Propose one plan and band one native judgment on it.
+
+    Every request entrypoint that can reach the network calls this one owner
+    (#342) instead of proposing and judging separately. The proposal is a
+    heuristic and authorizes nothing. Only ``policy.evaluate_research_plan``
+    can approve, and only a plan that both that judgment and
+    :func:`validate_plan` accept returns an approval. A missing callable, an
+    unkeyed reviewer, a decline or an invalid answer returns ``None`` for the
+    approval, which is what keeps every network path closed.
+
+    Returns ``(plan, approval, record)``; ``record`` is the gate's account of
+    what happened and is what a lane persists for audit.
+    """
+    proposal, why = propose_plan(
+        prompt, request_id=request_id, capabilities=capabilities)
+    plan_hash = proposal.hash() if proposal is not None else ""
+    record: Dict[str, Any] = {
+        "source": "research_plan_gate",
+        "proposed": proposal is not None,
+        "plan_hash": plan_hash,
+        "request_hash": (proposal.request_hash
+                         if proposal is not None else ""),
+        "state": "invalid",
+        "native": False,
+        "decision": "",
+        "reason": why or "",
+        "cost": 0.0,
+    }
+    if proposal is None:
+        emit("research_plan_gate", phase="blocked", code=why)
+        return None, None, record
+    evaluate = getattr(policy, "evaluate_research_plan", None)
+    if not callable(evaluate):
+        record.update(state="unavailable", reason="policy_missing")
+        emit("research_plan_gate", phase="blocked", code="policy_missing")
+        return proposal, None, record
+    try:
+        _result, structural = evaluate(
+            proposal.payload(), plan_hash=plan_hash,
+            request_hash=proposal.request_hash,
+            revision=proposal.revision, task_id=task_id)
+    except ToolCancelled:
+        raise
+    except Exception as exc:  # a reviewer outage never authorizes retrieval
+        record.update(state="unavailable",
+                      reason=f"reviewer_error: {type(exc).__name__}")
+        emit("research_plan_gate", phase="blocked", code="reviewer_error")
+        return proposal, None, record
+    structural = structural if isinstance(structural, dict) else {}
+    approval = approval_from_judgment(
+        proposal, structural,
+        consent_id=f"{request_id}:research-plan",
+        issued_at=float(now if now is not None else time.time()))
+    check = validate_plan(
+        proposal, request_id=request_id, prompt=prompt,
+        capabilities=capabilities, approval=approval, now=now)
+    accepted = bool(check.ok)
+    record.update({
+        "decision": str(approval.decision or ""),
+        "native": bool(approval.native),
+        "state": "accepted" if accepted else "declined",
+        "reason": "" if accepted else f"{check.code}: {check.reason}",
+        "cost": float(structural.get("cost") or 0.0),
+    })
+    emit("research_plan_gate",
+         phase=("accepted" if accepted else "blocked"),
+         code="" if accepted else check.code, plan_hash=plan_hash,
+         native=bool(approval.native), decision=record["decision"])
+    return proposal, (approval if accepted else None), record
+
+
 def _url_identity(url: str) -> str:
     return str(url or "").strip().rstrip("/").lower()
 
@@ -662,6 +742,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "approval_from_judgment",
     "approved_queries",
+    "decide_research_plan",
     "execute_plan",
     "goal_from_prompt",
     "goal_urls",

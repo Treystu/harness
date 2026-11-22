@@ -2,6 +2,7 @@
 
 import re
 from typing import Any, Callable, Dict, List, Optional
+from uuid import uuid4
 
 from .chat import assess_output, chat_routed, extract_content_and_cost, looks_truncated
 from .chat_policy import (
@@ -28,6 +29,7 @@ from .events import emit
 from .history import load_chat_history, save_chat_turn
 from .lifecycle_types import LifecycleState
 from .prompts import CAPABILITY_MARKER
+from .research_plan import decide_research_plan
 from .results import _http_error
 from .session import governor_for, ledger_for
 from .token_budget import resolve_lane_max_tokens as _resolve_lane_max_tokens
@@ -37,6 +39,16 @@ from .web import (
     named_target_hosts,
     resolve_fetch_allowlist,
     source_label,
+)
+
+
+# #342: a withheld retrieval is disclosed as exactly that. The plain
+# no-web disclosure would be false here -- the tools exist, the plan was not
+# accepted -- and the model must not narrate a search that never ran.
+_WEB_PLAN_WITHHELD_NOTE = (
+    "WEB RETRIEVAL WITHHELD: no accepted research plan for this request "
+    "({reason}). You have no web results this turn; do not claim to have "
+    "searched or fetched anything."
 )
 
 
@@ -88,6 +100,7 @@ class ConversationLifecycleMixin:
         if wants_proposals:
             system_prompt += "\n\n" + _SCRIPT_CAPABILITY_NOTE
         web_sources: List[Dict[str, Any]] = []
+        plan_record: Optional[Dict[str, Any]] = None
         if web:
             if cancel_check and cancel_check():
                 raise ToolCancelled("Prompt execution was cancelled by user")
@@ -101,44 +114,62 @@ class ConversationLifecycleMixin:
             except Exception as exc:  # reviewer setup must not kill the chat
                 emit("web_result_review_unavailable",
                      reason=type(exc).__name__)
-            try:
-                web_sources = self._gather_web_context(
-                    prompt, named_hosts, jev_policy=web_policy,
-                    task_id=session_id)
-            except ToolCancelled:
-                raise
-            except Exception as e:  # web tools must never kill the chat lane
-                web_sources = [{"kind": "web", "ok": False, "note": f"web tools error: {e}"}]
-            _allowed, _any = resolve_fetch_allowlist(self.settings)
-            if _any:
-                hosts = "any public website (SSRF-guarded)"
+            # #342: the web flag grants capability, never approval. One plan is
+            # proposed here and native Jev judges it exactly once; only a plan
+            # validate_plan accepts may search or fetch. A missing reviewer, an
+            # unkeyed one, a decline or an invalid answer leaves both at zero.
+            request_id = str(
+                (lifecycle_state or {}).get("request_id") or "") or (
+                f"chat:{session_id}:{uuid4().hex}")
+            plan, approval, plan_record = decide_research_plan(
+                prompt, policy=web_policy, request_id=request_id,
+                task_id=session_id)
+            if approval is None:
+                system_prompt += "\n\n" + _WEB_PLAN_WITHHELD_NOTE.format(
+                    reason=(plan_record.get("reason")
+                            or plan_record.get("state") or "declined"))
             else:
-                hosts = ", ".join(sorted(_allowed)) or "(none configured)"
-            system_prompt += "\n\n" + _WEB_CAPABILITY_NOTE.format(hosts=hosts)
-            context_lines = []
-            for s in web_sources:
-                if s.get("kind") == "reviewer":
-                    # #660 line 1: the evidence block discloses a reviewer
-                    # outage, so withheld results never read as absence.
-                    context_lines.append(
-                        "EVIDENCE REVIEW: "
-                        + str(s.get("note") or "results withheld"))
-                    continue
-                if s.get("ok"):
-                    body = (s.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
-                    context_lines.append(
-                        f"SOURCE ({source_label(s)}): {s.get('title') or ''} {s['url']}\n{body}"
-                    )
+                try:
+                    web_sources = self._gather_web_context(
+                        prompt, named_hosts, jev_policy=web_policy,
+                        task_id=session_id, plan=plan, approval=approval,
+                        request_id=request_id)
+                except ToolCancelled:
+                    raise
+                except Exception as e:  # web tools must never kill the chat
+                    web_sources = [{"kind": "web", "ok": False,
+                                    "note": f"web tools error: {e}"}]
+                _allowed, _any = resolve_fetch_allowlist(self.settings)
+                if _any:
+                    hosts = "any public website (SSRF-guarded)"
                 else:
-                    context_lines.append(
-                        f"SOURCE ({s['kind']}) FAILED: {s.get('url') or ''} {s.get('note')}"
+                    hosts = ", ".join(sorted(_allowed)) or "(none configured)"
+                system_prompt += "\n\n" + _WEB_CAPABILITY_NOTE.format(
+                    hosts=hosts)
+                context_lines = []
+                for s in web_sources:
+                    if s.get("kind") == "reviewer":
+                        # #660 line 1: the evidence block discloses a reviewer
+                        # outage, so withheld results never read as absence.
+                        context_lines.append(
+                            "EVIDENCE REVIEW: "
+                            + str(s.get("note") or "results withheld"))
+                        continue
+                    if s.get("ok"):
+                        body = (s.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
+                        context_lines.append(
+                            f"SOURCE ({source_label(s)}): {s.get('title') or ''} {s['url']}\n{body}"
+                        )
+                    else:
+                        context_lines.append(
+                            f"SOURCE ({s['kind']}) FAILED: {s.get('url') or ''} {s.get('note')}"
+                        )
+                if context_lines:
+                    system_prompt += (
+                        "\n\n[Web tool results for this turn -- cite only these; do not invent others. "
+                        + _EVIDENCE_LEGEND + "]\n"
+                        + "\n\n".join(context_lines)
                     )
-            if context_lines:
-                system_prompt += (
-                    "\n\n[Web tool results for this turn -- cite only these; do not invent others. "
-                    + _EVIDENCE_LEGEND + "]\n"
-                    + "\n\n".join(context_lines)
-                )
         else:
             system_prompt += "\n\n" + _NO_WEB_DISCLOSURE
         if untrusted_evidence:
@@ -433,6 +464,7 @@ class ConversationLifecycleMixin:
             "web_sources": [
                 {k: s[k] for k in ("kind", "ok", "url") if k in s} for s in web_sources
             ],
+            **({"research_plan": dict(plan_record)} if plan_record else {}),
         }
 
         result["context"] = {

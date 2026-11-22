@@ -16,7 +16,7 @@ from harness.config import load_settings
 from harness.conversation_lifecycle import ConversationLifecycleMixin
 from harness.errors import HarnessError, ProviderUsageUnknown, ToolCancelled
 from harness.jev import JevEvaluationResult
-from tests._researchplan import accepted_plan
+from tests._researchplan import AcceptingPlanPolicy, accepted_plan
 
 from harness.jev_policy import (
     RESULT_REJECTED,
@@ -381,6 +381,8 @@ class ResultAdmissionTests(unittest.TestCase):
                      "usage": {"cost": 0.0}}
             with mock.patch("harness.conversation_lifecycle.gather_web_context",
                             return_value=marker), \
+                 mock.patch("harness.jev_policy.policy_for",
+                            return_value=AcceptingPlanPolicy()), \
                  mock.patch("harness.conversation_lifecycle.chat_routed",
                             return_value=(200, reply)) as chat, \
                  mock.patch("harness.conversation_lifecycle.governor_for",

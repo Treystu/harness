@@ -52,9 +52,8 @@ from .prompts import CAPABILITY_MARKER
 from .request_intent import no_tools_requested
 from .provider_errors import ProviderSpendLimitError
 from .research_plan import (
-    approval_from_judgment,
+    decide_research_plan,
     plan_authorizes_url,
-    propose_plan,
     validate_plan,
 )
 from .repo_scope import (
@@ -695,61 +694,14 @@ class HourglassLifecycleMixin:
     ) -> Tuple[Optional[Any], Optional[Any], Dict[str, Any]]:
         """Propose a research plan and band one native judgment on it.
 
-        #342: the proposal is a heuristic and authorizes nothing. Only
-        :meth:`JevPolicy.evaluate_research_plan` can approve, and only a plan
-        that both that judgment and :func:`validate_plan` accept returns an
-        approval. A missing callable, an unkeyed reviewer, a decline or an
-        invalid answer returns ``None`` for the approval, which is what keeps
-        every network path in this lane closed.
+        #342: the proposal, the single native judgment and the validation band
+        are owned by :func:`harness.research_plan.decide_research_plan`, so the
+        chat lane and this lane cannot drift. Only an accepted plan returns an
+        approval here.
         """
-        proposal, why = propose_plan(
-            prompt, request_id=request_id, capabilities=capabilities)
-        plan_hash = proposal.hash() if proposal is not None else ""
-        record: Dict[str, Any] = {
-            "source": "research_plan_gate",
-            "proposed": proposal is not None,
-            "plan_hash": plan_hash,
-            "request_hash": (proposal.request_hash
-                             if proposal is not None else ""),
-            "state": "invalid",
-            "native": False,
-            "decision": "",
-            "reason": why or "",
-            "cost": 0.0,
-        }
-        if proposal is None:
-            emit("research_plan_gate", phase="blocked", code=why)
-            return None, None, record
-        evaluate = getattr(policy, "evaluate_research_plan", None)
-        if not callable(evaluate):
-            record.update(state="unavailable", reason="policy_missing")
-            emit("research_plan_gate", phase="blocked", code="policy_missing")
-            return proposal, None, record
-        _result, structural = evaluate(
-            proposal.payload(), plan_hash=plan_hash,
-            request_hash=proposal.request_hash,
-            revision=proposal.revision, task_id=task_id)
-        structural = structural if isinstance(structural, dict) else {}
-        approval = approval_from_judgment(
-            proposal, structural,
-            consent_id=f"{request_id}:research-plan",
-            issued_at=float(now if now is not None else time.time()))
-        check = validate_plan(
-            proposal, request_id=request_id, prompt=prompt,
-            capabilities=capabilities, approval=approval, now=now)
-        accepted = bool(check.ok)
-        record.update({
-            "decision": str(approval.decision or ""),
-            "native": bool(approval.native),
-            "state": "accepted" if accepted else "declined",
-            "reason": "" if accepted else f"{check.code}: {check.reason}",
-            "cost": float(structural.get("cost") or 0.0),
-        })
-        emit("research_plan_gate",
-             phase=("accepted" if accepted else "blocked"),
-             code="" if accepted else check.code, plan_hash=plan_hash,
-             native=bool(approval.native), decision=record["decision"])
-        return proposal, (approval if accepted else None), record
+        return decide_research_plan(
+            prompt, policy=policy, request_id=request_id, task_id=task_id,
+            now=now, capabilities=capabilities)
 
     def run_hourglass_request(
             self, prompt: str, *, session_id: Optional[str] = None,
