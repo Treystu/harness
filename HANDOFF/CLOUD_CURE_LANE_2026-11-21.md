@@ -178,8 +178,7 @@ renderedText: "Harness v0.5.1 (v0.5.1-)"   <- wrong
 ```
 
 `shortCommit` sliced the first 7 characters of the whole `git describe` string.
-Fixed in `c48`-series commit "fix(ui): render the commit from the describe
-suffix": the suffix after `-g` is now extracted (`-dirty` tolerated), a bare
+Fixed in `c64f124` ("fix(ui): render the commit from the describe suffix"): the suffix after `-g` is now extracted (`-dirty` tolerated), a bare
 sha is passed through, anything else is shown whole. Re-run at the fix:
 
 ```
