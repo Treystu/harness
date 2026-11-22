@@ -71,6 +71,9 @@ from .jev_packs import (
     completion_question_pack,
     file_relevance_question_pack,
     heuristic_file_relevance,
+    heuristic_result_relevance,
+    MAX_RESULT_REVIEW,
+    result_relevance_question_pack,
     heuristic_repo_axes,
     heuristic_requires_iteration,
     heuristic_route,
@@ -340,6 +343,31 @@ def _resolve_audit_dimension(answer, levels, *, evidence_score, min_confidence):
         source = ("heuristic_low_confidence" if live_conf is not None
                   else "heuristic")
     return idx, source, conf, live_level, live_conf
+
+# --- #660 line 1: typed bands of the shared web-result reviewer ------------
+#: An answer at or above this probability is relevant; at or below the next
+#: one it is rejected; anything between is uncertain. The middle band is not
+#: admission: the caller excludes it, so a reviewer that is unsure can never
+#: admit unrelated content by failing to be sure.
+RESULT_RELEVANT_AT = 0.70
+RESULT_REJECTED_AT = 0.30
+RESULT_RELEVANT = "relevant"
+RESULT_REJECTED = "rejected"
+RESULT_UNCERTAIN = "uncertain"
+RESULT_UNREVIEWED = "unreviewed"
+
+
+def result_verdict(probability: Optional[float]) -> str:
+    """Band one noul probability into the reviewer's single typed verdict."""
+    if not isinstance(probability, (int, float)) or isinstance(probability, bool):
+        return RESULT_UNCERTAIN
+    value = float(probability)
+    if value >= RESULT_RELEVANT_AT:
+        return RESULT_RELEVANT
+    if value <= RESULT_REJECTED_AT:
+        return RESULT_REJECTED
+    return RESULT_UNCERTAIN
+
 
 class JevPolicy:
     """Coordinate typed Jev calls, spend, ledger evidence, and envelopes."""
@@ -1971,6 +1999,160 @@ class JevPolicy:
             structural = self._account(fallback, site=site, task_id=task_id)
             structural["files"] = picked
             return fallback, structural
+
+    def evaluate_result_relevance(self, prompt: str,
+                                  results: Sequence[Dict[str, Any]], *,
+                                  site: str = "web-results",
+                                  task_id: Optional[str] = None,
+                                  max_input_tokens: int = JEV_MAX_INPUT_TOKENS):
+        """#660 line 1: one typed relevance verdict per gathered web result.
+
+        Bands are code-owned on the noul probability (:func:`result_verdict`):
+        relevant at or above ``RESULT_RELEVANT_AT``, rejected at or below
+        ``RESULT_REJECTED_AT``, otherwise uncertain. A missing or unparseable
+        answer is uncertain, never admission, and the caller excludes both.
+
+        Fail-closed (oversight decision 7078539288): when the reviewer cannot
+        answer at all -- refusal, spend limit, transport error -- every result
+        is reported ``unreviewed`` with the outage reason; the caller excludes
+        those results and discloses the outage in the evidence block. Nothing
+        unreviewed is ever admitted as reviewed. With no key there is no
+        reviewer to be down, so the local fallback records an admitted
+        verdict that names the method it actually used.
+        """
+        items = [dict(item) for item in list(results)[:MAX_RESULT_REVIEW]]
+        if not items:
+            empty = JevEvaluationResult(
+                "pass", 0.0, 1.0, {"results": [], "reviewed": False},
+                ["no gathered results to review"], is_fallback=True,
+                model=self.evaluator.model, fallback_reason="no_results")
+            structural = self._structural(empty, site)
+            structural.update({"results": [], "reviewed": False,
+                               "outage": False})
+            return empty, structural
+        if not self.keyed:
+            verdicts = self._local_result_verdicts(prompt, items)
+            local = JevEvaluationResult(
+                "pass", 0.0, 1.0, {"results": verdicts},
+                ["local term reviewer: no native reviewer configured"],
+                is_fallback=True, model=LOCAL_HEURISTIC_MODEL,
+                fallback_reason="reviewer_unkeyed")
+            structural = self._structural(local, site)
+            structural.update({"results": verdicts, "reviewed": True,
+                               "outage": False})
+            return local, structural
+        reservation = None
+        try:
+            reservation = self._preflight(
+                site=site, max_input_tokens=max_input_tokens)
+            result = self.evaluator.evaluate(
+                {"request": (prompt or "")[:JEV_REQUEST_MAX_CHARS],
+                 "results": [{"url": str(item.get("url") or ""),
+                              "title": str(item.get("title") or ""),
+                              "text": str(item.get("text") or "")[:800]}
+                             for item in items]},
+                result_relevance_question_pack(items))
+            if result.is_fallback:
+                return self._result_review_outage(
+                    result, items, site=site, task_id=task_id,
+                    reservation=reservation,
+                    reason=self._fallback_reason_of(result,
+                                                    "reviewer_unanswered"))
+            verdicts = self._band_result_answers(result.answers, items)
+            reviewed = replace(result, answers={"results": verdicts})
+            structural = self._account(
+                reviewed, site=site, task_id=task_id,
+                reservation=reservation)
+            structural.update({"results": verdicts, "reviewed": True,
+                               "outage": False})
+            return reviewed, structural
+        except (ToolCancelled, ProviderUsageUnknown):
+            self._release(reservation)
+            raise
+        except ProviderSpendLimitError as exc:
+            self._release_after_provider_limit(
+                reservation, exc, task_id=task_id)
+            return self._result_review_unanswered(
+                str(exc), items, site=site, task_id=task_id,
+                code="reviewer_spend_limit")
+        except HarnessError as exc:
+            self._release(reservation)
+            return self._result_review_unanswered(
+                str(exc), items, site=site, task_id=task_id)
+
+    @staticmethod
+    def _local_result_verdicts(prompt: str,
+                               items: Sequence[Dict[str, Any]]
+                               ) -> List[Dict[str, Any]]:
+        """Band the local fallback's probabilities into typed verdicts."""
+        verdicts: List[Dict[str, Any]] = []
+        for index, scored in enumerate(
+                heuristic_result_relevance(prompt, items)):
+            probability = scored.get("probability")
+            verdicts.append({
+                "url": str(items[index].get("url") or ""),
+                "verdict": result_verdict(probability),
+                "probability": probability,
+                "reason": str(scored.get("reason") or ""),
+            })
+        return verdicts
+
+    @staticmethod
+    def _band_result_answers(answers: Optional[Dict[str, Any]],
+                             items: Sequence[Dict[str, Any]]
+                             ) -> List[Dict[str, Any]]:
+        """Read one banded verdict per result, never a silent admission."""
+        verdicts: List[Dict[str, Any]] = []
+        for index, item in enumerate(items):
+            answer = (answers or {}).get(f"result_{index}_relevant")
+            probability = (answer.get("noul") if isinstance(answer, dict)
+                           else answer)
+            if isinstance(probability, (int, float)):
+                probability = float(probability)
+                reason = "noul {:.2f} -> {}".format(
+                    probability, result_verdict(probability))
+            else:
+                probability = None
+                reason = "reviewer returned no answer for this result"
+            verdicts.append({
+                "url": str(item.get("url") or ""),
+                "verdict": result_verdict(probability),
+                "probability": probability,
+                "reason": reason,
+            })
+        return verdicts
+
+    @staticmethod
+    def _unreviewed(items: Sequence[Dict[str, Any]], reason: str
+                    ) -> List[Dict[str, Any]]:
+        return [{"url": str(item.get("url") or ""),
+                 "verdict": RESULT_UNREVIEWED, "probability": None,
+                 "reason": reason} for item in items]
+
+    def _result_review_outage(self, result: JevEvaluationResult,
+                              items: Sequence[Dict[str, Any]], *,
+                              site: str, task_id: Optional[str],
+                              reservation, reason: str):
+        """Book the answering call, then report every result unreviewed."""
+        verdicts = self._unreviewed(items, reason)
+        settled = replace(result, answers={"results": verdicts})
+        structural = self._account(
+            settled, site=site, task_id=task_id, reservation=reservation)
+        structural.update({"results": verdicts, "reviewed": False,
+                           "outage": True, "outage_reason": reason})
+        return settled, structural
+
+    def _result_review_unanswered(self, reason: str,
+                                  items: Sequence[Dict[str, Any]], *,
+                                  site: str, task_id: Optional[str],
+                                  code: str = "reviewer_outage"):
+        """Refusal/spend/transport: a receipt, not an admission."""
+        result, structural = self._record_refusal(
+            reason, site=site, task_id=task_id, code=code)
+        verdicts = self._unreviewed(items, reason)
+        structural.update({"results": verdicts, "reviewed": False,
+                           "outage": True, "outage_reason": reason})
+        return replace(result, answers={"results": verdicts}), structural
 
     def evaluate_claim_support(self, claims, source_context: str, *,
                                enabled: bool = False,

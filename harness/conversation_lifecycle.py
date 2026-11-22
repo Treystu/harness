@@ -32,6 +32,7 @@ from .results import _http_error
 from .session import governor_for, ledger_for
 from .token_budget import resolve_lane_max_tokens as _resolve_lane_max_tokens
 from .web import (
+    apply_result_review,
     gather_web_context,
     named_target_hosts,
     resolve_fetch_allowlist,
@@ -91,8 +92,19 @@ class ConversationLifecycleMixin:
             if cancel_check and cancel_check():
                 raise ToolCancelled("Prompt execution was cancelled by user")
             named_hosts = named_target_hosts(prompt)
+            web_policy = None
             try:
-                web_sources = self._gather_web_context(prompt, named_hosts)
+                from .jev_policy import policy_for as _policy_for
+                web_policy = _policy_for(
+                    self.settings, governor=gov,
+                    ledger=ledger_for(self.settings, caller="agent"))
+            except Exception as exc:  # reviewer setup must not kill the chat
+                emit("web_result_review_unavailable",
+                     reason=type(exc).__name__)
+            try:
+                web_sources = self._gather_web_context(
+                    prompt, named_hosts, jev_policy=web_policy,
+                    task_id=session_id)
             except ToolCancelled:
                 raise
             except Exception as e:  # web tools must never kill the chat lane
@@ -105,6 +117,13 @@ class ConversationLifecycleMixin:
             system_prompt += "\n\n" + _WEB_CAPABILITY_NOTE.format(hosts=hosts)
             context_lines = []
             for s in web_sources:
+                if s.get("kind") == "reviewer":
+                    # #660 line 1: the evidence block discloses a reviewer
+                    # outage, so withheld results never read as absence.
+                    context_lines.append(
+                        "EVIDENCE REVIEW: "
+                        + str(s.get("note") or "results withheld"))
+                    continue
                 if s.get("ok"):
                     body = (s.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
                     context_lines.append(
@@ -462,13 +481,15 @@ class ConversationLifecycleMixin:
             allow_escalation=False, persist=False)
 
     def _gather_web_context(self, prompt: str,
-                            named_hosts=None) -> List[Dict[str, Any]]:
+                            named_hosts=None, *, jev_policy=None,
+                            task_id: Optional[str] = None
+                            ) -> List[Dict[str, Any]]:
         # Web owns the network seams; pass those module functions through so
         # policy and hermetic test patches remain at the single owner.
         import harness.web as _web
 
         allowed, any_public = resolve_fetch_allowlist(self.settings)
-        return gather_web_context(
+        gathered = gather_web_context(
             prompt,
             allowed_hosts=allowed,
             allow_any_public=any_public,
@@ -479,6 +500,10 @@ class ConversationLifecycleMixin:
             extract_query_fn=_web.extract_query,
             max_sources=_MAX_WEB_SOURCES,
         )
+        # #660 line 1: ONE admission point for every retrieval path, so the
+        # hourglass lane inheriting this method cannot drift from the chat lane.
+        return apply_result_review(
+            prompt, gathered, jev_policy, site="web-results", task_id=task_id)
 
     @staticmethod
     def _chat_ladder(settings: Settings) -> List[str]:

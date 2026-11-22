@@ -107,7 +107,7 @@ class _RunCase(unittest.TestCase):
         seen = {}
 
         def fake_context(p, web=False, workspace=False, web_prompt=None,
-                         session_id=None):
+                         session_id=None, jev_policy=None):
             seen["web"] = web
             seen["workspace"] = workspace
             return ("ctx", [], SimpleNamespace(estimated_tokens=0), [])

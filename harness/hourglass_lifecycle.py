@@ -115,7 +115,8 @@ class HourglassLifecycleMixin:
     def _hourglass_request_context(self, prompt: str, web: bool = False,
                                   workspace: bool = True,
                                   web_prompt: Optional[str] = None,
-                                  session_id: Optional[str] = None):
+                                  session_id: Optional[str] = None,
+                                  jev_policy=None):
         """Gather a bounded, cheap intake brief for a non-edit request.
 
         Intake is local and deterministic: explicit paths win, then filename
@@ -188,7 +189,9 @@ class HourglassLifecycleMixin:
                            "answered on the direct path")
         if web:
             try:
-                web_sources = self._gather_web_context(web_prompt or prompt)
+                web_sources = self._gather_web_context(
+                    web_prompt or prompt, jev_policy=jev_policy,
+                    task_id=session_id)
             except (ToolCancelled, ProviderSpendLimitError):
                 raise
             except Exception as exc:  # context failure must not kill the lane
@@ -228,6 +231,12 @@ class HourglassLifecycleMixin:
                 detour_note = ("aborted: every gathered source returned "
                                "0 chars")
             for source in web_sources:
+                if source.get("kind") == "reviewer":
+                    # #660 line 1: disclose a reviewer outage in the evidence
+                    # block; withheld results must never read as "nothing found".
+                    context += ("\n\nEVIDENCE REVIEW: "
+                                + str(source.get("note") or "results withheld"))
+                    continue
                 if source.get("ok"):
                     body = str(source.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
                     context += (f"\n\nWEB EVIDENCE ({source_label(source)}): "
@@ -893,7 +902,8 @@ class HourglassLifecycleMixin:
             context, file_contents, brief, web_sources = \
                 self._hourglass_request_context(
                     prompt, web=web, workspace=workspace_needed,
-                    web_prompt=web_prompt, session_id=sid)
+                    web_prompt=web_prompt, session_id=sid,
+                    jev_policy=policy)
             context_files = list(file_contents)
             context_tokens = int(brief.estimated_tokens)
             file_hashes = {
@@ -904,7 +914,8 @@ class HourglassLifecycleMixin:
             bounded_sources = []
             for source in web_sources:
                 item = {key: source[key] for key in
-                        ("kind", "ok", "url", "title", "note")
+                        ("kind", "ok", "url", "title", "note", "evidence",
+                         "pinned", "review")
                         if key in source}
                 if source.get("text") and remaining_source_chars > 0:
                     text = str(source.get("text"))[:min(
