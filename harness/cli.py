@@ -149,6 +149,7 @@ from .claims import (
     build_claims_prompt, curate_claims_from_ledger, load_definitions_file,
     load_manifest_document, parse_manifest_data,
 )
+from .citation_resolver import audit_report_citations, default_resolver
 from .claims import parse_claims
 from .config import load_settings, shipped_model_ids
 from .cli_parser import build_parser
@@ -455,8 +456,6 @@ def _citation_resolver():
     One seam, so the audit can be exercised end to end without a network call
     and without the test passing its own resolver through the CLI surface.
     """
-    from .citation_resolver import default_resolver
-
     return default_resolver()
 
 
@@ -484,8 +483,6 @@ def _cmd_lint_claims(opts, settings=None):
            "window_lines": len(quoted.splitlines()) if quoted.strip() else 0}
     citations = document.get("citations") if isinstance(document, dict) else None
     if citations is not None:
-        from .citation_resolver import audit_report_citations
-
         resolver = (None if getattr(opts, "no_network", False)
                     else _citation_resolver())
         audit = audit_report_citations(document, resolver=resolver)
