@@ -1,6 +1,7 @@
 """Hermetic contracts for the all-request answer/reiterate lifecycle."""
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -969,6 +970,115 @@ class AgentAnswerLoopTests(unittest.TestCase):
                 0.005, "chat-continuation", lane="answer")
             governor.retain_unknown.assert_called_once_with(
                 0.002, "cancelled-chat-provider-call")
+
+    def test_declined_retrieval_on_resume_rebuilds_instead_of_reusing_evidence(self):
+        """#344 control through the public adapter: a resumed request that
+        declines retrieval cannot inherit the saved checkpoint's web evidence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            agent = AutonomousAgent(settings=_ladder_settings(), root_dir=root,
+                                    history_dir=root)
+            prompt = "Explain photosynthesis"
+            checkpoint = {
+                "route": "hourglass", "status": "interrupted",
+                "stage": "jev_review", "prompt": prompt,
+                "intent": "conversation", "web_requested": True,
+                "effective_route": "web-research",
+                "workspace_root": str(root), "workspace_context_used": False,
+                "known_cost": 0.0, "unknown_liability": 0.0,
+                "route_preflight": {"source": "jev_request_workflow",
+                                    "choice": "web-research", "native": True,
+                                    "cost": 0.0},
+                "context": "saved context citing saved web evidence",
+                "context_files": [], "context_tokens": 6,
+                "web_sources": [{"kind": "web", "ok": True,
+                                 "url": "https://example.com/old",
+                                 "title": "saved", "text": "OLD EVIDENCE"}],
+                "context_updated_at": time.time(),
+                "file_hashes": {}, "answer": None, "rounds": [],
+                "next_round": 1,
+            }
+            policy = _FakePolicy([(0.995, False, False)])
+            governor = MagicMock()
+            declined_route = {"source": "jev_request_workflow",
+                              "choice": "answer", "native": True,
+                              "cost": 0.0}
+            rebuilt = ("fresh context without web evidence", [],
+                       SimpleNamespace(estimated_tokens=6), [])
+            with patch("harness.hourglass_lifecycle.policy_for", return_value=policy), \
+                 patch("harness.hourglass_lifecycle.governor_for", return_value=(None, governor)), \
+                 patch("harness.hourglass_lifecycle.ledger_for", return_value=MagicMock()), \
+                 patch.object(agent, "_hourglass_request_context",
+                              return_value=rebuilt) as gather, \
+                 patch.object(agent, "_hourglass_answer_once", return_value={
+                     "model": "m1", "answer": "Plants store light energy.",
+                     "cost": 0.001}), \
+                 patch("harness.hourglass_lifecycle.save_chat_turn"):
+                result = agent.run_hourglass_request(
+                    prompt, session_id="declined-retrieval", web=False,
+                    resume_state=checkpoint,
+                    request_preflight=declined_route)
+            self.assertEqual(result["status"], "ok")
+            gather.assert_called_once()
+            self.assertFalse(gather.call_args.kwargs["web"])
+            self.assertEqual(policy.calls[0][2], rebuilt[0])
+            self.assertEqual(result["web_sources"], [])
+            self.assertFalse(result["web_used"])
+
+    def test_changed_request_on_resume_rebuilds_context_through_public_adapter(self):
+        """#344 control through the public adapter: a resumed request whose
+        effective request changed cannot inherit the saved context."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            agent = AutonomousAgent(settings=_ladder_settings(), root_dir=root,
+                                    history_dir=root)
+            checkpoint = {
+                "route": "hourglass", "status": "interrupted",
+                "stage": "jev_review", "prompt": "Explain photosynthesis",
+                "intent": "conversation", "web_requested": True,
+                "effective_route": "web-research",
+                "workspace_root": str(root), "workspace_context_used": False,
+                "known_cost": 0.0, "unknown_liability": 0.0,
+                "route_preflight": {"source": "jev_request_workflow",
+                                    "choice": "web-research", "native": True,
+                                    "cost": 0.0},
+                "context": "saved context for the old request",
+                "context_files": [], "context_tokens": 6,
+                "web_sources": [{"kind": "web", "ok": True,
+                                 "url": "https://example.com/old",
+                                 "title": "saved", "text": "OLD EVIDENCE"}],
+                "context_updated_at": time.time(),
+                "file_hashes": {}, "answer": None, "rounds": [],
+                "next_round": 1,
+            }
+            policy = _FakePolicy([(0.995, False, False)])
+            governor = MagicMock()
+            fresh_sources = [{"kind": "web", "ok": True,
+                              "url": "https://example.com/new",
+                              "title": "new", "text": "NEW EVIDENCE"}]
+            rebuilt = ("fresh context for the new request", [],
+                       SimpleNamespace(estimated_tokens=6), fresh_sources)
+            with patch("harness.hourglass_lifecycle.policy_for", return_value=policy), \
+                 patch("harness.hourglass_lifecycle.governor_for", return_value=(None, governor)), \
+                 patch("harness.hourglass_lifecycle.ledger_for", return_value=MagicMock()), \
+                 patch.object(agent, "_hourglass_request_context",
+                              return_value=rebuilt) as gather, \
+                 patch.object(agent, "_hourglass_answer_once", return_value={
+                     "model": "m1", "answer": "Tides follow the moon.",
+                     "cost": 0.001}), \
+                 patch("harness.hourglass_lifecycle.save_chat_turn"):
+                result = agent.run_hourglass_request(
+                    "What are the ocean tides today",
+                    session_id="changed-request", resume_state=checkpoint,
+                    request_preflight={"source": "jev_request_workflow",
+                                       "choice": "web-research", "native": True,
+                                       "cost": 0.0})
+            self.assertEqual(result["status"], "ok")
+            gather.assert_called_once()
+            self.assertEqual(policy.calls[0][2], rebuilt[0])
+            self.assertEqual(
+                [source["url"] for source in result["web_sources"]],
+                ["https://example.com/new"])
 
     def test_workspace_audit_routes_to_local_inspection_without_web(self):
         with tempfile.TemporaryDirectory() as tmp:
