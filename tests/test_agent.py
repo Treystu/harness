@@ -23,6 +23,7 @@ from harness.repo_scope import (
     enumerate_repo_files,
 )
 from tests._fake import FakeTransport, _gov
+from tests._researchplan import AcceptingPlanPolicy as _accepting_plan_policy
 
 
 # The agent suite must remain hermetic on CI: production governor_for correctly
@@ -529,6 +530,16 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
     cannot perform. Web evidence is attached only when the run opts in, and
     every source (or failure) is disclosed to the model and in provenance."""
 
+    def setUp(self):
+        # #342: this lane retrieves only behind a plan a native judgment
+        # accepted. The reviewer is the double; the proposal, the gate and
+        # validate_plan are the production ones.
+        from tests._researchplan import AcceptingPlanPolicy
+        patcher = patch("harness.jev_policy.policy_for",
+                        return_value=AcceptingPlanPolicy())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _agent(self, hdir):
         return AutonomousAgent(history_dir=hdir)
 
@@ -581,10 +592,11 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
         self.assertNotIn("Exchange", sysmsg)
         self.assertNotIn("mailbox", sysmsg)
 
-    def test_all_fetches_failed_falls_back_to_search(self):
-        # The fetch-failed incident: a URL-prompt turn where the fetch died
-        # left the model with ONLY the failure note. Now a search follows so
-        # the turn still carries evidence, with the FAILED fetch kept honest.
+    def test_a_failed_fetch_ends_insufficient_instead_of_a_derived_search(self):
+        # #342: the accepted plan for a URL-only request names that fetch and
+        # nothing else, so a dead fetch cannot silently become a prompt-wide
+        # search. The failure is still disclosed; the turn carries no
+        # evidence and says so rather than inventing a query.
         with tempfile.TemporaryDirectory() as tmp:
             agent = self._agent(Path(tmp))
             with patch("harness.web.fetch_url",
@@ -592,7 +604,7 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
                  patch("harness.web.search_web",
                        return_value=[{"url": "https://www.anthropic.com/rz",
                                       "title": "Riemann",
-                                      "snippet": "bound moved to 67.2%"}]), \
+                                      "snippet": "bound moved to 67.2%"}]) as ms, \
                  patch("harness.conversation_lifecycle.chat_routed",
                        return_value=(200, self._mock_resp())) as m, \
                  patch("harness.conversation_lifecycle.governor_for",
@@ -604,8 +616,9 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
         self.assertEqual(res["status"], "ok")
         self.assertIn("SOURCE (fetch) FAILED", sysmsg)
         self.assertIn("web fetch HTTP 503", sysmsg)
-        self.assertIn("SOURCE (search snippet): Riemann", sysmsg)
-        self.assertIn("bound moved to 67.2%", sysmsg)
+        self.assertNotIn("SOURCE (search snippet)", sysmsg)
+        ms.assert_not_called()
+        self.assertFalse(res["web_used"])
 
     def test_web_on_system_prompt_states_capability_not_denial(self):
         # The "it says web is on..." incident: the base prompt claimed
@@ -701,18 +714,17 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
 
     def test_web_fetch_failure_is_disclosed(self):
         # A URL prompt whose fetch is refused: the refusal lands in the
-        # model's context as a FAILED source -- never silently dropped, and
-        # still there alongside the fallback search results.
+        # model's context as a FAILED source -- never silently dropped. The
+        # accepted plan named that fetch only, so no search substitutes for
+        # it (#342).
         from harness.errors import HarnessError as _HE
         with tempfile.TemporaryDirectory() as tmp:
             agent = self._agent(Path(tmp))
-            with patch("harness.web.find_urls",
-                       return_value=["https://www.anthropic.com/x"]), \
-                 patch("harness.web.fetch_url",
+            with patch("harness.web.fetch_url",
                        side_effect=_HE("web fetch refused: host not allowed")), \
                  patch("harness.web.search_web",
                        return_value=[{"url": "https://www.anthropic.com/x",
-                                      "title": "X", "snippet": "s"}]), \
+                                      "title": "X", "snippet": "s"}]) as ms, \
                  patch("harness.conversation_lifecycle.chat_routed", return_value=(200, self._mock_resp())) as mc, \
                  patch("harness.conversation_lifecycle.governor_for", return_value=(None, MagicMock())):
                 res = agent.run_prompt("https://www.anthropic.com/x",
@@ -720,8 +732,9 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
                 sysmsg = mc.call_args[1]["messages"][0]["content"]
         self.assertIn("FAILED", sysmsg)
         self.assertIn("web fetch refused", sysmsg)
-        self.assertIn("SOURCE (search snippet): X", sysmsg)
-        self.assertTrue(res["web_used"])
+        self.assertNotIn("SOURCE (search snippet)", sysmsg)
+        ms.assert_not_called()
+        self.assertFalse(res["web_used"])
 
     def test_cancel_during_web_gather_raises(self):
         # Cancellation observed at the web-gather checkpoint specifically:
@@ -1029,6 +1042,8 @@ class TestChatDeferral(unittest.TestCase):
                  patch("harness.conversation_lifecycle.governor_for",
                        return_value=(None, MagicMock())), \
                  patch("harness.conversation_lifecycle.ledger_for", return_value=fake_ledger), \
+                 patch("harness.jev_policy.policy_for",
+                       return_value=_accepting_plan_policy()), \
                  patch("harness.web.search_web",
                        return_value=[{"url": "https://www.anthropic.com/rz",
                                       "title": "Riemann", "snippet": "67.2%"}]),                  patch("harness.web.fetch_url",

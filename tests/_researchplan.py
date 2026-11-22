@@ -5,6 +5,8 @@ The hourglass retrieval seam now requires a plan a native judgment accepted
 rendering must supply one, exactly as the lifecycle proposer does at runtime;
 tests that exercise the refusal path pass nothing.
 """
+from types import SimpleNamespace
+
 from harness.research_plan import approval_from_judgment, propose_plan
 
 
@@ -16,6 +18,33 @@ def accepted_plan(prompt, request_id="req-1", confidence=0.9):
         "decision": "accept", "native": True, "confidence": confidence,
         "query_verdicts": [True] * len(plan.queries)})
     return plan, approval
+
+
+class AcceptingPlanPolicy:
+    """A policy double that returns a native accepting plan judgment.
+
+    Lanes that propose their own plan ask this reviewer to judge it. Tests
+    that exercise retrieval need that approval to be native: an unkeyed
+    reviewer closes the path by design, so the double stands in for the
+    reviewer only -- the proposal, the gate and the validation stay real.
+    """
+
+    def __init__(self, decision="accept", native=True, confidence=0.9):
+        self.decision = decision
+        self.native = native
+        self.confidence = confidence
+        self.calls = []
+
+    def evaluate_research_plan(self, state, **kwargs):
+        self.calls.append(dict(state))
+        count = len(state.get("queries") or [])
+        return SimpleNamespace(answers={}), {
+            "cost": 0.0,
+            "native": bool(self.native),
+            "decision": self.decision,
+            "confidence": float(self.confidence),
+            "query_verdicts": [True] * count,
+        }
 
 
 def declined_plan(prompt, request_id="req-1"):
