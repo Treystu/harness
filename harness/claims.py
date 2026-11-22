@@ -141,20 +141,33 @@ def parse_claims(data):
     return context, claims
 
 
-def load_claims_manifest(path):
+def load_manifest_document(path):
+    """Read a manifest as the object it is, before any section is parsed.
+
+    The citation sections (#422) live beside ``claims`` in the same manifest,
+    so the report face needs the whole document and not only the claim half.
+    """
     try:
         # utf-8-sig: handoff manifests authored via PowerShell ``>`` redirects
         # arrive BOM'd; plain utf-8 fails json.load on the leading U+FEFF.
         with open(path, encoding="utf-8-sig") as f:
-            data = json.load(f)
+            return json.load(f)
     except OSError as e:
         raise HarnessError(f"claims manifest not readable: {path} ({e.strerror or e})") from e
     except ValueError as e:
         raise HarnessError(f"claims manifest is not valid JSON: {path} ({e})") from e
+
+
+def parse_manifest_data(data, path=""):
+    """The claim half of an already-read manifest, or a clean HarnessError."""
     try:
         return parse_claims(data)
     except (ValueError, KeyError, TypeError) as e:
         raise HarnessError(f"claims manifest is malformed: {path} ({e})") from e
+
+
+def load_claims_manifest(path):
+    return parse_manifest_data(load_manifest_document(path), path)
 
 
 def curate_claims_from_ledger(entries, *, window=500, max_claims=3):

@@ -146,9 +146,10 @@ except Exception as _bench_import_exc:
 else:
     _bench_import_error = None
 from .claims import (
-    build_claims_prompt, curate_claims_from_ledger, load_claims_manifest,
-    load_definitions_file,
+    build_claims_prompt, curate_claims_from_ledger, load_definitions_file,
+    load_manifest_document, parse_manifest_data,
 )
+from .citation_resolver import audit_report_citations, default_resolver
 from .claims import parse_claims
 from .config import load_settings, shipped_model_ids
 from .cli_parser import build_parser
@@ -449,9 +450,29 @@ def _cmd_brief(opts, settings=None):
     _emit_by_status(out, opts.out)
 
 
+def _citation_resolver():
+    """The registry resolver the report face uses. Tests replace this hook.
+
+    One seam, so the audit can be exercised end to end without a network call
+    and without the test passing its own resolver through the CLI surface.
+    """
+    return default_resolver()
+
+
 def _cmd_lint_claims(opts, settings=None):
-    """Hermetic claim linting: no network, no key. Exits 2 on error issues."""
-    manifest_ctx, claims = load_claims_manifest(opts.claims_file)
+    """Claim linting, and the citation audit when the manifest declares one.
+
+    The claim half stays hermetic: no network, no key. The citation half (#422)
+    runs only when the manifest carries a ``citations`` section, and then it
+    resolves each DOI through the configured registry. A report that declares
+    citations it cannot verify fails this gate -- which is the point: a
+    fabricated DOI used to pass this command with ``ok: true``.
+
+    Exits 2 on error issues or on a report that cannot be labeled
+    citation-verified.
+    """
+    document = load_manifest_document(opts.claims_file)
+    manifest_ctx, claims = parse_manifest_data(document, opts.claims_file)
     quoted = _read_text(opts.source_file, "--source-file")
     defs = load_definitions_file(opts.definitions_file) if opts.definitions_file else {}
     context = opts.claim_context if opts.claim_context is not None else manifest_ctx
@@ -460,13 +481,29 @@ def _cmd_lint_claims(opts, settings=None):
     out = {"ok": report["ok"], "issues": report["issues"],
            "expansions": report["expansions"],
            "window_lines": len(quoted.splitlines()) if quoted.strip() else 0}
+    citations = document.get("citations") if isinstance(document, dict) else None
+    if citations is not None:
+        resolver = (None if getattr(opts, "no_network", False)
+                    else _citation_resolver())
+        audit = audit_report_citations(document, resolver=resolver)
+        out["citation_audit"] = audit
+        out["citation_verified"] = audit["citation_verified"]
+        if not audit["citation_verified"]:
+            out["ok"] = False
+            unresolved = audit.get("unresolved") or []
+            eprint("[claims-lint] ERROR citation-audit: the report cannot be "
+                   f"labeled citation-verified ({len(unresolved)} unresolved; "
+                   f"resolver {audit.get('resolver')})")
+            for item in unresolved[:10]:
+                eprint(f"[claims-lint]   {item.get('kind')} {item.get('id')}: "
+                       f"{item.get('status')} ({', '.join(item.get('reasons') or [])})")
     if opts.show_prompt:
         out["prompt"] = prompt
     _emit(out, opts.out)
     for issue in report["issues"]:
         eprint(f"[claims-lint] {issue['severity'].upper()} "
                f"{issue['code']}: {issue['message']}")
-    if not report["ok"]:
+    if not out["ok"]:
         sys.exit(2)
 
 

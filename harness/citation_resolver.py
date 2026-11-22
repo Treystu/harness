@@ -30,7 +30,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .citation_verify import normalize_doi
+from .citation_verify import audit_citations, normalize_doi
+from .errors import HarnessError
 
 #: Crossref's work endpoint. Named here so a caller can override it, not so the
 #: rest of the module assumes it.
@@ -150,6 +151,60 @@ def crossref_metadata(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     if version:
         metadata["version"] = version
     return metadata
+
+
+def default_resolver(*, contact: str = "",
+                     timeout: float = DEFAULT_TIMEOUT) -> "RegistryResolver":
+    """The resolver a product path uses when the caller supplies none.
+
+    One function instead of a construction site in every caller, so the
+    registry and the contact address are decided in one place. Tests never
+    call this: they inject their own resolver at the call site.
+    """
+    return RegistryResolver(contact=contact, timeout=timeout)
+
+
+#: Sentinel: "the caller said nothing", which means use the real registry.
+#: ``None`` is different -- it means "audit without network", and every DOI
+#: then stays ``not_verifiable`` rather than being looked up.
+_UNSET = object()
+
+
+def audit_report_citations(report: Any, *, resolver: Any = _UNSET,
+                           contact: str = "") -> Dict[str, Any]:
+    """Audit one report's declared bibliography and claim support (#422).
+
+    ``report`` is a mapping with the sections the gate consumes:
+
+    * ``citations`` -- bibliography items (``citation_id``/``id`` + DOI or URL);
+    * ``citation_claims`` -- claims to assess, each with ``source_ids``;
+    * ``sources`` -- retrieved source records admitted by #342/#344;
+    * ``semantic_by_claim`` -- optional advisory Jev support per claim id.
+
+    With ``resolver`` omitted the real Crossref registry answers; pass
+    ``None`` to audit with no network at all. This is the product entry to the
+    network half: the returned ``citation_verified`` flag is the same one
+    ``audit_citations`` computes, so no caller can make a weaker claim than
+    the gate itself does.
+    """
+    if not isinstance(report, Mapping):
+        raise HarnessError(
+            "citation audit: the report must be an object with its citation "
+            "sections")
+    use_default = resolver is _UNSET
+    active = default_resolver(contact=contact) if use_default else resolver
+    audit = audit_citations(
+        report.get("citations") or [],
+        report.get("citation_claims") or [],
+        report.get("sources") or [],
+        resolver=active,
+        semantic_by_claim=report.get("semantic_by_claim") or {},
+    )
+    # State which half answered, so a reader can tell a registry refusal from
+    # an injected answer without guessing.
+    audit["resolver"] = ("crossref" if use_default or isinstance(
+        active, RegistryResolver) else "injected")
+    return audit
 
 
 class RegistryResolver:
