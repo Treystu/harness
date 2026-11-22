@@ -51,6 +51,12 @@ from .orchestrator import keyword_fallback
 from .prompts import CAPABILITY_MARKER
 from .request_intent import no_tools_requested
 from .provider_errors import ProviderSpendLimitError
+from .research_plan import (
+    approval_from_judgment,
+    plan_authorizes_url,
+    propose_plan,
+    validate_plan,
+)
 from .repo_scope import (
     discover_target_files,
     enumerate_repo_files,
@@ -116,7 +122,9 @@ class HourglassLifecycleMixin:
                                   workspace: bool = True,
                                   web_prompt: Optional[str] = None,
                                   session_id: Optional[str] = None,
-                                  jev_policy=None):
+                                  jev_policy=None,
+                                  plan=None, approval=None,
+                                  request_id: str = ""):
         """Gather a bounded, cheap intake brief for a non-edit request.
 
         Intake is local and deterministic: explicit paths win, then filename
@@ -178,6 +186,19 @@ class HourglassLifecycleMixin:
         context = brief.to_prompt_context()[:context_limit]
         web_sources = []
         detour_note = None
+        if web:
+            # #342: the route, the caller's flag and the text heuristics are
+            # proposals only. Without a plan this lane already accepted, no
+            # search, fetch or browser render may run.
+            plan_check = validate_plan(
+                plan, request_id=request_id, prompt=prompt,
+                capabilities=("search", "fetch"), approval=approval)
+            if not plan_check.ok:
+                emit("research_plan_gate", phase="blocked",
+                     code=plan_check.code, lane="hourglass")
+                web = False
+                detour_note = ("blocked: no accepted research plan "
+                               f"({plan_check.code})")
         if web and research_detour_blocked(prompt):
             # #542: the request's end state is an artifact, so web-research
             # planning adds nothing and would consume the run. Record the
@@ -191,7 +212,8 @@ class HourglassLifecycleMixin:
             try:
                 web_sources = self._gather_web_context(
                     web_prompt or prompt, jev_policy=jev_policy,
-                    task_id=session_id)
+                    task_id=session_id, plan=plan, approval=approval,
+                    request_id=request_id)
             except (ToolCancelled, ProviderSpendLimitError):
                 raise
             except Exception as exc:  # context failure must not kill the lane
@@ -200,7 +222,12 @@ class HourglassLifecycleMixin:
             if (is_site_audit_request(web_prompt or prompt)
                     or referential(prompt)):
                 target = extract_site_target(web_prompt or prompt)
-                if target:
+                if target and not plan_authorizes_url(plan, target):
+                    # #342/#426: the direct renderer is its own network path;
+                    # an incidental or quoted URL is not an accepted action.
+                    emit("site_evidence", phase="skipped", url=target,
+                         reason="not_in_accepted_plan")
+                elif target:
                     try:
                         evidence = render_site_evidence(
                             target,
@@ -661,6 +688,69 @@ class HourglassLifecycleMixin:
             if actual != expected:
                 return False
         return True
+    def _research_plan_decision(
+            self, prompt: str, *, policy, request_id: str,
+            task_id: Optional[str] = None, now: Optional[float] = None,
+            capabilities: Tuple[str, ...] = ("search", "fetch"),
+    ) -> Tuple[Optional[Any], Optional[Any], Dict[str, Any]]:
+        """Propose a research plan and band one native judgment on it.
+
+        #342: the proposal is a heuristic and authorizes nothing. Only
+        :meth:`JevPolicy.evaluate_research_plan` can approve, and only a plan
+        that both that judgment and :func:`validate_plan` accept returns an
+        approval. A missing callable, an unkeyed reviewer, a decline or an
+        invalid answer returns ``None`` for the approval, which is what keeps
+        every network path in this lane closed.
+        """
+        proposal, why = propose_plan(
+            prompt, request_id=request_id, capabilities=capabilities)
+        plan_hash = proposal.hash() if proposal is not None else ""
+        record: Dict[str, Any] = {
+            "source": "research_plan_gate",
+            "proposed": proposal is not None,
+            "plan_hash": plan_hash,
+            "request_hash": (proposal.request_hash
+                             if proposal is not None else ""),
+            "state": "invalid",
+            "native": False,
+            "decision": "",
+            "reason": why or "",
+            "cost": 0.0,
+        }
+        if proposal is None:
+            emit("research_plan_gate", phase="blocked", code=why)
+            return None, None, record
+        evaluate = getattr(policy, "evaluate_research_plan", None)
+        if not callable(evaluate):
+            record.update(state="unavailable", reason="policy_missing")
+            emit("research_plan_gate", phase="blocked", code="policy_missing")
+            return proposal, None, record
+        _result, structural = evaluate(
+            proposal.payload(), plan_hash=plan_hash,
+            request_hash=proposal.request_hash,
+            revision=proposal.revision, task_id=task_id)
+        structural = structural if isinstance(structural, dict) else {}
+        approval = approval_from_judgment(
+            proposal, structural,
+            consent_id=f"{request_id}:research-plan",
+            issued_at=float(now if now is not None else time.time()))
+        check = validate_plan(
+            proposal, request_id=request_id, prompt=prompt,
+            capabilities=capabilities, approval=approval, now=now)
+        accepted = bool(check.ok)
+        record.update({
+            "decision": str(approval.decision or ""),
+            "native": bool(approval.native),
+            "state": "accepted" if accepted else "declined",
+            "reason": "" if accepted else f"{check.code}: {check.reason}",
+            "cost": float(structural.get("cost") or 0.0),
+        })
+        emit("research_plan_gate",
+             phase=("accepted" if accepted else "blocked"),
+             code="" if accepted else check.code, plan_hash=plan_hash,
+             native=bool(approval.native), decision=record["decision"])
+        return proposal, (approval if accepted else None), record
+
     def run_hourglass_request(
             self, prompt: str, *, session_id: Optional[str] = None,
             cancel_check=None, web: bool = False,
@@ -900,24 +990,6 @@ class HourglassLifecycleMixin:
         checkpoint["route_preflight"] = route_preflight
         checkpoint["route_request_prompt"] = prompt
         checkpoint["route_recorded_at"] = time.time()
-        if research_plan is not None:
-            # #344: record the plan this decision was made under, with the
-            # receipt that approved it, so a later resume compares both.
-            hasher = getattr(research_plan, "hash", None)
-            checkpoint["approved_plan_hash"] = (
-                str(hasher() or "") if callable(hasher) else "")
-            checkpoint["plan_approval"] = {
-                "decision": str(getattr(plan_approval, "decision", "") or ""),
-                "native": bool(getattr(plan_approval, "native", False)),
-                "plan_hash": str(
-                    getattr(plan_approval, "plan_hash", "") or ""),
-                "request_hash": str(
-                    getattr(plan_approval, "request_hash", "") or ""),
-                "revision": int(
-                    getattr(plan_approval, "revision", 0) or 0),
-                "consent_id": str(
-                    getattr(plan_approval, "consent_id", "") or ""),
-            }
         checkpoint["known_cost"] = round(total_cost, 8)
         selected_workspace = (
             is_workspace_inspection_request(prompt)
@@ -941,6 +1013,58 @@ class HourglassLifecycleMixin:
                 "workspace-inspection", "workspace_inspection"}
                 and self.root_dir is None):
             return self._workspace_context_deferred(prompt, sid)
+        if web and research_plan is None:
+            # #342: route choice only proposes retrieval. The plan is proposed
+            # here, judged once by native Jev, and only acceptance keeps web
+            # on; a decline, an outage or an unkeyed reviewer leaves the lane
+            # at zero search, zero fetch and zero renders.
+            proposed, approval, plan_record = self._research_plan_decision(
+                prompt, policy=policy,
+                request_id=str(lifecycle_state["request_id"]),
+                task_id=sid)
+            total_cost += float(plan_record.get("cost") or 0.0)
+            checkpoint["research_plan_gate"] = plan_record
+            if proposed is not None:
+                research_plan = proposed
+                plan_approval = approval
+            if approval is None:
+                web = False
+        elif web:
+            check = validate_plan(
+                research_plan,
+                request_id=str(lifecycle_state["request_id"]),
+                prompt=prompt, capabilities=("search", "fetch"),
+                approval=plan_approval)
+            checkpoint["research_plan_gate"] = {
+                "source": "research_plan_gate", "proposed": True,
+                "plan_hash": str(getattr(research_plan, "hash", lambda: "")()),
+                "state": "accepted" if check.ok else "declined",
+                "native": bool(getattr(plan_approval, "native", False)),
+                "decision": str(getattr(plan_approval, "decision", "") or ""),
+                "reason": "" if check.ok else f"{check.code}: {check.reason}",
+                "cost": 0.0,
+            }
+            if not check.ok:
+                web = False
+        if research_plan is not None:
+            # #344: record the plan this decision was made under, with the
+            # receipt that approved it, so a later resume compares both.
+            hasher = getattr(research_plan, "hash", None)
+            checkpoint["approved_plan_hash"] = (
+                str(hasher() or "") if callable(hasher) else "")
+            checkpoint["plan_approval"] = {
+                "decision": str(getattr(plan_approval, "decision", "") or ""),
+                "native": bool(getattr(plan_approval, "native", False)),
+                "plan_hash": str(
+                    getattr(plan_approval, "plan_hash", "") or ""),
+                "request_hash": str(
+                    getattr(plan_approval, "request_hash", "") or ""),
+                "revision": int(
+                    getattr(plan_approval, "revision", 0) or 0),
+                "consent_id": str(
+                    getattr(plan_approval, "consent_id", "") or ""),
+            }
+        checkpoint["known_cost"] = round(total_cost, 8)
         checkpoint["web_requested"] = web
         checkpoint["intent"] = intent
         resolved_site = sole_site(memory, session_id=sid)
@@ -1010,7 +1134,9 @@ class HourglassLifecycleMixin:
                 self._hourglass_request_context(
                     prompt, web=web, workspace=workspace_needed,
                     web_prompt=web_prompt, session_id=sid,
-                    jev_policy=policy)
+                    jev_policy=policy, plan=research_plan,
+                    approval=plan_approval,
+                    request_id=str(lifecycle_state["request_id"]))
             context_files = list(file_contents)
             context_tokens = int(brief.estimated_tokens)
             file_hashes = {
@@ -1330,6 +1456,11 @@ class HourglassLifecycleMixin:
                 "source": route_preflight.get("source"),
                 "native": bool(route_preflight.get("native")),
             },
+            # #342: retrieval is reported with the gate that allowed or
+            # blocked it, so a zero-call turn says why it made no call.
+            **({"research_plan": dict(checkpoint["research_plan_gate"])}
+               if isinstance(checkpoint.get("research_plan_gate"), dict)
+               else {}),
             "verification": {
                 "status": ("jev_verified" if status == "ok"
                            and bool((best_envelope or last_envelope or {}).get("confidence", {}).get("passed"))

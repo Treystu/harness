@@ -16,6 +16,8 @@ from harness.config import load_settings
 from harness.conversation_lifecycle import ConversationLifecycleMixin
 from harness.errors import HarnessError, ProviderUsageUnknown, ToolCancelled
 from harness.jev import JevEvaluationResult
+from tests._researchplan import accepted_plan
+
 from harness.jev_policy import (
     RESULT_REJECTED,
     RESULT_RELEVANT,
@@ -426,13 +428,16 @@ class ResultAdmissionTests(unittest.TestCase):
             agent = AutonomousAgent(settings=load_settings(), root_dir=root,
                                     history_dir=root)
             reviewer = _FakeReviewer([], outage=True, reason="spend limit")
+            prompt = "what is alpha beta?"
+            plan, approval = accepted_plan(prompt)
             with mock.patch(
                     "harness.conversation_lifecycle.gather_web_context",
                     return_value=copy.deepcopy(_results()[:1])):
                 context, _files, _brief, sources = \
                     agent._hourglass_request_context(
-                        "what is alpha beta?", web=True, workspace=False,
-                        jev_policy=reviewer)
+                        prompt, web=True, workspace=False,
+                        jev_policy=reviewer, plan=plan, approval=approval,
+                        request_id="req-1")
         self.assertIn("EVIDENCE REVIEW:", context)
         self.assertIn("spend limit", context)
         # No WEB EVIDENCE body and no source URL reached the model.

@@ -15,6 +15,7 @@ from harness.jev_policy import policy_for
 from harness.ledger import AutonomyLedger
 from harness.spend import SpendGovernor
 from tests._fake import FakeTransport
+from tests._researchplan import accepted_plan
 
 
 class _AnswerTransport:
@@ -265,6 +266,13 @@ class _FakePolicy:
             "native": True, "answer_sufficient": sufficient,
             "iteration_required": iteration, "plan_required": plan,
             "cost": 0.001, "input_tokens": 10, "output_tokens": 1,
+        }
+
+    def evaluate_research_plan(self, state, **kwargs):
+        return SimpleNamespace(answers={}), {
+            "cost": 0.0, "native": True, "decision": "accept",
+            "confidence": 0.99,
+            "query_verdicts": [True] * len(state.get("queries") or []),
         }
 
     def evaluate_request_workflow(self, state, **kwargs):
@@ -541,12 +549,15 @@ class HourglassRequestContextTests(unittest.TestCase):
             root = Path(tmp)
             agent = AutonomousAgent(settings=_ladder_settings(),
                                     root_dir=root, history_dir=root)
+            plan, approval = accepted_plan("what is new?")
             with patch.object(agent, "_gather_web_context",
                               return_value=[{"kind": "web", "ok": True,
                                             "url": "https://example.com",
                                             "text": "web evidence body"}]):
                 context, files, brief, web_sources = \
-                    agent._hourglass_request_context("what is new?", web=True)
+                    agent._hourglass_request_context(
+                        "what is new?", web=True, plan=plan,
+                        approval=approval, request_id="req-1")
         self.assertEqual(len(web_sources), 1)
         self.assertIn("WEB EVIDENCE", context)
         self.assertIn("web evidence body", context)
@@ -556,10 +567,13 @@ class HourglassRequestContextTests(unittest.TestCase):
             root = Path(tmp)
             agent = AutonomousAgent(settings=_ladder_settings(),
                                     root_dir=root, history_dir=root)
+            plan, approval = accepted_plan("what is new?")
             with patch.object(agent, "_gather_web_context",
                               side_effect=RuntimeError("network down")):
                 context, files, brief, web_sources = \
-                    agent._hourglass_request_context("what is new?", web=True)
+                    agent._hourglass_request_context(
+                        "what is new?", web=True, plan=plan,
+                        approval=approval, request_id="req-1")
         self.assertEqual(len(web_sources), 1)
         self.assertFalse(web_sources[0]["ok"])
         self.assertIn("RuntimeError", web_sources[0]["note"])
@@ -581,8 +595,12 @@ class HourglassRequestContextTests(unittest.TestCase):
                        return_value=evidence) as render, \
                  patch("harness.hourglass_lifecycle.evidence_summary",
                        return_value="RENDERED EVIDENCE"):
+                prompt = "audit this site https://example.test"
+                plan, approval = accepted_plan(prompt)
                 context, _files, _brief, web_sources = \
-                    agent._hourglass_request_context("audit this site", web=True)
+                    agent._hourglass_request_context(
+                        prompt, web=True, plan=plan, approval=approval,
+                        request_id="req-1")
         render.assert_called_once()
         browser = [s for s in web_sources if s.get("kind") == "browser"]
         self.assertEqual(len(browser), 1)
@@ -603,8 +621,12 @@ class HourglassRequestContextTests(unittest.TestCase):
                        return_value="https://example.test"), \
                  patch("harness.hourglass_lifecycle.render_site_evidence",
                        side_effect=RuntimeError("no browser")):
+                prompt = "audit this site https://example.test"
+                plan, approval = accepted_plan(prompt)
                 _context, _files, _brief, web_sources = \
-                    agent._hourglass_request_context("audit this site", web=True)
+                    agent._hourglass_request_context(
+                        prompt, web=True, plan=plan, approval=approval,
+                        request_id="req-1")
         browser = [s for s in web_sources if s.get("kind") == "browser"]
         self.assertEqual(len(browser), 1)
         self.assertFalse(browser[0]["ok"])

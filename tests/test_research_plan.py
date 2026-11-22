@@ -24,7 +24,10 @@ from harness.research_plan import (
     approved_queries,
     execute_plan,
     goal_from_prompt,
+    goal_urls,
     only_quoted,
+    plan_authorizes_url,
+    propose_plan,
     request_hash_for,
     validate_plan,
 )
@@ -574,6 +577,69 @@ class GatherPlanPathTests(unittest.TestCase):
             extract_query_fn=lambda p: p)
         self.assertEqual(net.searches, ["Rust 1.84 release notes"])
         self.assertTrue(sources)
+
+
+class PlanProposalTests(unittest.TestCase):
+    """#342: proposing is a heuristic draft, and a draft is not approval."""
+
+    def test_a_named_url_becomes_one_exact_fetch_action(self):
+        prompt = "Summarise https://example.test/report today"
+        plan, why = propose_plan(prompt, request_id=REQUEST_ID)
+        self.assertEqual(why, "")
+        self.assertIsNotNone(plan)
+        self.assertEqual([q.url for q in plan.queries],
+                         ["https://example.test/report"])
+        self.assertEqual(plan.capabilities, ("fetch",))
+        self.assertEqual(plan.request_hash, request_hash_for(REQUEST_ID, prompt))
+        self.assertEqual(plan.fallback_policy, "none")
+
+    def test_a_quoted_url_is_not_proposed(self):
+        prompt = ("Explain the outage\n\n> log: https://entire.io failed "
+                  "with zero bytes")
+        plan, why = propose_plan(prompt, request_id=REQUEST_ID)
+        self.assertEqual(why, "")
+        self.assertEqual([q.url for q in plan.queries], [""])
+        self.assertNotIn("entire.io", plan.queries[0].query)
+
+    def test_a_degenerate_goal_is_not_proposed(self):
+        plan, why = propose_plan(" > > > ", request_id=REQUEST_ID)
+        self.assertIsNone(plan)
+        self.assertEqual(why, "goal_too_short")
+
+    def test_the_proposal_declares_only_the_capabilities_it_needs(self):
+        plan, _why = propose_plan("latest Python release",
+                                  request_id=REQUEST_ID)
+        self.assertEqual(plan.capabilities, ("search",))
+        plan, why = propose_plan("https://example.test/x",
+                                 request_id=REQUEST_ID,
+                                 capabilities=("search",))
+        self.assertIsNone(plan)
+        self.assertEqual(why, "capability_missing")
+
+    def test_proposal_alone_authorizes_nothing(self):
+        plan, _why = propose_plan("latest Python release",
+                                  request_id=REQUEST_ID)
+        check = validate_plan(plan, request_id=REQUEST_ID,
+                              prompt="latest Python release",
+                              capabilities=("search",), approval=None)
+        self.assertFalse(check.ok)
+        self.assertEqual(check.code, "approval_missing")
+
+    def test_url_authorization_matches_the_plan_exactly(self):
+        plan, _why = propose_plan("https://example.test/report",
+                                  request_id=REQUEST_ID)
+        self.assertTrue(plan_authorizes_url(plan, "https://example.test/report"))
+        self.assertTrue(plan_authorizes_url(plan, "https://EXAMPLE.test/report/"))
+        self.assertFalse(plan_authorizes_url(plan, "https://example.test/other"))
+        self.assertFalse(plan_authorizes_url(None, "https://example.test/report"))
+
+    def test_goal_urls_keeps_order_and_drops_punctuation(self):
+        self.assertEqual(
+            goal_urls("see https://a.test/x, then https://b.test/y."),
+            ["https://a.test/x", "https://b.test/y"])
+        self.assertEqual(
+            goal_urls("https://a.test/x and https://A.test/x"),
+            ["https://a.test/x"])
 
 
 if __name__ == "__main__":

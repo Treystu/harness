@@ -101,15 +101,17 @@ class _RunCase(unittest.TestCase):
             settings=_settings(), root_dir=self.root,
             transport=FakeTransport(), history_dir=self.root / ".hist")
 
-    def _run(self, prompt, agent=None, **kwargs):
+    def _run(self, prompt, agent=None, policy=None, **kwargs):
         """Run with both internals stubbed, recording the web flag seen."""
         agent = agent or self._agent()
         seen = {}
 
         def fake_context(p, web=False, workspace=False, web_prompt=None,
-                         session_id=None, jev_policy=None):
+                         session_id=None, jev_policy=None, plan=None,
+                         approval=None, request_id=""):
             seen["web"] = web
             seen["workspace"] = workspace
+            seen["plan"] = plan
             return ("ctx", [], SimpleNamespace(estimated_tokens=0), [])
 
         calls = []
@@ -120,7 +122,12 @@ class _RunCase(unittest.TestCase):
 
         with patch.object(agent, "_hourglass_request_context", fake_context), \
              patch.object(agent, "_hourglass_answer_once", fake_answer):
-            result = agent.run_hourglass_request(prompt, **kwargs)
+            if policy is None:
+                result = agent.run_hourglass_request(prompt, **kwargs)
+            else:
+                with patch("harness.hourglass_lifecycle.policy_for",
+                           return_value=policy):
+                    result = agent.run_hourglass_request(prompt, **kwargs)
         return result, seen, calls
 
 
@@ -151,23 +158,63 @@ class RunWallClockTests(_RunCase):
         self.assertTrue(result["stop_reason"])
 
 
-class ResearchQuestionWebRoutingTests(_RunCase):
-    """A research question gathers sources even when the caller did not ask."""
+class _AcceptingPlanPolicy:
+    """Review doubles: web route, accepting plan review, passing answer."""
 
-    def test_a_research_prompt_asks_for_the_web_lane(self):
-        _result, seen, _calls = self._run(
+    def evaluate_request_workflow(self, state, **kwargs):
+        return SimpleNamespace(
+            answers={"workflow_tier": {"choice": "web-research"}},
+            is_fallback=False, cost=0.0, model="jev-test", reasons=[],
+        ), {"cost": 0.0, "native": True}
+
+    def evaluate_research_plan(self, state, **kwargs):
+        return SimpleNamespace(answers={}), {
+            "cost": 0.0, "native": True, "decision": "accept",
+            "confidence": 0.99,
+            "query_verdicts": [True] * len(state.get("queries") or []),
+        }
+
+    def evaluate_answer(self, prompt, answer, context, **kwargs):
+        return SimpleNamespace(
+            answers={"answer_sufficient": {"type": "noul", "noul": 0.995},
+                     "iteration_required": {"type": "noul", "noul": 0.0},
+                     "plan_required": {"type": "noul", "noul": 0.0}},
+            is_fallback=False, verdict="pass", supported=0.995, reasons=[],
+            cost=0.0, model="jev-test"), {
+            "native": True, "cost": 0.0,
+            "answer_sufficient": 0.995, "iteration_required": False,
+            "plan_required": False,
+        }
+
+
+class ResearchQuestionWebRoutingTests(_RunCase):
+    """#342: a research question proposes retrieval; a plan authorizes it."""
+
+    def test_a_research_prompt_proposes_a_plan_for_the_web_lane(self):
+        result, seen, _calls = self._run(
             "can you find news about recent papers on riemann?",
             max_wall_seconds=0.0)
-        self.assertTrue(seen.get("web"))
+        self.assertIsNotNone(seen.get("plan"))
+        self.assertEqual(result["research_plan"]["state"], "declined")
+        self.assertFalse(seen.get("web"),
+                         "an unkeyed reviewer cannot authorize retrieval")
 
     def test_a_plain_question_does_not(self):
         _result, seen, _calls = self._run("2+2", max_wall_seconds=0.0)
         self.assertFalse(seen.get("web"))
+        self.assertIsNone(seen.get("plan"))
 
-    def test_an_explicit_web_request_still_works(self):
+    def test_an_explicit_web_request_asks_for_a_plan(self):
         _result, seen, _calls = self._run("2+2", web=True,
                                           max_wall_seconds=0.0)
+        self.assertIsNotNone(seen.get("plan"))
+
+    def test_an_accepted_plan_opens_the_web_lane(self):
+        _result, seen, _calls = self._run(
+            "can you find news about recent papers on riemann?",
+            policy=_AcceptingPlanPolicy(), max_wall_seconds=0.0)
         self.assertTrue(seen.get("web"))
+        self.assertIsNotNone(seen.get("plan"))
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from harness.errors import HarnessError, ProviderUsageUnknown, ToolCancelled
 from harness.jev import JevEvaluator
 from harness.spend import SpendGovernor
 from tests._fake import FakeTransport, m
+from tests._researchplan import accepted_plan
 
 
 def _body(content="hi", **usage):
@@ -276,11 +277,14 @@ class TestAgentCover(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             agent = self._agent(tmp)
+            prompt = "What is 2+2?"
+            plan, approval = accepted_plan(prompt)
             with mock.patch.object(agent, "_gather_web_context",
                                    side_effect=ToolCancelled("stop")):
                 with self.assertRaises(ToolCancelled):
-                    agent._hourglass_request_context("What is 2+2?",
-                                                     web=True)
+                    agent._hourglass_request_context(
+                        prompt, web=True, plan=plan, approval=approval,
+                        request_id="req-1")
 
     def _hourglass_mocks(self, agent):
         gov = mock.MagicMock()
