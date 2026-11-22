@@ -547,7 +547,9 @@ class HourglassLifecycleMixin:
         return True, "reusable"
 
     def _saved_route_decision_reusable(
-            self, checkpoint: ChatResumePayload, prompt: str
+            self, checkpoint: ChatResumePayload, prompt: str,
+            plan: Optional[Any] = None,
+            approval: Optional[Any] = None,
     ) -> Tuple[bool, str]:
         """Whether a resumed checkpoint's saved route decision still applies.
 
@@ -574,6 +576,49 @@ class HourglassLifecycleMixin:
             return False, "route-request-unknown"
         if _request_identity(recorded) != _request_identity(prompt):
             return False, "request-changed"
+        return self._saved_route_plan_reusable(checkpoint, plan, approval)
+
+    @staticmethod
+    def _saved_route_plan_reusable(
+            checkpoint: ChatResumePayload,
+            plan: Optional[Any], approval: Optional[Any]
+    ) -> Tuple[bool, str]:
+        """Whether the saved decision was made under this accepted plan.
+
+        #344: a routing decision is bound to the request AND to the approved
+        research plan the retrieval was authorized under. A checkpoint that
+        records a plan cannot be reused without that same plan and its native
+        accepting receipt; a checkpoint written before plan binding (no plan
+        field at all) keeps its original, request-only binding, so an existing
+        save does not lose reuse for a field it never had.
+        """
+        saved = str(checkpoint.get("approved_plan_hash") or "")
+        current = ""
+        if plan is not None:
+            hasher = getattr(plan, "hash", None)
+            current = str(hasher() or "") if callable(hasher) else ""
+        if not saved and not current:
+            return True, "reusable"
+        if not saved:
+            # The live request carries an accepted plan the checkpoint never
+            # saw: its route decision did not judge that plan.
+            return False, "plan-unrecorded"
+        if not current:
+            return False, "plan-unknown"
+        if saved != current:
+            return False, "plan-changed"
+        receipt = checkpoint.get("plan_approval")
+        if not isinstance(receipt, dict) or not receipt:
+            return False, "plan-receipt-missing"
+        if not receipt.get("native"):
+            return False, "plan-receipt-not-native"
+        if str(receipt.get("decision") or "") != "accept":
+            return False, "plan-receipt-declined"
+        if str(receipt.get("plan_hash") or "") != saved:
+            return False, "plan-receipt-mismatch"
+        if approval is not None and str(
+                getattr(approval, "plan_hash", "") or "") not in ("", saved):
+            return False, "plan-approval-mismatch"
         return True, "reusable"
 
     def _hourglass_context_matches(self, checkpoint: ChatResumePayload) -> bool:
@@ -627,7 +672,9 @@ class HourglassLifecycleMixin:
             token_budget: Optional[Any] = None,
             max_wall_seconds: Optional[float] = None,
             request_preflight: Optional[Dict[str, Any]] = None,
-            resume_state: Optional[ChatResumePayload] = None) -> Dict[str, Any]:
+            resume_state: Optional[ChatResumePayload] = None,
+            research_plan: Optional[Any] = None,
+            plan_approval: Optional[Any] = None) -> Dict[str, Any]:
         """Run the all-request composition used by external local drivers.
 
         Edit requests enter the existing hourglass plan/executor lane. Direct
@@ -774,7 +821,9 @@ class HourglassLifecycleMixin:
             # A saved routing receipt belongs to the request it judged; only a
             # continuation of that same request may adopt it.
             route_reusable, route_reuse_reason = (
-                self._saved_route_decision_reusable(checkpoint, prompt))
+                self._saved_route_decision_reusable(
+                    checkpoint, prompt, plan=research_plan,
+                    approval=plan_approval))
             route_preflight = (checkpoint.get("route_preflight")
                                if route_reusable else None)
             emit("chat_route", phase="end", reused=route_reusable,
@@ -851,6 +900,24 @@ class HourglassLifecycleMixin:
         checkpoint["route_preflight"] = route_preflight
         checkpoint["route_request_prompt"] = prompt
         checkpoint["route_recorded_at"] = time.time()
+        if research_plan is not None:
+            # #344: record the plan this decision was made under, with the
+            # receipt that approved it, so a later resume compares both.
+            hasher = getattr(research_plan, "hash", None)
+            checkpoint["approved_plan_hash"] = (
+                str(hasher() or "") if callable(hasher) else "")
+            checkpoint["plan_approval"] = {
+                "decision": str(getattr(plan_approval, "decision", "") or ""),
+                "native": bool(getattr(plan_approval, "native", False)),
+                "plan_hash": str(
+                    getattr(plan_approval, "plan_hash", "") or ""),
+                "request_hash": str(
+                    getattr(plan_approval, "request_hash", "") or ""),
+                "revision": int(
+                    getattr(plan_approval, "revision", 0) or 0),
+                "consent_id": str(
+                    getattr(plan_approval, "consent_id", "") or ""),
+            }
         checkpoint["known_cost"] = round(total_cost, 8)
         selected_workspace = (
             is_workspace_inspection_request(prompt)
