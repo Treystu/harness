@@ -163,3 +163,35 @@ This head is therefore green locally and unverified on CI.
 2. Open the draft PR `standup/harness-cure-2026-11-21` -> `main` (branch is
    pushed; PR creation needs the authenticated API).
 3. Read CircleCI statuses on the exact head and land only if green.
+
+## #654 follow-up: the render was executed, and it found a defect
+
+The served-side read above proved the payload and the element, not the label.
+So the real render code in `harness/ui/app.js` (`shortCommit` +
+`loadHarnessIdentity`, cut from the file and executed with only the DOM and the
+network call stubbed) was run in node against a live `python3 -m harness.server`
+instance. First run at `3f2e9eb`:
+
+```
+servedCommit: v0.5.1-200-g3f2e9eb
+renderedText: "Harness v0.5.1 (v0.5.1-)"   <- wrong
+```
+
+`shortCommit` sliced the first 7 characters of the whole `git describe` string.
+Fixed in `c48`-series commit "fix(ui): render the commit from the describe
+suffix": the suffix after `-g` is now extracted (`-dirty` tolerated), a bare
+sha is passed through, anything else is shown whole. Re-run at the fix:
+
+```
+servedVersion: 0.5.1
+servedCommit:  v0.5.1-200-g3f2e9eb-dirty
+renderedText:  "Harness v0.5.1 (3f2e9eb)"
+hidden:        false
+```
+
+`tests/test_ui_identity_654.py` now also pins the describe-suffix extraction
+(6 tests, OK). The verification helper is `.verify/render_check_654.js`, left
+**untracked** on purpose: CI has no node, so it is evidence for this filing
+rather than a suite test. Pixel placement is still unviewed (no browser here);
+what is now verified is that the real client code paints the correct label into
+the served element.
