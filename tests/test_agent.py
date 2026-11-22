@@ -604,7 +604,7 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
         self.assertEqual(res["status"], "ok")
         self.assertIn("SOURCE (fetch) FAILED", sysmsg)
         self.assertIn("web fetch HTTP 503", sysmsg)
-        self.assertIn("SOURCE (search): Riemann", sysmsg)
+        self.assertIn("SOURCE (search snippet): Riemann", sysmsg)
         self.assertIn("bound moved to 67.2%", sysmsg)
 
     def test_web_on_system_prompt_states_capability_not_denial(self):
@@ -720,7 +720,7 @@ class TestWebCapabilityDisclosure(unittest.TestCase):
                 sysmsg = mc.call_args[1]["messages"][0]["content"]
         self.assertIn("FAILED", sysmsg)
         self.assertIn("web fetch refused", sysmsg)
-        self.assertIn("SOURCE (search): X", sysmsg)
+        self.assertIn("SOURCE (search snippet): X", sysmsg)
         self.assertTrue(res["web_used"])
 
     def test_cancel_during_web_gather_raises(self):

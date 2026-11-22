@@ -11,6 +11,7 @@ from .chat_policy import (
     _NO_WEB_DISCLOSURE,
     _SCRIPT_CAPABILITY_NOTE,
     _UNTRUSTED_SCRIPT_NOTE,
+    _EVIDENCE_LEGEND,
     _WEB_CAPABILITY_NOTE,
 )
 from . import script as _script
@@ -30,7 +31,12 @@ from .prompts import CAPABILITY_MARKER
 from .results import _http_error
 from .session import governor_for, ledger_for
 from .token_budget import resolve_lane_max_tokens as _resolve_lane_max_tokens
-from .web import gather_web_context, named_target_hosts, resolve_fetch_allowlist
+from .web import (
+    gather_web_context,
+    named_target_hosts,
+    resolve_fetch_allowlist,
+    source_label,
+)
 
 
 class ConversationLifecycleMixin:
@@ -102,7 +108,7 @@ class ConversationLifecycleMixin:
                 if s.get("ok"):
                     body = (s.get("text") or "")[:_MAX_WEB_CONTEXT_CHARS]
                     context_lines.append(
-                        f"SOURCE ({s['kind']}): {s.get('title') or ''} {s['url']}\n{body}"
+                        f"SOURCE ({source_label(s)}): {s.get('title') or ''} {s['url']}\n{body}"
                     )
                 else:
                     context_lines.append(
@@ -110,7 +116,8 @@ class ConversationLifecycleMixin:
                     )
             if context_lines:
                 system_prompt += (
-                    "\n\n[Web tool results for this turn -- cite only these; do not invent others]\n"
+                    "\n\n[Web tool results for this turn -- cite only these; do not invent others. "
+                    + _EVIDENCE_LEGEND + "]\n"
                     + "\n\n".join(context_lines)
                 )
         else:
