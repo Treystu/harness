@@ -847,15 +847,37 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
     return out
 
 
-def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_any_public=False, named_hosts=None, fetch_url_fn=None, search_web_fn=None, find_urls_fn=None, extract_query_fn=None, max_sources=3):
+def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_any_public=False, named_hosts=None, fetch_url_fn=None, search_web_fn=None, find_urls_fn=None, extract_query_fn=None, max_sources=3, plan=None, approval=None, request_id="", capabilities=None, now=None):
     """Single-owner web evidence gathering for one chat turn.
 
     Fetches allowlisted URLs in the prompt (one per URL, up to max_sources);
     if none succeed, falls back to one search. If search results include
     pages on allowed_hosts, automatically fetches the primary page so deep
     text evidence is available to the model.
+
+    #342: when a ``plan`` is supplied, this function transports only that
+    plan's exact accepted actions (:func:`harness.research_plan.execute_plan`)
+    and never derives a query from the prompt. A plan that is not accepted
+    executes zero searches and zero fetches.
     """
     from typing import Dict, List, Any
+    if plan is not None:
+        from .research_plan import execute_plan
+
+        execution = execute_plan(
+            plan, approval, request_id=request_id, prompt=prompt,
+            capabilities=(capabilities if capabilities is not None
+                          else ("search", "fetch")),
+            search_fn=(search_web_fn if search_web_fn is not None
+                       else search_web),
+            fetch_fn=(fetch_url_fn if fetch_url_fn is not None
+                      else fetch_url),
+            now=now)
+        emit("research_plan_executed", state=execution.state,
+             search_calls=execution.search_calls,
+             fetch_calls=execution.fetch_calls,
+             plan_hash=execution.plan_hash, reason=execution.reason)
+        return [dict(source) for source in execution.sources]
     fetch_fn = fetch_url_fn if fetch_url_fn is not None else fetch_url
     search_fn = search_web_fn if search_web_fn is not None else search_web
     find_fn = find_urls_fn if find_urls_fn is not None else find_urls

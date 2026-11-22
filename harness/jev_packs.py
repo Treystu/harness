@@ -41,6 +41,9 @@ MAX_CONTEXT_PACK_CHARS = 1200
 SITE_REACHABILITY_SITE = "site_reachability"
 REQUEST_WORKFLOW_SITE = "request_workflow"
 ECONOMICS_ROUTE_SITE = "economics_route"
+#: #342: the plan-review seam. Route choice proposes retrieval; this site is
+#: the only place a research plan can be approved.
+RESEARCH_PLAN_SITE = "research-plan"
 
 
 def economics_route_question_pack() -> Dict[str, Dict[str, Any]]:
@@ -728,6 +731,49 @@ def heuristic_result_relevance(prompt: str,
              "reason": ("no native reviewer configured; admitted on the "
                         "query match and the gather-time URL gates")}
             for _item in list(results)[:MAX_RESULT_REVIEW]]
+
+
+def research_plan_question_pack(
+        plan_state: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Noul/choice pack over ONE proposed research plan (#342).
+
+    Code owns the plan, its budget, its request binding and the acceptance
+    rule. Jev owns only the bounded semantic judgment: whether the plan serves
+    the effective goal, and whether each exact query or URL is the right
+    external action. Per-query answers are required -- an incomplete pack is
+    rejected by the caller, never read as approval.
+    """
+    queries = list(plan_state.get("queries") or [])[:4]
+    pack: Dict[str, Dict[str, Any]] = {
+        "plan_decision": {
+            "type": "choice",
+            "instructions": (
+                "Decide whether this retrieval plan should run: `accept` when "
+                "every query is the right external action for the goal, "
+                "`revise` when the plan is close but a query must change, "
+                "`decline` when external retrieval should not happen."),
+            "criteria": {
+                "accept": (
+                    "The exact queries and named pages serve the stated goal "
+                    "and stay within the declared domains and freshness."),
+                "revise": (
+                    "The goal needs retrieval, but at least one exact query "
+                    "or page is wrong; a bounded revision is required."),
+                "decline": (
+                    "The goal is answerable without external retrieval, or "
+                    "the plan would retrieve something unrelated."),
+            },
+        },
+    }
+    for index, query in enumerate(queries):
+        target = str(query.get("url") or query.get("query") or "")[:200]
+        purpose = str(query.get("purpose") or "")[:200]
+        pack[f"query_{index}_relevant"] = _noul(
+            f"Is the exact retrieval {target!r} (purpose: {purpose!r}) "
+            "the right external action for this goal?",
+            "It retrieves evidence the goal needs, within the declared scope.",
+            "It is unrelated, out of scope, or not needed for the goal.")
+    return pack
 
 
 def claim_support_question_pack(n_claims: int) -> Dict[str, Dict[str, Any]]:
