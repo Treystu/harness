@@ -177,8 +177,8 @@ close.
 | Issue | Live state | Dependency / note |
 | --- | --- | --- |
 | [#342](https://github.com/Treystu/harness/issues/342) [research] Implement the missing shared model-proposed ResearchPlan and native Jev review lifecycle | OPEN | register: #345, #346, #324 (closed) |
-| [#343](https://github.com/Treystu/harness/issues/343) [web] Reject unrelated hits individually instead of accepting a mixed target-site result batch | OPEN | register: #342 |
-| [#344](https://github.com/Treystu/harness/issues/344) [lifecycle] Bind resumed web context to the current request and retrieval decision | OPEN | register: #342 |
+| [#343](https://github.com/Treystu/harness/issues/343) [web] Reject unrelated hits individually instead of accepting a mixed target-site result batch | OPEN | PR #647 (`fecc4692`) per-candidate admission; PR #658 (`4fa960ce`) fetched-page subject gate on the final URL plus request-entry coverage of the recorded mixed case. Remaining, named on the issue: the shared native result reviewer for semantic relevance, and an explicit snippet-versus-rendered-evidence distinction. |
+| [#344](https://github.com/Treystu/harness/issues/344) [lifecycle] Bind resumed web context to the current request and retrieval decision | OPEN | PR #648 (`6602e00d`) checkpoint reuse bound to request identity and to a 300 s freshness window on every route. Remaining, named on the issue: a declined-retrieval control, approved-plan/receipt binding (checkpoint schema fields do not exist), saved native-route reuse across a changed request, and a control driven through a public lifecycle adapter. |
 | [#420](https://github.com/Treystu/harness/issues/420) [site] Use the TypeSafe System One contract for route judgments | CLOSED | PR #560 (`22340d87`) |
 
 ### W6 - Spend, routing and calibration - 10 open
