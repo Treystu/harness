@@ -373,6 +373,19 @@ def _candidate_matches_subject(result, label):
     return str(label).lower() in blob.lower()
 
 
+def _final_page_matches_subject(page, subject):
+    """True when a FETCHED page names the subject in its final URL or content.
+
+    Candidate admission judges the search snippet; this asks the same question
+    again after the fetch, against the page the fetch actually landed on and
+    the text it would deliver (#343). A candidate whose page redirects away, or
+    whose page never names the subject, cannot lend its text to that subject.
+    """
+    blob = " ".join(str(page.get(k) or "")
+                    for k in ("url", "title", "text"))
+    return str(subject).lower() in blob.lower()
+
+
 def admit_candidates(query, results):
     """Admit search hits individually against the query's named subject.
 
@@ -720,6 +733,9 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
     extract_fn = extract_query_fn if extract_query_fn is not None else extract_query
     sources: List[Dict[str, Any]] = []
     named = {h.lower() for h in (named_hosts or [])}
+    # A query that names one site has a subject every fetched page must still
+    # name after the fetch; without one the gate stays inert (#343).
+    subject = _subject_core_label(extract_fn(prompt))
     urls = find_fn(prompt)[:max_sources]
     if urls:
         for u in urls:
@@ -779,8 +795,15 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
                                         allow_any_public=True)
                     else:
                         page = fetch_fn(r_url, allowed_hosts=allowed_hosts)
-                    sources.append({"kind": "fetch", "ok": True, "url": page["url"], "title": page["title"], "text": page["text"]})
-                    continue
+                    if subject and not _final_page_matches_subject(page, subject):
+                        # The fetched page (after any redirect) is not about the
+                        # named subject: keep the admitted snippet as the
+                        # evidence instead of promoting unrelated page text.
+                        emit("web_fetch", phase="reject", url=page.get("url"),
+                             reason="off_subject_page")
+                    else:
+                        sources.append({"kind": "fetch", "ok": True, "url": page["url"], "title": page["title"], "text": page["text"]})
+                        continue
                 except ToolCancelled:
                     raise
                 except Exception:
