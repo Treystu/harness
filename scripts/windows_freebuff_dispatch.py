@@ -35,6 +35,7 @@ VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.0.0", [FOCUS, CLICK, TYP
 CONTINUATION = "continue in full"
 COMPOSER = (630, 918, 1550, 1110)
 LANE_NAV = (80, 590, 390, 750)
+SEND_CONTROL = (1480, 1043, 1535, 1100)
 
 
 class Dispatch:
@@ -260,10 +261,50 @@ class Dispatch:
 
     def verify_draft(self, frame):
         self.yes("verify-staged-text", frame,
-                 "Is the only actual user-entered composer text exactly 'continue in full' "
-                 "in lowercase, with no extra text, and is an enabled send button visible? "
-                 "A gray Tab suggestion or placeholder does not count.",
-                 region=COMPOSER)
+                 "Does the visible text read exactly 'continue in full'?",
+                 region=(644, 949, 1040, 1010))
+        self.locate_exact_text("read-exact-draft", frame, CONTINUATION, (644, 949, 1040, 1010))
+
+    def send_draft(self):
+        marker = self.output.parent / "harness-freebuff-315608d2-send-20261122.json"
+        if marker.exists():
+            raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
+        frame = self.frame("lane1-before-send")
+        self.verify_lane(frame)
+        self.verify_draft(frame)
+        self.yes("verify-send-arrow", frame,
+                 "Does this image show a white button containing a black upward arrow?",
+                 region=SEND_CONTROL)
+        left, top, _, _ = SEND_CONTROL
+        crop = frame.crop(SEND_CONTROL).convert("L")
+        box = crop.point(lambda level: 255 if level >= 205 else 0).getbbox()
+        if box is None or not (26 <= box[2] - box[0] <= 47 and 26 <= box[3] - box[1] <= 47):
+            raise RuntimeError("the verified Send button outline could not be located")
+        point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
+        params = {"control": "Lane 1 Send (up arrow)", "point": point, "size": list(frame.size)}
+        with marker.open("x", encoding="utf-8") as handle:
+            json.dump({"thread": "315608d2", "step": "send-once", "text": CONTINUATION,
+                       "evidence": self.output.name}, handle)
+        self.act("send-once", CLICK, params)
+        options = {
+            "running": "A stop square, Cancel, or active response/progress for the latest turn.",
+            "refused": "An explicit platform error or usage-limit notice for the attempted send.",
+            "idle": "An idle composer with no active response and no explicit error.",
+            "unclear": "The response state is unclear.",
+        }
+        for observation, delay in enumerate((1.2, 2.0, 3.0), start=1):
+            time.sleep(delay)
+            frame = self.frame(f"platform-response-{observation}")
+            try:
+                state = self.choose(f"platform-state-{observation}", frame,
+                                    "What does the visible FreeBuff pane show after the send?",
+                                    options, region=(630, 520, 1550, 1115), threshold=0.8)
+            except RuntimeError:
+                continue
+            if state in ("running", "refused"):
+                print(f"Platform state: {state}")
+                return
+        raise RuntimeError("one send dispatched; the bounded observations did not prove running or refusal")
 
     def prepare_draft(self):
         frame = self.frame("lane1-before-draft")
@@ -298,7 +339,7 @@ class Dispatch:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
-    parser.add_argument("--phase", choices=("open", "prepare"), default="open")
+    parser.add_argument("--phase", choices=("open", "prepare", "send"), default="open")
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
     if not key:
@@ -308,8 +349,10 @@ def main():
     try:
         if args.phase == "open":
             dispatch.open_lane()
-        else:
+        elif args.phase == "prepare":
             dispatch.prepare_draft()
+        else:
+            dispatch.send_draft()
     except (OSError, RuntimeError, KeyError, TypeError, ValueError) as error:
         dispatch.audit.append("escalation", step_id="dispatch", reason=str(error))
         print(f"BLOCKED: {error}")
