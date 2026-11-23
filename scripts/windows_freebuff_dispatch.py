@@ -332,8 +332,8 @@ class Dispatch:
         self.require_foreground()
         region = (527, 168, 774, 228)
         self.yes("verify-search-field", frame,
-                 "Are the literal words 'Search chats' visible in the empty search field?",
-                 region=region)
+                 "Does the text say Search chats?",
+                 region=(545, 177, 700, 217))
         point = self.locate_exact_text("locate-search-field", frame, "Search chats", region)
         self.act("focus-search-field", CLICK,
                  {"control": "Search chats field", "point": point, "size": list(frame.size)})
