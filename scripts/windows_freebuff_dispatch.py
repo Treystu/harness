@@ -387,9 +387,15 @@ class Dispatch:
             return
         region = LANE_NAV
         if self.scoped_input:
-            _, y = self.locate_exact_text("locate-selected-lane1", frame, self.label,
-                                          (128, 300, 300, 850))
-            region = (93, y - 22, 365, y + 22)
+            (_, y), box = self.locate_exact_text("locate-selected-lane1", frame, self.label,
+                                                (128, 300, 300, 850), with_bounds=True)
+            gray = frame.convert("L")
+            samples = [gray.getpixel((x, y)) - gray.getpixel((x, y - 23))
+                       for x in (210, 235, 260, 285, 310)]
+            if sum(value >= 10 for value in samples) < 4:
+                raise RuntimeError("the OCR Lane 1 row has no verified selection highlight")
+            self.audit.append("verification", step_id="lane1-selection-highlight", samples=samples)
+            region = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
             profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
             stores = list(profile.glob("*/Local Storage/leveldb/*.log"))
             stores += list(profile.glob("*/Local Storage/leveldb/*.ldb"))
@@ -404,6 +410,8 @@ class Dispatch:
                     continue
             else:
                 raise RuntimeError("Lane 1 UUID absent from recent FreeBuff local state")
+            self.yes("verify-lane1", frame, "Does the printed text read 'Lane 1'?", region=region)
+            return
         self.yes("verify-lane1", frame,
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "in the sidebar? Reject a plain unselected row.",

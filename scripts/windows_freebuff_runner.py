@@ -124,8 +124,8 @@ def publish(output, number):
     return links
 
 
-def run_phases(output, thread, audit):
-    for phase in PHASES:
+def run_phases(output, thread, audit, phases=PHASES):
+    for phase in phases:
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(helper),
@@ -156,7 +156,8 @@ def execute(output, number, mission, digest, bystanders):
         windows.extend((f"bystander-{index}", Bystander(title, freebuff))
                        for index, title in enumerate(bystanders, start=1))
         before = capture_set(output, "before", windows, audit)
-        if not run_phases(output, mission["thread"], audit):
+        phases = ("prepare", "send") if mission.get("resume_inside") else PHASES
+        if not run_phases(output, mission["thread"], audit, phases):
             fallback = mission.get("fallback")
             if not fallback:
                 raise RuntimeError("the requested session is already running")
@@ -195,13 +196,33 @@ def main():
                         help="resume the one-shot demo after a verified pre-input refusal")
     source.add_argument("--resume-selection-cure", action="store_true",
                         help="resume the one-shot demo after the recorded selection refusal")
+    source.add_argument("--resume-highlight-cure", action="store_true",
+                        help="resume after the recorded inside-view refusal")
     parser.add_argument("--wait", type=int, default=120)
     parser.add_argument("--bystander-title", action="append", default=[])
     args = parser.parse_args()
     args.state.mkdir(parents=True, exist_ok=True)
-    if args.oversight_demo or args.resume_before_input or args.resume_selection_cure:
+    if args.oversight_demo or args.resume_before_input or args.resume_selection_cure or args.resume_highlight_cure:
         mission, digest = one_shot_dispatch()
         execution = args.state / str(DEMO_COMMENT)
+        if args.resume_highlight_cure:
+            previous = args.state / f"{DEMO_COMMENT}-selection-cure"
+            prepared = previous / "prepare" / "driver.jsonl"
+            if ((previous / "send").exists() or not prepared.is_file()
+                    or not AuditLog(prepared).verify().ok
+                    or 'verify-lane1: Jev target confidence was 0.34'
+                    not in prepared.read_text(encoding="utf-8")
+                    or any(json.loads(line)["kind"] == "action"
+                           for line in prepared.read_text(encoding="utf-8").splitlines())):
+                parser.error("no verified inside-view refusal to resume")
+            execution = args.state / f"{DEMO_COMMENT}-highlight-cure"
+            try:
+                execution.mkdir()
+            except FileExistsError:
+                parser.error("this highlight cure was already claimed")
+            mission["resume_inside"] = True
+            return execute(execution, f"{DEMO_COMMENT}-highlight-cure", mission, digest,
+                           args.bystander_title)
         if args.resume_selection_cure:
             previous = args.state / f"{DEMO_COMMENT}-pre-input-retry"
             traces = sorted(previous.glob("**/driver.jsonl"))
