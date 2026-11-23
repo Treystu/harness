@@ -191,13 +191,28 @@ def main():
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--since", help="UTC GitHub comment timestamp to watch from")
     source.add_argument("--oversight-demo", action="store_true", help="execute comment 7091945084 once")
+    source.add_argument("--resume-before-input", action="store_true",
+                        help="resume the one-shot demo after a verified pre-input refusal")
     parser.add_argument("--wait", type=int, default=120)
     parser.add_argument("--bystander-title", action="append", default=[])
     args = parser.parse_args()
     args.state.mkdir(parents=True, exist_ok=True)
-    if args.oversight_demo:
+    if args.oversight_demo or args.resume_before_input:
         mission, digest = one_shot_dispatch()
         execution = args.state / str(DEMO_COMMENT)
+        if args.resume_before_input:
+            traces = sorted(execution.glob("**/driver.jsonl"))
+            if (len(traces) != 1 or traces[0].parent.name != "search"
+                    or not AuditLog(traces[0]).verify().ok
+                    or any(json.loads(line)["kind"] == "action"
+                           for line in traces[0].read_text(encoding="utf-8").splitlines())):
+                parser.error("no verified pre-input refusal to resume")
+            execution = args.state / f"{DEMO_COMMENT}-pre-input-retry"
+            try:
+                execution.mkdir()
+            except FileExistsError:
+                parser.error("the bounded pre-input retry was already claimed")
+            return execute(execution, f"{DEMO_COMMENT}-retry", mission, digest, args.bystander_title)
         try:
             (args.state / f"blob-{digest}").mkdir()
             execution.mkdir()

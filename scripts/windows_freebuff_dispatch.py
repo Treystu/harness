@@ -302,8 +302,9 @@ class Dispatch:
         }, region=(488, 150, 1315, 380))
         present = answers["open"]["noul"]
         if present >= 0.9:
-            self.yes("verify-search-close", frame, "Is this a small X close control?",
-                     region=(1249, 177, 1288, 216))
+            self.yes("verify-search-close", frame,
+                     "Do two white diagonal strokes cross to form an X?",
+                     region=(1257, 185, 1278, 207))
             self.act("close-old-search", CLICK,
                      {"control": "FreeBuff search Close", "point": [1269, 197],
                       "size": list(frame.size)})
