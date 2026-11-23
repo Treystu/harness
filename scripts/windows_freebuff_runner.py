@@ -112,12 +112,14 @@ def capture_set(output, phase, windows, audit):
 
 def publish(output, number):
     paths = [output / "runner.jsonl", *sorted(output.glob("**/driver.jsonl")),
+             *sorted(output.glob("t5-*/observe-running/observed-stop.png")),
              *sorted(output.glob("before-*.png")), *sorted(output.glob("after-*.png"))]
     links = []
     for path in paths:
         if not path.is_file():
             continue
-        name = path.name if path.parent == output else "-".join(path.relative_to(output).parts[:-1]) + ".jsonl"
+        parts = path.relative_to(output).parts
+        name = "-".join(parts[:-1]) + ".jsonl" if path.name == "driver.jsonl" else "-".join(parts)
         destination = f"dispatch/laptop-driver/evidence/t8/{number}/{name}"
         receipt = api(f"{LEDGER}/contents/{destination}", method="PUT", body={
             "branch": BRANCH, "message": f"File T8 trace {number} {name}",
@@ -206,6 +208,17 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False):
     return True
 
 
+def observe_bystander(output, audit, phase):
+    folder = output / f"t5-{phase}"
+    folder.mkdir()
+    try:
+        run_phases(folder, THREAD, audit, ("observe-running",), standing=True)
+        return True
+    except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+        audit.append("escalation", step_id=f"t5-{phase}", reason=str(error), target=THREAD)
+        return False
+
+
 def execute(output, number, mission, digest, bystanders):
     audit = AuditLog(output / "runner.jsonl")
     audit.append("decision", step_id="claim", comment=number, thread=mission["thread"], blob=digest)
@@ -228,6 +241,8 @@ def execute(output, number, mission, digest, bystanders):
                        for index, title in enumerate(bystanders, start=1))
         before = capture_set(output, "before", windows, audit)
         phases = ("prepare", "send") if mission.get("resume_inside") else PHASES
+        t5_before = mission.get("standing") and mission["thread"] != THREAD and observe_bystander(
+            output, audit, "before")
         if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False)):
             fallback = mission.get("fallback")
             if not fallback:
@@ -236,6 +251,9 @@ def execute(output, number, mission, digest, bystanders):
             folder.mkdir()
             if not run_phases(folder, fallback, audit):
                 raise RuntimeError("both authorized sessions are already running")
+        if t5_before:
+            paired = observe_bystander(output, audit, "after")
+            audit.append("verification", step_id="t5-pair", target=THREAD, passed=paired)
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         state = f"parked: {error}"
     finally:

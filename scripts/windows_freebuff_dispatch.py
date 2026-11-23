@@ -3,6 +3,7 @@
 import argparse
 import base64
 import ctypes
+import hashlib
 import io
 import json
 import os
@@ -432,17 +433,21 @@ class Dispatch:
                  region=region)
 
     def verify_active_session(self):
-        hwnd = self.require_foreground()
-        helper = Path(__file__).with_name("windows_freebuff_active_session.ps1")
-        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
-                           str(helper), "-Window", str(hwnd)], timeout=8)
-        if not result.ok:
-            raise RuntimeError("the active FreeBuff document identity could not be read")
-        sessions = json.loads(result.stdout)
+        sessions = self.read_app_structure()
         if len(sessions) != 1 or sessions[0].split("-")[0] != self.thread:
             raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
         self.require_foreground()
         self.audit.append("verification", step_id="active-session-id", exact_id=sessions[0])
+
+    def read_app_structure(self, *options):
+        hwnd = self.require_foreground()
+        helper = Path(__file__).with_name("windows_freebuff_active_session.ps1")
+        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+                           str(helper), "-Window", str(hwnd), *options], timeout=8)
+        if not result.ok:
+            raise RuntimeError("the scoped FreeBuff accessibility evidence could not be read")
+        self.require_foreground()
+        return json.loads(result.stdout)
 
     def require_cached_session(self, step, session_id):
         profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
@@ -608,12 +613,42 @@ class Dispatch:
         patch = frame.crop((1501, 1066, 1513, 1078)).convert("L")
         return sum(value < 60 for value in patch.get_flattened_data()) >= 101
 
+    def observe_running(self):
+        if self.thread != THREAD:
+            raise RuntimeError("the separate-lane observation is bound to Lane 1")
+        frame = self.frame("before-bystander-navigation")
+        if self.window.api.foreground() != self.window.handle:
+            self.yes("identify-freebuff-for-observation", frame,
+                     "Does this crop show the Freebuff logo and name?", region=(65, 55, 285, 130))
+            self.act("observation-foreground", FOCUS, {"title": TITLE})
+            frame = self.frame("bystander-navigation")
+        self.require_foreground()
+        point, box = self.locate_exact_text("locate-bystander-lane", frame, "Lane 1",
+                                            (128, 300, 300, 850), with_bounds=True)
+        region = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
+        self.yes("verify-bystander-navigation", frame, "Does the printed text read 'Lane 1'?", region=region)
+        fresh = self.frame("bystander-navigation-readback")
+        if frame.crop(region).tobytes() != fresh.crop(region).tobytes():
+            raise RuntimeError("the bystander navigation row moved before selection")
+        self.act("navigate-to-bystander", CLICK, {
+            "control": "Lane 1 sidebar navigation", "point": point, "size": list(frame.size),
+        })
+        time.sleep(1.5)
+        frame = self.frame("observed-stop")
+        self.verify_lane(frame)
+        if not self.stop_visible(frame):
+            raise RuntimeError("the separate Lane 1 Stop square is absent")
+        self.locate_exact_text("observe-running-queue", frame, QUEUE_PLACEHOLDER, QUEUE_REGION)
+        sha256 = hashlib.sha256((self.output / "observed-stop.png").read_bytes()).hexdigest()
+        self.audit.append("verification", step_id="bystander-stop", stop_cue=True,
+                          thread=self.thread, sha256=sha256)
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
     parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare",
-                                           "send", "steer-prepare", "steer-send"),
+                                           "send", "steer-prepare", "steer-send", "observe-running"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     parser.add_argument("--scoped-input", action="store_true")
@@ -630,6 +665,8 @@ def main():
             if args.thread != THREAD:
                 raise RuntimeError("use verified search for this session")
             dispatch.open_lane()
+        elif args.phase == "observe-running":
+            dispatch.observe_running()
         elif args.phase == "search":
             dispatch.open_search()
         elif args.phase == "query":
