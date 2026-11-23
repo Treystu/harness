@@ -166,7 +166,11 @@ class Dispatch:
         for character in self.text:
             if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
                 raise RuntimeError("the verified composer renderer is no longer available")
-            keyboard.type_text(character)
+            if self.text == DISK_POINTER:
+                if not self.user.PostMessageW(hit, 0x0102, ord(character), 1):
+                    raise RuntimeError("the verified Disk Audit composer refused a character")
+            else:
+                keyboard.type_text(character)
 
     def send(self, action, params):
         if params["thread"] != self.thread or params["text"] != self.text:
@@ -351,7 +355,7 @@ class Dispatch:
 
     def verify_draft(self, frame):
         pointer = self.text == DISK_POINTER
-        region = (644, 900, 1528, 1039) if pointer else (644, 949, 1040, 1010)
+        region = (644, 949, 1528, 1039) if pointer else (644, 949, 1040, 1010)
         try:
             self.locate_exact_text("read-exact-draft", frame, self.text, region, whole=pointer)
         except RuntimeError as error:
@@ -380,7 +384,7 @@ class Dispatch:
         self.act("focus-disk-composer", CLICK,
                  {"control": f"{self.label} composer", "point": point, "size": list(frame.size)})
         self.act("type-d007-pointer", TYPE, {"text": self.text})
-        time.sleep(1.5)
+        time.sleep(3)
         self.verify_draft(self.frame("disk-pointer-staged"))
 
     def send_draft(self):
