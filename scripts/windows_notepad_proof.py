@@ -28,39 +28,63 @@ VOCABULARY = Vocabulary("windows-notepad-proof", "1.0.0", [
 ])
 
 
-def require_new_document():
+def notepad_handles(window):
     processes = osal.run(["tasklist.exe", "/FI", "IMAGENAME eq Notepad.exe", "/FO", "CSV", "/NH"])
     if not processes.ok:
         raise RuntimeError("could not check for an existing Notepad process")
-    if any(row and row[0].casefold() == "notepad.exe"
-           for row in csv.reader(processes.stdout.splitlines())):
-        raise RuntimeError("an existing Notepad process could contain user work")
+    pids = {int(row[1]) for row in csv.reader(processes.stdout.splitlines())
+            if len(row) >= 2 and row[0].casefold() == "notepad.exe"}
+    return window.handles(pids)
 
 
-def wait_for_document(window):
+def run_notepad_controls(hwnd, *arguments):
+    result = osal.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+         str(Path(__file__).with_name("windows_notepad_save.ps1")),
+         "-Window", str(hwnd), *arguments],
+        timeout=15,
+    )
+    if not result.ok:
+        messages = result.stderr.strip().splitlines()
+        raise RuntimeError(result.error or (messages[0] if messages else "Notepad controls failed"))
+
+
+def wait_for_document(window, original, audit):
+    windows = notepad_handles(window)
+    deadline = time.monotonic() + 5
+    while not windows and time.monotonic() < deadline:
+        time.sleep(0.1)
+        windows = notepad_handles(window)
+    if not windows:
+        raise RuntimeError("the launcher did not produce a Notepad window")
+    fresh = [hwnd for hwnd in windows if hwnd not in original and window.is_untitled(hwnd)]
+    if not fresh:
+        run_notepad_controls(windows[0], "-NewWindow")
+        audit.append("action", step_id="launch", action="notepad_new_window",
+                     ok=True, detail="invoked the Notepad-owned New window control")
+        deadline = time.monotonic() + 5
+        while not fresh and time.monotonic() < deadline:
+            fresh = [hwnd for hwnd in notepad_handles(window)
+                     if hwnd not in windows and window.is_untitled(hwnd)]
+            if not fresh:
+                time.sleep(0.1)
+    if len(fresh) != 1:
+        raise RuntimeError("could not identify one fresh untitled Notepad window")
+    window.owner = fresh[0]
+    window.activate(window.owner)
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:
-        try:
-            window.bind_foreground()
-        except RuntimeError:
-            time.sleep(0.1)
-        else:
+        if window.foreground() == window.owner:
             return
-    raise RuntimeError("Notepad did not become the foreground window within 5s")
+        time.sleep(0.1)
+    raise RuntimeError("the fresh Notepad window did not become foreground within 5s")
 
 
 def save_document(window, destination, params):
     window.require_foreground()
     if params["destination"] != f"Desktop\\{FILE_NAME}" or destination.exists():
         raise RuntimeError("the requested destination is unavailable")
-    result = osal.run(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
-         str(Path(__file__).with_name("windows_notepad_save.ps1")),
-         "-Window", str(window.owner), "-Destination", str(destination)],
-        timeout=15,
-    )
-    if not result.ok:
-        raise RuntimeError(result.error or result.stderr.strip().splitlines()[0])
+    run_notepad_controls(window.owner, "-Destination", str(destination))
     for _ in range(30):
         if destination.exists():
             if destination.read_bytes() != TEXT.encode("utf-8"):
@@ -108,9 +132,11 @@ def prove(goal, output, destination, key):
     saved = False
     try:
         with driver.budget.step_scope(step):
+            original_notepad = notepad_handles(window)
             decide_and_act(driver, goal, step, "launch_app", {"app_name": "notepad"},
-                           {"notepad_running": False, "stage": "before launch"})
-            wait_for_document(window)
+                           {"existing_notepad_windows": len(original_notepad),
+                            "stage": "before opening a fresh Notepad document"})
+            wait_for_document(window, original_notepad, audit)
             opened = vision._verify_visibility(
                 "application", "Is Notepad visible with a single blank untitled document "
                 "and no blocking dialog, ready for text entry?",
@@ -143,6 +169,8 @@ def prove(goal, output, destination, key):
         print(f"FAIL {step}: {error}", flush=True)
     finally:
         window.release_foreground()
+        if original_foreground and window.foreground() != original_foreground:
+            window.activate(original_foreground)
         restored = window.foreground() == original_foreground
         audit.append("verification", step_id="restore", passed=restored)
     chain = audit.verify()
@@ -170,7 +198,6 @@ def main():
     if not args.desktop.is_dir() or destination.exists():
         parser.error("the Desktop is unavailable or vision-test.txt already exists")
     try:
-        require_new_document()
         args.evidence.mkdir()
     except (OSError, RuntimeError) as error:
         parser.error(str(error))

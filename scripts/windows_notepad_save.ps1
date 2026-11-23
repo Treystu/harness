@@ -1,4 +1,4 @@
-param([long]$Window, [string]$Destination)
+param([long]$Window, [string]$Destination, [switch]$NewWindow)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 
@@ -24,7 +24,7 @@ function Open-Control($Control) {
     }
 }
 
-if (Test-Path -LiteralPath $Destination) { throw 'The destination already exists.' }
+if (!$NewWindow -and (Test-Path -LiteralPath $Destination)) { throw 'The destination already exists.' }
 $editor = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Window)
 $process = [Diagnostics.Process]::GetProcessById($editor.Current.ProcessId)
 if ($process.ProcessName -ine 'Notepad') { throw 'The bound window is no longer Notepad.' }
@@ -32,12 +32,14 @@ $file = Find-Control $editor 'File' ([Windows.Automation.ControlType]::MenuItem)
 if (!$file) { $file = Find-Control $editor 'File' ([Windows.Automation.ControlType]::Button) }
 if (!$file) { throw 'Could not identify one Notepad File menu.' }
 Open-Control $file
-for ($attempt = 0; $attempt -lt 20 -and !$save; $attempt++) {
-    $save = Find-Control $editor 'Save' ([Windows.Automation.ControlType]::MenuItem)
-    if (!$save) { Start-Sleep -Milliseconds 100 }
+$menuName = if ($NewWindow) { 'New window' } else { 'Save' }
+for ($attempt = 0; $attempt -lt 20 -and !$menuItem; $attempt++) {
+    $menuItem = Find-Control $editor $menuName ([Windows.Automation.ControlType]::MenuItem)
+    if (!$menuItem) { Start-Sleep -Milliseconds 100 }
 }
-if (!$save) { throw 'Could not identify one Notepad Save menu item.' }
-Open-Control $save
+if (!$menuItem) { throw "Could not identify one Notepad $menuName menu item." }
+Open-Control $menuItem
+if ($NewWindow) { exit 0 }
 
 $root = [Windows.Automation.AutomationElement]::RootElement
 $owner = [Windows.Automation.PropertyCondition]::new(

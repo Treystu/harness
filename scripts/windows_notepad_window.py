@@ -4,7 +4,6 @@ import ctypes
 import io
 from ctypes import wintypes
 
-from driver_core import osal
 from driver_core.observation import Capture, fingerprint
 
 
@@ -33,6 +32,14 @@ class NotepadWindow:
             wintypes.DWORD, ctypes.POINTER(GuiThreadInfo))
         self.user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
         self.user.GetAncestor.restype = wintypes.HWND
+        self.user.GetClassNameW.argtypes = (
+            wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+        self.user.GetWindowTextW.argtypes = (
+            wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+        self.user.IsWindowVisible.argtypes = (wintypes.HWND,)
+        self.user.SetForegroundWindow.argtypes = (wintypes.HWND,)
+        self.user.SwitchToThisWindow.argtypes = (wintypes.HWND, wintypes.BOOL)
+        self.user.SwitchToThisWindow.restype = None
         self.user.SendMessageTimeoutW.argtypes = (
             wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
             wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t))
@@ -43,13 +50,35 @@ class NotepadWindow:
     def foreground(self):
         return self.user.GetForegroundWindow()
 
-    def bind_foreground(self):
-        hwnd = self.foreground()
-        fields, _ = osal.describe_screen()
-        app = (fields or {}).get("foreground_app", "").casefold()
-        if not hwnd or app not in ("notepad", "notepad.exe") or hwnd != self.foreground():
-            raise RuntimeError("the foreground window is not Notepad")
-        self.owner = hwnd
+    def handles(self, notepad_pids):
+        handles = []
+        callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        @callback
+        def visit(hwnd, _):
+            pid = wintypes.DWORD()
+            self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value in notepad_pids and self.user.IsWindowVisible(hwnd):
+                name = ctypes.create_unicode_buffer(128)
+                self.user.GetClassNameW(hwnd, name, len(name))
+                if name.value == "Notepad":
+                    handles.append(hwnd)
+            return True
+
+        self.user.EnumWindows.argtypes = (callback, wintypes.LPARAM)
+        if not self.user.EnumWindows(visit, 0):
+            raise RuntimeError("could not enumerate visible Notepad windows")
+        return handles
+
+    def activate(self, hwnd):
+        if self.foreground() != hwnd and not self.user.SetForegroundWindow(hwnd):
+            self.user.SwitchToThisWindow(hwnd, True)
+        return self.foreground() == hwnd
+
+    def is_untitled(self, hwnd):
+        title = ctypes.create_unicode_buffer(256)
+        self.user.GetWindowTextW(hwnd, title, len(title))
+        return title.value.casefold().startswith("untitled")
 
     def require_foreground(self):
         hwnd = self.foreground()
