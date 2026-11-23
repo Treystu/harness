@@ -269,6 +269,7 @@ cheap; losing either is not.
 | `harness/ledger_canary.py` | canary probes on startup, daily 00:00 UTC and six-hour staleness, plus the shared evidence reader that excludes them (#336) |
 | `harness/ledger_sweep.py` | daily sweep scheduler: the due rule (one sweep per UTC day), the persisted checkpoint that makes `harness ledger sweep` a cron-able entrypoint, and `LedgerSweeper`, the timer thread that fires it (#336) |
 | `harness/jev_policy.py` | shared Jev decision policy: bounded packs, spend preflight, ledger evidence, and structural envelopes |
+| `harness/jev_scope.py` | HUL-C mission-scope evaluator family (#309): typed answer readers, the scope determination, state-facts normalization and the fail-closed envelope; the policy class delegates to it and keeps dispatch, spend, settlement and ledger semantics |
 | `harness/adjudication.py` | #453 typed adjudication contract v1: per-claim REAL/NOT_REAL/DEFER verdicts from support/risk against decided thresholds, lexicographic 5-rule aggregation to final PASS/FAIL/DEFER, NON-JEV FALLBACK labeling, advisory inputs structurally unable to override |
 | `harness/simple_request.py` | #207 bounded simple-answer helpers: stable no-tool question boundary, relevant-history slice, prompt builder, and deterministic clock answers; generated answers receive Jev review through the agent |
 | `harness/jev_completion.py` | phase-completion dogfood gate: hard mechanical gates + Jev 0-100 semantic score; STATUS complete only when `can_mark_complete` and score ≥ 85 (`harness jev-phase`) |

@@ -60,8 +60,6 @@ from .jev_packs import (
     VISION_ASSESSMENT_PACK_VERSION,
     VisionAssessmentEnvelope,
     VisionCategoryAssessment,
-    SCOPE_COVERAGE_HOLD,
-    SCOPE_NOUL_HOLD,
     answer_question_pack,
     simple_strategy_question_pack,
     claim_support_question_pack,
@@ -79,7 +77,6 @@ from .jev_packs import (
     heuristic_repo_axes,
     heuristic_requires_iteration,
     heuristic_route,
-    hul_scope_question_pack,
     issue_sort_question_pack,
     request_workflow_question_pack,
     site_reachability_question_pack,
@@ -88,7 +85,6 @@ from .jev_packs import (
     match_completion_keywords,
     match_keywords,
     named_artifact_status,
-    normalize_complexity_class,
     normalize_route,
     repo_summary_question_pack,
     route_question_pack,
@@ -104,13 +100,18 @@ from .jev_packs import (
     vision_assessment_preflight,
     vision_assessment_question_pack,
     sanitize_vision_state,
-    scope_in_scope_holds,
     validate_candidates,
     validate_completion_pack,
     validate_log_pack,
     validate_operator_pack,
     validate_repo_summary_pack,
 )
+
+# #309: the HUL scope evaluator family has its own owner module. The policy
+# class keeps ``evaluate_scope`` and the family's helpers as its
+# compatibility surface, and passes itself to the owner so dispatch,
+# spend, settlement and ledger semantics stay in this one owner.
+from .jev_scope import (evaluate_scope as _evaluate_scope, scope_choice, scope_determination, scope_noul, scope_score, scope_state_facts, scope_text)
 
 # One input budget per judgment. It was 1024 tokens, and the answer field was
 # clipped to 1,800 characters independently of it -- so a complete 4,000-char
@@ -2531,303 +2532,31 @@ class JevPolicy:
             structural["reason"] = str(exc)
             return fallback, structural
 
-    @staticmethod
-    def _scope_noul(answers: Dict[str, Any], key: str) -> Optional[float]:
-        val = (answers or {}).get(key)
-        if isinstance(val, dict) and "noul" in val:
-            try:
-                return float(val["noul"])
-            except (TypeError, ValueError):
-                return None
-        if isinstance(val, bool) or not isinstance(val, (int, float)):
-            return None
-        return float(val)
-
-    @staticmethod
-    def _scope_score(answers: Dict[str, Any], key: str) -> Optional[float]:
-        val = (answers or {}).get(key)
-        if isinstance(val, dict) and "score" in val:
-            try:
-                return float(val["score"])
-            except (TypeError, ValueError):
-                return None
-        if isinstance(val, bool) or not isinstance(val, (int, float)):
-            return None
-        return float(val)
-
-    @staticmethod
-    def _scope_choice(answers: Dict[str, Any], key: str) -> Optional[str]:
-        val = (answers or {}).get(key)
-        if isinstance(val, dict):
-            return normalize_complexity_class(val.get("choice"))
-        return normalize_complexity_class(val)
-
-    @staticmethod
-    def _scope_determination(
-        *,
-        verifier_holds: bool,
-        success_met: Optional[float],
-        coverage: Optional[float],
-        claims: Optional[float],
-        needs_human: Optional[float],
-        complexity: Optional[str],
-        is_fallback: bool,
-        scope_declared: bool,
-        reasons: List[str],
-    ) -> Dict[str, Any]:
-        """HUL-C determination: complete only when every hold is true.
-
-        Unkeyed / fallback evaluations may NEVER alone mark complete.
-        """
-        success_ok = (
-            success_met is not None
-            and success_met >= SCOPE_NOUL_HOLD
-            and not is_fallback
-        )
-        claims_ok = (
-            claims is not None
-            and claims >= SCOPE_NOUL_HOLD
-            and not is_fallback
-        )
-        coverage_ok = (
-            coverage is not None
-            and coverage >= SCOPE_COVERAGE_HOLD
-            and not is_fallback
-        )
-        human_clear = (
-            needs_human is None
-            or needs_human < SCOPE_NOUL_HOLD
-        )
-        scope_holds = bool(
-            scope_declared and coverage_ok and claims_ok and human_clear
-        )
-        complete = bool(
-            verifier_holds
-            and success_ok
-            and scope_holds
-            and not is_fallback
-        )
-        out_reasons = list(reasons)
-        if not scope_declared:
-            out_reasons.append("missing scope.in_scope — cannot complete")
-        if is_fallback:
-            out_reasons.append(
-                "unkeyed fallback cannot alone mark mission complete")
-        if verifier_holds is False:
-            out_reasons.append("verifier does not hold")
-        if success_met is not None and success_met < SCOPE_NOUL_HOLD:
-            out_reasons.append("success_definition_met is low")
-        if claims is not None and claims < SCOPE_NOUL_HOLD:
-            out_reasons.append("claims_supported is low")
-        if coverage is not None and coverage < SCOPE_COVERAGE_HOLD:
-            out_reasons.append("scope_coverage is low")
-        if needs_human is not None and needs_human >= SCOPE_NOUL_HOLD:
-            out_reasons.append("needs_human is true")
-        return {
-            "complete": complete,
-            "verifier_holds": bool(verifier_holds),
-            "success_definition_met": success_ok,
-            "scope_holds": scope_holds,
-            "scope_coverage": coverage,
-            "claims_supported": claims,
-            "needs_human": (
-                None if needs_human is None
-                else bool(needs_human >= SCOPE_NOUL_HOLD)),
-            "complexity_class": complexity,
-            "is_fallback": bool(is_fallback),
-            "site": HUL_SCOPE_SITE,
-            "reasons": out_reasons,
-        }
-
-    @staticmethod
-    def _scope_text(state: Any) -> str:
-        if isinstance(state, str):
-            return state
-        if isinstance(state, dict):
-            for key in ("evidence_summary", "state_summary", "request",
-                        "text", "prompt"):
-                value = state.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value
-            return ""
-        return "" if state is None else str(state)
-
-    @staticmethod
-    def _scope_state_facts(state: Any) -> Dict[str, Any]:
-        if not isinstance(state, dict):
-            return {
-                "mission_id": None,
-                "request": "",
-                "success_definition": "",
-                "scope": {"in_scope": [], "out_of_scope": []},
-                "verifier_holds": False,
-                "evidence_summary": JevPolicy._scope_text(state),
-            }
-        scope = state.get("scope")
-        if not isinstance(scope, dict):
-            scope = {"in_scope": [], "out_of_scope": []}
-        in_scope = scope.get("in_scope")
-        out_scope = scope.get("out_of_scope")
-        return {
-            "mission_id": state.get("mission_id"),
-            "request": str(state.get("request") or ""),
-            "success_definition": str(state.get("success_definition") or ""),
-            "scope": {
-                "in_scope": list(in_scope) if isinstance(in_scope, (list, tuple)) else [],
-                "out_of_scope": list(out_scope) if isinstance(out_scope, (list, tuple)) else [],
-            },
-            "verifier_holds": bool(state.get("verifier_holds", False)),
-            "evidence_summary": JevPolicy._scope_text(state),
-        }
+    # #309: the HUL scope evaluator family is owned by harness/jev_scope.py.
+    # The class keeps these names -- the owner's own functions, by identity --
+    # for the callers and tests that reach the family through JevPolicy.
+    _scope_noul = staticmethod(scope_noul)
+    _scope_score = staticmethod(scope_score)
+    _scope_choice = staticmethod(scope_choice)
+    _scope_determination = staticmethod(scope_determination)
+    _scope_text = staticmethod(scope_text)
+    _scope_state_facts = staticmethod(scope_state_facts)
 
     def evaluate_scope(self, mission_state, *, site: str = HUL_SCOPE_SITE,
                        task_id: Optional[str] = None,
                        node_id: Optional[str] = None,
                        max_input_tokens: int = JEV_MAX_INPUT_TOKENS):
-        """HUL-C: mission scope gate via the ONE policy owner.
+        """HUL-C: mission scope gate -- delegated to the family owner.
 
-        Determination contract:
-        - complete only if verifier_holds AND success_definition_met AND
-          scope hold (declared in_scope + coverage + claims + no human block)
-        - unkeyed / fallback may NOT alone mark complete
-        - missing scope or low success → complete false
-        - ledger gets one ``jev_eval``; mission packs store the same via
-          ``mission_record.append_jev_eval`` (no second Jev client)
-
-        Returns ``(result, structural, determination)``.
+        This method is the construction path the callers already use; the
+        typed inputs, the determination and the fail-closed envelope live in
+        :func:`harness.jev_scope.evaluate_scope`. The policy instance is
+        passed in, so dispatch, spend, settlement and ledger semantics stay
+        in this one owner.
         """
-        facts = self._scope_state_facts(mission_state)
-        scope_declared = scope_in_scope_holds(facts["scope"])
-        payload = {
-            "mission_id": facts["mission_id"],
-            "request": facts["request"],
-            "success_definition": facts["success_definition"],
-            "scope": facts["scope"],
-            "evidence_summary": facts["evidence_summary"][:4000],
-            "verifier_holds": facts["verifier_holds"],
-        }
-        questions = hul_scope_question_pack()
-
-        if not self.keyed:
-            answers = {
-                "scope_coverage": {"type": "score", "score": 0.0},
-                "success_definition_met": {"type": "noul", "noul": 0.0},
-                "claims_supported": {"type": "noul", "noul": 0.0},
-                "needs_human": {"type": "noul", "noul": 0.0},
-                "complexity_class": {"type": "choice", "choice": None},
-            }
-            determination = self._scope_determination(
-                verifier_holds=facts["verifier_holds"],
-                success_met=0.0,
-                coverage=0.0,
-                claims=0.0,
-                needs_human=0.0,
-                complexity=None,
-                is_fallback=True,
-                scope_declared=scope_declared,
-                reasons=["unkeyed: scope pack not evaluated live"],
-            )
-            result = JevEvaluationResult(
-                "fail" if not determination["complete"] else "pass",
-                0.0, 0.0, answers, determination["reasons"],
-                is_fallback=True, model=self.evaluator.model,
-                fallback_reason=("explicit_disable"
-                                 if getattr(self.evaluator,
-                                            "explicitly_disabled", False)
-                                 else "missing_key"))
-            structural = self._account(
-                result, site=site, task_id=task_id, node_id=node_id)
-            structural["determination"] = determination
-            return result, structural, determination
-
-        reservation = None
-        try:
-            reservation = self._preflight(
-                site=site, max_input_tokens=max_input_tokens)
-            result = self.evaluator.evaluate(payload, questions)
-            answers = dict(result.answers or {}) if isinstance(result.answers, dict) else {}
-            is_fallback = bool(result.is_fallback)
-            coverage = self._scope_score(answers, "scope_coverage")
-            success_met = self._scope_noul(answers, "success_definition_met")
-            claims = self._scope_noul(answers, "claims_supported")
-            needs_human = self._scope_noul(answers, "needs_human")
-            complexity = self._scope_choice(answers, "complexity_class")
-            if is_fallback:
-                # Transport/fallback: never allow complete from unkeyed path.
-                success_met = min(success_met, 0.0) if success_met is not None else 0.0
-                coverage = min(coverage, 0.0) if coverage is not None else 0.0
-                claims = min(claims, 0.0) if claims is not None else 0.0
-            determination = self._scope_determination(
-                verifier_holds=facts["verifier_holds"],
-                success_met=success_met,
-                coverage=coverage,
-                claims=claims,
-                needs_human=needs_human,
-                complexity=complexity,
-                is_fallback=is_fallback,
-                scope_declared=scope_declared,
-                reasons=list(result.reasons or []),
-            )
-            normalized = dict(answers)
-            normalized["scope_coverage"] = coverage
-            normalized["success_definition_met"] = success_met
-            normalized["claims_supported"] = claims
-            normalized["needs_human"] = determination["needs_human"]
-            normalized["complexity_class"] = complexity
-            normalized["determination"] = determination
-            verdict = "pass" if determination["complete"] else "fail"
-            supported = min(
-                [x for x in (success_met, claims, coverage) if x is not None]
-                or [0.0])
-            result = JevEvaluationResult(
-                verdict,
-                float(result.confidence or 0.0),
-                float(supported),
-                normalized,
-                determination["reasons"] or list(result.reasons or []),
-                cost=result.cost,
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens,
-                is_fallback=is_fallback,
-                model=result.model,
-                discarded=result.discarded,
-                cache_hit=result.cache_hit,
-                fallback_reason=result.fallback_reason)
-            structural = self._account(
-                result, site=site, task_id=task_id, node_id=node_id,
-                reservation=reservation)
-            structural["determination"] = determination
-            return result, structural, determination
-        except ProviderUsageUnknown as exc:
-            self._settle_cancelled(reservation, exc)
-            raise
-        except ToolCancelled as exc:
-            self._settle_cancelled(reservation, exc)
-            raise
-        except ProviderSpendLimitError as exc:
-            self._release_after_provider_limit(reservation, exc, task_id=task_id)
-            raise
-        except HarnessError as exc:
-            self._release(reservation)
-            determination = self._scope_determination(
-                verifier_holds=facts["verifier_holds"],
-                success_met=0.0,
-                coverage=0.0,
-                claims=0.0,
-                needs_human=0.0,
-                complexity=None,
-                is_fallback=True,
-                scope_declared=scope_declared,
-                reasons=[str(exc), "scope evaluation failed closed"],
-            )
-            fallback = JevEvaluationResult(
-                "fail", 0.0, 0.0, {}, determination["reasons"],
-                is_fallback=True, model=self.evaluator.model,
-                fallback_reason=_refusal_reason(exc))
-            structural = self._account(fallback, site=site, task_id=task_id)
-            structural["determination"] = determination
-            structural["reason"] = str(exc)
-            return fallback, structural, determination
+        return _evaluate_scope(
+            self, mission_state, site=site, task_id=task_id, node_id=node_id,
+            max_input_tokens=max_input_tokens, refusal_reason=_refusal_reason)
 
     @staticmethod
     def _issue_sort_text(state: Any) -> str:
