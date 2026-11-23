@@ -464,6 +464,18 @@ class Dispatch:
         if not self.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
             raise RuntimeError("the renderer rejected scrolling")
 
+    def click_exact_row(self, step, frame, row):
+        """Click one row already chose from a settled census."""
+        point = [round((row["x"] + row["x1"]) / 2), round(row["y"] + 8)]
+        scope = (round(row["x"] - 6), round(row["y"] - 4),
+                 round(row["x1"] + 6), round(row["y"] + 20))
+        fresh = self.frame(f"{step}-readback")
+        if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
+            raise RuntimeError(f"{step}: the settled row moved before the click")
+        self.act(step, CLICK, {"control": f"session row {row['text']}", "point": point,
+                               "size": list(frame.size)})
+        return row
+
     def click_roster_row(self, step, frame, rows, label):
         matches = [row for row in rows if self.row_matches(row["text"], label)]
         if len(matches) != 1:
@@ -637,23 +649,23 @@ class Dispatch:
         self.audit.append("verification", step_id="prefix-unique", label=self.label,
                           row=name, page=page)
         frame = self.scroll_sidebar_to_top()
-        for index in range(1, page + 1):
+        # Page boundaries drift between walks (measured: the candidate was one
+        # page past where the first walk found it), so the re-walk looks for the
+        # row from the top through one page beyond the recorded one.
+        for index in range(1, min(page + 2, 9)):
             frame, rows = self.settled_roster(f"prefix-pick-{index}", SIDEBAR, attempts=4)
-            if index < page:
-                if not self.scroll_by(f"prefix-pick-scroll-{index}", frame, [196, 850], -400):
-                    frame = self.frame(f"prefix-pick-{index}-recapture")
-                time.sleep(0.9)
-                frame = self.frame(f"prefix-pick-{index}-after")
-                continue
             row = next((candidate for candidate in rows
                         if self._norm(candidate["text"]) == self._norm(name)), None)
-            if row is None:
-                self.audit.append("escalation", step_id="prefix-pick", row=name,
-                                  reason="the candidate row was not on its page when re-walked")
-                return False
-            self.click_roster_row("prefix-pick", frame, rows, name)
-            time.sleep(1.2)
-            return True
+            if row is not None:
+                self.click_exact_row("prefix-pick", frame, row)
+                time.sleep(1.2)
+                return True
+            if not self.scroll_by(f"prefix-pick-scroll-{index}", frame, [196, 850], -400):
+                frame = self.frame(f"prefix-pick-{index}-recapture")
+            time.sleep(0.9)
+            frame = self.frame(f"prefix-pick-{index}-after")
+        self.audit.append("escalation", step_id="prefix-pick", row=name,
+                          reason="the candidate row was not on any page when re-walked")
         return False
 
     def identify_by_route(self, limit=8):
@@ -700,7 +712,7 @@ class Dispatch:
                     return False
                 limit -= 1
                 try:
-                    self.click_roster_row(f"identify-{page}-{index}", frame, row, index)
+                    self.click_exact_row(f"identify-{page}-{index}", frame, row)
                 except RuntimeError as error:
                     self.audit.append("escalation", step_id=f"identify-{page}-{index}",
                                       reason=str(error))
