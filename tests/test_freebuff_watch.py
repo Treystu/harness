@@ -6,6 +6,7 @@ import pytest
 from driver_core.audit import AuditLog
 from scripts import windows_freebuff_t4 as census
 from scripts import windows_freebuff_watch as watch
+from scripts import windows_freebuff_runner as runner
 
 
 def test_legacy_census_pause_does_not_block_queue(monkeypatch):
@@ -40,6 +41,15 @@ def test_owner_pause_preempts_any_admission(monkeypatch):
 
     write.assert_called_once_with("owner-paused.json", {"dispatch": 123, "state": "owner-paused"})
     run.assert_not_called()
+
+
+def test_github_response_uses_utf8(monkeypatch):
+    result = Mock(returncode=0, stdout='{"body":"RESTART — ready"}')
+    run = Mock(return_value=result)
+    monkeypatch.setattr(runner.subprocess, "run", run)
+
+    assert runner.api("example") == {"body": "RESTART — ready"}
+    assert run.call_args.kwargs["encoding"] == "utf-8"
 
 
 def test_interrupted_items_skip_to_next_unclaimed_row(monkeypatch, tmp_path):
