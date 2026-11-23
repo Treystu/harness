@@ -246,15 +246,17 @@ class Dispatch:
             raise RuntimeError(f"{step}: Jev choice {selected!r} confidence was {probability}")
         return selected
 
-    def locate_exact_text(self, step, frame, label, region):
+    def locate_exact_text(self, step, frame, label, region, *, whole=False):
         left, top, right, bottom = region
         crop = frame.crop(region).resize(((right - left) * 3, (bottom - top) * 3))
         path = self.output / f"{step}-ocr.png"
         self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
-        result = osal.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
-             str(Path(__file__).with_name("windows_ocr_exact.ps1")),
-             "-Path", str(path), "-Label", label], timeout=8)
+        command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+                   str(Path(__file__).with_name("windows_ocr_exact.ps1")),
+                   "-Path", str(path), "-Label", label]
+        if whole:
+            command.append("-WholeText")
+        result = osal.run(command, timeout=8)
         if not result.ok:
             raise RuntimeError(f"{step}: exact OCR label {label!r} was not verified")
         point = json.loads(result.stdout)
@@ -348,19 +350,38 @@ class Dispatch:
                  region=LANE_NAV)
 
     def verify_draft(self, frame):
-        region = (644, 949, 1040, 1010)
+        pointer = self.text == DISK_POINTER
+        region = (644, 900, 1528, 1039) if pointer else (644, 949, 1040, 1010)
         try:
-            self.locate_exact_text("read-exact-draft", frame, self.text, region)
+            self.locate_exact_text("read-exact-draft", frame, self.text, region, whole=pointer)
         except RuntimeError as error:
             self.audit.append("extraction", step_id="read-exact-draft", ok=False, reason=str(error))
             time.sleep(0.4)  # A blinking caret can obscure the last OCR glyph.
             frame = self.frame("draft-ocr-retry")
             self.verify_lane(frame)
-            self.locate_exact_text("read-exact-draft-retry", frame, self.text, region)
+            self.locate_exact_text("read-exact-draft-retry", frame, self.text, region, whole=pointer)
         self.yes("verify-staged-text", frame,
-                 f"Does the visible text read exactly '{self.text}'?",
+                 ("Is this user-entered text a D-007 mission pointer?" if pointer else
+                  f"Does the visible text read exactly '{self.text}'?"),
                  region=region)
         return frame
+
+    def prepare_pointer(self):
+        self.text = DISK_POINTER
+        self.goal = "Steer the running verified Disk Audit session to the pinned D-007 artifact."
+        frame = self.frame("disk-before-steering")
+        self.verify_lane(frame)
+        region = (645, 944, 1170, 1015)
+        self.yes("verify-disk-queue", frame,
+                 "Does the empty composer placeholder say 'added to the queue'?",
+                 region=region)
+        point = self.locate_exact_text("locate-empty-queue", frame,
+                                       "Type a message — added to the queue", region)
+        self.act("focus-disk-composer", CLICK,
+                 {"control": f"{self.label} composer", "point": point, "size": list(frame.size)})
+        self.act("type-d007-pointer", TYPE, {"text": self.text})
+        time.sleep(1.5)
+        self.verify_draft(self.frame("disk-pointer-staged"))
 
     def send_draft(self):
         marker = self.output.parent / f"harness-freebuff-{self.thread}-send-20261122.json"
@@ -437,7 +458,8 @@ class Dispatch:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
-    parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare", "send"),
+    parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare",
+                                           "send", "steer-prepare"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     args = parser.parse_args()
@@ -457,6 +479,10 @@ def main():
             dispatch.search_for_session()
         elif args.phase == "select":
             dispatch.select_search_result()
+        elif args.phase == "steer-prepare":
+            if args.thread != DISK_THREAD:
+                raise RuntimeError("D-007 steering is authorized only for Disk Audit")
+            dispatch.prepare_pointer()
         elif args.phase == "prepare":
             if args.thread == SCM_THREAD:
                 raise RuntimeError("the session composer must be scoped before preparing a draft")

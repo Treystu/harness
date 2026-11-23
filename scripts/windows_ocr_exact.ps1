@@ -1,4 +1,4 @@
-param([string]$Path, [string]$Label)
+param([string]$Path, [string]$Label, [switch]$WholeText)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType=WindowsRuntime]
@@ -25,9 +25,14 @@ try {
         $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
         if (!$engine) { throw 'Windows OCR has no available language.' }
         $result = Await-Operation ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
-        $matches = @($result.Lines | Where-Object { $_.Text.Trim() -ceq $Label })
-        if ($matches.Count -ne 1) { throw "Expected one OCR line with the requested label; found $($matches.Count)." }
-        $rects = @($matches[0].Words | ForEach-Object { $_.BoundingRect })
+        if ($WholeText) {
+            $matches = @($result.Lines)
+            if (($matches.Text -join ' ').Trim() -cne $Label) { throw 'OCR text differed from the requested message.' }
+        } else {
+            $matches = @($result.Lines | Where-Object { $_.Text.Trim() -ceq $Label })
+            if ($matches.Count -ne 1) { throw "Expected one OCR line with the requested label; found $($matches.Count)." }
+        }
+        $rects = @($matches | ForEach-Object { $_.Words } | ForEach-Object { $_.BoundingRect })
         $left = ($rects.X | Measure-Object -Minimum).Minimum
         $top = ($rects.Y | Measure-Object -Minimum).Minimum
         $right = ($rects | ForEach-Object { $_.X + $_.Width } | Measure-Object -Maximum).Maximum
