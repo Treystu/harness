@@ -549,14 +549,26 @@ class Dispatch:
         frame = self.ensure_search_closed(self.frame("freebuff-before-search-reset"))
         region = (296, 75, 333, 104)
         left, top, _, _ = region
-        pixels = frame.crop(region).convert("L")
-        box = pixels.point(lambda level: 255 if level >= 140 else 0).getbbox()
-        if box is None or not (8 <= box[2] - box[0] <= 25 and 8 <= box[3] - box[1] <= 25):
-            raise RuntimeError("the verified Search icon outline could not be located")
-        point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
-        self.act("open-session-search", CLICK,
-                 {"control": "FreeBuff session search", "point": point, "size": list(frame.size)})
-        frame = self.wait_dialog(True)
+        for attempt in (1, 2):
+            pixels = frame.crop(region).convert("L")
+            box = pixels.point(lambda level: 255 if level >= 140 else 0).getbbox()
+            if box is None or not (8 <= box[2] - box[0] <= 25 and 8 <= box[3] - box[1] <= 25):
+                raise RuntimeError("the verified Search icon outline could not be located")
+            point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
+            self.act(f"open-session-search-{attempt}", CLICK,
+                     {"control": "FreeBuff session search", "point": point,
+                      "size": list(frame.size)})
+            try:
+                frame = self.wait_dialog(True, seconds=8)
+                break
+            except RuntimeError:
+                # A toggle that closed a stale dialog reads the same as one that
+                # failed to open it; one more verified click settles which it was.
+                self.audit.append("escalation", step_id=f"open-session-search-{attempt}",
+                                  reason="the dialog was not open after the click")
+                frame = self.frame(f"search-open-retry-{attempt}")
+        else:
+            raise RuntimeError("the search dialog did not open after two verified search clicks")
 
     def wait_dialog(self, open_state, seconds=4):
         """Poll the dialog state until it matches, then return that frame."""
@@ -571,8 +583,23 @@ class Dispatch:
             time.sleep(0.5)
             frame = self.frame("dialog-wait-again")
 
+    def cross_glyph(self, frame):
+        """The dialog's own close control: a small four-cornered X in its header."""
+        cross = frame.crop(SEARCH_CLOSE).convert("L").point(lambda level: 255 if level > 160 else 0)
+        box = cross.getbbox()
+        if not box:
+            return False
+        x, y, right, bottom = box
+        if not (8 <= right - x <= 16 and 8 <= bottom - y <= 16):
+            return False
+        return all(cross.crop(corner).getbbox() for corner in (
+            (x, y, x + 3, y + 3), (right - 3, y, right, y + 3),
+            (x, bottom - 3, x + 3, bottom), (right - 3, bottom - 3, right, bottom)))
+
     def dialog_open(self, frame):
-        """The dialog's own placeholder text is the state, not a model opinion."""
+        """The dialog's own text and close control are the state, not a model opinion."""
+        if self.cross_glyph(frame):
+            return True
         for step, label, region in (("probe-search-placeholder", "Search chats", SEARCH_PLACEHOLDER),
                                     ("probe-search-placeholder-tail", "chats", SEARCH_PLACEHOLDER_TAIL)):
             try:
