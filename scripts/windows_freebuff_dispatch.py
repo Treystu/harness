@@ -269,24 +269,22 @@ class Dispatch:
         frame = self.frame("lane1-before-draft")
         self.verify_lane(frame)
         route = self.choose("composer-route", frame,
-                            "Which exact state is visible in the existing Lane 1 pane?", {
-                                "staged": "The composer already contains exactly the user-entered"
-                                          " text 'continue in full' and an enabled send button.",
-                                "empty": "The editor is empty with only a dim Tab suggestion"
-                                         " and a microphone button. Resume mission is absent.",
-                                "resume": "There is a Resume mission control.",
-                                "stop": "A turn is active, there is other user-entered text,"
-                                        " or the composer is unclear.",
-                            }, region=(626, 633, 1550, 1110))
+                            "Read the controls in this composer screenshot. Which is visible?", {
+                                "staged": "Solid lowercase text 'continue in full' with"
+                                          " an up-arrow send button.",
+                                "empty": "Dim suggestion text with a small visible Tab badge"
+                                         " below it and a waveform icon at lower right.",
+                                "resume": "A button labeled Resume mission.",
+                                "stop": "A stop square, an unrelated draft, or no recognizable state.",
+                            }, region=COMPOSER)
         if route == "staged":
             self.verify_draft(frame)
             return
         if route != "empty":
             raise RuntimeError(f"composer-route: stopped on {route!r} without typing")
         self.yes("verify-empty-editor", frame,
-                 "Does this image show the text entry area of a message composer, "
-                 "with a dim Tab suggestion and a white voice waveform button?",
-                 region=COMPOSER)
+                 "Is there a small button or badge labeled Tab below the gray text?",
+                 region=(642, 937, 1195, 1048))
         point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
         point[1] -= 32
         self.act("focus-lane1-composer", CLICK,
