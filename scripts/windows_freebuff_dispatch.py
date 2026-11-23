@@ -565,6 +565,27 @@ class Dispatch:
         return heading
 
     @classmethod
+    def session_candidates(cls, rows, label, project):
+        """Rows that are the session, and the project heading if it collided.
+
+        The app names a project and a chat alike (measured: heading
+        "B SCMessenger", chat "SCMessenger"). The heading carries the icon
+        glyph into the OCR text; the chat does not, so a prefixed row that
+        reads as a heading is the section, never the session.
+        """
+        found, heading = [], None
+        for row in rows:
+            if cls.project_of_row(rows, row) != project:
+                continue
+            if not cls.row_matches(row["text"], label):
+                continue
+            if cls.heading_name(row["text"]) and row["text"].strip() != label.strip():
+                heading = row
+                continue
+            found.append(row)
+        return found, heading
+
+    @classmethod
     def scoped_row(cls, rows, row, label, project):
         """Is this row the configured session, in its own project?
 
@@ -788,7 +809,21 @@ class Dispatch:
             if unrelated:
                 self.audit.append("escalation", step_id=f"session-list-foreign-{page}",
                                   rows=unrelated[:6], expected=self.project)
-            scoped = [row for row in matches if self.project_of_row(rows, row) == self.project]
+            scoped, heading = self.session_candidates(rows, self.label, self.project)
+            if not scoped and heading is not None:
+                # A collapsed project shows its heading and no chats; open it
+                # once, then census the same page again.
+                try:
+                    self.click_exact_row(f"session-list-open-project-{page}", frame, heading)
+                    time.sleep(1.0)
+                    frame, rows = self.settled_roster(f"session-list-{page}-opened", SIDEBAR,
+                                                      attempts=4)
+                    scoped, heading = self.session_candidates(rows, self.label, self.project)
+                    self.audit.append("verification", step_id=f"session-list-open-project-{page}",
+                                      opened=True, rows=len(rows))
+                except RuntimeError as error:
+                    self.audit.append("escalation", step_id=f"session-list-open-project-{page}",
+                                      reason=str(error))
             if len(scoped) == 1:
                 # Click the scoped row itself: the title-only matcher would see
                 # the same-titled row in the other project and refuse.

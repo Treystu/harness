@@ -180,6 +180,24 @@ def test_a_cloud_lane_1_does_not_satisfy_the_local_lane_1():
     assert not Dispatch.scoped_row(rows, local, "Lane 1", "harness CLOUD")
 
 
+def test_a_project_heading_is_never_the_session_it_names():
+    rows = [{"text": "Projects", "x": 60, "y": 100, "x1": 300},
+            {"text": "B SCMessenger", "x": 60, "y": 140, "x1": 300},
+            {"text": "SCMessenger", "x": 72, "y": 180, "x1": 330},
+            {"text": "B Harness", "x": 60, "y": 260, "x1": 300}]
+    found, heading = Dispatch.session_candidates(rows, "SCMessenger", "SCMessenger")
+    assert [row["text"] for row in found] == ["SCMessenger"]
+    assert heading["text"] == "B SCMessenger"
+
+
+def test_a_collapsed_project_yields_its_heading_only():
+    rows = [{"text": "B SCMessenger", "x": 60, "y": 140, "x1": 300},
+            {"text": "B Harness", "x": 60, "y": 260, "x1": 300}]
+    found, heading = Dispatch.session_candidates(rows, "SCMessenger", "SCMessenger")
+    assert found == []
+    assert heading["text"] == "B SCMessenger"
+
+
 def test_a_row_without_a_visible_heading_is_refused():
     row = {"text": "Ra Lane 1", "x": 72, "y": 900, "x1": 330}
     assert not Dispatch.scoped_row([row], row, "Lane 1", "Harness")
