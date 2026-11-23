@@ -8,6 +8,7 @@ the owner's objects (not copies) and delegates to it, and the
 """
 import ast
 import os
+import types
 import tempfile
 import unittest
 from pathlib import Path
@@ -86,6 +87,14 @@ class FamilyOwnershipTests(unittest.TestCase):
         self.assertEqual(args[1], {"item": "swarm dial"})
         self.assertIs(args[2], pack)
         self.assertEqual(kwargs["max_input_tokens"], 4096)
+
+    def test_owner_helpers_are_plain_functions(self):
+        # A ``@staticmethod`` left on a module-level def is a no-op callable
+        # on 3.10+ and a TypeError on 3.9, so the version-independent check
+        # is the object's type.
+        for name in FAMILY:
+            with self.subTest(name=name):
+                self.assertIs(type(getattr(jev_log, name)), types.FunctionType)
 
     def test_owner_does_not_import_the_policy_at_module_scope(self):
         tree = ast.parse(_owner_source())

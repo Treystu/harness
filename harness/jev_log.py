@@ -23,7 +23,6 @@ from .jev_packs import (
 from .provider_errors import ProviderSpendLimitError
 
 
-@staticmethod
 def log_item_text(state: Any) -> str:
     """Text extraction for log items (accepts the ``item`` key)."""
     if isinstance(state, str):
@@ -36,7 +35,6 @@ def log_item_text(state: Any) -> str:
         return ""
     return "" if state is None else str(state)
 
-@staticmethod
 def log_judgment(bucket_id, pack_doc, *, score_level=None,
                  score_value=None, score_confidence=0.0,
                  evidence=None, is_fallback, structural):
