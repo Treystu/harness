@@ -75,6 +75,21 @@ SEARCH_CLOSE = (1257, 185, 1278, 207)
 COUNTS = (6, 16, 26, 36, 46)
 
 
+def same_rows(previous, current):
+    """Do two censuses describe the same list?
+
+    Identical positions settle. A single extra row also settles: the OCR engine
+    invents rows on this app (measured: a phantom "\u00b0 8-9" line appearing and
+    disappearing above the same rows), and a phantom only ever adds or drops
+    one entry without moving the rest. A row that MOVES is not a superset and
+    must never settle.
+    """
+    if previous == current:
+        return True
+    small, large = sorted((tuple(previous), tuple(current)), key=len)
+    return len(large) - len(small) == 1 and set(small) <= set(large)
+
+
 class Dispatch:
     def __init__(self, output, key, *, thread=THREAD, scoped_input=False, standing=False):
         from PIL import Image, ImageOps
@@ -128,15 +143,30 @@ class Dispatch:
         return (f"hwnd {hwnd} pid {self.window.pid(hwnd)} "
                 f"title {self.window.api.title_of(hwnd)!r}")
 
-    def require_foreground(self):
+    def require_foreground(self, attempts=3):
+        """FreeBuff must hold the foreground; re-assert it before giving up.
+
+        The measured holder of a lost foreground was the driver's own phase
+        child (a console window titled with its interpreter path), so a single
+        observation that FreeBuff is not in front is not a reason to park a
+        lane. Take the foreground back, then prove it.
+        """
         hwnd = self.window.require_window()
-        current = self.window.api.foreground()
-        if current != hwnd:
+        for attempt in range(1, attempts + 1):
+            current = self.window.api.foreground()
+            if current == hwnd:
+                return hwnd
             # Name the holder: an unnamed park cannot be resolved from its evidence.
-            self.audit.append("escalation", step_id="foreground", expected=hwnd, holder=current,
-                              holder_detail=self.describe(current))
-            raise RuntimeError(f"FreeBuff is not the foreground window; held by {self.describe(current)}")
-        return hwnd
+            self.audit.append("escalation", step_id=f"foreground-{attempt}", expected=hwnd,
+                              holder=current, holder_detail=self.describe(current))
+            if self.standing or attempt == attempts:
+                break
+            if not activate_exact(hwnd, self.window.api.foreground):
+                time.sleep(0.6)
+                continue
+            time.sleep(0.5)
+        current = self.window.api.foreground()
+        raise RuntimeError(f"FreeBuff is not the foreground window; held by {self.describe(current)}")
 
     def focus(self, action, params):
         hwnd = self.window.require_window()
@@ -376,8 +406,8 @@ class Dispatch:
             # icons and truncations on a stationary list (measured: "Kalshi
             # Paper Bumd" vs "Kalshi Paper Burndc V" on one unchanged row), so
             # comparing text can never settle and comparing geometry can.
-            current = (len(rows), tuple(round(row["y"] / 2) for row in rows))
-            if rows and current == previous:
+            current = tuple(round(row["y"] / 2) for row in rows)
+            if rows and previous is not None and same_rows(previous, current):
                 self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
                                   censuses=attempt,
                                   texts=[row["text"] for row in rows][:16])
@@ -774,6 +804,18 @@ class Dispatch:
             return
         if self.navigate_by_session_list():
             return
+        frame = self.frame("before-select-session-0")
+        if not self.dialog_open(frame):
+            # Each phase is its own process: a phase may not assume the one
+            # before it left the dialog standing.
+            self.audit.append("escalation", step_id="select",
+                              reason="the dialog was closed behind this phase; establishing it")
+            self.search_for_session()
+            if self.selected_label_matches(wait=3):
+                return
+            frame = self.frame("before-select-session-reopened")
+            if not self.dialog_open(frame):
+                raise RuntimeError("the search dialog is not open for the selection")
         frame, rows = self.settled_roster("before-select-session", SEARCH_RESULTS)
         try:
             row = self.click_roster_row("select-existing-session", frame, rows, self.label)

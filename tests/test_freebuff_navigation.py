@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from scripts.windows_freebuff_dispatch import SIDEBAR, Dispatch
+from scripts.windows_freebuff_dispatch import SIDEBAR, Dispatch, same_rows
 
 
 def shim(tmp_path, frames):
@@ -50,6 +50,16 @@ def test_a_roster_that_never_settles_refuses_by_name(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="did not settle"):
         dispatch.settled_roster("probe", SIDEBAR, attempts=3)
+
+
+def test_a_phantom_row_settles_but_a_moved_row_does_not():
+    stationary = (370, 385, 400)
+    phantom = (370, 377, 385, 400)
+    moved = (370, 391, 400)
+
+    assert same_rows(stationary, stationary)
+    assert same_rows(stationary, phantom)
+    assert not same_rows(stationary, moved)
 
 
 def test_ocr_flicker_on_a_stationary_row_still_settles(tmp_path, monkeypatch):
