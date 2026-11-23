@@ -39,10 +39,12 @@ def inspect_crop(driver, frame, label, region, *options):
 def scan_draft(driver, frame, *, continuation=False):
     region = (650, 756, 1530, 1050)
     if continuation:
-        driver.locate_exact_text("verify-local-draft-tab", frame, "SCMessenger", (411, 17, 642, 54))
+        driver.locate_exact_text("verify-local-carrier-standup", frame,
+                                 "STAND-UP (file in ledger dispatch/scm-land/STATUS.md):",
+                                 (650, 838, 1220, 875))
         driver.yes("verify-local-carrier-continuation", frame,
-                   "Do the visible lines state that this is a FRESH session and say do not resume the previous?",
-                   region=(650, 754, 1375, 919))
+                   "Does this text show the stand-up heading for dispatch/scm-land/STATUS.md?",
+                   region=(650, 818, 1230, 910))
     else:
         driver.locate_exact_text("verify-fresh-carrier-heading", frame,
                                  "SCMESSENGER LANE - FRESH SESSION CARRIER (D-2026-11-13-032 FIRST)",
