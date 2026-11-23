@@ -17,7 +17,9 @@ from driver_core.observation import GUI, Target
 from driver_core.osal import _WindowsWindowApi
 
 from .windows_freebuff_capture import FreeBuffWindow
-from .windows_freebuff_dispatch import CONTINUATION, DISK_THREAD, THREAD, Dispatch
+from .windows_freebuff_dispatch import (
+    CONTINUATION, DISK_THREAD, QUEUE_PLACEHOLDER, QUEUE_REGION, THREAD, Dispatch,
+)
 from .windows_notepad_window import WindowsWindowScreen
 
 ISSUE = "repos/Treystu/harness/issues/684/comments"
@@ -125,6 +127,65 @@ def publish(output, number):
     return links
 
 
+def same_pixels(before, after):
+    from PIL import Image, ImageChops
+
+    with Image.open(before) as first, Image.open(after) as second:
+        return first.size == second.size and not ImageChops.difference(
+            first.convert("RGB"), second.convert("RGB")).getbbox()
+
+
+def reconcile_demo(output):
+    """File a read-only verdict for the original demo after its state classifier timed out."""
+    from PIL import Image, ImageOps
+
+    runner = output / "runner.jsonl"
+    send = output / "send" / "driver.jsonl"
+    for trace in (runner, send):
+        if not trace.is_file() or not AuditLog(trace).verify().ok:
+            raise RuntimeError("the original hash-chained demo traces are required")
+    records = [json.loads(line) for line in send.read_text(encoding="utf-8").splitlines()]
+    sends = [r for r in records if r["step_id"] == "send-once"]
+    if (len(sends) != 1 or not sends[0]["ok"]
+            or sends[0]["consent"]["params"]["thread"] != THREAD
+            or sends[0]["consent"]["params"]["text"] != CONTINUATION
+            or not any(r.get("exact_label") == CONTINUATION and r["seq"] < sends[0]["seq"]
+                       for r in records)):
+        raise RuntimeError("the trace did not bind one successful send to the exact OCR draft")
+    captures = [row for line in runner.read_text(encoding="utf-8").splitlines()
+                if (row := json.loads(line))["kind"] == "capture"]
+    if {(row["step_id"], row["target"]) for row in captures} != {
+        (phase, target) for phase in ("before", "after")
+        for target in ("freebuff", "bystander-1", "bystander-2")
+    }:
+        raise RuntimeError("the original capture inventory is incomplete")
+    for row in captures:
+        png = output / f"{row['step_id']}-{row['target']}.png"
+        if hashlib.sha256(png.read_bytes()).hexdigest() != row["sha256"]:
+            raise RuntimeError(f"capture changed after recording: {png.name}")
+    if not all(same_pixels(output / f"before-bystander-{n}.png",
+                           output / f"after-bystander-{n}.png") for n in (1, 2)):
+        raise RuntimeError("the archived bystander pixels differ")
+    with Image.open(output / "before-freebuff.png") as before, Image.open(output / "after-freebuff.png") as after:
+        if Dispatch.stop_visible(before) or not Dispatch.stop_visible(after):
+            raise RuntimeError("the captured target Stop cue did not change from idle to running")
+        crop = after.crop(QUEUE_REGION)
+        png = output / "reconciled-queue-ocr.png"
+        ImageOps.invert(ImageOps.grayscale(crop.resize((crop.width * 3, crop.height * 3)))).save(png)
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+         str(Path(__file__).with_name("windows_ocr_exact.ps1")), "-Path", str(png), "-Label", QUEUE_PLACEHOLDER],
+        check=True, timeout=10, capture_output=True)
+    receipt = api(ISSUE, method="POST", body={"body": (
+        f"T8 reconciled #{DEMO_COMMENT}: one exact OCR-verified send to `{THREAD}`. "
+        "Archived PNG hashes match the sealed trace. Stop changed false→true, exact queue placeholder verified, "
+        "and both bystander RGB comparisons are identical. Read-only reconciliation. "
+        f"[Original runner trace](https://github.com/Treystu/slow-lane-ledger/blob/{BRANCH}/"
+        f"dispatch/laptop-driver/evidence/t8/{output.name}/runner.jsonl).")})
+    print(receipt["html_url"])
+    return 0
+
+
 def run_phases(output, thread, audit, phases=PHASES):
     for phase in phases:
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
@@ -175,7 +236,8 @@ def execute(output, number, mission, digest, bystanders):
                 for label in before.keys() & after.keys():
                     if label != "freebuff":
                         audit.append("verification", step_id="bystander-comparison",
-                                     target=label, same_pixels=before[label] == after[label])
+                                     target=label, same_pixels=same_pixels(
+                                         output / f"before-{label}.png", output / f"after-{label}.png"))
             except (OSError, RuntimeError) as error:
                 audit.append("escalation", step_id="after", reason=str(error))
         audit.append("verification", step_id="result", state=state)
@@ -193,6 +255,7 @@ def main():
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--since", help="UTC GitHub comment timestamp to watch from")
     source.add_argument("--oversight-demo", action="store_true", help="execute comment 7091945084 once")
+    source.add_argument("--reconcile-demo", action="store_true", help="verify recorded evidence with no desktop input")
     source.add_argument("--resume-before-input", action="store_true",
                         help="resume the one-shot demo after a verified pre-input refusal")
     source.add_argument("--resume-selection-cure", action="store_true",
@@ -208,6 +271,8 @@ def main():
     parser.add_argument("--wait", type=int, default=120)
     parser.add_argument("--bystander-title", action="append", default=[])
     args = parser.parse_args()
+    if args.reconcile_demo:
+        return reconcile_demo(args.state / f"{DEMO_COMMENT}-keyboard-cure")
     args.state.mkdir(parents=True, exist_ok=True)
     if (args.oversight_demo or args.resume_before_input or args.resume_selection_cure
             or args.resume_highlight_cure or args.resume_cache_cure or args.resume_placeholder_cure

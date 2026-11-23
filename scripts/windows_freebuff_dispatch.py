@@ -52,6 +52,8 @@ SESSIONS = {
 COMPOSER = (630, 918, 1550, 1110)
 LANE_NAV = (80, 590, 390, 750)
 SEND_CONTROL = (1480, 1043, 1535, 1100)
+QUEUE_PLACEHOLDER = "Type a message — added to the queue"
+QUEUE_REGION = (644, 947, 1250, 1020)
 
 
 class Dispatch:
@@ -501,8 +503,7 @@ class Dispatch:
                 continue
             try:
                 self.locate_exact_text("verify-queue-placeholder", frame,
-                                       "Type a message — added to the queue",
-                                       (644, 947, 1250, 1020))
+                                       QUEUE_PLACEHOLDER, QUEUE_REGION)
             except RuntimeError:
                 continue
             self.verify_lane(frame)
