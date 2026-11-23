@@ -37,9 +37,10 @@ CONTINUATION = "continue in full"
 
 class Dispatch:
     def __init__(self, output, key):
-        from PIL import Image
+        from PIL import Image, ImageOps
 
         self.image = Image
+        self.image_ops = ImageOps
         self.window = FreeBuffWindow()
         self.user = self.window.user
         self.user.SetThreadDpiAwarenessContext.argtypes = (ctypes.c_void_p,)
@@ -180,6 +181,23 @@ class Dispatch:
         y = top + round((bottom - top) * (box["top"] + box["bottom"]) / 2)
         return [x, y]
 
+    def locate_exact_text(self, step, frame, label, region):
+        left, top, right, bottom = region
+        crop = frame.crop(region).resize(((right - left) * 3, (bottom - top) * 3))
+        path = self.output / f"{step}-ocr.png"
+        self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
+        result = osal.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+             str(Path(__file__).with_name("windows_ocr_exact.ps1")),
+             "-Path", str(path), "-Label", label], timeout=8)
+        if not result.ok:
+            raise RuntimeError(f"{step}: exact OCR label {label!r} was not verified")
+        point = json.loads(result.stdout)
+        xy = [left + round(point["x"] / 3), top + round(point["y"] / 3)]
+        self.audit.append("extraction", step_id=step, source="windows-ocr",
+                          exact_label=label, point=xy)
+        return xy
+
     def open_lane(self):
         frame = self.frame("before-focus")
         self.yes("identify-freebuff", frame,
@@ -188,8 +206,9 @@ class Dispatch:
         self.act("foreground", FOCUS, {"title": TITLE})
         frame = self.frame("foreground")
         self.require_foreground()
-        region = (80, 590, 350, 690)
-        point = self.locate("locate-lane1", frame, LANE, region)
+        self.yes("identify-lane1", frame, f"Is the exact {LANE} visible?",
+                 region=(80, 590, 350, 690))
+        point = self.locate_exact_text("locate-lane1", frame, "Lane 1", (128, 638, 300, 686))
         self.act("open-lane1", CLICK, {"control": LANE, "point": point, "size": list(frame.size)})
         time.sleep(0.7)
         frame = self.frame("lane1-open")
