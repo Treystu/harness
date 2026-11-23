@@ -754,7 +754,11 @@ class Dispatch:
                                   rows=unrelated[:6], expected=self.project)
             scoped = [row for row in matches if self.project_of_row(rows, row) == self.project]
             if len(scoped) == 1:
-                self.click_roster_row(f"session-list-pick-{page}", frame, rows, self.label)
+                # Click the scoped row itself: the title-only matcher would see
+                # the same-titled row in the other project and refuse.
+                self.click_exact_row(f"session-list-pick-{page}", frame, scoped[0])
+                self.audit.append("verification", step_id=f"session-list-pick-{page}",
+                                  row=scoped[0]["text"], project=self.project)
                 return True
             if len(scoped) > 1:
                 self.audit.append("escalation", step_id=f"session-list-ambiguous-{page}",
