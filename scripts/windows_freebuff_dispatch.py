@@ -573,11 +573,88 @@ class Dispatch:
         return False
 
     def routes(self):
+        """Whatever routes the app exposes, whatever shape the helper returns.
+
+        Measured: the helper answers `[]` on most handles (dead accessibility
+        tree) and a list of routes when the tree is live; it is never assumed
+        to be either.
+        """
         try:
-            return [str(route) for route in self.read_app_structure()]
+            payload = self.read_app_structure()
         except RuntimeError as error:
             self.audit.append("escalation", step_id="routes", reason=str(error))
             return []
+        if isinstance(payload, dict):
+            items = payload.get("documents") or payload.get("routes") or []
+        elif isinstance(payload, list):
+            items = payload
+        else:
+            return []
+        return [str(item.get("route") or item.get("url") or item)
+                if isinstance(item, dict) else str(item) for item in items]
+
+    def _prefix_matches(self, text, label):
+        """Is this row plausibly the configured lane, allowing app clipping?"""
+        seen, wanted = self._norm(text), self._norm(label)
+        return bool(seen and wanted and len(wanted) >= 4
+                    and (seen.startswith(wanted) or wanted.startswith(seen)))
+
+    def navigate_by_unique_prefix(self, pages=8):
+        """Open the configured lane when exactly ONE session list row can be it.
+
+        The configured names are ours and the app clips its own rows (measured:
+        no row reads "Lane 2", one reads "Lane 2 Waist Composition Mission
+        Brief"; none reads "BigEnergyCo", five read "BigEnergyCo ..."). One
+        candidate is a pick; several are named and refused, never guessed.
+        """
+        frame = self.scroll_sidebar_to_top()
+        found, seen = [], []
+        for page in range(1, pages + 1):
+            try:
+                frame, rows = self.settled_roster(f"prefix-{page}", SIDEBAR, attempts=4)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="prefix-walk", reason=str(error))
+                return False
+            texts = [self._norm(row["text"]) for row in rows]
+            if texts in seen:
+                break
+            seen.append(texts)
+            for row in rows:
+                if self._prefix_matches(row["text"], self.label):
+                    if all(self._norm(row["text"]) != self._norm(name) for _, name in found):
+                        found.append((page, row["text"]))
+            if not self.scroll_by(f"prefix-scroll-{page}", frame, [196, 850], -400):
+                frame = self.frame(f"prefix-{page}-recapture")
+                continue
+            time.sleep(0.9)
+            frame = self.frame(f"prefix-{page}-after")
+        if len(found) != 1:
+            self.audit.append("escalation", step_id="prefix-census", label=self.label,
+                              candidates=[name for _, name in found][:8], count=len(found),
+                              reason="no unique session row for this lane; not guessing")
+            return False
+        page, name = found[0]
+        self.audit.append("verification", step_id="prefix-unique", label=self.label,
+                          row=name, page=page)
+        frame = self.scroll_sidebar_to_top()
+        for index in range(1, page + 1):
+            frame, rows = self.settled_roster(f"prefix-pick-{index}", SIDEBAR, attempts=4)
+            if index < page:
+                if not self.scroll_by(f"prefix-pick-scroll-{index}", frame, [196, 850], -400):
+                    frame = self.frame(f"prefix-pick-{index}-recapture")
+                time.sleep(0.9)
+                frame = self.frame(f"prefix-pick-{index}-after")
+                continue
+            row = next((candidate for candidate in rows
+                        if self._norm(candidate["text"]) == self._norm(name)), None)
+            if row is None:
+                self.audit.append("escalation", step_id="prefix-pick", row=name,
+                                  reason="the candidate row was not on its page when re-walked")
+                return False
+            self.click_roster_row("prefix-pick", frame, rows, name)
+            time.sleep(1.2)
+            return True
+        return False
 
     def identify_by_route(self, limit=8):
         """Open candidate sessions until the app's own route names the pinned thread.
@@ -715,7 +792,7 @@ class Dispatch:
         if self.navigate_by_session_list():
             return
         if self.list_only():
-            if self.identify_by_route():
+            if self.navigate_by_unique_prefix() or self.identify_by_route():
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
@@ -804,7 +881,8 @@ class Dispatch:
                 self.audit.append("verification", step_id="query-skip",
                                   reason="the target row is already the selected session")
                 return
-            if self.navigate_by_session_list() or self.identify_by_route():
+            if (self.navigate_by_session_list() or self.navigate_by_unique_prefix()
+                    or self.identify_by_route()):
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
@@ -848,7 +926,7 @@ class Dispatch:
         if self.navigate_by_session_list():
             return
         if self.list_only():
-            if self.identify_by_route():
+            if self.navigate_by_unique_prefix() or self.identify_by_route():
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
