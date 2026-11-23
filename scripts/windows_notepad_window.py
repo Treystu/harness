@@ -147,7 +147,7 @@ class NotepadWindow:
     def save_dialog(self):
         return self.owned_dialog(self.require_window(), "save as")
 
-    def dialog_control(self, dialog, control_id, class_name):
+    def dialog_control(self, dialog, control_id, class_name, *, wait=0):
         controls = []
 
         @self.callback
@@ -157,10 +157,15 @@ class NotepadWindow:
                 controls.append(hwnd)
             return True
 
-        self.user.EnumChildWindows(dialog, visit, 0)
-        if len(controls) != 1:
-            raise RuntimeError(f"could not identify Save As {class_name} control {control_id}")
-        return controls[0]
+        deadline = monotonic() + wait
+        while True:
+            controls.clear()
+            self.user.EnumChildWindows(dialog, visit, 0)
+            if len(controls) == 1:
+                return controls[0]
+            if monotonic() >= deadline:
+                raise RuntimeError(f"could not identify Save As {class_name} control {control_id}")
+            sleep(0.1)
 
     def save_to(self, destination):
         deadline = monotonic() + 3
@@ -170,8 +175,8 @@ class NotepadWindow:
             dialog = self.save_dialog()
         if dialog is None:
             raise RuntimeError("the resolved Notepad window has no owned Save As dialog")
-        entry = self.dialog_control(dialog, 1001, "Edit")
-        self.dialog_control(dialog, 1, "Button")
+        entry = self.dialog_control(dialog, 1001, "Edit", wait=5)
+        self.dialog_control(dialog, 1, "Button", wait=2)
         # Typing through the edit control sends the change notifications the
         # shell dialog needs to update its pending filename.
         self.send_message(entry, 0x00B1, 0, -1)  # EM_SETSEL (select all)
