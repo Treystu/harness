@@ -996,13 +996,9 @@ class Dispatch:
         the settled sidebar with the target's own row highlighted; both
         proofs are recorded, and neither is a model confidence.
         """
-        try:
-            sessions = self.read_app_structure()
-        except (OSError, RuntimeError, ValueError) as error:
-            self.audit.append("escalation", step_id="active-session-route", reason=str(error))
-            sessions = None
+        sessions = self.routes()
         if sessions:
-            matched = [route for route in sessions if route.split("-")[0] == self.thread]
+            matched = [route for route in sessions if self.thread in route]
             if matched:
                 self.audit.append("verification", step_id="active-session-id", exact_id=matched[0],
                                   exposed=sessions[:8])
@@ -1040,8 +1036,8 @@ class Dispatch:
                            f"({self.label})")
 
     def verify_active_session(self):
-        sessions = self.read_app_structure()
-        if len(sessions) != 1 or sessions[0].split("-")[0] != self.thread:
+        sessions = self.routes()
+        if len(sessions) != 1 or self.thread not in sessions[0]:
             raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
         self.require_foreground()
         self.audit.append("verification", step_id="active-session-id", exact_id=sessions[0])
