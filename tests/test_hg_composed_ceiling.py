@@ -1,7 +1,9 @@
 """HG-composed-ceiling: composed pyramid budget refuses before any spend."""
 import json
 import unittest
+from unittest.mock import patch
 
+from harness import plan_budget
 from harness.spend import SpendGovernor
 from harness.waist import composed_worst_case, compose_plan
 
@@ -246,6 +248,87 @@ class ComposedCeilingTests(unittest.TestCase):
         self.assertAlmostEqual(cwc["composed_worst_case"], 0.06, places=6)
         self.assertTrue(cwc["exceeds_remaining"])
         self.assertIn("planning_spent=0.050000", plan["confirmation"]["evidence"])
+
+
+class BudgetOwnerDegradationTests(unittest.TestCase):
+    """The envelope owner's fail-closed and degrade-silently branches.
+
+    Every one of these paths must contribute $0.0 rather than an invented
+    number: an unpriceable call, a malformed ceiling, or an unreachable
+    ladder may not make the composition look cheaper than it is.
+    """
+
+    def test_call_worst_case_refuses_unpriceable_and_malformed_inputs(self):
+        class Raises:
+            def fetch_pricing(self, models):
+                raise RuntimeError("price feed down")
+
+        class Priced:
+            def fetch_pricing(self, models):
+                return {name: (0.0, 0.5) for name in models}
+
+        self.assertEqual(plan_budget._call_worst_case(None, "m/x", 10), 0.0)
+        self.assertEqual(plan_budget._call_worst_case(Priced(), None, 10), 0.0)
+        self.assertEqual(plan_budget._call_worst_case(Raises(), "m/x", 10), 0.0)
+        self.assertEqual(
+            plan_budget._call_worst_case(Priced(), "m/x", "many"), 0.0)
+        self.assertAlmostEqual(
+            plan_budget._call_worst_case(Priced(), "m/x", 10), 5.0)
+
+    def test_malformed_ceilings_degrade_to_the_readable_ones(self):
+        plan = {
+            "total_cost_ceiling": "not-a-number",
+            "nodes": [
+                "not-a-dict",
+                {"route": "not-a-route", "cost_ceiling": "also-not"},
+                {"route": {"cost_ceiling": "bad"}},
+                {"route": {"cost_ceiling": 0.25}},
+            ],
+        }
+        composed = plan_budget.composed_worst_case(plan)
+        self.assertEqual(composed["node_ceiling"], 0.25)
+        self.assertEqual(composed["composed_worst_case"], 0.25)
+
+    def test_unreachable_ladders_price_nothing_and_hide_nothing(self):
+        class Gov:
+            max_cost = 2.0
+
+            def fetch_pricing(self, models):
+                return {name: (0.0, 0.001) for name in models}
+
+            def remaining(self):
+                return 1.0
+
+        plan = {"total_cost_ceiling": 0.01, "nodes": []}
+        with patch("harness.waist.resolve_scout_ladder",
+                   side_effect=RuntimeError("no scout ladder")), \
+                patch("harness.waist.resolve_waist_ladder",
+                      side_effect=RuntimeError("no waist ladder")):
+            composed = plan_budget.composed_worst_case(
+                plan, governor=Gov(), decompose_llm=True, confirm=True,
+                plan_consensus=True)
+        self.assertEqual(composed["node_ceiling"], 0.01)
+        self.assertEqual(composed["decompose"], 0.0)
+        self.assertEqual(composed["consensus"], 0.0)
+        self.assertEqual(composed["waist"], 0.0)
+        self.assertEqual(composed["composed_worst_case"], 0.01)
+        self.assertFalse(composed["exceeds_remaining"])
+
+    def test_unreadable_governor_limits_degrade_to_none(self):
+        class Gov:
+            max_cost = "unbounded"
+
+            def fetch_pricing(self, models):
+                return {}
+
+            def remaining(self):
+                raise RuntimeError("no reading")
+
+        composed = plan_budget.composed_worst_case(
+            {"total_cost_ceiling": 0.0}, governor=Gov())
+        self.assertIsNone(composed["remaining"])
+        self.assertIsNone(composed["plan_ceiling"])
+        self.assertIsNone(composed["exceeds_remaining"])
 
 
 if __name__ == "__main__":

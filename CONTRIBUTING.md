@@ -305,6 +305,7 @@ cheap; losing either is not.
 | `harness/plan_context.py` | context-intake owner: arguments, brief assembly, the recondense decision and wanted-stage selection (#308) |
 | `harness/plan_stages.py` | stage composition and budget owner: per-stage ceiling, state view, composition envelope, outcome and planning ladder (#308) |
 | `harness/plan_evidence.py` | planning evidence owner: budget-fitted brief, omitted/conflict admissions, the bounded evidence request, the sufficiency judgment and the plan node bound (#308) |
+| `harness/plan_budget.py` | composed budget envelope owner: node ceiling plus unincurred stage worst case, the plan ceiling comparison, and the fail-closed refusal envelope (#308) |
 | `harness/lifecycle_types.py` | discriminated chat/audit/auto-edit/driver/provisioning states and their cross-field invariants |
 | `harness/lifecycle.py` | the single persisted request-state owner: Jev rounds, continuation, usage liability, side-effect receipts, and terminal transitions; lane adapters do not own duplicate state |
 | `harness/availability.py` | #538 per-(provider, model) availability verdicts: typed causes, TTL, bounded probe budget, `order()`, and `live_backends()` — the one owner of "which backends may be tried next", so lanes rotate to a healthy backend instead of deferring |

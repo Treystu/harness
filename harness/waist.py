@@ -24,7 +24,7 @@ from .jev_policy import JevPolicy
 
 from .plan_decompose import (_salvage_decomposition, decompose_via_llm, decomposition_repair_record)
 
-from .plan_contracts import (MAX_EVIDENCE_QUESTIONS, MAX_WAIST_ROUNDS, OUTCOME_DEFER, OUTCOME_EVIDENCE_REQUEST, OUTCOME_PLAN, OUTCOME_SUFFICIENT, PLAN_OUTCOMES, STAGE_CONTEXT, STAGE_PLANNING, STATE_COMPLETED, STATE_SKIPPED, WAIST_MAX_TOKENS)
+from .plan_contracts import (MAX_EVIDENCE_QUESTIONS, OUTCOME_DEFER, OUTCOME_EVIDENCE_REQUEST, OUTCOME_PLAN, OUTCOME_SUFFICIENT, PLAN_OUTCOMES, STAGE_CONTEXT, STAGE_PLANNING, STATE_COMPLETED, STATE_SKIPPED)
 
 from .plan_stages import (compose_stages, composition_envelope, plan_outcome, planning_ladder, stage_states)
 
@@ -34,6 +34,10 @@ from .plan_consensus import confirm_plan, plan_consensus, plan_task
 # The waist keeps the loop that walks the allowance ladder; these are the
 # answers it consumes.
 from .plan_evidence import (DEFAULT_MAX_PLAN_NODES, _conflicts, _curated_brief, _evidence_request, _jev_sufficiency, _unrepresented, _validated_plan)
+
+# #308: the composed budget envelope is its own owner module; the waist asks
+# for the answer and decides what a refusal means before execute spend.
+from .plan_budget import (DECOMPOSE_MAX_TOKENS, _refuse_composed_ceiling, composed_worst_case)
 
 
 # Compatibility surface (#308 owner split): these names now live in their owner
@@ -77,9 +81,10 @@ _COMPAT_308 = (
     plan_task_id,
     read_window,
     stage_budget,
+    composed_worst_case,
+    DECOMPOSE_MAX_TOKENS,
 )
 
-DECOMPOSE_MAX_TOKENS = 1024
 MAX_BRIEF_FILES = 12
 
 
@@ -368,159 +373,6 @@ def _slice_marker(passes: int, ranges: List[tuple], target,
 
 
 
-
-
-def _call_worst_case(governor, model, max_tokens) -> float:
-    """Worst-case dollar cost of ONE bounded chat call on ``model``.
-
-    Completion-side only (prompt tokens are typically small relative to the
-    pinned output budget for plan-lane calls). Free / unpriceable models
-    contribute $0.0 -- the node ceilings still bind the run.
-    """
-    if governor is None or not model:
-        return 0.0
-    try:
-        pricing = governor.fetch_pricing([model])
-        _pp, cp = pricing[model]
-    except Exception:
-        return 0.0
-    try:
-        return max(0.0, float(max_tokens) * float(cp))
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def composed_worst_case(
-    plan_result: Dict[str, Any],
-    *,
-    governor=None,
-    decompose_llm: bool = False,
-    confirm: bool = False,
-    decompose_model: Optional[str] = None,
-    frontier_model: Optional[str] = None,
-    use_free: bool = True,
-    allow_escalation: bool = False,
-    plan_consensus: bool = False,
-    incurred_stages: Optional[Sequence[str]] = None,
-    planning_spent: Optional[float] = None,
-) -> Dict[str, Any]:
-    """Composed pyramid ceiling over remaining unincurred work (#346).
-
-    ONE owner of the pre-execute worst-case budget. Stages listed in
-    ``incurred_stages`` (``"decompose"``, ``"consensus"``, ``"waist"``) have
-    already completed and deducted their actual/reserved cost from
-    ``governor.remaining()``, so only not-yet-incurred future liability is
-    compared against ``governor.remaining()``. Called before spend when a
-    governor is present; if remaining liability exceeds
-    ``governor.remaining()`` the plan lane REFUSES instead of dispatching
-    into an unfunded pyramid.
-    """
-    node_ceiling = 0.0
-    try:
-        node_ceiling = float(plan_result.get("total_cost_ceiling") or 0.0)
-    except (TypeError, ValueError):
-        node_ceiling = 0.0
-    if node_ceiling <= 0.0:
-        for detail in plan_result.get("nodes") or ():
-            if not isinstance(detail, dict):
-                continue
-            route = detail.get("route") if isinstance(detail.get("route"), dict) else {}
-            try:
-                node_ceiling += float(route.get("cost_ceiling") or detail.get("cost_ceiling") or 0.0)
-            except (TypeError, ValueError):
-                continue
-
-    completed = set(incurred_stages or ())
-    decompose_cost = 0.0
-    waist_cost = 0.0
-    consensus_cost = 0.0
-    if governor is not None:
-        if decompose_llm and "decompose" not in completed:
-            model = decompose_model
-            if not model:
-                try:
-                    model = resolve_scout_ladder(use_free=use_free,
-                                                 custom_frontier=frontier_model)[0]
-                except Exception:
-                    model = None
-            decompose_cost = _call_worst_case(governor, model, DECOMPOSE_MAX_TOKENS)
-        if plan_consensus and "consensus" not in completed:
-            model = decompose_model
-            if not model:
-                try:
-                    model = resolve_scout_ladder(use_free=use_free,
-                                                 custom_frontier=frontier_model)[0]
-                except Exception:
-                    model = None
-            consensus_cost = _call_worst_case(governor, model, 256)
-        if confirm and "waist" not in completed:
-            try:
-                ladder = resolve_waist_ladder(
-                    use_free=use_free, custom_frontier=frontier_model,
-                    allow_escalation=allow_escalation)
-            except Exception:
-                ladder = [frontier_model] if frontier_model else []
-            # Worst-case: every ladder rung could be attempted across the
-            # window-round budget before one lands.
-            for rung in ladder[:4]:
-                waist_cost += _call_worst_case(
-                    governor, rung, WAIST_MAX_TOKENS * MAX_WAIST_ROUNDS)
-
-    composed = round(node_ceiling + decompose_cost + waist_cost + consensus_cost, 6)
-    remaining = None
-    if governor is not None and callable(getattr(governor, "remaining", None)):
-        try:
-            remaining = float(governor.remaining())
-        except Exception:
-            remaining = None
-    plan_ceiling = None
-    if governor is not None and getattr(governor, "max_cost", None) is not None:
-        try:
-            plan_ceiling = round(float(governor.max_cost), 6)
-        except (TypeError, ValueError):
-            plan_ceiling = None
-    envelope = {
-        "composed_worst_case": composed,
-        "node_ceiling": round(node_ceiling, 6),
-        "decompose": round(decompose_cost, 6),
-        "waist": round(waist_cost, 6),
-        "consensus": round(consensus_cost, 6),
-        "remaining": remaining,
-        "plan_ceiling": plan_ceiling,
-        "exceeds_remaining": (
-            None if remaining is None else bool(composed > remaining + 1e-12)),
-    }
-    if planning_spent is not None:
-        spent_val = round(max(0.0, float(planning_spent)), 6)
-        envelope["planning_spent"] = spent_val
-        envelope["all_in_worst_case"] = round(spent_val + composed, 6)
-    return envelope
-
-
-def _refuse_composed_ceiling(plan_result: Dict[str, Any], composed: Dict[str, Any]) -> Dict[str, Any]:
-    """Fail-closed envelope when the composed pyramid ceiling cannot fit."""
-    refused = dict(plan_result)
-    refused["status"] = "refused"
-    refused["composed_worst_case"] = composed
-    reason = (
-        f"composed worst-case ${composed['composed_worst_case']:.6f} exceeds "
-        f"remaining budget ${composed['remaining']:.6f}")
-    evidence = (
-        f"nodes={composed['node_ceiling']:.6f} "
-        f"decompose={composed['decompose']:.6f} "
-        f"waist={composed['waist']:.6f} "
-        f"consensus={composed['consensus']:.6f}")
-    if composed.get("planning_spent") is not None:
-        evidence += f" planning_spent={composed['planning_spent']:.6f}"
-    refused["confirmation"] = {
-        "verdict": "refused",
-        "model": "composed-ceiling",
-        "rounds": 0,
-        "reason": reason,
-        "evidence": evidence,
-        "cost": 0.0,
-    }
-    return refused
 
 
 def _decompose_repo_context(goal: str,
