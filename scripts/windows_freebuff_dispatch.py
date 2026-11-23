@@ -36,7 +36,7 @@ SEND = Action("send_freebuff", MUTATING, "send_freebuff",
 QUERY = Action("query_freebuff", MUTATING, "query_freebuff", ("thread", "text", "control"),
                "Search FreeBuff for the exact existing session title.", "gui")
 SCROLL = Action("scroll_freebuff", MUTATING, "scroll_freebuff", ("point", "size", "delta"),
-                "Scroll the displayed SCM draft without focusing its composer.", "gui")
+                "Scroll visible SCM content without focusing its composer.", "gui")
 VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.2.0", [FOCUS, CLICK, TYPE, SEND, QUERY, SCROLL])
 THREAD = "315608d2"
 CONTINUATION = "continue in full"

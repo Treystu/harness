@@ -6,6 +6,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import byref, wintypes
+from functools import partial
 from pathlib import Path
 
 from driver_core import osal
@@ -36,6 +37,21 @@ def inspect_crop(driver, frame, label, region, *options):
     return json.loads(response.stdout)
 
 
+def scroll_readonly(driver, action, params):
+    hit, x, y = driver.renderer_point(params)
+    if driver.user.GetAncestor(hit, 2) != driver.require_foreground():
+        raise RuntimeError("the renderer changed before scrolling")
+    client = wintypes.POINT(x, y)
+    if not driver.user.ScreenToClient(hit, byref(client)):
+        raise RuntimeError("could not bind the scroll point to the renderer")
+    hover = (client.x & 0xFFFF) | ((client.y & 0xFFFF) << 16)
+    if not driver.user.PostMessageW(hit, 0x0200, 0, hover):
+        raise RuntimeError("the renderer rejected the hover")
+    packed = (x & 0xFFFF) | ((y & 0xFFFF) << 16)
+    if not driver.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
+        raise RuntimeError("the renderer rejected scrolling")
+
+
 def scan_draft(driver, frame, *, continuation=False):
     region = (650, 756, 1530, 1050)
     if continuation:
@@ -53,21 +69,6 @@ def scan_draft(driver, frame, *, continuation=False):
                    "Do the opening lines describe a FRESH SESSION CARRIER?",
                    region=(650, 756, 1395, 861))
 
-    def scroll(action, params):
-        hit, x, y = driver.renderer_point(params)
-        if driver.user.GetAncestor(hit, 2) != driver.require_foreground():
-            raise RuntimeError("the renderer changed before draft scrolling")
-        client = wintypes.POINT(x, y)
-        if not driver.user.ScreenToClient(hit, byref(client)):
-            raise RuntimeError("could not bind the scroll point to the renderer")
-        hover = (client.x & 0xFFFF) | ((client.y & 0xFFFF) << 16)
-        if not driver.user.PostMessageW(hit, 0x0200, 0, hover):
-            raise RuntimeError("the renderer rejected the draft hover")
-        packed = (x & 0xFFFF) | ((y & 0xFFFF) << 16)
-        if not driver.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
-            raise RuntimeError("the renderer rejected draft scrolling")
-
-    driver.driver.register_executor(SCROLL.name, scroll)
     readings = []
     unchanged = 0
     params = {"point": [1100, 930], "size": list(frame.size), "delta": -120}
@@ -88,7 +89,25 @@ def scan_draft(driver, frame, *, continuation=False):
     driver.audit.append("verification", step_id="draft-page-count", pages=len(readings))
 
 
-def probe(driver, ordinal, *, scan=False):
+def scan_transcript(driver, frame):
+    driver.yes("verify-cloud-transcript", frame,
+               "Does the toolbar show the word Cloud next to a cloud icon?",
+               region=(1325, 1045, 1462, 1104))
+    params = {"point": [1280, 450], "size": list(frame.size), "delta": 120}
+    readings = []
+    for page in range(1, 9):
+        text = inspect_crop(driver, frame, f"transcript-page-{page}", (632, 70, 1538, 625), "-ReadText")["text"]
+        if not readings or readings[-1] != text:
+            readings.append(text)
+        driver.act("scroll-transcript-readonly", SCROLL, params)
+        time.sleep(0.85)
+        frame = driver.frame(f"transcript-scroll-{page}")
+    (driver.output / "transcript-pages.json").write_text(
+        json.dumps(readings, indent=2, ensure_ascii=False), encoding="utf-8")
+    driver.audit.append("extraction", step_id="transcript-page-count", pages=len(readings))
+
+
+def probe(driver, ordinal, *, scan=False, transcript=False):
     frame = driver.frame("search-candidates")
     driver.require_foreground()
     region = (546, 249, 1140, 926)
@@ -115,6 +134,8 @@ def probe(driver, ordinal, *, scan=False):
                         regions={label: len(value) for label, value in census.items()})
     if scan:
         scan_draft(driver, frame)
+    if transcript:
+        scan_transcript(driver, frame)
     print(json.dumps({"candidate": ordinal, "evidence": "census.json"}))
 
 
@@ -137,6 +158,7 @@ def main():
     parser.add_argument("--phase", required=True, choices=("search", "query", "probe", "scan-local", "scan-current"))
     parser.add_argument("--ordinal", type=int, choices=(1, 2))
     parser.add_argument("--scan-draft", action="store_true")
+    parser.add_argument("--scan-transcript", action="store_true")
     parser.add_argument("--evidence", required=True, type=Path)
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
@@ -144,6 +166,7 @@ def main():
         parser.error("trusted child key and probe ordinal are required")
     args.evidence.mkdir()
     driver = Dispatch(args.evidence, key, thread=SCM_THREAD, scoped_input=True)
+    driver.driver.register_executor(SCROLL.name, partial(scroll_readonly, driver))
     try:
         if args.phase == "search":
             driver.open_search()
@@ -154,7 +177,7 @@ def main():
         elif args.phase == "scan-current":
             scan_draft(driver, driver.frame("local-carrier-continuation"), continuation=True)
         else:
-            probe(driver, args.ordinal, scan=args.scan_draft)
+            probe(driver, args.ordinal, scan=args.scan_draft, transcript=args.scan_transcript)
     except (OSError, RuntimeError, ValueError, KeyError) as error:
         driver.audit.append("escalation", step_id=args.phase, reason=str(error))
         print(f"BLOCKED: {error}")
