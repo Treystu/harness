@@ -12,6 +12,7 @@ import importlib
 import os
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from harness import jev_scope
@@ -20,6 +21,12 @@ from harness.errors import HarnessError, ProviderUsageUnknown, ToolCancelled
 from harness.jev_policy import JevPolicy, policy_for
 from harness.ledger import AutonomyLedger
 from harness.provider_errors import ProviderSpendLimitError
+
+def _owner_source():
+    """Read the owner's source once, closing the handle (R13 runs with
+    ``-W error::ResourceWarning``)."""
+    return Path(jev_scope.__file__).read_text(encoding="utf-8")
+
 
 FAMILY = (
     "scope_noul",
@@ -74,7 +81,7 @@ def _mission_state():
 
 class FamilyOwnershipTests(unittest.TestCase):
     def test_owner_defines_the_family(self):
-        tree = ast.parse(open(jev_scope.__file__, encoding="utf-8").read())
+        tree = ast.parse(_owner_source())
         defined = {node.name for node in tree.body
                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
         missing = [name for name in FAMILY if name not in defined]
@@ -101,7 +108,7 @@ class FamilyOwnershipTests(unittest.TestCase):
         self.assertEqual(kwargs["max_input_tokens"], 4096)
 
     def test_owner_does_not_import_the_policy_at_module_scope(self):
-        tree = ast.parse(open(jev_scope.__file__, encoding="utf-8").read())
+        tree = ast.parse(_owner_source())
         offenders = [node.lineno for node in tree.body
                      if isinstance(node, ast.ImportFrom)
                      and (node.module or "").endswith("jev_policy")]
