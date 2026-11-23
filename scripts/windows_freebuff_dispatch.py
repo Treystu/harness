@@ -167,8 +167,9 @@ class Dispatch:
 
     def open_lane(self):
         frame = self.frame("before-focus")
-        self.yes("identify-freebuff", frame, "Does the screenshot show the FreeBuff desktop app?",
-                 region=(0, 0, 400, 270))
+        self.yes("identify-freebuff", frame,
+                 "Does the image contain the clearly printed word Freebuff beside a white logo?",
+                 region=(65, 55, 285, 130))
         self.act("foreground", FOCUS, {"title": TITLE})
         frame = self.frame("foreground")
         self.require_foreground()
