@@ -138,11 +138,11 @@ class Dispatch:
         if params["text"] != CONTINUATION:
             raise RuntimeError("the text differs from the approved continuation")
         hit = self.composer_renderer
+        keyboard = osal._WindowsInputApi()
         for character in CONTINUATION:
             if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
                 raise RuntimeError("the verified composer renderer is no longer available")
-            if not self.user.PostMessageW(hit, 0x0102, ord(character), 1):
-                raise RuntimeError(f"renderer rejected a character (Win32 {ctypes.get_last_error()})")
+            keyboard.type_text(character)
 
     def act(self, step, action, params):
         grant = Consent(True, action.name, params, by="operator:freebuff-lane1")
@@ -286,7 +286,7 @@ class Dispatch:
                  "Is there a small button or badge labeled Tab below the gray text?",
                  region=(642, 937, 1195, 1048))
         point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
-        point[1] -= 32
+        point[1] -= 68
         self.act("focus-lane1-composer", CLICK,
                  {"control": "Lane 1 composer", "point": point, "size": list(frame.size)})
         self.act("type-continuation", TYPE, {"text": CONTINUATION})
