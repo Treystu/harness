@@ -26,6 +26,8 @@ FILL = 7094198934
 STANDUP = 7111294374
 LANE_RESTART = 7100931819
 SCM_RESTART = 7097835295
+REMAINING = 7095113042
+ROBBY = 7094914841
 SINCE = "2026-11-23T06:55:00Z"
 ROOT = f"{LEDGER}/contents/dispatch/laptop-driver/watch/{CUTOVER}"
 WORKTREE = Path(__file__).resolve().parents[1]
@@ -41,6 +43,8 @@ RECEIPTS = {
     STANDUP: "VISION STANDUP REQUEST 2026-11-23",
     LANE_RESTART: "LANE CONTINUATION WATCH RESTART DISPATCH",
     SCM_RESTART: "LANE CONTINUATION WATCH",
+    REMAINING: "OVERSIGHT DISPATCH - URGENT STANDUP",
+    ROBBY: "OVERSIGHT DISPATCH - ROBBY PROJECT CREATION",
 }
 
 
@@ -233,7 +237,9 @@ def run_burn(receipts, known):
 
 def run_restoration(receipts, known):
     state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
-    for dispatch_id, thread in ((STANDUP, VISION_THREAD), (LANE_RESTART, THREAD), (SCM_RESTART, SCM_THREAD)):
+    queue = ((STANDUP, VISION_THREAD), (LANE_RESTART, THREAD), (SCM_RESTART, SCM_THREAD),
+             (REMAINING, "0319b9f6"))
+    for dispatch_id, thread in queue:
         item = f"restore-{dispatch_id}-{thread}"
         if f"claim-{item}.json" in known:
             if dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
@@ -266,7 +272,26 @@ def run_restoration(receipts, known):
             ):
                 item += "-verified-process-stop-cure"
                 if f"claim-{item}.json" in known:
-                    continue
+                    previous = state_dir / item
+                    runner = previous / "runner.jsonl"
+                    traces = list(previous.glob("**/driver.jsonl"))
+                    if (not runner.is_file() or not AuditLog(runner).verify().ok or not traces
+                            or any(not AuditLog(trace).verify().ok for trace in traces)):
+                        continue
+                    rows = [json.loads(line) for trace in traces
+                            for line in trace.read_text(encoding="utf-8").splitlines()]
+                    if any(row["kind"] == "action" and (
+                        row.get("action") not in {"click_freebuff", "scroll_freebuff", "focus_freebuff"}
+                        or "composer" in row.get("consent", {}).get("params", {}).get("control", "").casefold()
+                    ) for row in rows):
+                        continue
+                    results = [json.loads(line) for line in runner.read_text(encoding="utf-8").splitlines()]
+                    if not any(row.get("step_id") == "result" and "published driver changed" in row.get("state", "")
+                               for row in results):
+                        continue
+                    item = f"restore-{dispatch_id}-{thread}-published-identity-cure"
+                    if f"claim-{item}.json" in known:
+                        continue
             else:
                 continue
         guard_approval()
