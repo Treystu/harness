@@ -425,6 +425,8 @@ class Dispatch:
         frame = self.frame("lane1-before-send")
         self.verify_lane(frame)
         frame = self.verify_draft(frame)
+        if self.scoped_input and not pointer and self.stop_visible(frame):
+            raise RuntimeError("the requested session resumed before send; no restart input")
         region = (1439, 1040, 1487, 1105) if pointer else SEND_CONTROL
         self.yes("verify-send-arrow", frame,
                  "Does this image show a white button containing a black upward arrow?",

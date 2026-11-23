@@ -24,6 +24,8 @@ ISSUE = "repos/Treystu/harness/issues/684/comments"
 LEDGER = "repos/Treystu/slow-lane-ledger"
 BRANCH = "laptop-vision-20261122"
 OWNER_ID = 6300031
+DEMO_COMMENT = 7091945084
+DEMO_SHA256 = "f681100dcf1350fef5f66927912be3b1ad7d61d58a75c12c53ca825086356526"
 TRIGGER = re.compile(r"VISION-DISPATCH (dispatch/laptop-driver/inbox/[a-zA-Z0-9_-]+\.json) ([a-f0-9]{40})")
 FIELDS = {"action", "thread", "text", "expires_at"}
 PHASES = ("search", "query", "select", "prepare", "send")
@@ -64,6 +66,16 @@ def approved(comment, now):
     return mission, digest
 
 
+def one_shot_dispatch():
+    comment = api(f"repos/Treystu/harness/issues/comments/{DEMO_COMMENT}")
+    digest = hashlib.sha256(comment["body"].encode("utf-8")).hexdigest()
+    if (comment["id"] != DEMO_COMMENT or comment["user"]["id"] != OWNER_ID
+            or comment["issue_url"] != "https://api.github.com/repos/Treystu/harness/issues/684"
+            or digest != DEMO_SHA256):
+        raise RuntimeError("the one-shot oversight comment failed identity or content verification")
+    return {"thread": THREAD, "fallback": DISK_THREAD}, digest
+
+
 class Bystander:
     def __init__(self, title, freebuff):
         self.api = _WindowsWindowApi()
@@ -97,12 +109,12 @@ def capture_set(output, phase, windows, audit):
 
 
 def publish(output, number):
-    paths = [output / "runner.jsonl", *(output / phase / "driver.jsonl" for phase in PHASES)]
+    paths = [output / "runner.jsonl", *sorted(output.glob("**/driver.jsonl"))]
     links = []
     for path in paths:
         if not path.is_file():
             continue
-        name = "runner.jsonl" if path.parent == output else f"{path.parent.name}.jsonl"
+        name = "runner.jsonl" if path.parent == output else "-".join(path.relative_to(output).parts[:-1]) + ".jsonl"
         destination = f"dispatch/laptop-driver/evidence/t8/{number}/{name}"
         receipt = api(f"{LEDGER}/contents/{destination}", method="PUT", body={
             "branch": BRANCH, "message": f"File T8 trace {number} {name}",
@@ -110,6 +122,25 @@ def publish(output, number):
         })
         links.append(receipt["content"]["html_url"])
     return links
+
+
+def run_phases(output, thread, audit):
+    for phase in PHASES:
+        helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
+        result = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(helper),
+             "-Python", sys.executable, "-Thread", thread,
+             "-Phase", phase, "-Evidence", str(output / phase)],
+            capture_output=True, text=True, timeout=65, check=False)
+        if result.returncode:
+            detail = result.stdout.strip().splitlines()
+            if phase == "prepare" and detail and "already running; no restart input" in detail[-1]:
+                audit.append("verification", step_id=phase, target=thread, state="already running")
+                return False
+            raise RuntimeError(f"{phase}: {detail[-1] if detail else 'driver exited unsuccessfully'}")
+        audit.append("verification", step_id=phase, target=thread, passed=True)
+        time.sleep(2)
+    return True
 
 
 def execute(output, number, mission, digest, bystanders):
@@ -125,18 +156,14 @@ def execute(output, number, mission, digest, bystanders):
         windows.extend((f"bystander-{index}", Bystander(title, freebuff))
                        for index, title in enumerate(bystanders, start=1))
         before = capture_set(output, "before", windows, audit)
-        for phase in PHASES:
-            helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
-            result = subprocess.run(
-                ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(helper),
-                 "-Python", sys.executable, "-Thread", mission["thread"],
-                 "-Phase", phase, "-Evidence", str(output / phase)],
-                capture_output=True, text=True, timeout=65, check=False)
-            if result.returncode:
-                detail = result.stdout.strip().splitlines()
-                raise RuntimeError(f"{phase}: {detail[-1] if detail else 'driver exited unsuccessfully'}")
-            audit.append("verification", step_id=phase, passed=True)
-            time.sleep(2)
+        if not run_phases(output, mission["thread"], audit):
+            fallback = mission.get("fallback")
+            if not fallback:
+                raise RuntimeError("the requested session is already running")
+            folder = output / "disk-fallback"
+            folder.mkdir()
+            if not run_phases(folder, fallback, audit):
+                raise RuntimeError("both authorized sessions are already running")
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         state = f"parked: {error}"
     finally:
@@ -161,11 +188,22 @@ def execute(output, number, mission, digest, bystanders):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state", type=Path, required=True)
-    parser.add_argument("--since", required=True, help="UTC GitHub comment timestamp to watch from")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--since", help="UTC GitHub comment timestamp to watch from")
+    source.add_argument("--oversight-demo", action="store_true", help="execute comment 7091945084 once")
     parser.add_argument("--wait", type=int, default=120)
     parser.add_argument("--bystander-title", action="append", default=[])
     args = parser.parse_args()
     args.state.mkdir(parents=True, exist_ok=True)
+    if args.oversight_demo:
+        mission, digest = one_shot_dispatch()
+        execution = args.state / str(DEMO_COMMENT)
+        try:
+            (args.state / f"blob-{digest}").mkdir()
+            execution.mkdir()
+        except FileExistsError:
+            parser.error("this oversight demo was already claimed")
+        return execute(execution, DEMO_COMMENT, mission, digest, args.bystander_title)
     deadline = time.monotonic() + args.wait
     seen = set()
     while True:
