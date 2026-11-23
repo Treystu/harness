@@ -45,6 +45,7 @@ THREAD = "315608d2"
 CONTINUATION = "continue in full"
 DISK_THREAD = "f90f01e9"
 SCM_THREAD = "2ae32937"
+VISION_THREAD = "6d39cf4f"
 BURN_SESSIONS = {
     "0d7e2f37": "BigEnergyCo",
     "7d4a9b14": "Kalshi Paper Burndown",
@@ -63,6 +64,7 @@ SESSIONS = {
     THREAD: ("Lane 1", CONTINUATION),
     DISK_THREAD: ("Disk Audit", CONTINUATION),
     SCM_THREAD: ("SCMessenger", CONTINUATION),
+    VISION_THREAD: ("Vision Driver Standup and Audit", CONTINUATION),
     **{thread: (label, CONTINUATION) for thread, label in BURN_SESSIONS.items()},
 }
 COMPOSER = (630, 918, 1550, 1110)

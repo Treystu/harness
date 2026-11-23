@@ -12,7 +12,7 @@ from pathlib import Path
 
 from driver_core.audit import AuditLog
 
-from .windows_freebuff_dispatch import BURN_SESSIONS, SCM_THREAD
+from .windows_freebuff_dispatch import BURN_SESSIONS, SCM_THREAD, THREAD, VISION_THREAD
 from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit, api, execute
 
 CUTOVER = 7093801996
@@ -23,6 +23,9 @@ BURN_QUEUE = 7093946738
 UNBLOCK = 7094012443
 TRANSITION = 7094050344
 FILL = 7094198934
+STANDUP = 7111294374
+LANE_RESTART = 7100931819
+SCM_RESTART = 7097835295
 SINCE = "2026-11-23T06:55:00Z"
 ROOT = f"{LEDGER}/contents/dispatch/laptop-driver/watch/{CUTOVER}"
 WORKTREE = Path(__file__).resolve().parents[1]
@@ -35,6 +38,9 @@ RECEIPTS = {
     UNBLOCK: "OVERSIGHT RULING - QUEUE UNBLOCK",
     TRANSITION: "OVERSIGHT DISPATCH - TRANSITION COMPLETION",
     FILL: "OVERSIGHT DISPATCH - MAX-VELOCITY FILL RULE",
+    STANDUP: "VISION STANDUP REQUEST 2026-11-23",
+    LANE_RESTART: "LANE CONTINUATION WATCH RESTART DISPATCH",
+    SCM_RESTART: "LANE CONTINUATION WATCH — RESTART DISPATCH",
 }
 
 
@@ -225,6 +231,35 @@ def run_burn(receipts, known):
     heartbeat(known, "no unclaimed burn rows; parked rows stay isolated")
 
 
+def run_restoration(receipts, known):
+    state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
+    for dispatch_id, thread in ((STANDUP, VISION_THREAD), (LANE_RESTART, THREAD), (SCM_RESTART, SCM_THREAD)):
+        item = f"restore-{dispatch_id}-{thread}"
+        if f"claim-{item}.json" in known:
+            continue
+        guard_approval()
+        if not desktop_idle():
+            heartbeat(known, "waiting for owner desktop idle before restoration")
+            return True
+        digest = hashlib.sha256(receipts[dispatch_id]["body"].encode()).hexdigest()
+        checkpoint(f"claim-{item}.json", {"dispatch": dispatch_id, "thread": thread, "sha256": digest})
+        output = state_dir / item
+        try:
+            output.mkdir(parents=True)
+            mission = {"thread": thread, "dispatch": dispatch_id, "standing": True}
+            state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
+        except UncertainDriverExit as error:
+            checkpoint("desktop-interlock.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
+            issue_comment(f"Vision watch desktop interlock #{dispatch_id} / `{thread}`. {error}")
+            state = "parked with desktop interlock"
+        except (OSError, RuntimeError) as error:
+            state = "parked after claim"
+            issue_comment(f"Vision watch #{dispatch_id} / `{thread}` {state}. {error}")
+        checkpoint(f"result-{item}.json", {"dispatch": dispatch_id, "thread": thread, "state": state})
+        return True
+    return False
+
+
 def main():
     head = worktree_head()
     if head is None:
@@ -251,6 +286,8 @@ def main():
         issue_comment(f"Vision watch ack {UNBLOCK} and {TRANSITION}. Item {CENSUS} stays parked alone. "
                       f"Burn queue {BURN_QUEUE} is eligible under its own gates.")
     os.environ["HARNESS_VISION_HEAD"] = head
+    if run_restoration(receipts, known):
+        return
     run_burn(receipts, known)
 
 
