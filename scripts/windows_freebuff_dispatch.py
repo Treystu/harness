@@ -1248,6 +1248,8 @@ class Dispatch:
                 return
             self.audit.append("escalation", step_id="active-session-id", exposed=sessions[:8],
                               reason="no exposed route is the pinned thread; trying the selection")
+        if self.standing and self.thread in {SCM_THREAD, VISION_THREAD}:
+            raise RuntimeError("the exact pinned session route is required for this standing dispatch")
         if self.selected_label_matches(wait=3):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               source="settled sidebar selection")
@@ -1262,7 +1264,7 @@ class Dispatch:
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               row=row["text"], source="highlight found in the project list")
             return
-        if self.phase == "send" and self.saw_text(
+        if not self.standing and self.phase == "send" and self.saw_text(
                 "send-identity-draft", self.frame("send-identity"),
                 (640, 925, 1540, 1045), self.text):
             # Send must never navigate, and the accessibility tree is
