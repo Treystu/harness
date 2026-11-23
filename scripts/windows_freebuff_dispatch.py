@@ -64,6 +64,12 @@ LANE_NAV = (80, 590, 390, 750)
 SEND_CONTROL = (1480, 1043, 1535, 1100)
 QUEUE_PLACEHOLDER = "Type a message — added to the queue"
 QUEUE_REGION = (644, 947, 1250, 1020)
+SIDEBAR = (88, 225, 390, 1060)
+SEARCH_RESULTS = (546, 249, 1220, 926)
+SEARCH_PLACEHOLDER = (527, 168, 774, 228)
+SEARCH_PLACEHOLDER_TAIL = (626, 180, 700, 216)
+SEARCH_CLOSE = (1257, 185, 1278, 207)
+COUNTS = (6, 16, 26, 36, 46)
 
 
 class Dispatch:
@@ -109,16 +115,27 @@ class Dispatch:
         self.driver.register_executor(TYPE.name, self.type_text)
         self.driver.register_executor(SEND.name, self.send)
         self.driver.register_executor(QUERY.name, self.query)
+        self.driver.register_executor(SCROLL.name, self.scroll)
+
+    def describe(self, hwnd):
+        if not hwnd:
+            return "no foreground window"
+        return (f"hwnd {hwnd} pid {self.window.pid(hwnd)} "
+                f"title {self.window.api.title_of(hwnd)!r}")
 
     def require_foreground(self):
         hwnd = self.window.require_window()
-        if self.window.api.foreground() != hwnd:
-            raise RuntimeError("FreeBuff is not the foreground window")
+        current = self.window.api.foreground()
+        if current != hwnd:
+            # Name the holder: an unnamed park cannot be resolved from its evidence.
+            self.audit.append("escalation", step_id="foreground", expected=hwnd, holder=current,
+                              holder_detail=self.describe(current))
+            raise RuntimeError(f"FreeBuff is not the foreground window; held by {self.describe(current)}")
         return hwnd
 
     def focus(self, action, params):
         hwnd = self.window.require_window()
-        if params["title"] != TITLE:
+        if params["title"] not in (TITLE, self.window.title):
             raise RuntimeError("the requested window title differs")
         if self.standing:
             from .windows_freebuff_watch import desktop_idle
@@ -280,7 +297,8 @@ class Dispatch:
     def locate_exact_text(self, step, frame, label, region, *, whole=False, with_bounds=False):
         left, top, right, bottom = region
         crop = frame.crop(region).resize(((right - left) * 3, (bottom - top) * 3))
-        path = self.output / f"{step}-ocr.png"
+        # Windows OCR resolves files by absolute path only.
+        path = (self.output / f"{step}-ocr.png").resolve()
         self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
         command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
                    str(Path(__file__).with_name("windows_ocr_exact.ps1")),
@@ -316,18 +334,203 @@ class Dispatch:
         frame = self.frame("lane1-open")
         self.verify_lane(frame)
 
+    def read_roster(self, step, frame, region):
+        """OCR one candidate list: the printed text and where its first word starts."""
+        left, top, right, bottom = region
+        crop = frame.crop(region)
+        crop = crop.resize((crop.width * 2, crop.height * 2))
+        path = (self.output / f"{step}-roster.png").resolve()
+        self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
+        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+                           str(Path(__file__).with_name("windows_ocr_exact.ps1")),
+                           "-Path", str(path), "-ReadLines"], timeout=15)
+        if not result.ok:
+            raise RuntimeError(f"{step}: the roster OCR could not be read")
+        rows = []
+        for line in json.loads(result.stdout).get("lines") or []:
+            words = line.get("words") or []
+            label = (line.get("text") or "").strip()
+            if not words or not label:
+                continue
+            rows.append({"text": label,
+                         "x": left + min(word["x"] for word in words) / 2,
+                         "y": top + min(word["y"] for word in words) / 2,
+                         "x1": left + max(word["x"] for word in words) / 2 + 12})
+        self.audit.append("extraction", step_id=f"{step}-roster", rows=len(rows),
+                          texts=[row["text"] for row in rows][:16])
+        return rows
+
+    def settled_roster(self, step, region, attempts=6):
+        """A roster two consecutive censuses agree on, or a refusal naming both."""
+        previous = None
+        rows = []
+        frame = self.frame(f"{step}-0")
+        for attempt in range(1, attempts + 1):
+            rows = self.read_roster(f"{step}-{attempt}", frame, region)
+            current = tuple((row["text"], round(row["x"]), round(row["y"])) for row in rows)
+            if current and current == previous:
+                self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
+                                  censuses=attempt)
+                return frame, rows
+            previous = current
+            time.sleep(0.7)
+            frame = self.frame(f"{step}-resettle-{attempt}")
+        raise RuntimeError(f"{step}: the roster did not settle in {attempts} censuses; "
+                           f"last rows: {[row['text'] for row in rows][:12]}")
+
+    @staticmethod
+    def _norm(text):
+        return "".join(character for character in text.casefold() if character.isalnum())
+
+    @classmethod
+    def row_matches(cls, text, label):
+        """Exact title, or a clipped sidebar row: OCR loses the last glyph at the clip."""
+        seen, wanted = cls._norm(text), cls._norm(label)
+        if not seen or not wanted:
+            return False
+        if seen == wanted:
+            return True
+        if len(seen) < 12:
+            return False
+        if wanted.startswith(seen):
+            return True
+        common = 0
+        for left, right in zip(seen, wanted):
+            if left != right:
+                break
+            common += 1
+        return common >= 12 and common >= min(len(seen), len(wanted)) - 2
+
+    def scroll(self, action, params):
+        """Scroll the renderer read-only: hover, then one wheel step."""
+        hit, x, y = self.renderer_point(params)
+        client = wintypes.POINT(x, y)
+        if not self.user.ScreenToClient(hit, ctypes.byref(client)):
+            raise RuntimeError("could not bind the scroll point to the renderer")
+        hover = (client.x & 0xFFFF) | ((client.y & 0xFFFF) << 16)
+        if not self.user.PostMessageW(hit, 0x0200, 0, hover):
+            raise RuntimeError("the renderer rejected the hover")
+        packed = (x & 0xFFFF) | ((y & 0xFFFF) << 16)
+        if not self.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
+            raise RuntimeError("the renderer rejected scrolling")
+
+    def click_roster_row(self, step, frame, rows, label):
+        matches = [row for row in rows if self.row_matches(row["text"], label)]
+        if len(matches) != 1:
+            raise RuntimeError(f"{step}: {label!r} matched {len(matches)} settled rows; "
+                               f"roster: {[row['text'] for row in rows][:14]}")
+        row = matches[0]
+        point = [round((row["x"] + row["x1"]) / 2), round(row["y"] + 8)]
+        scope = (round(row["x"] - 6), round(row["y"] - 4),
+                 round(row["x1"] + 6), round(row["y"] + 20))
+        fresh = self.frame(f"{step}-readback")
+        if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
+            raise RuntimeError(f"{step}: the settled row moved before the click")
+        self.act(step, CLICK, {"control": f"session row {row['text']}", "point": point,
+                               "size": list(frame.size)})
+        return row
+
+    def highlighted_row(self, frame, rows):
+        gray = frame.convert("L")
+        best = None
+        for row in rows:
+            x0, y0 = round(row["x"]), round(row["y"])
+            scores = 0
+            for offset in COUNTS:
+                x, y = x0 + offset, y0 + 8
+                if x >= gray.width or y - 26 < 0:
+                    continue
+                if gray.getpixel((x, y)) - gray.getpixel((x, y - 26)) >= 8:
+                    scores += 1
+            if scores >= 3 and (best is None or scores > best[0]):
+                best = (scores, row)
+        return best[1] if best else None
+
+    def selected_label_matches(self, wait=0):
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                frame, rows = self.settled_roster("selected-row-probe", SIDEBAR, attempts=3)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="selected-row-probe", reason=str(error))
+                return False
+            row = self.highlighted_row(frame, rows)
+            if row and self.row_matches(row["text"], self.label):
+                self.audit.append("verification", step_id="selected-row", row=row["text"])
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.8)
+
+    def walk_session_list(self, pages=5):
+        """Walk the project session list page by page, each page settled before a pick."""
+        frame = self.frame("session-list-start")
+        self.act("session-list-to-top", SCROLL, {"point": [196, 600], "size": list(frame.size),
+                                                "delta": 9600})
+        time.sleep(1.0)
+        seen = []
+        for page in range(1, pages + 1):
+            try:
+                frame, rows = self.settled_roster(f"session-list-{page}", SIDEBAR, attempts=3)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="walk-session-list", reason=str(error))
+                return False
+            texts = [row["text"] for row in rows]
+            if texts in seen:
+                return False
+            seen.append(texts)
+            matches = [row for row in rows if self.row_matches(row["text"], self.label)]
+            if len(matches) == 1:
+                self.click_roster_row(f"session-list-pick-{page}", frame, rows, self.label)
+                return True
+            expand = next((row for row in rows
+                           if row["text"].strip() in {"Show more", "More chats"}), None)
+            if expand:
+                self.click_roster_row(f"session-list-expand-{page}", frame, rows, expand["text"])
+                time.sleep(1.0)
+                continue
+            band = frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes()
+            self.act(f"session-list-scroll-{page}", SCROLL, {"point": [196, 850],
+                                                            "size": list(frame.size), "delta": -240})
+            time.sleep(0.9)
+            frame = self.frame(f"session-list-scrolled-{page}")
+            if frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes() == band:
+                return False
+        return False
+
+    def navigate_by_session_list(self):
+        """Open the lane from the project session list: no dialog, no typing."""
+        if self.selected_label_matches():
+            self.audit.append("verification", step_id="navigate-session-list", state="already open")
+            return True
+        try:
+            if not self.walk_session_list():
+                self.audit.append("escalation", step_id="navigate-session-list",
+                                  reason=f"{self.label!r} is not in the project session list")
+                return False
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id="navigate-session-list", reason=str(error))
+            return False
+        time.sleep(1.2)
+        if self.selected_label_matches(wait=8):
+            self.audit.append("verification", step_id="navigate-session-list", label=self.label,
+                              source="project session list")
+            return True
+        self.audit.append("escalation", step_id="navigate-session-list",
+                          reason="the clicked session row did not become the selected session")
+        return False
+
     def open_search(self):
         frame = self.frame("freebuff-before-search")
         if self.window.api.foreground() != self.window.handle:
             self.verify_freebuff_logo(frame, "identify-freebuff-for-search")
-            self.act("search-foreground", FOCUS, {"title": TITLE})
+            self.act("search-foreground", FOCUS, {"title": self.window.title})
             frame = self.frame("freebuff-search-foreground")
         self.require_foreground()
-        frame = self.close_search_if_open(frame)
+        if self.navigate_by_session_list():
+            return
+        frame = self.ensure_search_closed(self.frame("freebuff-before-search-reset"))
         region = (296, 75, 333, 104)
-        self.yes("identify-search-control", frame,
-                 "Does this crop show a magnifying glass search icon?",
-                 region=region)
         left, top, _, _ = region
         pixels = frame.crop(region).convert("L")
         box = pixels.point(lambda level: 255 if level >= 140 else 0).getbbox()
@@ -337,60 +540,59 @@ class Dispatch:
         self.act("open-session-search", CLICK,
                  {"control": "FreeBuff session search", "point": point, "size": list(frame.size)})
         time.sleep(0.6)
-        self.frame("freebuff-search-open")
+        frame = self.frame("freebuff-search-open")
+        if not self.dialog_open(frame):
+            raise RuntimeError("the search dialog did not open after the verified search click")
+
+    def dialog_open(self, frame):
+        """The dialog's own placeholder text is the state, not a model opinion."""
+        for step, label, region in (("probe-search-placeholder", "Search chats", SEARCH_PLACEHOLDER),
+                                    ("probe-search-placeholder-tail", "chats", SEARCH_PLACEHOLDER_TAIL)):
+            try:
+                self.locate_exact_text(step, frame, label, region)
+                return True
+            except RuntimeError:
+                continue
+        return False
 
     def close_search_if_open(self, frame):
-        self.require_foreground()
-        region = (1257, 185, 1278, 207)
-        cross = frame.crop(region).convert("L").point(lambda level: 255 if level > 160 else 0)
-        box = cross.getbbox()
-        if box and 8 <= box[2] - box[0] <= 14 and 8 <= box[3] - box[1] <= 14:
-            x, y, right, bottom = box
-            if all(cross.crop(corner).getbbox() for corner in (
-                (x, y, x + 3, y + 3), (right - 3, y, right, y + 3),
-                (x, bottom - 3, x + 3, bottom), (right - 3, bottom - 3, right, bottom),
-            )):
-                return self.close_verified_search(frame, region)
-        answers = self.ask("inspect-search-dialog", frame, {
-            "open": transport.noul(
-                "Is a centered chat search dialog visible, with a magnifier and text entry at "
-                "the upper left and an X close control at the upper right?")
-        }, region=(488, 150, 1315, 380))
-        present = answers["open"]["noul"]
-        if present >= 0.9:
-            return self.close_verified_search(frame, region)
-        if present > 0.2:
-            raise RuntimeError("the current FreeBuff search dialog state is ambiguous")
-        return frame
+        """Backwards-compatible name for the deterministic dialog reset."""
+        return self.ensure_search_closed(frame)
 
-    def close_verified_search(self, frame, region):
-        self.yes("verify-search-close", frame, "Do two white diagonal strokes cross to form an X?",
-                 region=region)
-        fresh = self.frame("search-close-readback")
-        if fresh.crop(region).tobytes() != frame.crop(region).tobytes():
-            raise RuntimeError("the verified search close control moved")
-        self.act("close-old-search", CLICK, {"control": "FreeBuff search Close", "point": [1269, 197],
-                                              "size": list(frame.size)})
-        time.sleep(1.5)
-        return self.frame("freebuff-after-search-close")
+    def ensure_search_closed(self, frame):
+        """Reset to a known dismissed dialog state, then re-census until it settles."""
+        if not self.dialog_open(frame):
+            return frame
+        self.audit.append("verification", step_id="search-reset", state="open")
+        self.act("close-search-dialog", CLICK, {"control": "FreeBuff search Close",
+                                                "point": [1269, 197], "size": list(frame.size)})
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            time.sleep(0.6)
+            frame = self.frame("search-reset-settled")
+            if not self.dialog_open(frame):
+                self.audit.append("verification", step_id="search-reset", state="closed")
+                return frame
+        raise RuntimeError("the search dialog did not close after a verified reset")
 
     def search_for_session(self):
-        frame = self.frame("freebuff-before-query")
         self.require_foreground()
-        region = (527, 168, 774, 228)
-        self.yes("verify-search-field", frame,
-                 "Does the text say Search chats?",
-                 region=(545, 177, 700, 217))
+        if self.selected_label_matches():
+            self.audit.append("verification", step_id="query-skip",
+                              reason="the target row is already the selected session")
+            return
+        frame = self.frame("freebuff-before-query")
+        if not self.dialog_open(frame):
+            frame = self.ensure_search_closed(frame)
+            raise RuntimeError("the search dialog is not open for the query")
         try:
-            point = self.locate_exact_text("locate-search-field", frame, "Search chats", region)
+            point = self.locate_exact_text("locate-search-field", frame, "Search chats",
+                                           SEARCH_PLACEHOLDER)
         except RuntimeError:
             frame = self.frame("search-field-caret")
-            self.yes("verify-search-field-fresh", frame,
-                     "Does the complete placeholder say Search chats?",
-                     region=(545, 177, 700, 217))
             # A caret can touch the first glyph. Locate the unaffected second word.
-            point = self.locate_exact_text("locate-search-field-unobscured", frame,
-                                           "chats", (626, 180, 700, 216))
+            point = self.locate_exact_text("locate-search-field-unobscured", frame, "chats",
+                                           SEARCH_PLACEHOLDER_TAIL)
         self.act("focus-search-field", CLICK,
                  {"control": "Search chats field", "point": point, "size": list(frame.size)})
         self.act("query-session", QUERY, {"thread": self.thread, "text": self.label,
@@ -399,27 +601,24 @@ class Dispatch:
         self.frame("freebuff-search-results")
 
     def select_search_result(self):
-        frame = self.frame("before-select-session")
         self.require_foreground()
-        point, box = self.locate_exact_text("locate-existing-search-result", frame, self.label,
-                                            (546, 249, 1220, 926), with_bounds=True)
-        region = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
-        self.yes("verify-existing-search-result", frame,
-                 f"Does the printed text read '{self.label}'?",
-                 region=region)
-        fresh = self.frame("fresh-selection-readback")
-        if fresh.size != frame.size or fresh.crop(region).tobytes() != frame.crop(region).tobytes():
-            raise RuntimeError("the OCR-verified selection label changed before the click")
-        self.act("select-existing-session", CLICK,
-                 {"control": f"existing {self.label} ({self.thread}) search result",
-                  "point": point, "size": list(frame.size)})
+        if self.selected_label_matches():
+            self.audit.append("verification", step_id="select-skip",
+                              reason="the target row is already the selected session")
+            return
+        if self.navigate_by_session_list():
+            return
+        frame, rows = self.settled_roster("before-select-session", SEARCH_RESULTS)
+        row = self.click_roster_row("select-existing-session", frame, rows, self.label)
         time.sleep(1.5)
         self.frame("existing-session-selected")
+        self.audit.append("verification", step_id="select", row=row["text"],
+                          source="settled search results")
 
     def verify_lane(self, frame):
         self.require_foreground()
         if self.thread in BURN_SESSIONS or self.thread == SCM_THREAD:
-            self.verify_active_session()
+            self.verify_session_identity()
             return
         if self.thread == DISK_THREAD:
             self.yes("verify-disk-audit-tab", frame,
@@ -445,6 +644,33 @@ class Dispatch:
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "in the sidebar? Reject a plain unselected row.",
                  region=region)
+
+    def verify_session_identity(self):
+        """Prove which session is open, from the app itself.
+
+        The route is the strongest proof, but Chromium only publishes a route
+        while its accessibility tree is live, and this window's tree is often
+        empty (measured 2026-11-22: zero Document elements on a fresh handle).
+        A dead tree is not evidence of the wrong session, so the fallback is
+        the settled sidebar with the target's own row highlighted; both
+        proofs are recorded, and neither is a model confidence.
+        """
+        try:
+            sessions = self.read_app_structure()
+        except (OSError, RuntimeError, ValueError) as error:
+            self.audit.append("escalation", step_id="active-session-route", reason=str(error))
+            sessions = None
+        if sessions:
+            if len(sessions) == 1 and sessions[0].split("-")[0] == self.thread:
+                self.audit.append("verification", step_id="active-session-id", exact_id=sessions[0])
+                return
+            raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
+        if self.selected_label_matches(wait=3):
+            self.audit.append("verification", step_id="active-session-row", label=self.label,
+                              source="settled sidebar selection")
+            return
+        raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
+                           f"({self.label})")
 
     def verify_active_session(self):
         sessions = self.read_app_structure()

@@ -28,7 +28,7 @@ CENSUS_REGIONS = {
 def inspect_crop(driver, frame, label, region, *options):
     crop = frame.crop(region)
     crop = crop.resize((crop.width * 2, crop.height * 2))
-    path = driver.output / f"{label}.png"
+    path = (driver.output / f"{label}.png").resolve()
     driver.image_ops.invert(driver.image_ops.grayscale(crop)).save(path)
     helper = Path(__file__).with_name("windows_ocr_exact.ps1")
     response = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",

@@ -1,0 +1,63 @@
+"""The class cure for lane standup: settled rosters, unique rows, named refusals."""
+
+from unittest.mock import Mock
+
+import pytest
+
+from scripts.windows_freebuff_dispatch import SIDEBAR, Dispatch
+
+
+def shim(tmp_path, frames):
+    dispatch = object.__new__(Dispatch)
+    dispatch.output = tmp_path
+    dispatch.audit = Mock()
+    dispatch.frame = Mock(side_effect=frames)
+    return dispatch
+
+
+def test_clipped_sidebar_label_matches_but_a_short_prefix_does_not():
+    assert Dispatch.row_matches("Kalshi Paper Burndov", "Kalshi Paper Burndown")
+    assert Dispatch.row_matches("Kalshi Paper Burndown", "Kalshi Paper Burndown")
+    assert not Dispatch.row_matches("Kalshi Paper Rotation at", "Kalshi Paper Burndown")
+    assert not Dispatch.row_matches("Lane", "Lane 1")
+    assert not Dispatch.row_matches("Lane 1", "Lane 2")
+
+
+def test_selection_waits_for_two_identical_rosters(tmp_path, monkeypatch):
+    frames = [Mock(name=f"frame-{index}") for index in range(3)]
+    dispatch = shim(tmp_path, frames)
+    censuses = [
+        [{"text": "Lane 1", "x": 133, "y": 740, "x1": 200}],
+        [{"text": "Lane 1", "x": 133, "y": 752, "x1": 200}],
+        [{"text": "Lane 1", "x": 133, "y": 752, "x1": 200}],
+    ]
+    dispatch.read_roster = Mock(side_effect=lambda step, frame, region: censuses.pop(0))
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+
+    frame, rows = dispatch.settled_roster("probe", SIDEBAR)
+
+    assert frame is frames[2]
+    assert rows[0]["text"] == "Lane 1"
+    assert not censuses
+
+
+def test_a_roster_that_never_settles_refuses_by_name(tmp_path, monkeypatch):
+    dispatch = shim(tmp_path, [Mock() for _ in range(8)])
+    dispatch.read_roster = Mock(side_effect=lambda step, frame, region: [
+        {"text": f"row {step}", "x": 133, "y": 740, "x1": 200}])
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+
+    with pytest.raises(RuntimeError, match="did not settle"):
+        dispatch.settled_roster("probe", SIDEBAR, attempts=3)
+
+
+def test_ambiguous_row_refusal_names_every_candidate(tmp_path):
+    dispatch = object.__new__(Dispatch)
+    dispatch.output = tmp_path
+    dispatch.audit = Mock()
+    dispatch.frame = Mock(return_value=Mock())
+    rows = [{"text": "Lane 1", "x": 133, "y": 700, "x1": 200},
+            {"text": "Lane 2", "x": 133, "y": 724, "x1": 200}]
+
+    with pytest.raises(RuntimeError, match="matched 0 settled rows"):
+        dispatch.click_roster_row("select", Mock(), rows, "Lane 3")
