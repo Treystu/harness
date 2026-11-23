@@ -249,7 +249,10 @@ class Dispatch:
         if params["thread"] != self.thread or params["text"] != self.text:
             raise RuntimeError("the thread or text differs from the approved continuation")
         if self.standing:
-            self.verify_active_session()
+            if self.thread == THREAD:
+                self.verify_session_identity()
+            else:
+                self.verify_active_session()
             fresh = self.frame("send-executor-fresh")
             if (fresh.crop(COMPOSER).tobytes() != self.send_composer or self.stop_visible(fresh)):
                 raise RuntimeError("the standing composer changed after approval")

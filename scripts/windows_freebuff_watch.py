@@ -236,7 +236,27 @@ def run_restoration(receipts, known):
     for dispatch_id, thread in ((STANDUP, VISION_THREAD), (LANE_RESTART, THREAD), (SCM_RESTART, SCM_THREAD)):
         item = f"restore-{dispatch_id}-{thread}"
         if f"claim-{item}.json" in known:
-            if dispatch_id != STANDUP or f"result-{item}.json" not in known or not cure_eligible(
+            if dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
+                output = state_dir / item
+                runner = output / "runner.jsonl"
+                trace = output / "send" / "driver.jsonl"
+                if (runner.is_file() and trace.is_file() and AuditLog(runner).verify().ok
+                        and AuditLog(trace).verify().ok):
+                    events = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
+                    attempts = [row for row in events if row.get("step_id") == "send-once"]
+                    if (len(attempts) == 1 and not attempts[0].get("ok")
+                            and "the active FreeBuff document did not expose the exact pinned thread"
+                            in attempts[0].get("detail", "")):
+                        item += "-lane1-selected-row-cure"
+                        if f"claim-{item}.json" not in known:
+                            pass
+                        else:
+                            continue
+                    else:
+                        continue
+                else:
+                    continue
+            elif dispatch_id == STANDUP and f"result-{item}.json" in known and cure_eligible(
                 state_dir / item, ("search: driver tree termination unverified",),
                 ("observation-foreground", "navigate-to-bystander", "scroll-project-sidebar",
                  "scroll-sidebar-top", "search-foreground", "close-old-search",
@@ -244,9 +264,10 @@ def run_restoration(receipts, known):
                  "sidebar-top-scroll-4", "sidebar-top-scroll-5", "session-list-pick-1",
                  "prefix-scroll-1"),
             ):
-                continue
-            item += "-verified-process-stop-cure"
-            if f"claim-{item}.json" in known:
+                item += "-verified-process-stop-cure"
+                if f"claim-{item}.json" in known:
+                    continue
+            else:
                 continue
         guard_approval()
         if not desktop_idle():
