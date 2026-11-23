@@ -84,6 +84,7 @@ def test_census_reidentifies_row_on_fresh_stable_frame():
     fresh = Image.new("RGB", (400, 200), "white")
     driver = Mock()
     driver.frame.side_effect = [fresh, fresh]
+    driver.read_roster.return_value = [{"text": "SCMessenger"}]
     driver.locate_exact_text.return_value = [150, 100]
     census.visual_select_row(driver, old, "SCMessenger", 100, "candidate")
     assert driver.locate_exact_text.call_args.args[1] is fresh
@@ -95,9 +96,15 @@ def test_census_refuses_row_changed_after_verification():
     driver = Mock()
     old = Image.new("RGB", (400, 200), "white")
     driver.frame.side_effect = [old, Image.new("RGB", (400, 200), "black")]
+    driver.read_roster.return_value = [{"text": "SCMessenger"}]
     with pytest.raises(RuntimeError, match="changed before selection"):
         census.visual_select_row(driver, old, "SCMessenger", 100, "candidate")
     driver.act.assert_not_called()
+
+
+def test_census_tolerates_only_small_ocr_differences_for_navigation():
+    assert census.similar_census_label("SCMessenger Audit Lar", "SCMessenger Audit Lan")
+    assert not census.similar_census_label("SCMessenger Audit Lar", "SCMessenger Cloud Cure")
 
 
 def test_census_match_requires_active_uuid_and_both_activity_markers():

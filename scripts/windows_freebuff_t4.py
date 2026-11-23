@@ -6,6 +6,7 @@ import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from driver_core import osal
@@ -314,21 +315,34 @@ def visual_select_row(driver, frame, label, y, step):
     fresh = driver.frame(f"{step}-before")
     # Opening a preceding candidate changes sidebar styling. Re-identify this
     # row on the fresh frame; retain the stability check immediately before input.
-    point = driver.locate_exact_text(f"{step}-ocr", fresh, label, scope)
-    driver.yes(f"{step}-verify", fresh, f"Does the sidebar text read {label!r}?", region=scope)
+    rows = driver.read_roster(f"{step}-fresh-roster", fresh, scope)
+    if len(rows) != 1:
+        raise RuntimeError("the fresh census row was not uniquely readable")
+    current_label = rows[0]["text"].strip()
+    if not similar_census_label(label, current_label):
+        raise RuntimeError("the fresh census row no longer matches the roster")
+    point = driver.locate_exact_text(f"{step}-ocr", fresh, current_label, scope)
+    driver.yes(f"{step}-verify", fresh, f"Does the sidebar text read {current_label!r}?", region=scope)
     current = driver.frame(f"{step}-ready")
     if current.crop(scope).tobytes() != fresh.crop(scope).tobytes():
         raise RuntimeError("SCMessenger chat row changed before selection")
     driver.act(step, CLICK, {
-        "control": f"SCMessenger project chat {label}", "point": point, "size": list(fresh.size),
+        "control": f"SCMessenger project chat {current_label}", "point": point, "size": list(fresh.size),
     })
+    return current_label
+
+
+def similar_census_label(old, new):
+    old, new = old.casefold().strip(), new.casefold().strip()
+    return old == new or (len(old) >= 12 and len(new) >= 12 and old[:12] == new[:12]
+                          and SequenceMatcher(None, old, new).ratio() >= 0.9)
 
 
 def visual_census(driver, frame):
     evidence = []
     for page_frame, page, rows in visual_project_pages(driver, frame):
         for index, (label, y) in enumerate(rows):
-            visual_select_row(driver, page_frame, label, y, f"visual-census-select-{page}-{index}")
+            label = visual_select_row(driver, page_frame, label, y, f"visual-census-select-{page}-{index}")
             time.sleep(7)
             opened = driver.frame(f"visual-census-{page}-{index}-open")
             fields = observe_census_candidate(driver, opened, label, len(evidence) + 1)
@@ -347,7 +361,7 @@ def visual_census(driver, frame):
     seen = 0
     for page_frame, _, rows in visual_project_pages(driver, frame):
         for label, y in rows:
-            if seen >= len(evidence) or label != evidence[seen]["title"]:
+            if seen >= len(evidence) or not similar_census_label(label, evidence[seen]["title"]):
                 raise RuntimeError("the project roster order changed before reopening")
             if seen == matches[0]:
                 visual_select_row(driver, page_frame, label, y, "visual-reopen-unique-scm-match")

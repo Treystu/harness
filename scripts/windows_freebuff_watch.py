@@ -306,7 +306,15 @@ def run_restoration(receipts, known):
                             continue
                         item += "-fresh-row-ocr-cure"
                         if f"claim-{item}.json" in known:
-                            continue
+                            if (f"result-{item}.json" not in known or not cure_eligible(
+                                    state_dir / item, ("exact OCR label 'SCMessenger Audit Lar'",),
+                                    ("observation-foreground", "navigate-to-bystander", "census-foreground",
+                                     "scroll-project-sidebar-0", "scroll-project-sidebar-1",
+                                     "visual-census-select-2-0"))):
+                                continue
+                            item += "-fresh-label-cure"
+                            if f"claim-{item}.json" in known:
+                                continue
             elif dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
                 output = state_dir / item
                 runner = output / "runner.jsonl"
@@ -438,7 +446,8 @@ def run_restoration(receipts, known):
                 mission["phases"] = ("vision-start-focus-cure",)
                 mission["skip_t5"] = True
             if item.endswith(("-project-roster-cure", "-project-roster-cure-scroll-registration-cure",
-                              "-scroll-registration-cure-fresh-row-ocr-cure")):
+                              "-scroll-registration-cure-fresh-row-ocr-cure",
+                              "-fresh-row-ocr-cure-fresh-label-cure")):
                 mission["phases"] = ("project-census",)
                 mission["phase_timeout"] = 600
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
