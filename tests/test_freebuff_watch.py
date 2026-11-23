@@ -7,6 +7,7 @@ from driver_core.audit import AuditLog
 from scripts import windows_freebuff_t4 as census
 from scripts import windows_freebuff_watch as watch
 from scripts import windows_freebuff_runner as runner
+from scripts.windows_freebuff_dispatch import Dispatch
 
 
 def test_legacy_census_pause_does_not_block_queue(monkeypatch):
@@ -84,6 +85,10 @@ def test_census_match_requires_active_uuid_and_both_activity_markers():
     assert census.census_signature(fields)
     assert not census.census_signature(fields | {"document_sessions": []})
     assert not census.census_signature(fields | {"transcript-lower": "Older work"})
+
+
+def test_selected_row_ignores_the_leading_status_glyph():
+    assert Dispatch.row_matches("Ra Vision Driver Standup al V", "Vision Driver Standup and Audit")
 
 
 def test_cure_never_replays_an_uncertain_send(tmp_path):

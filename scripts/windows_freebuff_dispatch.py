@@ -461,20 +461,22 @@ class Dispatch:
         for name in (text.strip(), tail):
             if name and name.casefold().startswith(label.strip().casefold()):
                 return True
-        seen = max(candidates, key=len)
-        if len(seen) < 10:
-            return False
-        common = 0
-        for left, right in zip(seen, wanted):
-            if left != right:
-                break
-            common += 1
-        if common < 6:
-            return False
-        if wanted.startswith(seen):
-            return True
-        window = wanted[:len(seen)] if len(seen) <= len(wanted) else wanted
-        return SequenceMatcher(None, seen, window).ratio() >= 0.85
+        for seen in candidates:
+            if len(seen) < 10:
+                continue
+            common = 0
+            for left, right in zip(seen, wanted):
+                if left != right:
+                    break
+                common += 1
+            if common < 6:
+                continue
+            if wanted.startswith(seen):
+                return True
+            window = wanted[:len(seen)] if len(seen) <= len(wanted) else wanted
+            if SequenceMatcher(None, seen, window).ratio() >= 0.85:
+                return True
+        return False
 
     def scroll(self, action, params):
         """Scroll the renderer read-only: hover, then one wheel step."""
