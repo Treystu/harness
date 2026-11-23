@@ -33,6 +33,8 @@ TYPE = Action("type_freebuff", MUTATING, "type_freebuff", ("text",),
               "Type the exact approved continuation into the empty Lane 1 composer.", "gui")
 VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.0.0", [FOCUS, CLICK, TYPE])
 CONTINUATION = "continue in full"
+COMPOSER = (630, 918, 1550, 1110)
+LANE_NAV = (80, 590, 390, 750)
 
 
 class Dispatch:
@@ -64,6 +66,7 @@ class Dispatch:
             wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
         self.output = output
         self.key = key
+        self.composer_renderer = None
         self.audit = AuditLog(output / "driver.jsonl")
         self.screen = WindowsWindowScreen(self.window, source="windows-freebuff")
         self.driver = Driver(settings=Settings(jev_api_key=key, allow_write=True),
@@ -128,12 +131,18 @@ class Dispatch:
             if not self.user.PostMessageW(hit, message, keys, packed):
                 raise RuntimeError(f"renderer rejected click message (Win32 {ctypes.get_last_error()})")
             time.sleep(0.05)
+        if params["control"] == "Lane 1 composer":
+            self.composer_renderer = hit
 
     def type_text(self, action, params):
-        self.require_foreground()
         if params["text"] != CONTINUATION:
             raise RuntimeError("the text differs from the approved continuation")
-        osal._WindowsInputApi().type_text(CONTINUATION)
+        hit = self.composer_renderer
+        for character in CONTINUATION:
+            if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
+                raise RuntimeError("the verified composer renderer is no longer available")
+            if not self.user.PostMessageW(hit, 0x0102, ord(character), 1):
+                raise RuntimeError(f"renderer rejected a character (Win32 {ctypes.get_last_error()})")
 
     def act(self, step, action, params):
         grant = Consent(True, action.name, params, by="operator:freebuff-lane1")
@@ -179,6 +188,18 @@ class Dispatch:
         probability = answers.get("yes", {}).get("noul", 0)
         if not isinstance(probability, (int, float)) or not 0.9 <= probability <= 1:
             raise RuntimeError(f"{step}: Jev target confidence was {probability}, requires 0.90")
+
+    def choose(self, step, frame, question, choices, *, region, threshold=0.9):
+        answers, _ = self.ask(step, frame, {"choice": transport.choice(question, choices)},
+                              region=region)
+        choice = answers.get("choice", {})
+        selected = choice.get("choice")
+        probability = choice.get("probabilities", {}).get(selected, 0)
+        if selected not in choices or not isinstance(probability, (int, float)):
+            raise RuntimeError(f"{step}: malformed Jev choice")
+        if not threshold <= probability <= 1:
+            raise RuntimeError(f"{step}: Jev choice {selected!r} confidence was {probability}")
+        return selected
 
     def locate(self, step, frame, label, region):
         answers, geometry = self.ask(step, frame, {
@@ -228,15 +249,58 @@ class Dispatch:
         self.act("open-lane1", CLICK, {"control": LANE, "point": point, "size": list(frame.size)})
         time.sleep(0.7)
         frame = self.frame("lane1-open")
+        self.verify_lane(frame)
+
+    def verify_lane(self, frame):
+        self.require_foreground()
         self.yes("verify-lane1", frame,
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "under the Harness heading? Reject if a different row is selected.",
-                 region=(80, 590, 390, 750))
+                 region=LANE_NAV)
+
+    def verify_draft(self, frame):
+        self.yes("verify-staged-text", frame,
+                 "Is the only actual user-entered composer text exactly 'continue in full' "
+                 "in lowercase, with no extra text, and is an enabled send button visible? "
+                 "A gray Tab suggestion or placeholder does not count.",
+                 region=COMPOSER)
+
+    def prepare_draft(self):
+        frame = self.frame("lane1-before-draft")
+        self.verify_lane(frame)
+        route = self.choose("composer-route", frame,
+                            "Which exact state is visible in the existing Lane 1 pane?", {
+                                "staged": "The composer already contains exactly the user-entered"
+                                          " text 'continue in full' and an enabled send button.",
+                                "empty": "The editor is empty with only a dim Tab suggestion"
+                                         " and a microphone button. Resume mission is absent.",
+                                "resume": "There is a Resume mission control.",
+                                "stop": "A turn is active, there is other user-entered text,"
+                                        " or the composer is unclear.",
+                            }, region=(626, 633, 1550, 1110))
+        if route == "staged":
+            self.verify_draft(frame)
+            return
+        if route != "empty":
+            raise RuntimeError(f"composer-route: stopped on {route!r} without typing")
+        self.yes("verify-empty-editor", frame,
+                 "Does this image show the text entry area of a message composer, "
+                 "with a dim Tab suggestion and a white voice waveform button?",
+                 region=COMPOSER)
+        point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
+        point[1] -= 32
+        self.act("focus-lane1-composer", CLICK,
+                 {"control": "Lane 1 composer", "point": point, "size": list(frame.size)})
+        self.act("type-continuation", TYPE, {"text": CONTINUATION})
+        time.sleep(0.4)
+        frame = self.frame("lane1-draft-ready")
+        self.verify_draft(frame)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
+    parser.add_argument("--phase", choices=("open", "prepare"), default="open")
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
     if not key:
@@ -244,8 +308,11 @@ def main():
     args.evidence.mkdir()
     dispatch = Dispatch(args.evidence, key)
     try:
-        dispatch.open_lane()
-    except (OSError, RuntimeError, KeyError, TypeError) as error:
+        if args.phase == "open":
+            dispatch.open_lane()
+        else:
+            dispatch.prepare_draft()
+    except (OSError, RuntimeError, KeyError, TypeError, ValueError) as error:
         dispatch.audit.append("escalation", step_id="dispatch", reason=str(error))
         print(f"BLOCKED: {error}")
         return 1
