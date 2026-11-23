@@ -16,7 +16,7 @@ from driver_core.driver import Driver
 from driver_core.executor import Consent
 from driver_core.vision_verify import APP_VISIBILITY_THRESHOLD, LAUNCH_POLLS, VisionVerifier
 
-from .windows_notepad_window import NotepadScreen, NotepadWindow
+from .windows_notepad_window import NotepadWindow, WindowsWindowScreen
 
 TEXT = "hello world"
 FILE_NAME = "vision-test.txt"
@@ -120,7 +120,7 @@ def prove(goal, output, destination, key):
     )
     window = NotepadWindow()
     original_foreground = window.foreground()
-    screen = NotepadScreen(window)
+    screen = WindowsWindowScreen(window, source="windows-notepad")
     audit = AuditLog(output / "driver.jsonl")
 
     def send(kind, *, value=None, target=None):

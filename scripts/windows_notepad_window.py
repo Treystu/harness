@@ -214,9 +214,10 @@ class NotepadWindow:
             self.user.ShowWindow(self.owner, 7)  # Minimize without activating another window.
 
 
-class NotepadScreen:
-    def __init__(self, window):
+class WindowsWindowScreen:
+    def __init__(self, window, *, source):
         self.window = window
+        self.source = source
         self.last_png = None
         self.capture_seconds = None
 
@@ -247,18 +248,18 @@ class NotepadScreen:
         session = capture.start_free_threaded()
         if not ready.wait(1.5):
             session.stop()
-            raise RuntimeError("Notepad compositor capture did not return a frame")
+            raise RuntimeError("window compositor capture did not return a frame")
         session.wait()
         if not images:
-            raise RuntimeError("the Notepad capture closed without a frame")
+            raise RuntimeError("the window capture closed without a frame")
         frame = images[0]
         if self.window.require_window() != hwnd:
-            raise RuntimeError("the Notepad window changed during capture")
+            raise RuntimeError("the target window changed during capture")
         if all(low == high for low, high in frame.getextrema()):
             raise RuntimeError("window-scoped capture returned uniform pixels")
         png = io.BytesIO()
         frame.save(png, format="PNG", compress_level=1)
         self.last_png = png.getvalue()
         self.capture_seconds = round(monotonic() - started, 3)
-        return Capture("windows-notepad", target, self.last_png,
+        return Capture(self.source, target, self.last_png,
                        fingerprint=fingerprint(self.last_png))
