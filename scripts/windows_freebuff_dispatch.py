@@ -17,7 +17,6 @@ from driver_core.config import Settings
 from driver_core.driver import Driver
 from driver_core.executor import Consent
 from driver_core.jev_client import SYSTEM_ONE_URL
-from driver_core.locate import parse_box
 from driver_core.observation import GUI, Target
 
 from .windows_freebuff_capture import TITLE, FreeBuffWindow
@@ -31,7 +30,11 @@ CLICK = Action("click_freebuff", MUTATING, "click_freebuff", ("control", "point"
                "Click the vision-verified FreeBuff control.", "gui")
 TYPE = Action("type_freebuff", MUTATING, "type_freebuff", ("text",),
               "Type the exact approved continuation into the empty Lane 1 composer.", "gui")
-VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.0.0", [FOCUS, CLICK, TYPE])
+SEND = Action("send_freebuff", MUTATING, "send_freebuff",
+              ("thread", "text", "control", "point", "size"),
+              "Send the exact authorized draft in the verified Lane 1 session once.", "gui")
+VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.1.0", [FOCUS, CLICK, TYPE, SEND])
+THREAD = "315608d2"
 CONTINUATION = "continue in full"
 COMPOSER = (630, 918, 1550, 1110)
 LANE_NAV = (80, 590, 390, 750)
@@ -75,6 +78,7 @@ class Dispatch:
         self.driver.register_executor(FOCUS.name, self.focus)
         self.driver.register_executor(CLICK.name, self.click)
         self.driver.register_executor(TYPE.name, self.type_text)
+        self.driver.register_executor(SEND.name, self.send)
 
     def require_foreground(self):
         hwnd = self.window.require_window()
@@ -145,6 +149,11 @@ class Dispatch:
                 raise RuntimeError("the verified composer renderer is no longer available")
             keyboard.type_text(character)
 
+    def send(self, action, params):
+        if params["thread"] != THREAD or params["text"] != CONTINUATION:
+            raise RuntimeError("the thread or text differs from the approved continuation")
+        self.click(action, params)
+
     def act(self, step, action, params):
         grant = Consent(True, action.name, params, by="operator:freebuff-lane1")
         result = self.driver.executor.execute(action.name, params, consent=grant, step_id=step)
@@ -152,17 +161,22 @@ class Dispatch:
             raise RuntimeError(f"{step}: {result.detail}")
 
     def frame(self, step):
+        started = time.monotonic()
         capture = self.screen.capture(Target("existing FreeBuff desktop", GUI))
-        if self.screen.capture_seconds > 2:
+        elapsed = time.monotonic() - started
+        if elapsed > 2:
             raise RuntimeError(f"{step}: capture exceeded 2s")
         (self.output / f"{step}.png").write_bytes(capture.payload)
         self.audit.append("capture", step_id=step, **capture.summary(),
                           foreground=self.window.api.foreground() == self.window.handle,
-                          capture_seconds=self.screen.capture_seconds)
+                          capture_seconds=round(elapsed, 3))
         return self.image.open(io.BytesIO(capture.payload)).convert("RGB")
 
-    def ask(self, step, frame, questions, *, region=None):
-        image = frame.crop(region) if region else frame
+    def ask(self, step, frame, questions, *, region):
+        left, top, right, bottom = region
+        if not (0 <= left < right <= frame.width and 0 <= top < bottom <= frame.height):
+            raise RuntimeError(f"{step}: the required crop falls outside the captured window")
+        image = frame.crop(region)
         if max(image.size) < 200:
             image = image.resize((image.width * 4, image.height * 4))
         data = io.BytesIO()
@@ -182,19 +196,17 @@ class Dispatch:
         answers = response.payload["answers"]
         self.audit.append("decision", step_id=step, goal=GOAL, model=response.payload.get("model"),
                           answers=answers)
-        canvas = osal.fit_target(*image.size)
-        drawing = osal.fit_size(*image.size, *canvas)
-        return answers, osal.ImageGeometry(*image.size, *canvas, *drawing)
+        return answers
 
-    def yes(self, step, frame, question, *, region=None):
-        answers, _ = self.ask(step, frame, {"yes": transport.noul(question)}, region=region)
+    def yes(self, step, frame, question, *, region):
+        answers = self.ask(step, frame, {"yes": transport.noul(question)}, region=region)
         probability = answers.get("yes", {}).get("noul", 0)
         if not isinstance(probability, (int, float)) or not 0.9 <= probability <= 1:
             raise RuntimeError(f"{step}: Jev target confidence was {probability}, requires 0.90")
 
     def choose(self, step, frame, question, choices, *, region, threshold=0.9):
-        answers, _ = self.ask(step, frame, {"choice": transport.choice(question, choices)},
-                              region=region)
+        answers = self.ask(step, frame, {"choice": transport.choice(question, choices)},
+                           region=region)
         choice = answers.get("choice", {})
         selected = choice.get("choice")
         probability = choice.get("probabilities", {}).get(selected, 0)
@@ -203,23 +215,6 @@ class Dispatch:
         if not threshold <= probability <= 1:
             raise RuntimeError(f"{step}: Jev choice {selected!r} confidence was {probability}")
         return selected
-
-    def locate(self, step, frame, label, region):
-        answers, geometry = self.ask(step, frame, {
-            "present": transport.noul(f"Is the exact {label} visible in the screenshot?"),
-            "location": transport.box(f"Tight box around the exact {label} in `frame`."),
-        }, region=region)
-        present = answers.get("present", {}).get("noul", 0)
-        raw, confidence = parse_box(answers.get("location"))
-        if present < 0.9 or confidence is None or confidence < 0.6:
-            raise RuntimeError(f"{step}: no confident {label} target")
-        box = geometry.source_box(raw)
-        if box is None:
-            raise RuntimeError(f"{step}: Jev target was outside the captured region")
-        left, top, right, bottom = region
-        x = left + round((right - left) * (box["left"] + box["right"]) / 2)
-        y = top + round((bottom - top) * (box["top"] + box["bottom"]) / 2)
-        return [x, y]
 
     def locate_exact_text(self, step, frame, label, region):
         left, top, right, bottom = region
@@ -262,17 +257,27 @@ class Dispatch:
                  region=LANE_NAV)
 
     def verify_draft(self, frame):
+        region = (644, 949, 1040, 1010)
+        try:
+            self.locate_exact_text("read-exact-draft", frame, CONTINUATION, region)
+        except RuntimeError as error:
+            self.audit.append("extraction", step_id="read-exact-draft", ok=False, reason=str(error))
+            time.sleep(0.4)  # A blinking caret can obscure the last OCR glyph.
+            frame = self.frame("draft-ocr-retry")
+            self.verify_lane(frame)
+            self.locate_exact_text("read-exact-draft-retry", frame, CONTINUATION, region)
         self.yes("verify-staged-text", frame,
                  "Does the visible text read exactly 'continue in full'?",
-                 region=(644, 949, 1040, 1010))
+                 region=region)
+        return frame
 
     def send_draft(self):
-        marker = self.output.parent / "harness-freebuff-315608d2-send-20261122.json"
+        marker = self.output.parent / f"harness-freebuff-{THREAD}-send-20261122.json"
         if marker.exists():
             raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
         frame = self.frame("lane1-before-send")
         self.verify_lane(frame)
-        self.verify_draft(frame)
+        frame = self.verify_draft(frame)
         self.yes("verify-send-arrow", frame,
                  "Does this image show a white button containing a black upward arrow?",
                  region=SEND_CONTROL)
@@ -282,11 +287,12 @@ class Dispatch:
         if box is None or not (26 <= box[2] - box[0] <= 47 and 26 <= box[3] - box[1] <= 47):
             raise RuntimeError("the verified Send button outline could not be located")
         point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
-        params = {"control": "Lane 1 Send (up arrow)", "point": point, "size": list(frame.size)}
+        params = {"thread": THREAD, "text": CONTINUATION,
+                  "control": "Lane 1 Send (up arrow)", "point": point, "size": list(frame.size)}
         with marker.open("x", encoding="utf-8") as handle:
-            json.dump({"thread": "315608d2", "step": "send-once", "text": CONTINUATION,
+            json.dump({"thread": THREAD, "step": "send-once", "text": CONTINUATION,
                        "evidence": self.output.name}, handle)
-        self.act("send-once", CLICK, params)
+        self.act("send-once", SEND, params)
         options = {
             "running": "A stop square, Cancel, or active response/progress for the latest turn.",
             "refused": "An explicit platform error or usage-limit notice for the attempted send.",
