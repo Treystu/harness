@@ -323,6 +323,24 @@ class Dispatch:
             self.act("search-foreground", FOCUS, {"title": TITLE})
             frame = self.frame("freebuff-search-foreground")
         self.require_foreground()
+        frame = self.close_search_if_open(frame)
+        region = (296, 75, 333, 104)
+        self.yes("identify-search-control", frame,
+                 "Does this crop show a magnifying glass search icon?",
+                 region=region)
+        left, top, _, _ = region
+        pixels = frame.crop(region).convert("L")
+        box = pixels.point(lambda level: 255 if level >= 140 else 0).getbbox()
+        if box is None or not (8 <= box[2] - box[0] <= 25 and 8 <= box[3] - box[1] <= 25):
+            raise RuntimeError("the verified Search icon outline could not be located")
+        point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
+        self.act("open-session-search", CLICK,
+                 {"control": "FreeBuff session search", "point": point, "size": list(frame.size)})
+        time.sleep(0.6)
+        self.frame("freebuff-search-open")
+
+    def close_search_if_open(self, frame):
+        self.require_foreground()
         answers = self.ask("inspect-search-dialog", frame, {
             "open": transport.noul(
                 "Is a centered chat search dialog visible, with a magnifier and text entry at "
@@ -340,20 +358,7 @@ class Dispatch:
             frame = self.frame("freebuff-after-search-close")
         elif present > 0.2:
             raise RuntimeError("the current FreeBuff search dialog state is ambiguous")
-        region = (296, 75, 333, 104)
-        self.yes("identify-search-control", frame,
-                 "Does this crop show a magnifying glass search icon?",
-                 region=region)
-        left, top, _, _ = region
-        pixels = frame.crop(region).convert("L")
-        box = pixels.point(lambda level: 255 if level >= 140 else 0).getbbox()
-        if box is None or not (8 <= box[2] - box[0] <= 25 and 8 <= box[3] - box[1] <= 25):
-            raise RuntimeError("the verified Search icon outline could not be located")
-        point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
-        self.act("open-session-search", CLICK,
-                 {"control": "FreeBuff session search", "point": point, "size": list(frame.size)})
-        time.sleep(0.6)
-        self.frame("freebuff-search-open")
+        return frame
 
     def search_for_session(self):
         frame = self.frame("freebuff-before-query")
@@ -625,6 +630,7 @@ class Dispatch:
             self.act("observation-foreground", FOCUS, {"title": TITLE})
             frame = self.frame("bystander-navigation")
         self.require_foreground()
+        frame = self.close_search_if_open(frame)
         point, box = self.locate_exact_text("locate-bystander-lane", frame, "Lane 1",
                                             (128, 300, 300, 850), with_bounds=True)
         region = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)

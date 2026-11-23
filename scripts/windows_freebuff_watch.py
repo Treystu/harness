@@ -13,7 +13,7 @@ from pathlib import Path
 from driver_core.audit import AuditLog
 
 from .windows_freebuff_dispatch import BURN_SESSIONS, SCM_THREAD
-from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, api, execute
+from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit, api, execute
 
 CUTOVER = 7093801996
 CENSUS = 7093745521
@@ -200,6 +200,10 @@ def run_burn(receipts, known):
                 mission["phases"] = ("project-census",)
                 mission["phase_timeout"] = 480
             status = "parked" if execute(out, item, mission, claim_digest, ()) else "verified running"
+        except UncertainDriverExit as error:
+            checkpoint("desktop-interlock.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
+            issue_comment(f"Vision watch desktop interlock #{dispatch_id} / `{thread}`. {error}")
+            status = "parked with desktop interlock"
         except (OSError, RuntimeError) as error:
             status = "parked after claim"
             issue_comment(f"Vision watch #{dispatch_id} / `{thread}` {status}. {error}")
@@ -213,7 +217,7 @@ def main():
     if head is None:
         return
     known = checkpoints()
-    if "owner-paused.json" in known:
+    if {"owner-paused.json", "desktop-interlock.json"} & known:
         return
     if "paused.json" in known and read_checkpoint("paused.json")["state"] == "owner-paused":
         return

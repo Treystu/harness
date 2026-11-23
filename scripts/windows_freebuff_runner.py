@@ -34,6 +34,10 @@ FIELDS = {"action", "thread", "text", "expires_at"}
 PHASES = ("search", "query", "select", "prepare", "send")
 
 
+class UncertainDriverExit(RuntimeError):
+    """The driver process tree could not be confirmed stopped."""
+
+
 def api(endpoint, *, method="GET", body=None):
     args = ["gh", "api", "--method", method, endpoint]
     if body is not None:
@@ -193,18 +197,28 @@ def reconcile_demo(output):
 def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=65):
     for phase in phases:
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
-        result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(helper),
-             "-Python", sys.executable, "-Thread", thread,
-             "-Phase", phase, "-Evidence", str(output / phase),
-             *(["-Standing"] if standing else [])],
-            capture_output=True, text=True, timeout=timeout, check=False)
-        if result.returncode:
-            detail = result.stdout.strip().splitlines()
+        command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(helper),
+                   "-Python", sys.executable, "-Thread", thread, "-Phase", phase,
+                   "-Evidence", str(output / phase), *(["-Standing"] if standing else [])]
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as cause:
+            try:
+                ended = subprocess.run(["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                                       capture_output=True, timeout=10, check=False)
+                if ended.returncode:
+                    raise UncertainDriverExit(f"{phase}: driver tree termination unverified") from cause
+                process.communicate(timeout=10)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                raise UncertainDriverExit(f"{phase}: driver tree termination unverified") from error
+            raise RuntimeError(f"{phase}: driver tree terminated after deadline") from cause
+        if process.returncode:
+            detail = stdout.strip().splitlines()
             if phase == "prepare" and detail and "already running; no restart input" in detail[-1]:
                 audit.append("verification", step_id=phase, target=thread, state="already running")
                 return False
-            errors = result.stderr.strip().splitlines()
+            errors = stderr.strip().splitlines()
             message = detail[-1] if detail else errors[-1][:200] if errors else "driver exited unsuccessfully"
             raise RuntimeError(f"{phase}: {message}")
         audit.append("verification", step_id=phase, target=thread, passed=True)
@@ -218,6 +232,8 @@ def observe_bystander(output, audit, phase):
     try:
         run_phases(folder, THREAD, audit, ("observe-running",), standing=True)
         return True
+    except UncertainDriverExit:
+        raise
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
         audit.append("escalation", step_id=f"t5-{phase}", reason=str(error), target=THREAD)
         return False
@@ -233,6 +249,7 @@ def execute(output, number, mission, digest, bystanders):
     before = {}
     foreground = None
     prior = None
+    uncertain = None
     try:
         freebuff = FreeBuffWindow()
         if mission.get("standing"):
@@ -259,10 +276,14 @@ def execute(output, number, mission, digest, bystanders):
         if t5_before:
             paired = observe_bystander(output, audit, "after")
             audit.append("verification", step_id="t5-pair", target=THREAD, passed=paired)
+    except UncertainDriverExit as error:
+        uncertain = error
+        state = f"parked: {error}"
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         state = f"parked: {error}"
     finally:
-        if prior and freebuff.api.foreground() == freebuff.handle and foreground != freebuff.handle:
+        if (not uncertain and prior and freebuff.api.foreground() == freebuff.handle
+                and foreground != freebuff.handle):
             try:
                 pid, title = prior
                 if (freebuff.pid(foreground) != pid or freebuff.api.title_of(foreground) != title
@@ -290,6 +311,8 @@ def execute(output, number, mission, digest, bystanders):
             f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}. Evidence: "
             + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)))})
     print(state)
+    if uncertain:
+        raise uncertain
     return int(state != "verified running")
 
 

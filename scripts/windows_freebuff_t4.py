@@ -386,6 +386,7 @@ def census_project(driver):
         driver.verify_freebuff_logo(frame, "identify-census-window")
         driver.act("census-foreground", FOCUS, {"title": TITLE})
         frame = driver.frame("census-focused")
+    frame = driver.close_search_if_open(frame)
     for attempt in range(8):
         structure = driver.read_app_structure("-Project", "SCMessenger")
         (driver.output / "project-structure.json").write_text(json.dumps(structure, ensure_ascii=False),
