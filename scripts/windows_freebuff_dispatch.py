@@ -1322,12 +1322,12 @@ class Dispatch:
                                     b"6d39cf4f-2469-4f47-8cf0-3948309f5f2b")
         for attempt in range(6):
             frame = self.frame(f"vision-seat-work-{attempt}")
-            lines = self.read_lines(f"vision-seat-work-{attempt}", frame, (630, 380, 1550, 560))
+            lines = self.read_lines(f"vision-seat-work-{attempt}", frame, (630, 350, 1550, 750))
             words = self._norm(" ".join(lines))
             if "scmessenger" in words and "obsoleteguard" in words:
                 self.yes("verify-vision-seat-work", frame,
                          "Does the text say SCMessenger had an obsolete guard that was being removed?",
-                         region=(630, 380, 1550, 560))
+                         region=(630, 350, 1550, 750))
                 self.audit.append("verification", step_id="vision-seat-identity",
                                   source="selected title, cached UUID, and matching last work")
                 return
