@@ -9,7 +9,7 @@ from ctypes import wintypes
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .windows_freebuff_dispatch import BURN_SESSIONS
+from .windows_freebuff_dispatch import BURN_SESSIONS, SCM_THREAD
 from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, api, execute
 
 CUTOVER = 7093801996
@@ -114,8 +114,9 @@ def run_burn(receipts, known):
         heartbeat(known, "burn authorization expired; no more restarts")
         return
     digest = hashlib.sha256(source["body"].encode()).hexdigest()
-    for thread in BURN_SESSIONS:
-        dispatch_id = BURN_QUEUE if thread == "918dad1a" else BURNDOWN
+    queue = [(CENSUS, SCM_THREAD), *((BURN_QUEUE if thread == "918dad1a" else BURNDOWN, thread)
+                                    for thread in BURN_SESSIONS)]
+    for dispatch_id, thread in queue:
         item = f"{dispatch_id}-{thread}"
         claim = f"claim-{item}.json"
         if claim in known:
@@ -130,6 +131,9 @@ def run_burn(receipts, known):
         try:
             out.mkdir(parents=True)
             mission = {"thread": thread, "dispatch": dispatch_id, "standing": True}
+            if dispatch_id == CENSUS:
+                mission["phases"] = ("project-census",)
+                mission["phase_timeout"] = 480
             status = "parked" if execute(out, item, mission, digest, ()) else "verified running"
         except (OSError, RuntimeError) as error:
             status = "parked after claim"

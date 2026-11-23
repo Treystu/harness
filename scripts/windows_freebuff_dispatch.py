@@ -144,11 +144,16 @@ class Dispatch:
             time.sleep(0.15)
         self.require_foreground()
 
-    def renderer_point(self, params):
+    def compositor_bounds(self):
         hwnd = self.require_foreground()
         rect = wintypes.RECT()
         if self.dwm.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rect), ctypes.sizeof(rect)):
             raise RuntimeError("could not read FreeBuff compositor bounds")
+        return rect
+
+    def renderer_point(self, params):
+        hwnd = self.require_foreground()
+        rect = self.compositor_bounds()
         width, height = params["size"]
         if abs(rect.right - rect.left - width) > 2 or abs(rect.bottom - rect.top - height) > 2:
             raise RuntimeError("FreeBuff compositor geometry changed after capture")
@@ -322,9 +327,7 @@ class Dispatch:
     def open_search(self):
         frame = self.frame("freebuff-before-search")
         if self.window.api.foreground() != self.window.handle:
-            self.yes("identify-freebuff-for-search", frame,
-                     "Does this image show the word Freebuff beside a white logo?",
-                     region=(65, 55, 285, 130))
+            self.verify_freebuff_logo(frame, "identify-freebuff-for-search")
             self.act("search-foreground", FOCUS, {"title": TITLE})
             frame = self.frame("freebuff-search-foreground")
         self.require_foreground()
@@ -404,7 +407,7 @@ class Dispatch:
 
     def verify_lane(self, frame):
         self.require_foreground()
-        if self.thread in BURN_SESSIONS:
+        if self.thread in BURN_SESSIONS or self.thread == SCM_THREAD:
             self.verify_active_session()
             return
         if self.thread == DISK_THREAD:
@@ -448,6 +451,11 @@ class Dispatch:
             raise RuntimeError("the scoped FreeBuff accessibility evidence could not be read")
         self.require_foreground()
         return json.loads(result.stdout)
+
+    def verify_freebuff_logo(self, frame, step):
+        box = (87, 73, 218, 107)
+        self.locate_exact_text(f"{step}-ocr", frame, "Freebuff", box)
+        self.yes(step, frame, "Does the white text read 'Freebuff'?", region=box)
 
     def require_cached_session(self, step, session_id):
         profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
@@ -531,7 +539,7 @@ class Dispatch:
         params = {"thread": self.thread, "text": self.text, "control": control,
                   "point": point, "size": list(frame.size)}
         self.require_foreground()
-        if self.thread in BURN_SESSIONS:
+        if self.thread in BURN_SESSIONS or self.thread == SCM_THREAD:
             self.verify_active_session()
         if self.standing:
             fresh = self.frame("pre-send-readback")
@@ -618,8 +626,7 @@ class Dispatch:
             raise RuntimeError("the separate-lane observation is bound to Lane 1")
         frame = self.frame("before-bystander-navigation")
         if self.window.api.foreground() != self.window.handle:
-            self.yes("identify-freebuff-for-observation", frame,
-                     "Does this crop show the Freebuff logo and name?", region=(65, 55, 285, 130))
+            self.verify_freebuff_logo(frame, "identify-freebuff-for-observation")
             self.act("observation-foreground", FOCUS, {"title": TITLE})
             frame = self.frame("bystander-navigation")
         self.require_foreground()

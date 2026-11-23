@@ -26,7 +26,13 @@ if ($Project) {
                 }
                 if ($children.Count -ge 100) { break }
             }
-            $groups += @{ name = $item.Name; kind = $item.ControlType.ProgrammaticName; children = $children }
+            $scroll = $null
+            $scrolled = $parent.TryGetCurrentPattern(
+                [Windows.Automation.ScrollPattern]::Pattern, [ref]$scroll)
+            $groups += @{
+                name = $item.Name; kind = $item.ControlType.ProgrammaticName; children = $children
+                partial = ($children.Count -ge 100 -or ($scrolled -and $scroll.Current.VerticallyScrollable))
+            }
             if ($item.ControlType -eq [Windows.Automation.ControlType]::Document) { break }
             $parent = $walker.GetParent($parent)
         }

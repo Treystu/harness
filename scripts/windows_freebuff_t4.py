@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import byref, wintypes
@@ -11,7 +12,7 @@ from pathlib import Path
 
 from driver_core import osal
 
-from .windows_freebuff_dispatch import CLICK, SCM_THREAD, SCROLL, Dispatch
+from .windows_freebuff_dispatch import CLICK, FOCUS, SCM_THREAD, SCROLL, TITLE, Dispatch
 
 
 CENSUS_REGIONS = {
@@ -164,9 +165,120 @@ def scan_local(driver):
     scan_draft(driver, driver.frame("selected-local-candidate"))
 
 
+def project_roster(structure):
+    groups = [group for group in structure["groups"]
+              if group["name"] == "SCMessenger"
+              and group["kind"] in {"ControlType.List", "ControlType.Tree", "ControlType.Group"}
+              and any(row["kind"] in {"ControlType.ListItem", "ControlType.TreeItem", "ControlType.Hyperlink"}
+                      for row in group["children"])]
+    if len(groups) != 1:
+        raise RuntimeError("the SCMessenger project did not expose a unique bounded chat list")
+    group = groups[0]
+    rows = []
+    for item in group["children"]:
+        name = item["name"].strip()
+        if name in {"Show more", "Load more", "More chats"}:
+            return rows, item
+        if item["kind"] in {"ControlType.ListItem", "ControlType.TreeItem", "ControlType.Hyperlink"} and name:
+            rows.append(item)
+    if group["partial"] or not rows:
+        raise RuntimeError("the project exposed a partial or empty chat list")
+    return rows, None
+
+
+def navigate_roster_row(driver, frame, row, step):
+    if row["hidden"] or len(row["bounds"]) != 4:
+        raise RuntimeError(f"{step}: the verified roster row is offscreen")
+    bounds = driver.compositor_bounds()
+    x, y, width, height = row["bounds"]
+    x, y = round(x - bounds.left), round(y - bounds.top)
+    right, bottom = round(x + width), round(y + height)
+    if not (80 <= x < right <= 390 and 225 <= y < bottom <= 1050):
+        raise RuntimeError(f"{step}: the roster row falls outside the project sidebar")
+    label = row["name"].strip()
+    region = (x, y, right, bottom)
+    driver.locate_exact_text(f"{step}-ocr", frame, label, region)
+    driver.yes(f"{step}-visible", frame, f"Does the printed text read {label!r}?", region=region)
+    fresh = driver.frame(f"{step}-before-click")
+    if frame.crop(region).tobytes() != fresh.crop(region).tobytes():
+        raise RuntimeError(f"{step}: the roster row changed during verification")
+    driver.act(step, CLICK, {"control": f"SCMessenger project list: {label}",
+                             "point": [(x + right) // 2, (y + bottom) // 2],
+                             "size": list(frame.size)})
+
+
+def census_signature(fields):
+    toolbar = fields["toolbar"].casefold()
+    history = (fields["transcript-upper"] + "\n" + fields["transcript-lower"]).casefold()
+    identities = fields["document_sessions"]
+    return (len(identities) == 1 and identities[0].startswith(f"{SCM_THREAD}-")
+            and bool(re.search(r"\blocal\b", toolbar))
+            and "deepseek v4.1 flash slow" in toolbar
+            and 20 <= fields["rail_marks"] <= 24
+            and ("#745" in history or "cab43b2" in history)
+            and "#746" in history)
+
+
+def census_project(driver):
+    driver.goal = "Census the SCMessenger project's existing chat list and verify the pinned SCM session."
+    frame = driver.frame("census-before")
+    if driver.window.api.foreground() != driver.window.handle:
+        driver.verify_freebuff_logo(frame, "identify-census-window")
+        driver.act("census-foreground", FOCUS, {"title": TITLE})
+        frame = driver.frame("census-focused")
+    for attempt in range(8):
+        structure = driver.read_app_structure("-Project", "SCMessenger")
+        (driver.output / "project-structure.json").write_text(json.dumps(structure, ensure_ascii=False),
+                                                               encoding="utf-8")
+        rows, expansion = project_roster(structure)
+        if expansion is None:
+            break
+        navigate_roster_row(driver, frame, expansion, f"expand-project-list-{attempt}")
+        time.sleep(1)
+        frame = driver.frame(f"project-list-expanded-{attempt}")
+    else:
+        raise RuntimeError("the project list expansion did not reach its end")
+    inventory = [(row["kind"], row["name"]) for row in rows]
+    evidence = []
+    for index, row in enumerate(rows, start=1):
+        live, extra = project_roster(driver.read_app_structure("-Project", "SCMessenger"))
+        if extra or [(item["kind"], item["name"]) for item in live] != inventory:
+            raise RuntimeError("the bounded project roster changed during the census")
+        navigate_roster_row(driver, frame, live[index - 1], f"census-select-{index}")
+        time.sleep(3)
+        frame = driver.frame(f"census-candidate-{index}")
+        regions = CENSUS_REGIONS | {"composer": (640, 745, 1538, 1054), "toolbar": (680, 1044, 1480, 1104)}
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            samples = {name: pool.submit(inspect_crop, driver, frame, f"census-{index}-{name}", rect, "-ReadText")
+                       for name, rect in regions.items() if name not in {"project", "right-rail"}}
+            fields = {name: task.result()["text"] for name, task in samples.items()}
+        rail = frame.crop((1750, 130, 1763, 555)).convert("L")
+        marks = [sum(rail.getpixel((x, y)) > 90 for x in range(rail.width)) >= 8 for y in range(rail.height)]
+        fields.update(title=row["name"], document_sessions=driver.read_app_structure(),
+                      rail_marks=sum(on and (y == 0 or not marks[y - 1]) for y, on in enumerate(marks)))
+        evidence.append(fields)
+        (driver.output / "project-census.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2),
+                                                            encoding="utf-8")
+    matches = [index for index, fields in enumerate(evidence) if census_signature(fields)]
+    driver.audit.append("verification", step_id="project-census-verdict",
+                        inspected=len(evidence), matches=matches)
+    if len(matches) != 1:
+        raise RuntimeError(f"project census did not yield one pinned SCM match ({len(matches)} matches)")
+    row_index = matches[0]
+    live, extra = project_roster(driver.read_app_structure("-Project", "SCMessenger"))
+    if extra or [(item["kind"], item["name"]) for item in live] != inventory:
+        raise RuntimeError("the project roster changed after census")
+    navigate_roster_row(driver, frame, live[row_index], "reopen-unique-scm-match")
+    time.sleep(1.5)
+    driver.verify_active_session()
+    driver.prepare_draft()
+    driver.send_draft()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("search", "query", "probe", "scan-local", "scan-current"))
+    parser.add_argument("--phase", required=True,
+                        choices=("search", "query", "probe", "scan-local", "scan-current", "project-census"))
     parser.add_argument("--ordinal", type=int, choices=(1, 2))
     parser.add_argument("--scan-draft", action="store_true")
     parser.add_argument("--scan-transcript", action="store_true")
@@ -176,11 +288,14 @@ def main():
     if not key or (args.phase == "probe" and args.ordinal is None):
         parser.error("trusted child key and probe ordinal are required")
     args.evidence.mkdir()
-    driver = Dispatch(args.evidence, key, thread=SCM_THREAD, scoped_input=True)
+    driver = Dispatch(args.evidence, key, thread=SCM_THREAD, scoped_input=True,
+                      standing=args.phase == "project-census")
     driver.driver.register_executor(SCROLL.name, partial(scroll_readonly, driver))
     try:
         if args.phase == "search":
             driver.open_search()
+        elif args.phase == "project-census":
+            census_project(driver)
         elif args.phase == "query":
             driver.search_for_session()
         elif args.phase == "scan-local":

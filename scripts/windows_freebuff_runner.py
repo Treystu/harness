@@ -113,6 +113,7 @@ def capture_set(output, phase, windows, audit):
 def publish(output, number):
     paths = [output / "runner.jsonl", *sorted(output.glob("**/driver.jsonl")),
              *sorted(output.glob("t5-*/observe-running/observed-stop.png")),
+             *sorted(output.glob("project-census/project-*.json")),
              *sorted(output.glob("before-*.png")), *sorted(output.glob("after-*.png"))]
     links = []
     for path in paths:
@@ -188,7 +189,7 @@ def reconcile_demo(output):
     return 0
 
 
-def run_phases(output, thread, audit, phases=PHASES, *, standing=False):
+def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=65):
     for phase in phases:
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
         result = subprocess.run(
@@ -196,7 +197,7 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False):
              "-Python", sys.executable, "-Thread", thread,
              "-Phase", phase, "-Evidence", str(output / phase),
              *(["-Standing"] if standing else [])],
-            capture_output=True, text=True, timeout=65, check=False)
+            capture_output=True, text=True, timeout=timeout, check=False)
         if result.returncode:
             detail = result.stdout.strip().splitlines()
             if phase == "prepare" and detail and "already running; no restart input" in detail[-1]:
@@ -240,10 +241,11 @@ def execute(output, number, mission, digest, bystanders):
         windows.extend((f"bystander-{index}", Bystander(title, freebuff))
                        for index, title in enumerate(bystanders, start=1))
         before = capture_set(output, "before", windows, audit)
-        phases = ("prepare", "send") if mission.get("resume_inside") else PHASES
+        phases = mission.get("phases", ("prepare", "send") if mission.get("resume_inside") else PHASES)
         t5_before = mission.get("standing") and mission["thread"] != THREAD and observe_bystander(
             output, audit, "before")
-        if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False)):
+        if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False),
+                          timeout=mission.get("phase_timeout", 65)):
             fallback = mission.get("fallback")
             if not fallback:
                 raise RuntimeError("the requested session is already running")
