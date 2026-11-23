@@ -8,6 +8,7 @@ import io
 import json
 import os
 import time
+from difflib import SequenceMatcher
 from ctypes import wintypes
 from pathlib import Path
 
@@ -388,22 +389,32 @@ class Dispatch:
 
     @classmethod
     def row_matches(cls, text, label):
-        """Exact title, or a clipped sidebar row: OCR loses the last glyph at the clip."""
+        """Exact title, or the same row read through OCR slips and sidebar clipping.
+
+        Real rows read "Kalshi Paper Bumdown V" for "Kalshi Paper Burndown"
+        (the engine joins rn into m) and are cut off at the sidebar edge, so a
+        prefix rule cannot work. A long shared opening plus a high similarity
+        over the clipped length can; ambiguity is still refused downstream by
+        requiring exactly one matching row.
+        """
         seen, wanted = cls._norm(text), cls._norm(label)
         if not seen or not wanted:
             return False
         if seen == wanted:
             return True
-        if len(seen) < 12:
+        if len(seen) < 10:
             return False
-        if wanted.startswith(seen):
-            return True
         common = 0
         for left, right in zip(seen, wanted):
             if left != right:
                 break
             common += 1
-        return common >= 12 and common >= min(len(seen), len(wanted)) - 2
+        if common < 6:
+            return False
+        if wanted.startswith(seen):
+            return True
+        window = wanted[:len(seen)] if len(seen) <= len(wanted) else wanted
+        return SequenceMatcher(None, seen, window).ratio() >= 0.85
 
     def scroll(self, action, params):
         """Scroll the renderer read-only: hover, then one wheel step."""
