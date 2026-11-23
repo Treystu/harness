@@ -344,12 +344,17 @@ class Dispatch:
         self.yes("verify-search-field", frame,
                  "Does the text say Search chats?",
                  region=(545, 177, 700, 217))
-        try:
-            point = self.locate_exact_text("locate-search-field", frame, "Search chats", region)
-        except RuntimeError:
-            time.sleep(0.35)
-            frame = self.frame("search-field-caret-retry")
-            point = self.locate_exact_text("locate-search-field-retry", frame, "Search chats", region)
+        for attempt, delay in enumerate((0, 0.13, 0.29, 0.53), start=1):
+            if delay:
+                time.sleep(delay)
+                frame = self.frame(f"search-field-caret-{attempt}")
+            try:
+                point = self.locate_exact_text(f"locate-search-field-{attempt}",
+                                               frame, "Search chats", region)
+                break
+            except RuntimeError:
+                if attempt == 4:
+                    raise
         self.act("focus-search-field", CLICK,
                  {"control": "Search chats field", "point": point, "size": list(frame.size)})
         self.act("query-session", QUERY, {"thread": self.thread, "text": self.label,
