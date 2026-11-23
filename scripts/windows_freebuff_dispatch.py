@@ -388,27 +388,35 @@ class Dispatch:
         self.verify_draft(self.frame("disk-pointer-staged"))
 
     def send_draft(self):
-        marker = self.output.parent / f"harness-freebuff-{self.thread}-send-20261122.json"
+        pointer = self.text == DISK_POINTER
+        operation = "steer" if pointer else "send"
+        marker = self.output.parent / f"harness-freebuff-{self.thread}-{operation}-20261122.json"
         if marker.exists():
             raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
         frame = self.frame("lane1-before-send")
         self.verify_lane(frame)
         frame = self.verify_draft(frame)
+        region = (1439, 1040, 1487, 1105) if pointer else SEND_CONTROL
         self.yes("verify-send-arrow", frame,
                  "Does this image show a white button containing a black upward arrow?",
-                 region=SEND_CONTROL)
-        left, top, _, _ = SEND_CONTROL
-        crop = frame.crop(SEND_CONTROL).convert("L")
+                 region=region)
+        left, top, _, _ = region
+        crop = frame.crop(region).convert("L")
         box = crop.point(lambda level: 255 if level >= 205 else 0).getbbox()
         if box is None or not (26 <= box[2] - box[0] <= 47 and 26 <= box[3] - box[1] <= 47):
             raise RuntimeError("the verified Send button outline could not be located")
         point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
-        params = {"thread": self.thread, "text": self.text,
-                  "control": f"{self.label} Send (up arrow)", "point": point, "size": list(frame.size)}
+        control = f"{self.label} queue arrow" if pointer else f"{self.label} Send (up arrow)"
+        params = {"thread": self.thread, "text": self.text, "control": control,
+                  "point": point, "size": list(frame.size)}
         with marker.open("x", encoding="utf-8") as handle:
-            json.dump({"thread": self.thread, "step": "send-once", "text": self.text,
+            json.dump({"thread": self.thread, "step": f"{operation}-once", "text": self.text,
                        "evidence": self.output.name}, handle)
-        self.act("send-once", SEND, params)
+        self.act(f"{operation}-once", SEND, params)
+        if pointer:
+            time.sleep(2)
+            self.frame("disk-steering-response")
+            return
         options = {
             "running": "A stop square, Cancel, or active response/progress for the latest turn.",
             "refused": "An explicit platform error or usage-limit notice for the attempted send.",
@@ -463,7 +471,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
     parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare",
-                                           "send", "steer-prepare"),
+                                           "send", "steer-prepare", "steer-send"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     args = parser.parse_args()
@@ -487,6 +495,12 @@ def main():
             if args.thread != DISK_THREAD:
                 raise RuntimeError("D-007 steering is authorized only for Disk Audit")
             dispatch.prepare_pointer()
+        elif args.phase == "steer-send":
+            if args.thread != DISK_THREAD:
+                raise RuntimeError("D-007 steering is authorized only for Disk Audit")
+            dispatch.text = DISK_POINTER
+            dispatch.goal = "Steer the running verified Disk Audit session to the pinned D-007 artifact."
+            dispatch.send_draft()
         elif args.phase == "prepare":
             if args.thread == SCM_THREAD:
                 raise RuntimeError("the session composer must be scoped before preparing a draft")
