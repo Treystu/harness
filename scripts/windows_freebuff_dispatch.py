@@ -1331,6 +1331,15 @@ class Dispatch:
                 self.audit.append("verification", step_id="vision-seat-identity",
                                   source="selected title, cached UUID, and matching last work")
                 return
+            draft = self._norm(" ".join(self.read_lines(
+                f"vision-seat-draft-{attempt}", frame, (640, 745, 1530, 1048))))
+            if "harnessjevvisiondriverfullstandup" in draft and "implementationlane" in draft:
+                self.yes("verify-vision-seat-mission", frame,
+                         "Does the text describe the harness vision driver full standup mission?",
+                         region=(640, 745, 1530, 1048))
+                self.audit.append("verification", step_id="vision-seat-identity",
+                                  source="selected title, cached UUID, and matching mission draft")
+                return
             time.sleep(2)
         raise RuntimeError("the vision-seat selected view did not expose the expected last work")
 
@@ -1342,16 +1351,17 @@ class Dispatch:
         options = {"resume": "A visible button labeled Resume mission.",
                    "other": "No button labeled Resume mission is visible."}
         route = self.choose("vision-resume-route", frame, "Which button is visible?", options,
-                            region=(630, 785, 1550, 960))
+                            region=(630, 590, 1550, 960))
         if route == "other":
             self.prepare_draft()
             self.send_draft()
             return
-        region = (630, 785, 1550, 960)
-        point = self.locate_exact_text("vision-resume-ocr", frame, "Resume mission", region)
-        self.yes("vision-resume-confirm", frame, "Does the button say Resume mission?", region=region)
+        region = (630, 590, 1550, 960)
+        point, box = self.locate_exact_text("vision-resume-ocr", frame, "Resume mission", region, with_bounds=True)
+        scope = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
+        self.yes("vision-resume-confirm", frame, "Does the button say Resume mission?", region=scope)
         fresh = self.frame("vision-resume-readback")
-        if fresh.crop(region).tobytes() != frame.crop(region).tobytes():
+        if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
             raise RuntimeError("the Resume mission control changed before input")
         self.act("vision-resume", CLICK,
                  {"control": "Vision Driver Resume mission", "point": point, "size": list(frame.size)})
@@ -1362,10 +1372,11 @@ class Dispatch:
             self.audit.append("verification", step_id="vision-running-after-resume", stop_cue=True)
             return
         region = (500, 180, 1600, 1100)
-        point = self.locate_exact_text("vision-start-ocr", frame, "Start mission", region)
-        self.yes("vision-start-confirm", frame, "Does the button say Start mission?", region=region)
+        point, box = self.locate_exact_text("vision-start-ocr", frame, "Start mission", region, with_bounds=True)
+        scope = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
+        self.yes("vision-start-confirm", frame, "Does the button say Start mission?", region=scope)
         fresh = self.frame("vision-start-readback")
-        if fresh.crop(region).tobytes() != frame.crop(region).tobytes():
+        if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
             raise RuntimeError("the Start mission control changed before input")
         self.act("vision-start", CLICK,
                  {"control": "Vision Driver Start mission", "point": point, "size": list(frame.size)})
