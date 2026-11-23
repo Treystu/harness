@@ -3,6 +3,7 @@
 import ctypes
 import io
 from ctypes import wintypes
+from threading import Event
 from time import monotonic
 
 from driver_core.observation import Capture, fingerprint
@@ -22,6 +23,7 @@ class NotepadWindow:
         self.user.GetWindowTextW.argtypes = (
             wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
         self.user.IsWindowVisible.argtypes = (wintypes.HWND,)
+        self.user.IsWindowEnabled.argtypes = (wintypes.HWND,)
         self.user.SetForegroundWindow.argtypes = (wintypes.HWND,)
         self.user.SwitchToThisWindow.argtypes = (wintypes.HWND, wintypes.BOOL)
         self.user.SwitchToThisWindow.restype = None
@@ -87,6 +89,8 @@ class NotepadWindow:
 
     def type_text(self, text):
         owner = self.require_window()
+        if not self.user.IsWindowEnabled(owner):
+            raise RuntimeError("an owned dialog blocks the Notepad editor")
         editors = []
 
         @self.callback
@@ -122,11 +126,37 @@ class NotepadScreen:
         self.capture_seconds = None
 
     def capture(self, target):
-        from PIL import ImageGrab
+        from PIL import Image
+        from windows_capture import WindowsCapture
 
         started = monotonic()
         hwnd = self.window.require_window()
-        frame = ImageGrab.grab(window=hwnd)
+        capture = WindowsCapture(window_hwnd=hwnd, cursor_capture=False, secondary_window=False)
+        ready = Event()
+        images = []
+
+        @capture.event
+        def on_frame_arrived(frame, control):
+            try:
+                images.append(Image.frombytes(
+                    "RGB", (frame.width, frame.height), frame.frame_buffer.tobytes(),
+                    "raw", "BGRX"))
+            finally:
+                control.stop()
+                ready.set()
+
+        @capture.event
+        def on_closed():
+            ready.set()
+
+        session = capture.start_free_threaded()
+        if not ready.wait(1.5):
+            session.stop()
+            raise RuntimeError("Notepad compositor capture did not return a frame")
+        session.wait()
+        if not images:
+            raise RuntimeError("the Notepad capture closed without a frame")
+        frame = images[0]
         if self.window.require_window() != hwnd:
             raise RuntimeError("the Notepad window changed during capture")
         if all(low == high for low, high in frame.getextrema()):

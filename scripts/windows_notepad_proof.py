@@ -3,6 +3,7 @@
 import argparse
 import csv
 import hashlib
+import importlib
 import os
 import time
 from pathlib import Path
@@ -141,8 +142,7 @@ def prove(goal, output, destination, key):
                             "any other Notepad window is outside the mission"})
             wait_for_document(window, original_notepad, audit)
             opened = vision._verify_visibility(
-                "application", "Is Notepad visible with a single blank untitled document "
-                "and no blocking dialog, ready for text entry?",
+                "application", "Does the screenshot show a blank Notepad text editor?",
                 APP_VISIBILITY_THRESHOLD, step_id=step, polls=LAUNCH_POLLS)
             require_vision(opened)
             audit.append("capture", step_id=step, source="windows-notepad",
@@ -152,6 +152,7 @@ def prove(goal, output, destination, key):
         with driver.budget.step_scope(step):
             decide_and_act(driver, goal, step, "type_text", {"text": TEXT},
                            {"stage": "before typing", "blank_editor_verified": True})
+            time.sleep(0.15)
             visible = vision.verify_text(TEXT, step_id=step)
             require_vision(visible)
             evidence = screen.last_png
@@ -202,7 +203,11 @@ def main():
     if not args.desktop.is_dir() or destination.exists():
         parser.error("the Desktop is unavailable or vision-test.txt already exists")
     try:
+        importlib.import_module("PIL.Image")
+        importlib.import_module("windows_capture")
         args.evidence.mkdir()
+    except ImportError:
+        parser.error("install Pillow and windows-capture in the proof environment")
     except (OSError, RuntimeError) as error:
         parser.error(str(error))
     return prove(args.goal, args.evidence, destination, key)
