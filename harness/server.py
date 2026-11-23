@@ -2555,10 +2555,23 @@ class UiRequestHandler(BaseHTTPRequestHandler):
             return self._error(500, f"failed to start driver: {e}")
 
     def _api_driver_step(self, body):
-        from .perception_client import PerceptionUnavailable
+        from .perception_client import PerceptionUnauthorized, PerceptionUnavailable
         target = body.get("target")
         if not target or not isinstance(target, str):
             return self._error(400, "field 'target' is required and must be a string")
+        # This route never reads an action: it always runs a step, whose
+        # decision stage owns the acting choice. Accepting the field and
+        # ignoring it made a probe body that carried one look like a
+        # vocabulary read while it ran the model-backed decision pipeline --
+        # the misreading that filed the withdrawn `driver-vocabulary-keyless-
+        # claim-false` row on #413. Refuse it by name instead of silently
+        # reinterpreting it.
+        if "action" in body:
+            return self._error(
+                400,
+                "field 'action' is not a step field: this route runs a step, it "
+                "does not read the action vocabulary. Read the vocabulary at "
+                "GET /api/driver/vocabulary, or pass a consent object to act.")
         schema = body.get("schema")
         consent = body.get("consent")
         prefer = tuple(body.get("prefer") or ())
@@ -2569,6 +2582,12 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                 target, schema=schema, consent=consent, prefer=prefer,
                 require_stable=require_stable)
             return self._send_json(envelope)
+        except PerceptionUnauthorized as e:
+            # A credential mismatch is the caller's to fix and the service is
+            # demonstrably up, so it is 401 here rather than the 503 an
+            # unreachable service gets (measured on #413 with two processes).
+            return self._error(401, str(e),
+                               error_kind="driver_token_mismatch")
         except PerceptionUnavailable as e:
             code = 400 if "schema is required" in str(e) else 503
             return self._error(code, str(e))

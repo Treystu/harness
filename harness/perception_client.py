@@ -124,6 +124,24 @@ class PerceptionUnavailable(Exception):
     """
 
 
+class PerceptionUnauthorized(PerceptionUnavailable):
+    """The service answered, and rejected this caller's token.
+
+    A subclass so every existing caller keeps catching the one exception it
+    knows, while a caller that can act on the distinction (the server route,
+    the doctor) can tell a *credential* mismatch from an *outage*. The two
+    used to collapse into one message, and the consequence was measured on
+    #413: with a second harness process up, every driver route answered 503
+    "driver service returned HTTP 401: unauthorized", which reads as a dead
+    service when the service is healthy and the token is simply not the one
+    it was started with.
+    """
+
+    def __init__(self, message, *, status=401):
+        super().__init__(message)
+        self.status = status
+
+
 class PerceptionAdapter:
     def __init__(self, base_url=None, token=None, timeout=120, opener=None):
         base, env_token = _load_endpoint()
@@ -161,6 +179,19 @@ class PerceptionAdapter:
                 detail = decoded_error.get("error") or decoded_error
             else:
                 detail = decoded_error
+            if e.code in (401, 403):
+                # The service is up and refused the credential. Saying
+                # "unavailable" here is what made a token mismatch look like
+                # an outage, so the cause is named instead of the symptom.
+                raise PerceptionUnauthorized(
+                    "driver service rejected the request with HTTP {}: {} - "
+                    "the token this process presents is not the one the "
+                    "running service was started with. Declare DRIVER_TOKEN "
+                    "so both processes share it (an undeclared token is "
+                    "generated per start, so a second process cannot reach "
+                    "the first process's service).".format(e.code, detail),
+                    status=e.code,
+                ) from e
             raise PerceptionUnavailable(
                 "driver service returned HTTP {}: {}".format(
                     e.code, detail)
@@ -374,6 +405,7 @@ def run_cli(args, settings=None):
 
 __all__ = [
     "PerceptionAdapter",
+    "PerceptionUnauthorized",
     "PerceptionUnavailable",
     "STOP_REASONS",
     "STOP_TIERS",
