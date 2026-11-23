@@ -515,19 +515,26 @@ class Dispatch:
                                           " an up-arrow send button.",
                                 "empty": "Dim suggestion text with a small visible Tab badge"
                                          " below it and a waveform icon at lower right.",
+                                "placeholder": "Ask Freebuff... Use / for commands, @ for files"
+                                               " is the only text in the editor, with a waveform button.",
                                 "resume": "A button labeled Resume mission.",
                                 "stop": "A stop square, an unrelated draft, or no recognizable state.",
                             }, region=COMPOSER)
         if route == "staged":
             self.verify_draft(frame)
             return
-        if route != "empty":
+        if route == "placeholder":
+            placeholder = "Ask Freebuff... Use / for commands, @ for files"
+            point = self.locate_exact_text("locate-empty-placeholder", frame, placeholder,
+                                           (646, 950, 1260, 1014))
+        elif route == "empty":
+            self.yes("verify-empty-editor", frame,
+                     "Is there a small button or badge labeled Tab below the gray text?",
+                     region=(642, 937, 1195, 1048))
+            point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
+            point[1] -= 68
+        else:
             raise RuntimeError(f"composer-route: stopped on {route!r} without typing")
-        self.yes("verify-empty-editor", frame,
-                 "Is there a small button or badge labeled Tab below the gray text?",
-                 region=(642, 937, 1195, 1048))
-        point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
-        point[1] -= 68
         self.act("focus-verified-composer", CLICK,
                  {"control": f"{self.label} composer", "point": point, "size": list(frame.size)})
         self.act("type-continuation", TYPE, {"text": self.text})

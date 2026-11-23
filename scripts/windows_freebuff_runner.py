@@ -200,19 +200,26 @@ def main():
                         help="resume after the recorded inside-view refusal")
     source.add_argument("--resume-cache-cure", action="store_true",
                         help="resume after the recorded recent-cache refusal")
+    source.add_argument("--resume-placeholder-cure", action="store_true",
+                        help="resume after the plain empty composer was not classified")
     parser.add_argument("--wait", type=int, default=120)
     parser.add_argument("--bystander-title", action="append", default=[])
     args = parser.parse_args()
     args.state.mkdir(parents=True, exist_ok=True)
     if (args.oversight_demo or args.resume_before_input or args.resume_selection_cure
-            or args.resume_highlight_cure or args.resume_cache_cure):
+            or args.resume_highlight_cure or args.resume_cache_cure or args.resume_placeholder_cure):
         mission, digest = one_shot_dispatch()
         execution = args.state / str(DEMO_COMMENT)
-        if args.resume_highlight_cure or args.resume_cache_cure:
-            previous_stage = "highlight-cure" if args.resume_cache_cure else "selection-cure"
-            current_stage = "cache-cure" if args.resume_cache_cure else "highlight-cure"
-            reason = ("Lane 1 UUID absent from recent FreeBuff local state" if args.resume_cache_cure
-                      else "verify-lane1: Jev target confidence was 0.34")
+        if args.resume_highlight_cure or args.resume_cache_cure or args.resume_placeholder_cure:
+            if args.resume_placeholder_cure:
+                previous_stage, current_stage = "cache-cure", "placeholder-cure"
+                reason = "composer-route: Jev choice 'stop' confidence was 0.63"
+            elif args.resume_cache_cure:
+                previous_stage, current_stage = "highlight-cure", "cache-cure"
+                reason = "Lane 1 UUID absent from recent FreeBuff local state"
+            else:
+                previous_stage, current_stage = "selection-cure", "highlight-cure"
+                reason = "verify-lane1: Jev target confidence was 0.34"
             previous = args.state / f"{DEMO_COMMENT}-{previous_stage}"
             prepared = previous / "prepare" / "driver.jsonl"
             if ((previous / "send").exists() or not prepared.is_file()
