@@ -108,6 +108,16 @@ def test_census_tolerates_only_small_ocr_differences_for_navigation():
     assert not census.similar_census_label("SCMessenger Audit Lar", "SCMessenger Cloud Cure")
 
 
+def test_census_jev_verifies_visible_prefix_without_guessing_clipped_suffix():
+    frame = Image.new("RGB", (400, 200), "white")
+    driver = Mock()
+    driver.frame.side_effect = [frame, frame]
+    driver.read_roster.return_value = [{"text": "SCMessenger Audit Lar"}]
+    census.visual_select_row(driver, frame, "SCMessenger Audit Lar", 100, "candidate")
+    assert "SCMessenger Audit'" in driver.yes.call_args.args[2]
+    assert "Lar" not in driver.yes.call_args.args[2]
+
+
 def test_census_match_requires_active_uuid_and_both_activity_markers():
     fields = {"toolbar": "Local DeepSeek V4.1 Flash Slow", "transcript-upper": "#745",
               "transcript-lower": "Codex #746", "rail_marks": 22,
