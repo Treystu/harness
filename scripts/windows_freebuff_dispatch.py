@@ -332,7 +332,7 @@ class Dispatch:
         self.require_foreground()
         if self.thread == DISK_THREAD:
             self.yes("verify-disk-audit-tab", frame,
-                     "Does this tab show the text 'Disk' and a close X on its right?",
+                     "Does the selected dark tab show the word 'Disk'?",
                      region=(1436, 0, 1551, 60))
             profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
             stores = list(profile.glob("*/Local Storage/leveldb/*.log"))
