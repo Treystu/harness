@@ -785,7 +785,15 @@ class Dispatch:
         # page past where the first walk found it), so the re-walk looks for the
         # row from the top through one page beyond the recorded one.
         for index in range(1, min(page + 2, 9)):
-            frame, rows = self.settled_roster(f"prefix-pick-{index}", SIDEBAR, attempts=4)
+            try:
+                frame, rows = self.settled_roster(f"prefix-pick-{index}", SIDEBAR, attempts=6)
+            except RuntimeError as error:
+                # A re-rendering list is not a reason to lose the pick: the click
+                # itself re-captures and refuses if the row moved, so one census
+                # is enough evidence to attempt it.
+                self.audit.append("escalation", step_id=f"prefix-pick-{index}", reason=str(error))
+                frame = self.frame(f"prefix-pick-{index}-single")
+                rows = self.read_roster(f"prefix-pick-{index}-single", frame, SIDEBAR)
             row = next((candidate for candidate in rows
                         if self._norm(candidate["text"]) == self._norm(name)), None)
             if row is not None:
@@ -865,10 +873,11 @@ class Dispatch:
         frame = self.scroll_sidebar_to_top()
         for page in range(1, pages + 1):
             try:
-                frame, rows = self.settled_roster(f"pick-{page}", SIDEBAR, attempts=4)
+                frame, rows = self.settled_roster(f"pick-{page}", SIDEBAR, attempts=6)
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="pick-walk", reason=str(error))
-                return False
+                frame = self.frame(f"pick-{page}-single")
+                rows = self.read_roster(f"pick-{page}-single", frame, SIDEBAR)
             row = next((row for row in rows if self._norm(row["text"]) == self._norm(name)), None)
             if row is not None:
                 self.click_exact_row("pick-row", frame, row)
