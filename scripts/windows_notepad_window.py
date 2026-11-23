@@ -3,6 +3,7 @@
 import ctypes
 import io
 from ctypes import wintypes
+from time import monotonic
 
 from driver_core.observation import Capture, fingerprint
 
@@ -118,10 +119,12 @@ class NotepadScreen:
     def __init__(self, window):
         self.window = window
         self.last_png = None
+        self.capture_seconds = None
 
     def capture(self, target):
         from PIL import ImageGrab
 
+        started = monotonic()
         hwnd = self.window.require_window()
         frame = ImageGrab.grab(window=hwnd)
         if self.window.require_window() != hwnd:
@@ -131,5 +134,6 @@ class NotepadScreen:
         png = io.BytesIO()
         frame.save(png, format="PNG", compress_level=1)
         self.last_png = png.getvalue()
+        self.capture_seconds = round(monotonic() - started, 3)
         return Capture("windows-notepad", target, self.last_png,
                        fingerprint=fingerprint(self.last_png))

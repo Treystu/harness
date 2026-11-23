@@ -104,11 +104,17 @@ def decide_and_act(driver, goal, step, action, params, observed):
         raise RuntimeError(f"{step}: {result.detail}")
 
 
+def require_vision(verification):
+    if not verification.passed:
+        last_attempt = verification.evidence[-1] if verification.evidence else {}
+        raise RuntimeError(last_attempt.get("reason") or verification.reason)
+
+
 def prove(goal, output, destination, key):
     settings = Settings(
         jev_api_key=key, allow_write=True, launch_app_enabled=True,
         screen_enabled=True, vision_verify_enabled=True,
-        run_ceiling_usd=0.01, step_ceiling_usd=0.002,
+        run_ceiling_usd=0.01, step_ceiling_usd=0.006,
     )
     window = NotepadWindow()
     original_foreground = window.foreground()
@@ -138,19 +144,20 @@ def prove(goal, output, destination, key):
                 "application", "Is Notepad visible with a single blank untitled document "
                 "and no blocking dialog, ready for text entry?",
                 APP_VISIBILITY_THRESHOLD, step_id=step, polls=LAUNCH_POLLS)
-            if not opened.passed:
-                raise RuntimeError(opened.reason)
+            require_vision(opened)
+            audit.append("capture", step_id=step, source="windows-notepad",
+                         capture_seconds=screen.capture_seconds)
 
         step = "type"
         with driver.budget.step_scope(step):
             decide_and_act(driver, goal, step, "type_text", {"text": TEXT},
                            {"stage": "before typing", "blank_editor_verified": True})
             visible = vision.verify_text(TEXT, step_id=step)
-            if not visible.passed:
-                raise RuntimeError(visible.reason)
+            require_vision(visible)
             evidence = screen.last_png
             (output / "notepad.png").write_bytes(evidence)
             audit.append("capture", step_id=step, source="windows-notepad",
+                         capture_seconds=screen.capture_seconds,
                          sha256=hashlib.sha256(evidence).hexdigest())
 
         step = "save"
