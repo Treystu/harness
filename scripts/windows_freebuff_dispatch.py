@@ -355,7 +355,7 @@ class Dispatch:
                      region=(545, 177, 700, 217))
             # A caret can touch the first glyph. Locate the unaffected second word.
             point = self.locate_exact_text("locate-search-field-unobscured", frame,
-                                           "chats", (632, 180, 700, 216))
+                                           "chats", (626, 180, 700, 216))
         self.act("focus-search-field", CLICK,
                  {"control": "Search chats field", "point": point, "size": list(frame.size)})
         self.act("query-session", QUERY, {"thread": self.thread, "text": self.label,
