@@ -17,6 +17,7 @@ from driver_core.observation import GUI, Target
 from driver_core.osal import _WindowsWindowApi
 
 from .windows_freebuff_capture import FreeBuffWindow
+from .windows_focus import activate_exact
 from .windows_freebuff_dispatch import (
     CONTINUATION, DISK_THREAD, QUEUE_PLACEHOLDER, QUEUE_REGION, THREAD, Dispatch,
 )
@@ -262,8 +263,8 @@ def execute(output, number, mission, digest, bystanders):
         if prior and freebuff.api.foreground() == freebuff.handle and foreground != freebuff.handle:
             try:
                 pid, title = prior
-                if (freebuff.pid(foreground) != pid
-                        or not freebuff.api.focus(foreground, title)
+                if (freebuff.pid(foreground) != pid or freebuff.api.title_of(foreground) != title
+                        or not activate_exact(foreground, freebuff.api.foreground)
                         or freebuff.api.foreground() != foreground):
                     raise RuntimeError("the exact original foreground could not be restored")
                 audit.append("verification", step_id="foreground-restored", hwnd=foreground, pid=pid)

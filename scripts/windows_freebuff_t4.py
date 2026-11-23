@@ -219,6 +219,166 @@ def census_signature(fields):
             and "#746" in history)
 
 
+def visual_project_pages(driver, frame):
+    """Yield the SCM project chat rows on each verified, overlapping sidebar page."""
+    started = False
+    previous = []
+    for page in range(24):
+        reading = inspect_crop(driver, frame, f"sidebar-page-{page}", (95, 294, 321, 1058), "-ReadLines")
+        lines = []
+        for line in reading["lines"]:
+            if line["text"] in {"Show more", "More chats"}:
+                first = line["words"][0]
+                lines.append((line["text"], 95 + first["x"] / 2, 294 + first["y"] / 2))
+                continue
+            words = [word for word in line["words"] if 95 + word["x"] / 2 >= 114]
+            if words:
+                label = " ".join(word["text"] for word in words)
+                lines.append((label, 95 + words[0]["x"] / 2, 294 + words[0]["y"] / 2))
+        roster = []
+        expand = None
+        ended = False
+        in_project = started
+        anchored = False
+        for label, x, y in lines:
+            heading = 114 <= x < 128
+            if heading and label == "SCMessenger":
+                in_project = anchored = True
+                driver.yes(f"verify-project-heading-{page}", frame,
+                           "Is the folder label SCMessenger in the project sidebar?",
+                           region=(88, round(y - 5), 280, round(y + 23)))
+                continue
+            if not in_project:
+                continue
+            if heading or label == "Invite friends":
+                if anchored or roster:
+                    ended = True
+                    break
+                continue
+            if label in {"Show more", "More chats"} and x < 120:
+                expand = (label, y)
+                break
+            if 128 <= x <= 150:
+                roster.append((label, y))
+        if expand:
+            label, y = expand
+            if not anchored and not previous:
+                raise RuntimeError("the project expansion was not inside the verified roster")
+            region = (103, round(y - 5), 246, round(y + 23))
+            point = driver.locate_exact_text(f"expand-scm-ocr-{page}", frame, label, region)
+            driver.yes(f"verify-expand-scm-{page}", frame,
+                       f"Does the navigation control read {label!r}?", region=region)
+            fresh = driver.frame(f"expand-scm-readback-{page}")
+            if frame.crop(region).tobytes() != fresh.crop(region).tobytes():
+                raise RuntimeError("the project expansion control moved")
+            driver.act(f"expand-scm-project-{page}", CLICK, {
+                "control": "Show more within SCMessenger project", "point": point, "size": list(frame.size),
+            })
+            time.sleep(1.25)
+            frame = driver.frame(f"scm-expanded-{page}")
+            continue
+        if anchored or (started and roster):
+            names = [label for label, _ in roster]
+            overlap = 0
+            if started and not anchored:
+                overlap = next((n for n in range(min(len(previous), len(names)), 0, -1)
+                                if previous[-n:] == names[:n]), 0)
+                if not overlap:
+                    raise RuntimeError("SCMessenger sidebar pages have no verified overlapping chat row")
+            if anchored and started:
+                if names[:len(previous)] != previous:
+                    raise RuntimeError("the SCMessenger roster reordered")
+                overlap = len(previous)
+            started = True
+            previous = names
+            yield frame, page, roster[overlap:]
+            if ended:
+                return
+        elif started and ended:
+            return
+        driver.act(f"scroll-project-sidebar-{page}", SCROLL, {
+            "point": [196, 850], "size": list(frame.size), "delta": -240,
+        })
+        time.sleep(1)
+        fresh = driver.frame(f"scm-sidebar-scroll-{page}")
+        if fresh.crop((95, 294, 321, 1046)).tobytes() == frame.crop((95, 294, 321, 1046)).tobytes():
+            raise RuntimeError("project sidebar stopped moving before a verified end of the roster")
+        frame = fresh
+    raise RuntimeError("project sidebar exceeded its bounded census")
+
+
+def observe_census_candidate(driver, frame, title, index):
+    regions = CENSUS_REGIONS | {"composer": (640, 745, 1538, 1054), "toolbar": (680, 1044, 1480, 1104)}
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        samples = {name: pool.submit(inspect_crop, driver, frame, f"census-{index}-{name}", rect, "-ReadText")
+                   for name, rect in regions.items() if name not in {"project", "right-rail"}}
+        fields = {name: task.result()["text"] for name, task in samples.items()}
+    rail = frame.crop((1750, 130, 1763, 555)).convert("L")
+    marks = [sum(rail.getpixel((x, y)) > 90 for x in range(rail.width)) >= 8 for y in range(rail.height)]
+    fields.update(title=title, document_sessions=driver.read_app_structure(),
+                  rail_marks=sum(on and (y == 0 or not marks[y - 1]) for y, on in enumerate(marks)))
+    return fields
+
+
+def append_census(driver, evidence, fields):
+    evidence.append(fields)
+    (driver.output / "project-census.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2),
+                                                        encoding="utf-8")
+
+
+def visual_select_row(driver, frame, label, y, step):
+    scope = (127, round(y - 5), 318, round(y + 23))
+    fresh = driver.frame(f"{step}-before")
+    if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
+        raise RuntimeError("a census row moved during project navigation")
+    point = driver.locate_exact_text(f"{step}-ocr", fresh, label, scope)
+    driver.yes(f"{step}-verify", fresh, f"Does the sidebar text read {label!r}?", region=scope)
+    current = driver.frame(f"{step}-ready")
+    if current.crop(scope).tobytes() != fresh.crop(scope).tobytes():
+        raise RuntimeError("SCMessenger chat row changed before selection")
+    driver.act(step, CLICK, {
+        "control": f"SCMessenger project chat {label}", "point": point, "size": list(fresh.size),
+    })
+
+
+def visual_census(driver, frame):
+    evidence = []
+    for page_frame, page, rows in visual_project_pages(driver, frame):
+        for index, (label, y) in enumerate(rows):
+            visual_select_row(driver, page_frame, label, y, f"visual-census-select-{page}-{index}")
+            time.sleep(7)
+            opened = driver.frame(f"visual-census-{page}-{index}-open")
+            fields = observe_census_candidate(driver, opened, label, len(evidence) + 1)
+            append_census(driver, evidence, fields)
+    matches = [index for index, fields in enumerate(evidence) if census_signature(fields)]
+    driver.audit.append("verification", step_id="visual-project-census-verdict",
+                        inspected=len(evidence), matches=matches)
+    if len(matches) != 1:
+        raise RuntimeError(f"visual project census yielded {len(matches)} verified matches across {len(evidence)} rows")
+    frame = driver.frame("scm-return-to-roster")
+    driver.act("scroll-to-project-sidebar-top", SCROLL, {
+        "point": [196, 850], "size": list(frame.size), "delta": 9600,
+    })
+    time.sleep(2)
+    frame = driver.frame("scm-roster-top")
+    seen = 0
+    for page_frame, _, rows in visual_project_pages(driver, frame):
+        for label, y in rows:
+            if seen >= len(evidence) or label != evidence[seen]["title"]:
+                raise RuntimeError("the project roster order changed before reopening")
+            if seen == matches[0]:
+                visual_select_row(driver, page_frame, label, y, "visual-reopen-unique-scm-match")
+                time.sleep(3)
+                reopened = driver.frame("visual-reopened-scm")
+                if not census_signature(observe_census_candidate(driver, reopened, label, "reopened")):
+                    raise RuntimeError("the reopened SCM view did not retain the complete identity signature")
+                driver.prepare_draft()
+                driver.send_draft()
+                return
+            seen += 1
+    raise RuntimeError("the unique SCM chat could not be reopened")
+
+
 def census_project(driver):
     driver.goal = "Census the SCMessenger project's existing chat list and verify the pinned SCM session."
     frame = driver.frame("census-before")
@@ -230,6 +390,9 @@ def census_project(driver):
         structure = driver.read_app_structure("-Project", "SCMessenger")
         (driver.output / "project-structure.json").write_text(json.dumps(structure, ensure_ascii=False),
                                                                encoding="utf-8")
+        if structure["anchors"] == 0:
+            visual_census(driver, frame)
+            return
         rows, expansion = project_roster(structure)
         if expansion is None:
             break
@@ -247,18 +410,7 @@ def census_project(driver):
         navigate_roster_row(driver, frame, live[index - 1], f"census-select-{index}")
         time.sleep(3)
         frame = driver.frame(f"census-candidate-{index}")
-        regions = CENSUS_REGIONS | {"composer": (640, 745, 1538, 1054), "toolbar": (680, 1044, 1480, 1104)}
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            samples = {name: pool.submit(inspect_crop, driver, frame, f"census-{index}-{name}", rect, "-ReadText")
-                       for name, rect in regions.items() if name not in {"project", "right-rail"}}
-            fields = {name: task.result()["text"] for name, task in samples.items()}
-        rail = frame.crop((1750, 130, 1763, 555)).convert("L")
-        marks = [sum(rail.getpixel((x, y)) > 90 for x in range(rail.width)) >= 8 for y in range(rail.height)]
-        fields.update(title=row["name"], document_sessions=driver.read_app_structure(),
-                      rail_marks=sum(on and (y == 0 or not marks[y - 1]) for y, on in enumerate(marks)))
-        evidence.append(fields)
-        (driver.output / "project-census.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2),
-                                                            encoding="utf-8")
+        append_census(driver, evidence, observe_census_candidate(driver, frame, row["name"], index))
     matches = [index for index, fields in enumerate(evidence) if census_signature(fields)]
     driver.audit.append("verification", step_id="project-census-verdict",
                         inspected=len(evidence), matches=matches)

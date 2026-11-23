@@ -21,6 +21,7 @@ from driver_core.jev_client import SYSTEM_ONE_URL
 from driver_core.observation import GUI, Target
 
 from .windows_freebuff_capture import TITLE, FreeBuffWindow
+from .windows_focus import activate_exact
 from .windows_notepad_window import WindowsWindowScreen
 
 GOAL = "Restart the existing Harness Lane 1 local FreeBuff session (315608d2) once in place."
@@ -45,9 +46,10 @@ DISK_THREAD = "f90f01e9"
 SCM_THREAD = "2ae32937"
 BURN_SESSIONS = {
     "0d7e2f37": "BigEnergyCo",
-    "7d4a9b14": "Kalshi",
+    "7d4a9b14": "Kalshi Paper Burndown",
     "9ecc3453": "Lane 2",
-    "918dad1a": "Harness Audit",
+    "918dad1a": "Harness Audit Lane",
+    "0319b9f6": "SCMessenger Audit Lane",
 }
 DISK_POINTER = ("Run D-007 from Treystu/slow-lane-ledger. Read "
                 "DISK-AUDIT-MISSION-V3-2026-11-22.md in oversight/disk-audit-2026-11-19.")
@@ -75,11 +77,6 @@ class Dispatch:
         self.user.SetThreadDpiAwarenessContext.argtypes = (ctypes.c_void_p,)
         self.user.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
         self.user.SetThreadDpiAwarenessContext(-4)
-        self.user.SwitchToThisWindow.argtypes = (wintypes.HWND, wintypes.BOOL)
-        self.user.SwitchToThisWindow.restype = None
-        self.user.AttachThreadInput.argtypes = (wintypes.DWORD, wintypes.DWORD, wintypes.BOOL)
-        self.user.BringWindowToTop.argtypes = (wintypes.HWND,)
-        self.user.SetForegroundWindow.argtypes = (wintypes.HWND,)
         self.user.WindowFromPoint.argtypes = (wintypes.POINT,)
         self.user.WindowFromPoint.restype = wintypes.HWND
         self.user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
@@ -102,6 +99,7 @@ class Dispatch:
         self.composer_renderer = None
         self.search_renderer = None
         self.send_deadline = None
+        self.send_composer = None
         self.audit = AuditLog(output / "driver.jsonl")
         self.screen = WindowsWindowScreen(self.window, source="windows-freebuff")
         self.driver = Driver(settings=Settings(jev_api_key=key, allow_write=True),
@@ -127,21 +125,8 @@ class Dispatch:
 
             if not desktop_idle():
                 raise RuntimeError("desktop activity resumed before taking FreeBuff focus")
-        if self.window.api.foreground() != hwnd:
-            if not self.window.api.focus(hwnd, TITLE):
-                self.user.SwitchToThisWindow(hwnd, True)
-        previous = self.window.api.foreground()
-        if previous and previous != hwnd:
-            caller = ctypes.windll.kernel32.GetCurrentThreadId()
-            current = self.user.GetWindowThreadProcessId(previous, None)
-            attached = caller != current and self.user.AttachThreadInput(caller, current, True)
-            try:
-                self.user.BringWindowToTop(hwnd)
-                self.user.SetForegroundWindow(hwnd)
-            finally:
-                if attached:
-                    self.user.AttachThreadInput(caller, current, False)
-            time.sleep(0.15)
+        if not activate_exact(hwnd, self.window.api.foreground):
+            raise RuntimeError("Windows did not grant exact FreeBuff foreground")
         self.require_foreground()
 
     def compositor_bounds(self):
@@ -195,15 +180,20 @@ class Dispatch:
         for character in self.text:
             if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
                 raise RuntimeError("the verified composer renderer is no longer available")
-            if self.text == DISK_POINTER or (self.scoped_input and self.thread == DISK_THREAD):
+            if self.standing or self.text == DISK_POINTER or (self.scoped_input and self.thread == DISK_THREAD):
                 if not self.user.PostMessageW(hit, 0x0102, ord(character), 1):
-                    raise RuntimeError("the verified Disk Audit composer refused a character")
+                    raise RuntimeError("the verified FreeBuff composer refused a character")
             else:
                 keyboard.type_text(character)
 
     def send(self, action, params):
         if params["thread"] != self.thread or params["text"] != self.text:
             raise RuntimeError("the thread or text differs from the approved continuation")
+        if self.standing:
+            self.verify_active_session()
+            fresh = self.frame("send-executor-fresh")
+            if (fresh.crop(COMPOSER).tobytes() != self.send_composer or self.stop_visible(fresh)):
+                raise RuntimeError("the standing composer changed after approval")
         if self.send_deadline is None or time.monotonic() > self.send_deadline:
             raise RuntimeError("the verified send window expired before input")
         self.click(action, params)
@@ -221,9 +211,11 @@ class Dispatch:
 
     def act(self, step, action, params):
         if self.standing:
-            from .windows_freebuff_watch import guard_approval
+            from .windows_freebuff_watch import desktop_idle, guard_approval
 
             guard_approval()
+            if not desktop_idle():
+                raise RuntimeError("owner desktop activity resumed before input")
         grant = Consent(True, action.name, params, by=f"operator:freebuff-{self.thread}")
         result = self.driver.executor.execute(action.name, params, consent=grant, step_id=step)
         if not result.ok:
@@ -553,6 +545,7 @@ class Dispatch:
             raise RuntimeError("the verified session and composer observations expired before send")
         self.audit.append("verification", step_id="pre-send-freshness", age_seconds=round(age, 3))
         self.send_deadline = observed_at + 60
+        self.send_composer = frame.crop(COMPOSER).tobytes() if self.standing else None
         with marker.open("x", encoding="utf-8") as handle:
             json.dump({"thread": self.thread, "step": f"{operation}-once", "text": self.text,
                        "evidence": self.output.name}, handle)

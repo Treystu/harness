@@ -21,6 +21,7 @@ AMENDMENT = 7093866656
 BURN_QUEUE = 7093946738
 UNBLOCK = 7094012443
 TRANSITION = 7094050344
+FILL = 7094198934
 SINCE = "2026-11-23T06:55:00Z"
 ROOT = f"{LEDGER}/contents/dispatch/laptop-driver/watch/{CUTOVER}"
 RECEIPTS = {
@@ -31,6 +32,7 @@ RECEIPTS = {
     BURN_QUEUE: "OVERSIGHT DISPATCH - BURN QUEUE, NEXT 3 HOURS",
     UNBLOCK: "OVERSIGHT RULING - QUEUE UNBLOCK",
     TRANSITION: "OVERSIGHT DISPATCH - TRANSITION COMPLETION",
+    FILL: "OVERSIGHT DISPATCH - MAX-VELOCITY FILL RULE",
 }
 
 
@@ -109,7 +111,7 @@ def heartbeat(known, state):
         issue_comment(f"Vision watch {CUTOVER} heartbeat. {state}.")
 
 
-def logo_cure_eligible(output):
+def cure_eligible(output, reasons, allowed_actions=()):
     traces = sorted(output.glob("**/driver.jsonl"))
     receipt = output / "runner.jsonl"
     if not traces or not receipt.is_file() or not AuditLog(receipt).verify().ok:
@@ -117,11 +119,12 @@ def logo_cure_eligible(output):
     if any(not AuditLog(trace).verify().ok for trace in traces):
         return False
     results = [json.loads(line) for line in receipt.read_text(encoding="utf-8").splitlines()]
-    if not any(r["step_id"] == "result" and "identify-" in r["state"]
-               and "requires 0.90" in r["state"] for r in results):
+    if not any(r["step_id"] == "result" and all(reason in r["state"] for reason in reasons)
+               for r in results):
         return False
-    return not any(json.loads(line)["kind"] == "action" for trace in traces
-                   for line in trace.read_text(encoding="utf-8").splitlines())
+    return not any(row["kind"] == "action" and row.get("ok") and row["step_id"] not in allowed_actions
+                   for trace in traces for line in trace.read_text(encoding="utf-8").splitlines()
+                   if (row := json.loads(line)))
 
 
 def run_burn(receipts, known):
@@ -132,15 +135,32 @@ def run_burn(receipts, known):
         return
     digest = hashlib.sha256(source["body"].encode()).hexdigest()
     queue = [(CENSUS, SCM_THREAD), *((BURN_QUEUE if thread == "918dad1a" else BURNDOWN, thread)
-                                    for thread in BURN_SESSIONS)]
+                                    for thread in BURN_SESSIONS if thread != "0319b9f6")]
+    now = datetime.now(timezone.utc)
+    if FILL in receipts:
+        hawaii = timezone(timedelta(hours=-10))
+        refill = datetime.fromisoformat(receipts[FILL]["created_at"]).astimezone(hawaii)
+        midnight = refill.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        if now < midnight:
+            queue.append((FILL, "0319b9f6"))
     work = []
     state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
     for dispatch_id, thread in queue:
         item = f"{dispatch_id}-{thread}"
         if f"claim-{item}.json" not in known:
             work.append((dispatch_id, thread, item))
-        elif f"result-{item}.json" in known and logo_cure_eligible(state_dir / item):
-            work.append((dispatch_id, thread, f"{item}-native-logo-cure"))
+        else:
+            logo = f"{item}-native-logo-cure"
+            if f"result-{item}.json" in known and cure_eligible(state_dir / item, ("identify-", "requires 0.90")):
+                work.append((dispatch_id, thread, logo))
+            if dispatch_id == CENSUS and f"result-{logo}.json" in known and cure_eligible(
+                    state_dir / logo, ("did not expose a unique bounded chat list",)):
+                work.append((dispatch_id, thread, f"{item}-visual-roster-cure"))
+            if thread in {"7d4a9b14", "918dad1a"} and f"result-{item}.json" in known and cure_eligible(
+                    state_dir / item, ("exact OCR label", "was not verified"),
+                    ("search-foreground", "close-old-search", "open-session-search",
+                     "focus-search-field", "query-session", "observation-foreground", "navigate-to-bystander")):
+                work.append((dispatch_id, thread, f"{item}-full-title-cure"))
     for dispatch_id, thread, item in work:
         claim = f"claim-{item}.json"
         if claim in known:
@@ -150,7 +170,9 @@ def run_burn(receipts, known):
             heartbeat(known, "waiting for owner desktop idle")
             return
         # A create-only remote claim is the at-most-once boundary, including crashes.
-        checkpoint(claim, {"dispatch": dispatch_id, "queue": BURN_QUEUE, "thread": thread, "sha256": digest})
+        authorization = receipts.get(dispatch_id, source)
+        claim_digest = hashlib.sha256(authorization["body"].encode()).hexdigest() if dispatch_id != BURNDOWN else digest
+        checkpoint(claim, {"dispatch": dispatch_id, "queue": BURN_QUEUE, "thread": thread, "sha256": claim_digest})
         out = state_dir / item
         try:
             out.mkdir(parents=True)
@@ -158,7 +180,7 @@ def run_burn(receipts, known):
             if dispatch_id == CENSUS:
                 mission["phases"] = ("project-census",)
                 mission["phase_timeout"] = 480
-            status = "parked" if execute(out, item, mission, digest, ()) else "verified running"
+            status = "parked" if execute(out, item, mission, claim_digest, ()) else "verified running"
         except (OSError, RuntimeError) as error:
             status = "parked after claim"
             issue_comment(f"Vision watch #{dispatch_id} / `{thread}` {status}. {error}")

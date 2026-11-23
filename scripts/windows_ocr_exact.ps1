@@ -1,4 +1,4 @@
-param([string]$Path, [string]$Label, [switch]$WholeText, [switch]$ReadText, [int]$Ordinal)
+param([string]$Path, [string]$Label, [switch]$WholeText, [switch]$ReadText, [int]$Ordinal, [switch]$ReadLines)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType=WindowsRuntime]
@@ -25,6 +25,17 @@ try {
         $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
         if (!$engine) { throw 'Windows OCR has no available language.' }
         $result = Await-Operation ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
+        if ($ReadLines) {
+            [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+            $lines = foreach ($line in $result.Lines) {
+                $words = @($line.Words | ForEach-Object {
+                    @{ text=$_.Text; x=$_.BoundingRect.X; y=$_.BoundingRect.Y }
+                })
+                if ($words.Count) { @{ text=$line.Text; words=$words } }
+            }
+            @{ lines=@($lines) } | ConvertTo-Json -Depth 4 -Compress
+            exit 0
+        }
         if ($ReadText) {
             [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
             @{ text=($result.Lines.Text -join "`n") } | ConvertTo-Json -Compress
