@@ -1029,6 +1029,9 @@ class Dispatch:
             self.act("search-foreground", FOCUS, {"title": self.window.title})
             frame = self.frame("freebuff-search-foreground")
         self.require_foreground()
+        if self.thread == VISION_THREAD and self.standing:
+            self.open_vision_seat()
+            return
         if self.navigate_by_session_list():
             return
         if self.list_only():
@@ -1060,6 +1063,30 @@ class Dispatch:
                 frame = self.frame(f"search-open-retry-{attempt}")
         else:
             raise RuntimeError("the search dialog did not open after two verified search clicks")
+
+    def open_vision_seat(self):
+        """Inspect the observed GitHub-project row, then require the pinned route."""
+        frame = self.ensure_search_closed(self.frame("vision-seat-sidebar"))
+        for page in range(1, 7):
+            frame, rows = self.settled_roster(f"vision-seat-{page}", SIDEBAR, attempts=4)
+            matches = [row for row in rows if self.row_matches(row["text"], self.label)]
+            if len(matches) > 1:
+                raise RuntimeError("more than one visible vision-seat row matched")
+            if matches:
+                row = matches[0]
+                scope = (round(row["x"] - 6), round(row["y"] - 4),
+                         round(row["x1"] + 6), round(row["y"] + 20))
+                self.yes("vision-seat-row", frame,
+                         "Does this label contain the words Vision Driver Standup?", region=scope)
+                self.click_exact_row("vision-seat-open", frame, row)
+                time.sleep(2)
+                self.verify_active_session()
+                return
+            if not self.scroll_by(f"vision-seat-scroll-{page}", frame, [196, 850], -400):
+                raise RuntimeError("the project sidebar could not advance to the vision seat")
+            time.sleep(0.8)
+            frame = self.frame(f"vision-seat-after-{page}")
+        raise RuntimeError("the vision-seat row was not visible in the bounded project-list walk")
 
     def wait_dialog(self, open_state, seconds=4):
         """Poll the dialog state until it matches, then return that frame."""

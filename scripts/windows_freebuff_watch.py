@@ -291,7 +291,27 @@ def run_restoration(receipts, known):
                         continue
                     item = f"restore-{dispatch_id}-{thread}-published-identity-cure"
                     if f"claim-{item}.json" in known:
-                        continue
+                        previous = state_dir / item
+                        runner = previous / "runner.jsonl"
+                        traces = list(previous.glob("**/driver.jsonl"))
+                        if (not runner.is_file() or not AuditLog(runner).verify().ok or not traces
+                                or any(not AuditLog(trace).verify().ok for trace in traces)):
+                            continue
+                        rows = [json.loads(line) for trace in traces
+                                for line in trace.read_text(encoding="utf-8").splitlines()]
+                        if any(row["kind"] == "action" and (
+                            row.get("action") not in {"click_freebuff", "scroll_freebuff", "focus_freebuff"}
+                            or "composer" in row.get("consent", {}).get("params", {}).get("control", "").casefold()
+                        ) for row in rows):
+                            continue
+                        results = [json.loads(line) for line in runner.read_text(encoding="utf-8").splitlines()]
+                        if not any(row.get("step_id") == "result" and
+                                   "search: driver tree terminated after deadline" in row.get("state", "")
+                                   for row in results):
+                            continue
+                        item = f"restore-{dispatch_id}-{thread}-targeted-vision-row-cure"
+                        if f"claim-{item}.json" in known:
+                            continue
             else:
                 continue
         guard_approval()
