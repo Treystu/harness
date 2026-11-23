@@ -312,6 +312,20 @@ class Dispatch:
         time.sleep(1.4)
         self.frame("freebuff-search-results")
 
+    def select_search_result(self):
+        frame = self.frame("before-select-session")
+        self.require_foreground()
+        region = (540, 250, 1120, 310)
+        self.yes("verify-existing-search-result", frame,
+                 f"Does this search result row show the exact session title '{self.label}'?",
+                 region=region)
+        point = self.locate_exact_text("locate-existing-search-result", frame, self.label, region)
+        self.act("select-existing-session", CLICK,
+                 {"control": f"existing {self.label} ({self.thread}) search result",
+                  "point": point, "size": list(frame.size)})
+        time.sleep(1.5)
+        self.frame("existing-session-selected")
+
     def verify_lane(self, frame):
         self.require_foreground()
         self.yes("verify-lane1", frame,
@@ -409,7 +423,7 @@ class Dispatch:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
-    parser.add_argument("--phase", choices=("open", "search", "query", "prepare", "send"),
+    parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare", "send"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     args = parser.parse_args()
@@ -427,6 +441,8 @@ def main():
             dispatch.open_search()
         elif args.phase == "query":
             dispatch.search_for_session()
+        elif args.phase == "select":
+            dispatch.select_search_result()
         elif args.phase == "prepare":
             if args.thread != THREAD:
                 raise RuntimeError("the session composer must be scoped before preparing a draft")
