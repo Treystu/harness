@@ -375,15 +375,7 @@ class Dispatch:
             self.yes("verify-disk-audit-tab", frame,
                      "Does the selected dark tab show the word 'Disk'?",
                      region=(1436, 0, 1551, 60))
-            profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
-            stores = list(profile.glob("*/Local Storage/leveldb/*.log"))
-            stores += list(profile.glob("*/Local Storage/leveldb/*.ldb"))
-            session_id = b"f90f01e9-128f-497b-b64f-2662ee4051e0"
-            if not any(session_id in path.read_bytes() for path in
-                       sorted(stores, key=lambda path: path.stat().st_mtime, reverse=True)[:12]):
-                raise RuntimeError("Disk Audit UUID is absent from recent FreeBuff local state")
-            self.audit.append("extraction", step_id="verify-disk-audit-id",
-                              exact_id=session_id.decode("ascii"))
+            self.require_cached_session("verify-disk-audit-id", b"f90f01e9-128f-497b-b64f-2662ee4051e0")
             return
         region = LANE_NAV
         if self.scoped_input:
@@ -396,26 +388,35 @@ class Dispatch:
                 raise RuntimeError("the OCR Lane 1 row has no verified selection highlight")
             self.audit.append("verification", step_id="lane1-selection-highlight", samples=samples)
             region = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
-            profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
-            stores = list(profile.glob("*/Local Storage/leveldb/*.log"))
-            stores += list(profile.glob("*/Local Storage/leveldb/*.ldb"))
-            session_id = b"315608d2-1531-456b-918a-f7e97db56496"
-            for path in sorted(stores, key=lambda path: path.stat().st_mtime, reverse=True)[:12]:
-                try:
-                    if session_id in path.read_bytes():
-                        self.audit.append("extraction", step_id="verify-lane1-id",
-                                          exact_id=session_id.decode("ascii"))
-                        break
-                except OSError:
-                    continue
-            else:
-                raise RuntimeError("Lane 1 UUID absent from recent FreeBuff local state")
+            self.require_cached_session("verify-lane1-id", b"315608d2-1531-456b-918a-f7e97db56496")
             self.yes("verify-lane1", frame, "Does the printed text read 'Lane 1'?", region=region)
             return
         self.yes("verify-lane1", frame,
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "in the sidebar? Reject a plain unselected row.",
                  region=region)
+
+    def require_cached_session(self, step, session_id):
+        profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
+        stores = ("*/Local Storage/leveldb", "*/IndexedDB/https_freebuff.com_0.indexeddb.leveldb")
+        for store in stores:
+            for root in profile.glob(store):
+                for path in root.iterdir():
+                    if path.suffix not in (".log", ".ldb"):
+                        continue
+                    try:
+                        with path.open("rb") as handle:
+                            tail = b""
+                            while block := handle.read(1024 * 1024):
+                                data = tail + block
+                                if session_id in data:
+                                    self.audit.append("extraction", step_id=step,
+                                                      exact_id=session_id.decode("ascii"), store=store)
+                                    return
+                                tail = data[-len(session_id):]
+                    except OSError:
+                        continue
+        raise RuntimeError("the exact UUID was absent from the FreeBuff session stores")
 
     def verify_draft(self, frame):
         pointer = self.text == DISK_POINTER

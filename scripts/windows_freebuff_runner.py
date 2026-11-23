@@ -198,30 +198,36 @@ def main():
                         help="resume the one-shot demo after the recorded selection refusal")
     source.add_argument("--resume-highlight-cure", action="store_true",
                         help="resume after the recorded inside-view refusal")
+    source.add_argument("--resume-cache-cure", action="store_true",
+                        help="resume after the recorded recent-cache refusal")
     parser.add_argument("--wait", type=int, default=120)
     parser.add_argument("--bystander-title", action="append", default=[])
     args = parser.parse_args()
     args.state.mkdir(parents=True, exist_ok=True)
-    if args.oversight_demo or args.resume_before_input or args.resume_selection_cure or args.resume_highlight_cure:
+    if (args.oversight_demo or args.resume_before_input or args.resume_selection_cure
+            or args.resume_highlight_cure or args.resume_cache_cure):
         mission, digest = one_shot_dispatch()
         execution = args.state / str(DEMO_COMMENT)
-        if args.resume_highlight_cure:
-            previous = args.state / f"{DEMO_COMMENT}-selection-cure"
+        if args.resume_highlight_cure or args.resume_cache_cure:
+            previous_stage = "highlight-cure" if args.resume_cache_cure else "selection-cure"
+            current_stage = "cache-cure" if args.resume_cache_cure else "highlight-cure"
+            reason = ("Lane 1 UUID absent from recent FreeBuff local state" if args.resume_cache_cure
+                      else "verify-lane1: Jev target confidence was 0.34")
+            previous = args.state / f"{DEMO_COMMENT}-{previous_stage}"
             prepared = previous / "prepare" / "driver.jsonl"
             if ((previous / "send").exists() or not prepared.is_file()
                     or not AuditLog(prepared).verify().ok
-                    or 'verify-lane1: Jev target confidence was 0.34'
-                    not in prepared.read_text(encoding="utf-8")
+                    or reason not in prepared.read_text(encoding="utf-8")
                     or any(json.loads(line)["kind"] == "action"
                            for line in prepared.read_text(encoding="utf-8").splitlines())):
                 parser.error("no verified inside-view refusal to resume")
-            execution = args.state / f"{DEMO_COMMENT}-highlight-cure"
+            execution = args.state / f"{DEMO_COMMENT}-{current_stage}"
             try:
                 execution.mkdir()
             except FileExistsError:
                 parser.error("this highlight cure was already claimed")
             mission["resume_inside"] = True
-            return execute(execution, f"{DEMO_COMMENT}-highlight-cure", mission, digest,
+            return execute(execution, f"{DEMO_COMMENT}-{current_stage}", mission, digest,
                            args.bystander_title)
         if args.resume_selection_cure:
             previous = args.state / f"{DEMO_COMMENT}-pre-input-retry"
