@@ -372,7 +372,15 @@ def run_restoration(receipts, known):
                                                             continue
                                                         item = f"restore-{dispatch_id}-{thread}-reacquire-row-cure"
                                                         if f"claim-{item}.json" in known:
-                                                            continue
+                                                            if (f"result-{item}.json" not in known or not cure_eligible(
+                                                                    state_dir / item,
+                                                                    ("compositor geometry changed after capture",),
+                                                                    ("observation-foreground", "navigate-to-bystander",
+                                                                     "census-foreground"))):
+                                                                continue
+                                                            item = f"restore-{dispatch_id}-{thread}-scroll-recapture-cure"
+                                                            if f"claim-{item}.json" in known:
+                                                                continue
             elif dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
                 output = state_dir / item
                 runner = output / "runner.jsonl"
@@ -508,7 +516,8 @@ def run_restoration(receipts, known):
                               "-fresh-row-ocr-cure-fresh-label-cure",
                               "-fresh-label-cure-consistent-ocr-scale-cure", "-ocr2-verified-prefix-cure",
                               "-exact-short-prefix-long-cure", "-sticky-footer-cure",
-                              "-settled-geometry-cure", "-visible-project-anchor-cure", "-reacquire-row-cure")):
+                              "-settled-geometry-cure", "-visible-project-anchor-cure", "-reacquire-row-cure",
+                              "-scroll-recapture-cure")):
                 mission["phases"] = ("project-census",)
                 mission["phase_timeout"] = 600
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"

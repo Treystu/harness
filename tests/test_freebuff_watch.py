@@ -145,6 +145,23 @@ def test_census_waits_for_capture_geometry_before_navigation(monkeypatch):
     driver.act.assert_not_called()
 
 
+def test_sidebar_scroll_recaptures_after_geometry_refusal():
+    driver = Mock()
+    driver.act.side_effect = [RuntimeError("FreeBuff compositor geometry changed after capture"), None]
+    driver.frame.return_value = Image.new("RGB", (400, 200))
+    census.scroll_project_sidebar(driver, Image.new("RGB", (400, 194)), "scroll", -240)
+    assert driver.act.call_count == 2
+    assert driver.act.call_args.args[2]["size"] == [400, 200]
+
+
+def test_sidebar_scroll_does_not_retry_other_refusals():
+    driver = Mock()
+    driver.act.side_effect = RuntimeError("owner desktop activity resumed before input")
+    with pytest.raises(RuntimeError, match="owner desktop activity"):
+        census.scroll_project_sidebar(driver, Image.new("RGB", (400, 200)), "scroll", -240)
+    driver.frame.assert_not_called()
+
+
 def test_census_never_expands_another_project_above_visible_scm_heading(monkeypatch):
     def line(text, x, y):
         return {"text": text, "words": [{"text": text, "x": 2 * (x - 95), "y": 2 * (y - 294)}]}

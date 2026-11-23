@@ -203,6 +203,18 @@ def census_signature(fields):
             and "#746" in history)
 
 
+def scroll_project_sidebar(driver, frame, step, delta):
+    for attempt in range(3):
+        try:
+            driver.act(step, SCROLL, {"point": [196, 850], "size": list(frame.size), "delta": delta})
+            return
+        except RuntimeError as error:
+            if "compositor geometry changed after capture" not in str(error) or attempt == 2:
+                raise
+            frame = driver.frame(f"{step}-geometry-retry-{attempt}")
+    raise RuntimeError("project sidebar scroll did not complete")
+
+
 def visual_project_pages(driver, frame):
     """Yield the SCM project chat rows on each verified, overlapping sidebar page."""
     started = False
@@ -287,9 +299,7 @@ def visual_project_pages(driver, frame):
                 return
         elif started and ended:
             return
-        driver.act(f"scroll-project-sidebar-{page}", SCROLL, {
-            "point": [196, 850], "size": list(frame.size), "delta": -240,
-        })
+        scroll_project_sidebar(driver, frame, f"scroll-project-sidebar-{page}", -240)
         time.sleep(1)
         fresh = driver.frame(f"scm-sidebar-scroll-{page}")
         if fresh.crop((95, 294, 321, 1046)).tobytes() == frame.crop((95, 294, 321, 1046)).tobytes():
@@ -347,9 +357,7 @@ def reacquire_project_row(driver, label, step):
                            "Is the folder label SCMessenger visible above the chat rows?",
                            region=(88, round(lines[start][2] - 5), 280, round(lines[start][2] + 23)))
                 return frame, candidates[0][1]
-        driver.act(f"{step}-reacquire-scroll-{attempt}", SCROLL, {
-            "point": [196, 850], "size": list(frame.size), "delta": 240,
-        })
+        scroll_project_sidebar(driver, frame, f"{step}-reacquire-scroll-{attempt}", 240)
         time.sleep(1)
     raise RuntimeError("the SCM project row could not be reacquired under its visible heading")
 
