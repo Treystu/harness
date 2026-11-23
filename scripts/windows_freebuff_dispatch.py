@@ -265,7 +265,7 @@ class Dispatch:
     def open_search(self):
         frame = self.frame("freebuff-before-search")
         self.require_foreground()
-        region = (297, 94, 331, 131)
+        region = (296, 75, 333, 104)
         self.yes("identify-search-control", frame,
                  "Does this crop show a magnifying glass search icon?",
                  region=region)
