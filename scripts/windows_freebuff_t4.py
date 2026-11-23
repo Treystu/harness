@@ -234,7 +234,10 @@ def visual_project_pages(driver, frame):
                 continue
             if not in_project:
                 continue
-            if heading or label == "Invite friends":
+            # The fixed footer overlays the scrolling list; it is not a project boundary.
+            if label == "Invite friends":
+                continue
+            if heading:
                 if anchored or roster:
                     ended = True
                     break
@@ -264,7 +267,7 @@ def visual_project_pages(driver, frame):
         if anchored or (started and roster):
             names = [label for label, _ in roster]
             overlap = 0
-            if started and not anchored:
+            if started and not anchored and previous:
                 overlap = next((n for n in range(min(len(previous), len(names)), 0, -1)
                                 if previous[-n:] == names[:n]), 0)
                 if not overlap:

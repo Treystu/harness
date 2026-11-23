@@ -118,6 +118,23 @@ def test_census_jev_verifies_visible_prefix_without_guessing_clipped_suffix():
     assert "Lar" not in driver.yes.call_args.args[2]
 
 
+def test_census_scrolls_past_sticky_footer_after_project_heading(monkeypatch):
+    def line(text, x, y):
+        return {"text": text, "words": [{"text": text, "x": 2 * (x - 95), "y": 2 * (y - 294)}]}
+
+    pages = iter([{"lines": [line("SCMessenger", 120, 960), line("Invite friends", 115, 1040)]},
+                  {"lines": [line("SCMessenger", 132, 800), line("Next project", 120, 900)]}])
+    monkeypatch.setattr(census, "inspect_crop", lambda *args: next(pages))
+    monkeypatch.setattr(census.time, "sleep", lambda _: None)
+    driver = Mock()
+    first = Image.new("RGB", (1800, 1131), "white")
+    second = Image.new("RGB", (1800, 1131), "black")
+    driver.frame.return_value = second
+    pages = list(census.visual_project_pages(driver, first))
+    assert [label for _, _, rows in pages for label, _ in rows] == ["SCMessenger"]
+    driver.act.assert_called_once()
+
+
 def test_census_match_requires_active_uuid_and_both_activity_markers():
     fields = {"toolbar": "Local DeepSeek V4.1 Flash Slow", "transcript-upper": "#745",
               "transcript-lower": "Codex #746", "rail_marks": 22,
