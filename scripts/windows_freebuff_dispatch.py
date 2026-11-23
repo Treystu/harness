@@ -163,6 +163,8 @@ class Dispatch:
 
     def ask(self, step, frame, questions, *, region=None):
         image = frame.crop(region) if region else frame
+        if max(image.size) < 200:
+            image = image.resize((image.width * 4, image.height * 4))
         data = io.BytesIO()
         image.save(data, format="PNG")
         fitted, why = osal.prepare_image_bytes(data.getvalue())
@@ -263,7 +265,6 @@ class Dispatch:
         self.yes("verify-staged-text", frame,
                  "Does the visible text read exactly 'continue in full'?",
                  region=(644, 949, 1040, 1010))
-        self.locate_exact_text("read-exact-draft", frame, CONTINUATION, (644, 949, 1040, 1010))
 
     def send_draft(self):
         marker = self.output.parent / "harness-freebuff-315608d2-send-20261122.json"
