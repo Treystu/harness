@@ -6,8 +6,6 @@ import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from ctypes import byref, wintypes
-from functools import partial
 from pathlib import Path
 
 from driver_core import osal
@@ -36,21 +34,6 @@ def inspect_crop(driver, frame, label, region, *options):
     if not response.ok:
         raise RuntimeError(f"{label}: {response.stderr.strip().splitlines()[0]}")
     return json.loads(response.stdout)
-
-
-def scroll_readonly(driver, action, params):
-    hit, x, y = driver.renderer_point(params)
-    if driver.user.GetAncestor(hit, 2) != driver.require_foreground():
-        raise RuntimeError("the renderer changed before scrolling")
-    client = wintypes.POINT(x, y)
-    if not driver.user.ScreenToClient(hit, byref(client)):
-        raise RuntimeError("could not bind the scroll point to the renderer")
-    hover = (client.x & 0xFFFF) | ((client.y & 0xFFFF) << 16)
-    if not driver.user.PostMessageW(hit, 0x0200, 0, hover):
-        raise RuntimeError("the renderer rejected the hover")
-    packed = (x & 0xFFFF) | ((y & 0xFFFF) << 16)
-    if not driver.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
-        raise RuntimeError("the renderer rejected scrolling")
 
 
 def scan_draft(driver, frame, *, continuation=False):
@@ -443,7 +426,6 @@ def main():
     args.evidence.mkdir()
     driver = Dispatch(args.evidence, key, thread=SCM_THREAD, scoped_input=True,
                       standing=args.phase == "project-census")
-    driver.driver.register_executor(SCROLL.name, partial(scroll_readonly, driver))
     try:
         if args.phase == "search":
             driver.open_search()

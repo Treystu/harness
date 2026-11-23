@@ -292,7 +292,13 @@ def run_restoration(receipts, known):
                     continue
                 item += "-project-roster-cure"
                 if f"claim-{item}.json" in known:
-                    continue
+                    if (f"result-{item}.json" not in known or not cure_eligible(
+                            state_dir / item, ("executor 'scroll_freebuff' is already registered",),
+                            ("observation-foreground", "navigate-to-bystander"))):
+                        continue
+                    item += "-scroll-registration-cure"
+                    if f"claim-{item}.json" in known:
+                        continue
             elif dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
                 output = state_dir / item
                 runner = output / "runner.jsonl"
@@ -423,7 +429,7 @@ def run_restoration(receipts, known):
             if item.endswith("-start-focus-cure"):
                 mission["phases"] = ("vision-start-focus-cure",)
                 mission["skip_t5"] = True
-            if item.endswith("-project-roster-cure"):
+            if item.endswith(("-project-roster-cure", "-project-roster-cure-scroll-registration-cure")):
                 mission["phases"] = ("project-census",)
                 mission["phase_timeout"] = 600
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
