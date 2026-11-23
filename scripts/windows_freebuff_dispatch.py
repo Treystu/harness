@@ -470,6 +470,7 @@ class Dispatch:
         marker = self.output.parent / f"harness-freebuff-{self.thread}-{operation}-20261122.json"
         if marker.exists():
             raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
+        observed_at = time.monotonic()
         frame = self.frame("lane1-before-send")
         self.verify_lane(frame)
         frame = self.verify_draft(frame)
@@ -488,6 +489,11 @@ class Dispatch:
         control = f"{self.label} queue arrow" if pointer else f"{self.label} Send (up arrow)"
         params = {"thread": self.thread, "text": self.text, "control": control,
                   "point": point, "size": list(frame.size)}
+        self.require_foreground()
+        age = time.monotonic() - observed_at
+        if age > 60:
+            raise RuntimeError("the verified session and composer observations expired before send")
+        self.audit.append("verification", step_id="pre-send-freshness", age_seconds=round(age, 3))
         with marker.open("x", encoding="utf-8") as handle:
             json.dump({"thread": self.thread, "step": f"{operation}-once", "text": self.text,
                        "evidence": self.output.name}, handle)
