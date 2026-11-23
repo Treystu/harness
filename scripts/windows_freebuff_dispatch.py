@@ -53,7 +53,7 @@ SEND_CONTROL = (1480, 1043, 1535, 1100)
 
 
 class Dispatch:
-    def __init__(self, output, key, *, thread=THREAD):
+    def __init__(self, output, key, *, thread=THREAD, scoped_input=False):
         from PIL import Image, ImageOps
 
         self.image = Image
@@ -82,6 +82,7 @@ class Dispatch:
         self.output = output
         self.key = key
         self.thread = thread
+        self.scoped_input = scoped_input
         self.label, self.text = SESSIONS[thread]
         self.goal = (GOAL if thread == THREAD else
                      f"Restart the existing {self.label} FreeBuff session ({thread}) once in place.")
@@ -166,7 +167,7 @@ class Dispatch:
         for character in self.text:
             if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
                 raise RuntimeError("the verified composer renderer is no longer available")
-            if self.text == DISK_POINTER:
+            if self.scoped_input or self.text == DISK_POINTER:
                 if not self.user.PostMessageW(hit, 0x0102, ord(character), 1):
                     raise RuntimeError("the verified Disk Audit composer refused a character")
             else:
@@ -287,7 +288,29 @@ class Dispatch:
 
     def open_search(self):
         frame = self.frame("freebuff-before-search")
+        if self.window.api.foreground() != self.window.handle:
+            self.yes("identify-freebuff-for-search", frame,
+                     "Does this image show the word Freebuff beside a white logo?",
+                     region=(65, 55, 285, 130))
+            self.act("search-foreground", FOCUS, {"title": TITLE})
+            frame = self.frame("freebuff-search-foreground")
         self.require_foreground()
+        answers = self.ask("inspect-search-dialog", frame, {
+            "open": transport.noul(
+                "Is a centered chat search dialog visible, with a magnifier and text entry at "
+                "the upper left and an X close control at the upper right?")
+        }, region=(488, 150, 1315, 380))
+        present = answers["open"]["noul"]
+        if present >= 0.9:
+            self.yes("verify-search-close", frame, "Is this a small X close control?",
+                     region=(1249, 177, 1288, 216))
+            self.act("close-old-search", CLICK,
+                     {"control": "FreeBuff search Close", "point": [1269, 197],
+                      "size": list(frame.size)})
+            time.sleep(1.5)
+            frame = self.frame("freebuff-after-search-close")
+        elif present > 0.2:
+            raise RuntimeError("the current FreeBuff search dialog state is ambiguous")
         region = (296, 75, 333, 104)
         self.yes("identify-search-control", frame,
                  "Does this crop show a magnifying glass search icon?",
@@ -321,11 +344,12 @@ class Dispatch:
     def select_search_result(self):
         frame = self.frame("before-select-session")
         self.require_foreground()
-        region = (540, 250, 1120, 310)
+        point = self.locate_exact_text("locate-existing-search-result", frame, self.label,
+                                       (546, 249, 1220, 926))
+        region = (541, point[1] - 21, 1120, point[1] + 21)
         self.yes("verify-existing-search-result", frame,
                  f"Does this search result row show the exact session title '{self.label}'?",
                  region=region)
-        point = self.locate_exact_text("locate-existing-search-result", frame, self.label, region)
         self.act("select-existing-session", CLICK,
                  {"control": f"existing {self.label} ({self.thread}) search result",
                   "point": point, "size": list(frame.size)})
@@ -348,10 +372,15 @@ class Dispatch:
             self.audit.append("extraction", step_id="verify-disk-audit-id",
                               exact_id=session_id.decode("ascii"))
             return
+        region = LANE_NAV
+        if self.scoped_input:
+            _, y = self.locate_exact_text("locate-selected-lane1", frame, self.label,
+                                          (128, 300, 300, 850))
+            region = (93, y - 22, 365, y + 22)
         self.yes("verify-lane1", frame,
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
-                 "under the Harness heading? Reject if a different row is selected.",
-                 region=LANE_NAV)
+                 "in the sidebar? Reject a plain unselected row.",
+                 region=region)
 
     def verify_draft(self, frame):
         pointer = self.text == DISK_POINTER
@@ -440,6 +469,8 @@ class Dispatch:
     def prepare_draft(self):
         frame = self.frame("lane1-before-draft")
         self.verify_lane(frame)
+        if self.scoped_input and self.stop_visible(frame):
+            raise RuntimeError("the requested session is already running; no restart input")
         route = self.choose("composer-route", frame,
                             "Read the controls in this composer screenshot. Which is visible?", {
                                 "staged": "Solid lowercase text 'continue in full' with"
@@ -466,6 +497,13 @@ class Dispatch:
         frame = self.frame("lane1-draft-ready")
         self.verify_draft(frame)
 
+    @staticmethod
+    def stop_visible(frame):
+        if frame.size != (1800, 1131):
+            raise RuntimeError("unsupported frame geometry for the running-turn cue")
+        patch = frame.crop((1501, 1066, 1513, 1078)).convert("L")
+        return sum(value < 60 for value in patch.get_flattened_data()) >= 101
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -474,12 +512,13 @@ def main():
                                            "send", "steer-prepare", "steer-send"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
+    parser.add_argument("--scoped-input", action="store_true")
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
     if not key:
         parser.error("the trusted child needs the existing TypeSafe key")
     args.evidence.mkdir()
-    dispatch = Dispatch(args.evidence, key, thread=args.thread)
+    dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input)
     try:
         if args.phase == "open":
             if args.thread != THREAD:
