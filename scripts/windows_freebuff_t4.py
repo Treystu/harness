@@ -456,7 +456,7 @@ def main():
             scan_draft(driver, driver.frame("local-carrier-continuation"), continuation=True)
         else:
             probe(driver, args.ordinal, scan=args.scan_draft, transcript=args.scan_transcript)
-    except (OSError, RuntimeError, ValueError, KeyError) as error:
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError) as error:
         driver.audit.append("escalation", step_id=args.phase, reason=str(error))
         print(f"BLOCKED: {error}")
         return 1

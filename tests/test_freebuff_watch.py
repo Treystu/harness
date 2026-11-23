@@ -10,6 +10,8 @@ from scripts import windows_freebuff_watch as watch
 def test_legacy_census_pause_does_not_block_queue(monkeypatch):
     known = {"paused.json", "armed.json"}
     receipts = {}
+    monkeypatch.setattr(watch, "worktree_head", lambda: "pushed-head")
+    monkeypatch.setenv("HARNESS_VISION_HEAD", "pushed-head")
     monkeypatch.setattr(watch, "checkpoints", lambda: known)
     monkeypatch.setattr(watch, "read_checkpoint", lambda name: {"state": "adapter-unavailable"})
     monkeypatch.setattr(watch, "pause_requested", lambda: None)
@@ -25,6 +27,7 @@ def test_legacy_census_pause_does_not_block_queue(monkeypatch):
 
 
 def test_owner_pause_preempts_any_admission(monkeypatch):
+    monkeypatch.setattr(watch, "worktree_head", lambda: "pushed-head")
     monkeypatch.setattr(watch, "checkpoints", lambda: {"armed.json"})
     monkeypatch.setattr(watch, "pause_requested", lambda: 123)
     monkeypatch.setattr(watch, "issue_comment", Mock())

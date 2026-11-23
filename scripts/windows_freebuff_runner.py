@@ -204,7 +204,9 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
             if phase == "prepare" and detail and "already running; no restart input" in detail[-1]:
                 audit.append("verification", step_id=phase, target=thread, state="already running")
                 return False
-            raise RuntimeError(f"{phase}: {detail[-1] if detail else 'driver exited unsuccessfully'}")
+            errors = result.stderr.strip().splitlines()
+            message = detail[-1] if detail else errors[-1][:200] if errors else "driver exited unsuccessfully"
+            raise RuntimeError(f"{phase}: {message}")
         audit.append("verification", step_id=phase, target=thread, passed=True)
         time.sleep(2)
     return True

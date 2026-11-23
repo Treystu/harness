@@ -5,6 +5,7 @@ import ctypes
 import hashlib
 import json
 import os
+import subprocess
 from ctypes import wintypes
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -24,6 +25,7 @@ TRANSITION = 7094050344
 FILL = 7094198934
 SINCE = "2026-11-23T06:55:00Z"
 ROOT = f"{LEDGER}/contents/dispatch/laptop-driver/watch/{CUTOVER}"
+WORKTREE = Path(__file__).resolve().parents[1]
 RECEIPTS = {
     CUTOVER: "OVERSIGHT CUTOVER - RUNNER IS THE STANDING DISPATCH CHANNEL",
     CENSUS: "OVERSIGHT FOLLOW-UP DISPATCH - T4 ENUMERATION + T5 COMPLETION",
@@ -89,6 +91,19 @@ def guard_approval():
     pause = pause_requested()
     if pause:
         raise RuntimeError(f"oversight PAUSE {pause} revoked pending desktop actions")
+    expected = os.environ.get("HARNESS_VISION_HEAD")
+    if expected and worktree_head() != expected:
+        raise RuntimeError("the published driver changed during the dispatch")
+
+
+def worktree_head():
+    if subprocess.run(["git", "diff", "--quiet", "HEAD", "--", "scripts"],
+                      cwd=WORKTREE, timeout=5, check=False).returncode:
+        return None
+    result = subprocess.run(["git", "rev-parse", "HEAD", "@{upstream}"], cwd=WORKTREE,
+                            capture_output=True, text=True, timeout=5, check=False)
+    heads = result.stdout.splitlines()
+    return heads[0] if result.returncode == 0 and len(heads) == 2 and heads[0] == heads[1] else None
 
 
 def desktop_idle():
@@ -156,6 +171,10 @@ def run_burn(receipts, known):
             if dispatch_id == CENSUS and f"result-{logo}.json" in known and cure_eligible(
                     state_dir / logo, ("did not expose a unique bounded chat list",)):
                 work.append((dispatch_id, thread, f"{item}-visual-roster-cure"))
+            visual = f"{item}-visual-roster-cure"
+            if dispatch_id == CENSUS and f"result-{visual}.json" in known and cure_eligible(
+                    state_dir / visual, ("project-census: driver exited unsuccessfully",)):
+                work.append((dispatch_id, thread, f"{item}-ocr-line-shape-cure"))
             if thread in {"7d4a9b14", "918dad1a"} and f"result-{item}.json" in known and cure_eligible(
                     state_dir / item, ("exact OCR label", "was not verified"),
                     ("search-foreground", "close-old-search", "open-session-search",
@@ -190,6 +209,9 @@ def run_burn(receipts, known):
 
 
 def main():
+    head = worktree_head()
+    if head is None:
+        return
     known = checkpoints()
     if "owner-paused.json" in known:
         return
@@ -211,6 +233,7 @@ def main():
         checkpoint(parked, {"dispatch": CENSUS, "state": "parked", "prior": 7093959152, "ruling": UNBLOCK})
         issue_comment(f"Vision watch ack {UNBLOCK} and {TRANSITION}. Item {CENSUS} stays parked alone. "
                       f"Burn queue {BURN_QUEUE} is eligible under its own gates.")
+    os.environ["HARNESS_VISION_HEAD"] = head
     run_burn(receipts, known)
 
 
