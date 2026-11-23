@@ -177,12 +177,17 @@ class NotepadWindow:
             raise RuntimeError("the resolved Notepad window has no owned Save As dialog")
         entry = self.dialog_control(dialog, 1001, "Edit", wait=5)
         self.dialog_control(dialog, 1, "Button", wait=2)
+        deadline = monotonic() + 3
+        while self.send_message(entry, 0x000E) == 0:  # WM_GETTEXTLENGTH
+            if monotonic() >= deadline:
+                raise RuntimeError("Save As did not initialize its suggested filename")
+            sleep(0.1)
         # Typing through the edit control sends the change notifications the
         # shell dialog needs to update its pending filename.
         self.send_message(entry, 0x00B1, 0, -1)  # EM_SETSEL (select all)
         for char in str(destination):
             self.send_message(entry, 0x0102, ord(char), 1)  # WM_CHAR
-        readback = ctypes.create_unicode_buffer(len(str(destination)) + 1)
+        readback = ctypes.create_unicode_buffer(32768)
         self.send_message(entry, 0x000D, len(readback), ctypes.addressof(readback))
         if readback.value != str(destination) or destination.exists():
             raise RuntimeError("Save As filename readback or destination changed")
