@@ -9,15 +9,15 @@ from pathlib import Path
 
 from driver_core import osal
 
-from .windows_freebuff_dispatch import CLICK, SCM_THREAD, Dispatch
+from .windows_freebuff_dispatch import CLICK, SCM_THREAD, SCROLL, Dispatch
 
 
 CENSUS_REGIONS = {
     "project": (65, 100, 465, 1085),
-    "toolbar": (475, 25, 1790, 112),
+    "toolbar": (1120, 1044, 1480, 1104),
     "transcript-upper": (610, 108, 1550, 540),
     "transcript-lower": (610, 540, 1550, 915),
-    "composer": (630, 915, 1545, 1110),
+    "composer": (646, 751, 1535, 1054),
     "right-rail": (1551, 112, 1795, 1100),
 }
 
@@ -35,7 +35,40 @@ def inspect_crop(driver, frame, label, region, *options):
     return json.loads(response.stdout)
 
 
-def probe(driver, ordinal):
+def scan_draft(driver, frame):
+    region = (650, 756, 1530, 1050)
+    driver.locate_exact_text("verify-fresh-carrier-heading", frame,
+                             "SCMESSENGER LANE - FRESH SESSION CARRIER (D-2026-11-13-032 FIRST)",
+                             (652, 790, 1400, 825))
+    driver.yes("verify-visible-carrier", frame,
+               "Do the opening lines describe a FRESH SESSION CARRIER?",
+               region=(650, 756, 1395, 861))
+
+    def scroll(action, params):
+        hit, x, y = driver.renderer_point(params)
+        if driver.user.GetAncestor(hit, 2) != driver.require_foreground():
+            raise RuntimeError("the renderer changed before draft scrolling")
+        packed = (x & 0xFFFF) | ((y & 0xFFFF) << 16)
+        if not driver.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
+            raise RuntimeError("the renderer rejected draft scrolling")
+
+    driver.driver.register_executor(SCROLL.name, scroll)
+    readings = []
+    params = {"point": [1200, 954], "size": list(frame.size), "delta": -120}
+    for page in range(1, 25):
+        text = inspect_crop(driver, frame, f"draft-page-{page:02}", region, "-ReadText")["text"]
+        if readings and readings[-1] == text:
+            break
+        readings.append(text)
+        (driver.output / "draft-pages.json").write_text(
+            json.dumps(readings, indent=2, ensure_ascii=False), encoding="utf-8")
+        driver.act("scroll-carrier-readonly", SCROLL, params)
+        time.sleep(0.4)
+        frame = driver.frame(f"draft-scroll-{page:02}")
+    driver.audit.append("verification", step_id="draft-page-count", pages=len(readings))
+
+
+def probe(driver, ordinal, *, scan=False):
     frame = driver.frame("search-candidates")
     driver.require_foreground()
     region = (546, 249, 1140, 926)
@@ -60,6 +93,8 @@ def probe(driver, ordinal):
         json.dumps(census, indent=2, ensure_ascii=False), encoding="utf-8")
     driver.audit.append("extraction", step_id="scm-census", ordinal=ordinal,
                         regions={label: len(value) for label, value in census.items()})
+    if scan:
+        scan_draft(driver, frame)
     print(json.dumps({"candidate": ordinal, "evidence": "census.json"}))
 
 
@@ -67,6 +102,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", required=True, choices=("search", "query", "probe"))
     parser.add_argument("--ordinal", type=int, choices=(1, 2))
+    parser.add_argument("--scan-draft", action="store_true")
     parser.add_argument("--evidence", required=True, type=Path)
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
@@ -80,7 +116,7 @@ def main():
         elif args.phase == "query":
             driver.search_for_session()
         else:
-            probe(driver, args.ordinal)
+            probe(driver, args.ordinal, scan=args.scan_draft)
     except (OSError, RuntimeError, ValueError, KeyError) as error:
         driver.audit.append("escalation", step_id=args.phase, reason=str(error))
         print(f"BLOCKED: {error}")

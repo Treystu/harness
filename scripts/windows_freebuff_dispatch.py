@@ -35,7 +35,9 @@ SEND = Action("send_freebuff", MUTATING, "send_freebuff",
               "Send the exact authorized draft in the verified session once.", "gui")
 QUERY = Action("query_freebuff", MUTATING, "query_freebuff", ("thread", "text", "control"),
                "Search FreeBuff for the exact existing session title.", "gui")
-VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.2.0", [FOCUS, CLICK, TYPE, SEND, QUERY])
+SCROLL = Action("scroll_freebuff", MUTATING, "scroll_freebuff", ("point", "size", "delta"),
+                "Scroll the displayed SCM draft without focusing its composer.", "gui")
+VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.2.0", [FOCUS, CLICK, TYPE, SEND, QUERY, SCROLL])
 THREAD = "315608d2"
 CONTINUATION = "continue in full"
 DISK_THREAD = "f90f01e9"
@@ -125,7 +127,7 @@ class Dispatch:
             time.sleep(0.15)
         self.require_foreground()
 
-    def click(self, action, params):
+    def renderer_point(self, params):
         hwnd = self.require_foreground()
         rect = wintypes.RECT()
         if self.dwm.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rect), ctypes.sizeof(rect)):
@@ -144,6 +146,10 @@ class Dispatch:
         self.user.GetClassNameW(hit, name, len(name))
         if name.value != "Chrome_RenderWidgetHostHWND":
             raise RuntimeError("the verified point did not land in the FreeBuff renderer")
+        return hit, x, y
+
+    def click(self, action, params):
+        hit, x, y = self.renderer_point(params)
         client = wintypes.POINT(x, y)
         if not self.user.ScreenToClient(hit, ctypes.byref(client)):
             raise RuntimeError("could not convert the click into renderer coordinates")

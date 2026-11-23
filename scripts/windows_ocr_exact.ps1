@@ -26,6 +26,7 @@ try {
         if (!$engine) { throw 'Windows OCR has no available language.' }
         $result = Await-Operation ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
         if ($ReadText) {
+            [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
             @{ text=($result.Lines.Text -join "`n") } | ConvertTo-Json -Compress
             exit 0
         }
