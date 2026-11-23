@@ -108,15 +108,26 @@ def scan_transcript(driver, frame):
 
 
 def probe(driver, ordinal, *, scan=False, transcript=False):
-    frame = driver.frame("search-candidates")
     driver.require_foreground()
     region = (546, 249, 1140, 926)
+    for attempt, delay in enumerate((3, 4, 6), start=1):
+        time.sleep(delay)
+        frame = driver.frame(f"search-candidates-{attempt}")
+        footer = inspect_crop(driver, frame, f"search-footer-{attempt}",
+                              (1050, 943, 1304, 990), "-ReadText")["text"]
+        if "loading" not in footer.casefold():
+            break
+    else:
+        raise RuntimeError("SCMessenger search results did not finish loading")
     point = inspect_crop(driver, frame, "candidate-ocr", region,
                          "-Label", "SCMessenger", "-Ordinal", str(ordinal))
     x, y = region[0] + round(point["x"] / 2), region[1] + round(point["y"] / 2)
     driver.yes("verify-scm-candidate", frame,
                "Does this exact search result read SCMessenger with no additional words?",
                region=(543, y - 20, 1040, y + 20))
+    fresh = driver.frame("search-candidates-before-click")
+    if frame.crop(region).tobytes() != fresh.crop(region).tobytes():
+        raise RuntimeError("SCMessenger search results changed during verification")
     driver.act("navigate-scm-candidate", CLICK,
                {"control": f"SCMessenger exact search candidate {ordinal}",
                 "point": [x, y], "size": list(frame.size)})
