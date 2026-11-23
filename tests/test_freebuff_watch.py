@@ -19,6 +19,7 @@ def test_legacy_census_pause_does_not_block_queue(monkeypatch):
     monkeypatch.setattr(watch, "validate_receipts", lambda: receipts)
     monkeypatch.setattr(watch, "checkpoint", write := Mock())
     monkeypatch.setattr(watch, "issue_comment", Mock())
+    monkeypatch.setattr(watch, "run_restoration", lambda receipts, known: False)
     monkeypatch.setattr(watch, "run_burn", run := Mock())
 
     watch.main()
