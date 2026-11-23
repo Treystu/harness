@@ -311,7 +311,17 @@ def run_restoration(receipts, known):
                             continue
                         item = f"restore-{dispatch_id}-{thread}-targeted-vision-row-cure"
                         if f"claim-{item}.json" in known:
-                            continue
+                            if (f"result-{item}.json" not in known or not cure_eligible(
+                                    state_dir / item,
+                                    ("the active FreeBuff document did not expose the exact pinned thread",),
+                                    ("observation-foreground", "navigate-to-bystander", "vision-seat-open",
+                                     "vision-seat-scroll-1", "vision-seat-scroll-2", "vision-seat-scroll-3",
+                                     "vision-seat-scroll-4", "vision-seat-scroll-5", "vision-seat-scroll-6",
+                                     "close-search-dialog"))):
+                                continue
+                            item = f"restore-{dispatch_id}-{thread}-last-work-identity-cure"
+                            if f"claim-{item}.json" in known:
+                                continue
             else:
                 continue
         guard_approval()
@@ -325,6 +335,8 @@ def run_restoration(receipts, known):
             output.mkdir(parents=True)
             mission = {"thread": thread, "dispatch": dispatch_id, "standing": True}
             mission["phase_timeout"] = 240
+            if item.endswith("-last-work-identity-cure"):
+                mission["phases"] = ("search", "vision-resume")
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
         except UncertainDriverExit as error:
             checkpoint(f"interlock-{item}.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})

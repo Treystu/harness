@@ -249,7 +249,7 @@ class Dispatch:
         if params["thread"] != self.thread or params["text"] != self.text:
             raise RuntimeError("the thread or text differs from the approved continuation")
         if self.standing:
-            if self.thread == THREAD:
+            if self.thread in {THREAD, VISION_THREAD}:
                 self.verify_session_identity()
             else:
                 self.verify_active_session()
@@ -1080,7 +1080,7 @@ class Dispatch:
                          "Does this label contain the words Vision Driver Standup?", region=scope)
                 self.click_exact_row("vision-seat-open", frame, row)
                 time.sleep(2)
-                self.verify_active_session()
+                self.verify_session_identity()
                 return
             if not self.scroll_by(f"vision-seat-scroll-{page}", frame, [196, 850], -400):
                 raise RuntimeError("the project sidebar could not advance to the vision seat")
@@ -1278,7 +1278,10 @@ class Dispatch:
                 return
             self.audit.append("escalation", step_id="active-session-id", exposed=sessions[:8],
                               reason="no exposed route is the pinned thread; trying the selection")
-        if self.standing and self.thread in {SCM_THREAD, VISION_THREAD}:
+        if self.standing and self.thread == VISION_THREAD:
+            self.verify_vision_seat()
+            return
+        if self.standing and self.thread == SCM_THREAD:
             raise RuntimeError("the exact pinned session route is required for this standing dispatch")
         if self.selected_label_matches(wait=3):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
@@ -1309,6 +1312,67 @@ class Dispatch:
             return
         raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
                            f"({self.label})")
+
+    def verify_vision_seat(self):
+        if not self.selected_label_matches(wait=3):
+            raise RuntimeError("the vision-seat row was not visibly selected")
+        self.require_cached_session("verify-vision-seat-cached-id",
+                                    b"6d39cf4f-2469-4f47-8cf0-3948309f5f2b")
+        for attempt in range(6):
+            frame = self.frame(f"vision-seat-work-{attempt}")
+            lines = self.read_lines(f"vision-seat-work-{attempt}", frame, (630, 380, 1550, 560))
+            words = self._norm(" ".join(lines))
+            if "scmessenger" in words and "obsoleteguard" in words:
+                self.yes("verify-vision-seat-work", frame,
+                         "Does the text say SCMessenger had an obsolete guard that was being removed?",
+                         region=(630, 380, 1550, 560))
+                self.audit.append("verification", step_id="vision-seat-identity",
+                                  source="selected title, cached UUID, and matching last work")
+                return
+            time.sleep(2)
+        raise RuntimeError("the vision-seat selected view did not expose the expected last work")
+
+    def resume_vision_mission(self):
+        frame = self.settle_view("vision-before-resume")
+        self.verify_session_identity()
+        if self.stop_visible(frame):
+            raise RuntimeError("the requested session is already running; no restart input")
+        options = {"resume": "A visible button labeled Resume mission.",
+                   "other": "No button labeled Resume mission is visible."}
+        route = self.choose("vision-resume-route", frame, "Which button is visible?", options,
+                            region=(630, 785, 1550, 960))
+        if route == "other":
+            self.prepare_draft()
+            self.send_draft()
+            return
+        region = (630, 785, 1550, 960)
+        point = self.locate_exact_text("vision-resume-ocr", frame, "Resume mission", region)
+        self.yes("vision-resume-confirm", frame, "Does the button say Resume mission?", region=region)
+        fresh = self.frame("vision-resume-readback")
+        if fresh.crop(region).tobytes() != frame.crop(region).tobytes():
+            raise RuntimeError("the Resume mission control changed before input")
+        self.act("vision-resume", CLICK,
+                 {"control": "Vision Driver Resume mission", "point": point, "size": list(frame.size)})
+        time.sleep(2)
+        frame = self.frame("vision-resume-response")
+        self.verify_session_identity()
+        if self.stop_visible(frame):
+            self.audit.append("verification", step_id="vision-running-after-resume", stop_cue=True)
+            return
+        region = (500, 180, 1600, 1100)
+        point = self.locate_exact_text("vision-start-ocr", frame, "Start mission", region)
+        self.yes("vision-start-confirm", frame, "Does the button say Start mission?", region=region)
+        fresh = self.frame("vision-start-readback")
+        if fresh.crop(region).tobytes() != frame.crop(region).tobytes():
+            raise RuntimeError("the Start mission control changed before input")
+        self.act("vision-start", CLICK,
+                 {"control": "Vision Driver Start mission", "point": point, "size": list(frame.size)})
+        time.sleep(3)
+        frame = self.frame("vision-start-response")
+        self.verify_session_identity()
+        if not self.stop_visible(frame):
+            raise RuntimeError("Start mission was clicked but a running Stop cue was not verified")
+        self.audit.append("verification", step_id="vision-running-after-start", stop_cue=True)
 
     def verify_active_session(self):
         sessions = self.routes()
@@ -1591,7 +1655,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
     parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare",
-                                           "send", "steer-prepare", "steer-send", "observe-running"),
+                                           "send", "steer-prepare", "steer-send", "observe-running", "vision-resume"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     parser.add_argument("--scoped-input", action="store_true")
@@ -1612,6 +1676,10 @@ def main():
             dispatch.open_lane()
         elif args.phase == "observe-running":
             dispatch.observe_running()
+        elif args.phase == "vision-resume":
+            if args.thread != VISION_THREAD or not args.standing:
+                raise RuntimeError("vision resume requires the standing pinned vision seat")
+            dispatch.resume_vision_mission()
         elif args.phase == "search":
             dispatch.open_search()
         elif args.phase == "query":
