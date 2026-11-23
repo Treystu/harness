@@ -1425,13 +1425,24 @@ class Dispatch:
             json.dump({"thread": self.thread, "step": "vision-start-staged"}, handle)
         self.act("vision-submit-staged-mission", CLICK,
                  {"control": "Vision Driver staged mission start arrow", "point": point, "size": list(frame.size)})
-        for attempt, delay in enumerate((2, 3, 5), start=1):
+        for attempt, delay in enumerate((2, 8, 15), start=1):
             time.sleep(delay)
             current = self.frame(f"vision-staged-response-{attempt}")
-            if self.stop_visible(current):
-                self.audit.append("verification", step_id="vision-running", stop_cue=True)
+            running = self.stop_visible(current)
+            if running and attempt == 3:
+                self.audit.append("verification", step_id="vision-running", stop_cue=True,
+                                  observation_seconds=25)
                 return
-        raise RuntimeError("the staged mission was submitted once but no running Stop cue was verified")
+            if not running:
+                notice = self._norm(" ".join(self.read_lines(
+                    f"vision-staged-notice-{attempt}", current, (630, 350, 1550, 960))))
+                draft = self._norm(" ".join(self.read_lines(
+                    f"vision-staged-returned-draft-{attempt}", current, (640, 745, 1530, 1048))))
+                if ("yourfreesessionhasexpired" in notice
+                        and "harnessjevvisiondriverfullstandup" in draft):
+                    raise RuntimeError("platform returned the staged mission with: Your free session has expired. "
+                                       "Send your message again to start a new one.")
+        raise RuntimeError("the staged mission was submitted once but a sustained Stop cue was not verified")
 
     def verify_active_session(self):
         sessions = self.routes()
