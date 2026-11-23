@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from driver_core.audit import AuditLog
 from scripts import windows_freebuff_t4 as census
 from scripts import windows_freebuff_watch as watch
 
@@ -72,3 +73,15 @@ def test_census_match_requires_active_uuid_and_both_activity_markers():
     assert census.census_signature(fields)
     assert not census.census_signature(fields | {"document_sessions": []})
     assert not census.census_signature(fields | {"transcript-lower": "Older work"})
+
+
+def test_cure_never_replays_an_uncertain_send(tmp_path):
+    evidence = tmp_path / "send"
+    evidence.mkdir()
+    receipt = AuditLog(tmp_path / "runner.jsonl")
+    receipt.append("verification", step_id="result", state="parked: identify-foreground refused")
+    trace = AuditLog(evidence / "driver.jsonl")
+    trace.append("action", step_id="observation-foreground", action="focus_freebuff", ok=False)
+    assert watch.cure_eligible(tmp_path, ("identify-",))
+    trace.append("action", step_id="send-once", action="send_freebuff", ok=False)
+    assert not watch.cure_eligible(tmp_path, ("identify-",))

@@ -341,6 +341,16 @@ class Dispatch:
 
     def close_search_if_open(self, frame):
         self.require_foreground()
+        region = (1257, 185, 1278, 207)
+        cross = frame.crop(region).convert("L").point(lambda level: 255 if level > 160 else 0)
+        box = cross.getbbox()
+        if box and 8 <= box[2] - box[0] <= 14 and 8 <= box[3] - box[1] <= 14:
+            x, y, right, bottom = box
+            if all(cross.crop(corner).getbbox() for corner in (
+                (x, y, x + 3, y + 3), (right - 3, y, right, y + 3),
+                (x, bottom - 3, x + 3, bottom), (right - 3, bottom - 3, right, bottom),
+            )):
+                return self.close_verified_search(frame, region)
         answers = self.ask("inspect-search-dialog", frame, {
             "open": transport.noul(
                 "Is a centered chat search dialog visible, with a magnifier and text entry at "
@@ -348,17 +358,21 @@ class Dispatch:
         }, region=(488, 150, 1315, 380))
         present = answers["open"]["noul"]
         if present >= 0.9:
-            self.yes("verify-search-close", frame,
-                     "Do two white diagonal strokes cross to form an X?",
-                     region=(1257, 185, 1278, 207))
-            self.act("close-old-search", CLICK,
-                     {"control": "FreeBuff search Close", "point": [1269, 197],
-                      "size": list(frame.size)})
-            time.sleep(1.5)
-            frame = self.frame("freebuff-after-search-close")
-        elif present > 0.2:
+            return self.close_verified_search(frame, region)
+        if present > 0.2:
             raise RuntimeError("the current FreeBuff search dialog state is ambiguous")
         return frame
+
+    def close_verified_search(self, frame, region):
+        self.yes("verify-search-close", frame, "Do two white diagonal strokes cross to form an X?",
+                 region=region)
+        fresh = self.frame("search-close-readback")
+        if fresh.crop(region).tobytes() != frame.crop(region).tobytes():
+            raise RuntimeError("the verified search close control moved")
+        self.act("close-old-search", CLICK, {"control": "FreeBuff search Close", "point": [1269, 197],
+                                              "size": list(frame.size)})
+        time.sleep(1.5)
+        return self.frame("freebuff-after-search-close")
 
     def search_for_session(self):
         frame = self.frame("freebuff-before-query")

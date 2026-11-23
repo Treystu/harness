@@ -137,9 +137,17 @@ def cure_eligible(output, reasons, allowed_actions=()):
     if not any(r["step_id"] == "result" and all(reason in r["state"] for reason in reasons)
                for r in results):
         return False
-    return not any(row["kind"] == "action" and row.get("ok") and row["step_id"] not in allowed_actions
-                   for trace in traces for line in trace.read_text(encoding="utf-8").splitlines()
-                   if (row := json.loads(line)))
+    for trace in traces:
+        for line in trace.read_text(encoding="utf-8").splitlines():
+            row = json.loads(line)
+            if row["kind"] != "action":
+                continue
+            params = row.get("consent", {}).get("params", {})
+            if (row.get("action") in {"send_freebuff", "type_freebuff"}
+                    or "composer" in params.get("control", "").casefold()
+                    or (row.get("ok") and row["step_id"] not in allowed_actions)):
+                return False
+    return True
 
 
 def run_burn(receipts, known):
@@ -175,6 +183,11 @@ def run_burn(receipts, known):
             if dispatch_id == CENSUS and f"result-{visual}.json" in known and cure_eligible(
                     state_dir / visual, ("project-census: driver exited unsuccessfully",)):
                 work.append((dispatch_id, thread, f"{item}-ocr-line-shape-cure"))
+            shaped = f"{item}-ocr-line-shape-cure"
+            if dispatch_id == CENSUS and f"result-{shaped}.json" in known and cure_eligible(
+                    state_dir / shaped, ("search dialog state is ambiguous",),
+                    ("observation-foreground", "census-foreground")):
+                work.append((dispatch_id, thread, f"{item}-search-dismiss-cure"))
             if thread in {"7d4a9b14", "918dad1a"} and f"result-{item}.json" in known and cure_eligible(
                     state_dir / item, ("exact OCR label", "was not verified"),
                     ("search-foreground", "close-old-search", "open-session-search",
