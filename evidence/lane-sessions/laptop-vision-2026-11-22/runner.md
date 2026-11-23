@@ -9,9 +9,9 @@ The runner watches Harness #684 for a single authenticated owner comment. Its on
    ```powershell
    $py = Join-Path $env:TEMP 'harness-notepad-venv-20261122/Scripts/python.exe'
    $state = Join-Path $env:LOCALAPPDATA 'harness-freebuff-runner'
-   & $py -m scripts.windows_freebuff_runner --state $state --since '2026-11-23T04:27:00Z' --wait 180 --bystander-title 'Muse - Google Chrome' --bystander-title '*hello world - Notepad'
+   & $py -m scripts.windows_freebuff_runner --state $state --since '2026-11-23T04:27:00Z' --wait 180 --bystander-title 'Muse - Google Chrome' --bystander-title 'B:/'
    ```
 
 4. The runner files a claim, advances the driver through Search, query, exact selection, OCR and send, then posts its verdict and trace links. Before and after PNGs stay local. The receipt records frame hashes and bystander pixel equality. Running-lane cues are observations. The driver input trace carries the scope evidence.
 
-The offline admission tests exercised the approved shape, a foreign author, wrong thread or text, and expired work. A real demonstration needs a fresh authorized idle-lane dispatch. T6 remains open on exact foreground restoration.
+The named Chrome window and existing command dialog both returned app-scoped frames during a read-only preflight. The minimized Notepad window timed out and was excluded. The offline admission tests exercised the approved shape, a foreign author, wrong thread or text, and expired work. A real demonstration needs a fresh authorized idle-lane dispatch. T6 remains open on exact foreground restoration.
