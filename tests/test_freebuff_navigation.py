@@ -232,6 +232,15 @@ def test_the_watch_console_is_recognised_by_its_temp_python_title():
     assert not dispatch.transient_holder(1)
 
 
+def test_an_ended_turn_is_not_running_even_when_the_stop_glyph_flickers(tmp_path):
+    dispatch = object.__new__(Dispatch)
+    dispatch.stop_visible = Mock(return_value=True)
+    dispatch.turn_ended_banner = Mock(return_value=True)
+    assert not dispatch.turn_running(Mock())
+    dispatch.turn_ended_banner.return_value = False
+    assert dispatch.turn_running(Mock())
+
+
 def test_a_marker_is_released_only_by_a_pre_input_foreground_refusal(tmp_path):
     dispatch = object.__new__(Dispatch)
     dispatch.output = tmp_path

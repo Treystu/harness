@@ -308,7 +308,7 @@ class Dispatch:
             else:
                 self.verify_active_session()
             fresh = self.frame("send-executor-fresh")
-            if (fresh.crop(COMPOSER).tobytes() != self.send_composer or self.stop_visible(fresh)):
+            if (fresh.crop(COMPOSER).tobytes() != self.send_composer or self.turn_running(fresh)):
                 raise RuntimeError("the standing composer changed after approval")
         if self.send_deadline is None or time.monotonic() > self.send_deadline:
             raise RuntimeError("the verified send window expired before input")
@@ -1707,7 +1707,7 @@ class Dispatch:
         frame = self.frame("lane1-after-identity")
         observed_at = time.monotonic()
         frame = self.verify_draft(frame)
-        if self.scoped_input and not pointer and self.stop_visible(frame):
+        if self.scoped_input and not pointer and self.turn_running(frame):
             raise RuntimeError("the requested session resumed before send; no restart input")
         region = (1439, 1040, 1487, 1105) if pointer else SEND_CONTROL
         self.yes("verify-send-arrow", frame,
@@ -1730,7 +1730,7 @@ class Dispatch:
         if self.standing:
             fresh = self.frame("pre-send-readback")
             if (frame.crop(COMPOSER).tobytes() != fresh.crop(COMPOSER).tobytes()
-                    or (not pointer and self.stop_visible(fresh))):
+                    or (not pointer and self.turn_running(fresh))):
                 raise RuntimeError("composer changed between verification and send")
         age = time.monotonic() - observed_at
         if age > 60:
@@ -1793,7 +1793,7 @@ class Dispatch:
             self.reestablish_if_reloaded("prepare")
         frame = self.settle_view("lane1-before-draft")
         self.verify_lane(frame)
-        if self.scoped_input and self.stop_visible(frame):
+        if self.scoped_input and self.turn_running(frame):
             raise RuntimeError("the requested session is already running; no restart input")
         route = self.choose("composer-route", frame,
                             "Read the controls in this composer screenshot. Which is visible?", {
@@ -1827,6 +1827,22 @@ class Dispatch:
         time.sleep(1.5)
         frame = self.frame("lane1-draft-ready")
         self.verify_draft(frame)
+
+    def turn_ended_banner(self, frame):
+        """Has the app itself said this turn is over?
+
+        Measured 2026-11-23: the send control flickers the solid stop glyph on
+        an ended turn whose banner reads "This turn reached the 120-minute
+        limit ... send a message to continue". The banner is the app's own
+        statement that the turn has ended, so it outranks the glyph.
+        """
+        lines = self.read_lines("turn-ended-banner", frame, (640, 650, 1540, 790))
+        reading = self._norm(" ".join(lines))
+        return any(marker in reading for marker in (
+            "120minutelimit", "sendamessagetocontinue", "pausedbecauseitshourended"))
+
+    def turn_running(self, frame):
+        return self.stop_visible(frame) and not self.turn_ended_banner(frame)
 
     @staticmethod
     def stop_visible(frame):
