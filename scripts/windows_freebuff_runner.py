@@ -109,12 +109,13 @@ def capture_set(output, phase, windows, audit):
 
 
 def publish(output, number):
-    paths = [output / "runner.jsonl", *sorted(output.glob("**/driver.jsonl"))]
+    paths = [output / "runner.jsonl", *sorted(output.glob("**/driver.jsonl")),
+             *sorted(output.glob("before-*.png")), *sorted(output.glob("after-*.png"))]
     links = []
     for path in paths:
         if not path.is_file():
             continue
-        name = "runner.jsonl" if path.parent == output else "-".join(path.relative_to(output).parts[:-1]) + ".jsonl"
+        name = path.name if path.parent == output else "-".join(path.relative_to(output).parts[:-1]) + ".jsonl"
         destination = f"dispatch/laptop-driver/evidence/t8/{number}/{name}"
         receipt = api(f"{LEDGER}/contents/{destination}", method="PUT", body={
             "branch": BRANCH, "message": f"File T8 trace {number} {name}",
@@ -147,7 +148,7 @@ def execute(output, number, mission, digest, bystanders):
     audit = AuditLog(output / "runner.jsonl")
     audit.append("decision", step_id="claim", comment=number, thread=mission["thread"], blob=digest)
     api(ISSUE, method="POST", body={"body": f"T8 ack #{number}: claimed the pinned restart for `{mission['thread']}`."})
-    state = "started"
+    state = "verified running"
     windows = []
     before = {}
     try:
@@ -180,10 +181,10 @@ def execute(output, number, mission, digest, bystanders):
         audit.append("verification", step_id="result", state=state)
         links = publish(output, number)
         api(ISSUE, method="POST", body={"body": (
-            f"T8 result #{number}: {state}. PNGs retained locally; trace links: "
+            f"T8 result #{number}: {state}. Evidence: "
             + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)))})
     print(state)
-    return int(state != "started")
+    return int(state != "verified running")
 
 
 def main():

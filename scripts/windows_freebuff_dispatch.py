@@ -484,25 +484,23 @@ class Dispatch:
             time.sleep(2)
             self.frame("disk-steering-response")
             return
-        options = {
-            "running": "A stop square, Cancel, or active response/progress for the latest turn.",
-            "refused": "An explicit platform error or usage-limit notice for the attempted send.",
-            "idle": "An idle composer with no active response and no explicit error.",
-            "unclear": "The response state is unclear.",
-        }
-        for observation, delay in enumerate((1.2, 2.0, 3.0), start=1):
+        for observation, delay in enumerate((1.2, 2.0, 3.0, 5.0), start=1):
             time.sleep(delay)
             frame = self.frame(f"platform-response-{observation}")
+            if not self.stop_visible(frame):
+                continue
             try:
-                state = self.choose(f"platform-state-{observation}", frame,
-                                    "What does the visible FreeBuff pane show after the send?",
-                                    options, region=(630, 520, 1550, 1115), threshold=0.8)
+                self.locate_exact_text("verify-queue-placeholder", frame,
+                                       "Type a message — added to the queue",
+                                       (644, 947, 1250, 1020))
             except RuntimeError:
                 continue
-            if state in ("running", "refused"):
-                print(f"Platform state: {state}")
-                return
-        raise RuntimeError("one send dispatched; the bounded observations did not prove running or refusal")
+            self.verify_lane(frame)
+            self.audit.append("verification", step_id="platform-running",
+                              target=self.thread, stop_cue=True)
+            print("Platform state: running")
+            return
+        raise RuntimeError("one send dispatched; the Stop square and exact queue placeholder were not verified")
 
     def prepare_draft(self):
         frame = self.frame("lane1-before-draft")
