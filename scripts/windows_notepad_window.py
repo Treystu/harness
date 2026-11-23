@@ -8,6 +8,8 @@ from time import monotonic, sleep
 
 from driver_core.observation import Capture, fingerprint
 
+from .windows_focus import activate_exact
+
 
 class NotepadWindow:
     def __init__(self):
@@ -72,9 +74,7 @@ class NotepadWindow:
         return name.value
 
     def activate(self, hwnd):
-        if self.foreground() != hwnd and not self.user.SetForegroundWindow(hwnd):
-            self.user.SwitchToThisWindow(hwnd, True)
-        return self.foreground() == hwnd
+        return activate_exact(hwnd, self.foreground)
 
     def is_untitled(self, hwnd):
         return self.title(hwnd).casefold().startswith("untitled")
