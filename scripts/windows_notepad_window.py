@@ -166,14 +166,18 @@ class NotepadWindow:
         if dialog is None:
             raise RuntimeError("the resolved Notepad window has no owned Save As dialog")
         entry = self.dialog_control(dialog, 1001, "Edit")
-        button = self.dialog_control(dialog, 1, "Button")
+        self.dialog_control(dialog, 1, "Button")
         name = ctypes.create_unicode_buffer(str(destination))
         self.send_message(entry, 0x000C, 0, ctypes.addressof(name))  # WM_SETTEXT
         readback = ctypes.create_unicode_buffer(len(name))
         self.send_message(entry, 0x000D, len(readback), ctypes.addressof(readback))
         if readback.value != str(destination) or destination.exists():
             raise RuntimeError("Save As filename readback or destination changed")
-        self.submit_dialog(dialog, 1, button)
+        if self.save_dialog() != dialog or self.user.GetAncestor(entry, 3) != self.owner:
+            raise RuntimeError("the owned Save As filename control changed")
+        # Queue Enter for this edit control so the dialog message loop invokes Save.
+        if not self.user.PostMessageW(entry, 0x0100, 0x0D, 0x001C0001):  # WM_KEYDOWN
+            raise RuntimeError("Notepad refused the Save As Enter message")
 
     def submit_dialog(self, dialog, control_id, button):
         if self.save_dialog() != dialog:
@@ -189,7 +193,7 @@ class NotepadWindow:
 
     def release_foreground(self):
         if self.owner and self.pid(self.owner) == self.owner_pid:
-            self.user.ShowWindow(self.owner, 6)  # Minimize only the new window.
+            self.user.ShowWindow(self.owner, 7)  # Minimize without activating another window.
 
 
 class NotepadScreen:
