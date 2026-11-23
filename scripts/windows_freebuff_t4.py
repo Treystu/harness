@@ -312,8 +312,8 @@ def append_census(driver, evidence, fields):
 def visual_select_row(driver, frame, label, y, step):
     scope = (127, round(y - 5), 318, round(y + 23))
     fresh = driver.frame(f"{step}-before")
-    if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
-        raise RuntimeError("a census row moved during project navigation")
+    # Opening a preceding candidate changes sidebar styling. Re-identify this
+    # row on the fresh frame; retain the stability check immediately before input.
     point = driver.locate_exact_text(f"{step}-ocr", fresh, label, scope)
     driver.yes(f"{step}-verify", fresh, f"Does the sidebar text read {label!r}?", region=scope)
     current = driver.frame(f"{step}-ready")

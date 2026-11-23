@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from unittest.mock import Mock
 
 import pytest
+from PIL import Image
 
 from driver_core.audit import AuditLog
 from scripts import windows_freebuff_t4 as census
@@ -76,6 +77,27 @@ def test_project_roster_rejects_unbounded_accessibility_list():
              "children": [{"name": "SCMessenger", "kind": "ControlType.ListItem"}]}
     with pytest.raises(RuntimeError, match="partial"):
         census.project_roster({"groups": [group]})
+
+
+def test_census_reidentifies_row_on_fresh_stable_frame():
+    old = Image.new("RGB", (400, 200), "black")
+    fresh = Image.new("RGB", (400, 200), "white")
+    driver = Mock()
+    driver.frame.side_effect = [fresh, fresh]
+    driver.locate_exact_text.return_value = [150, 100]
+    census.visual_select_row(driver, old, "SCMessenger", 100, "candidate")
+    assert driver.locate_exact_text.call_args.args[1] is fresh
+    driver.yes.assert_called_once()
+    driver.act.assert_called_once()
+
+
+def test_census_refuses_row_changed_after_verification():
+    driver = Mock()
+    old = Image.new("RGB", (400, 200), "white")
+    driver.frame.side_effect = [old, Image.new("RGB", (400, 200), "black")]
+    with pytest.raises(RuntimeError, match="changed before selection"):
+        census.visual_select_row(driver, old, "SCMessenger", 100, "candidate")
+    driver.act.assert_not_called()
 
 
 def test_census_match_requires_active_uuid_and_both_activity_markers():
