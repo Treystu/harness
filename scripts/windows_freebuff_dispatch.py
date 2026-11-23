@@ -104,6 +104,7 @@ class Dispatch:
                      f"Restart the existing {self.label} FreeBuff session ({thread}) once in place.")
         self.composer_renderer = None
         self.search_renderer = None
+        self.allow_navigation = False
         self.send_deadline = None
         self.send_composer = None
         self.audit = AuditLog(output / "driver.jsonl")
@@ -367,7 +368,10 @@ class Dispatch:
         frame = self.frame(f"{step}-0")
         for attempt in range(1, attempts + 1):
             rows = self.read_roster(f"{step}-{attempt}", frame, region)
-            current = tuple((row["text"], round(row["x"]), round(row["y"])) for row in rows)
+            # Settling is about the list's structure: one glyph the OCR engine
+            # alternates on must not read as a moving row.
+            current = tuple((self._norm(row["text"]), round(row["x"] / 2), round(row["y"] / 2))
+                            for row in rows)
             if current and current == previous:
                 self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
                                   censuses=attempt)
@@ -450,7 +454,7 @@ class Dispatch:
         deadline = time.monotonic() + wait
         while True:
             try:
-                frame, rows = self.settled_roster("selected-row-probe", SIDEBAR, attempts=3)
+                frame, rows = self.settled_roster("selected-row-probe", SIDEBAR, attempts=5)
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="selected-row-probe", reason=str(error))
                 return False
@@ -462,16 +466,29 @@ class Dispatch:
                 return False
             time.sleep(0.8)
 
-    def walk_session_list(self, pages=5):
+    def scroll_sidebar_to_top(self, steps=8):
+        """Reach the top of the project list, proven by two identical rosters."""
+        previous = None
+        frame = self.frame("sidebar-top-0")
+        for attempt in range(1, steps + 1):
+            rows = self.read_roster(f"sidebar-top-{attempt}", frame, SIDEBAR)
+            current = tuple(self._norm(row["text"]) for row in rows)
+            if current and current == previous:
+                return frame
+            previous = current
+            self.act(f"sidebar-top-scroll-{attempt}", SCROLL,
+                     {"point": [196, 600], "size": list(frame.size), "delta": 1200})
+            time.sleep(0.8)
+            frame = self.frame(f"sidebar-top-{attempt}-after")
+        return frame
+
+    def walk_session_list(self, pages=8):
         """Walk the project session list page by page, each page settled before a pick."""
-        frame = self.frame("session-list-start")
-        self.act("session-list-to-top", SCROLL, {"point": [196, 600], "size": list(frame.size),
-                                                "delta": 9600})
-        time.sleep(1.0)
+        frame = self.scroll_sidebar_to_top()
         seen = []
         for page in range(1, pages + 1):
             try:
-                frame, rows = self.settled_roster(f"session-list-{page}", SIDEBAR, attempts=3)
+                frame, rows = self.settled_roster(f"session-list-{page}", SIDEBAR, attempts=5)
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="walk-session-list", reason=str(error))
                 return False
@@ -539,10 +556,20 @@ class Dispatch:
         point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
         self.act("open-session-search", CLICK,
                  {"control": "FreeBuff session search", "point": point, "size": list(frame.size)})
-        time.sleep(0.6)
-        frame = self.frame("freebuff-search-open")
-        if not self.dialog_open(frame):
-            raise RuntimeError("the search dialog did not open after the verified search click")
+        frame = self.wait_dialog(True)
+
+    def wait_dialog(self, open_state, seconds=4):
+        """Poll the dialog state until it matches, then return that frame."""
+        deadline = time.monotonic() + seconds
+        frame = self.frame("dialog-wait")
+        while True:
+            if self.dialog_open(frame) == open_state:
+                return frame
+            if time.monotonic() >= deadline:
+                state = "open" if open_state else "closed"
+                raise RuntimeError(f"the search dialog did not become {state} within {seconds}s")
+            time.sleep(0.5)
+            frame = self.frame("dialog-wait-again")
 
     def dialog_open(self, frame):
         """The dialog's own placeholder text is the state, not a model opinion."""
@@ -566,14 +593,9 @@ class Dispatch:
         self.audit.append("verification", step_id="search-reset", state="open")
         self.act("close-search-dialog", CLICK, {"control": "FreeBuff search Close",
                                                 "point": [1269, 197], "size": list(frame.size)})
-        deadline = time.monotonic() + 4
-        while time.monotonic() < deadline:
-            time.sleep(0.6)
-            frame = self.frame("search-reset-settled")
-            if not self.dialog_open(frame):
-                self.audit.append("verification", step_id="search-reset", state="closed")
-                return frame
-        raise RuntimeError("the search dialog did not close after a verified reset")
+        frame = self.wait_dialog(False)
+        self.audit.append("verification", step_id="search-reset", state="closed")
+        return frame
 
     def search_for_session(self):
         self.require_foreground()
@@ -669,6 +691,11 @@ class Dispatch:
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               source="settled sidebar selection")
             return
+        if self.allow_navigation and self.navigate_by_session_list():
+            if self.selected_label_matches(wait=3):
+                self.audit.append("verification", step_id="active-session-row", label=self.label,
+                                  source="re-opened from the project session list")
+                return
         raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
                            f"({self.label})")
 
@@ -816,8 +843,24 @@ class Dispatch:
             return
         raise RuntimeError("one send dispatched; the Stop square and exact queue placeholder were not verified")
 
+    def settle_view(self, step, seconds=12):
+        """A session view still rendering its transcript is not a composer state."""
+        deadline = time.monotonic() + seconds
+        frame = self.frame(f"{step}-0")
+        band = COMPOSER
+        previous = None
+        while True:
+            current = frame.crop(band).tobytes()
+            if current == previous:
+                return frame
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"{step}: the session view did not settle within {seconds}s")
+            previous = current
+            time.sleep(0.7)
+            frame = self.frame(f"{step}-settle")
+
     def prepare_draft(self):
-        frame = self.frame("lane1-before-draft")
+        frame = self.settle_view("lane1-before-draft")
         self.verify_lane(frame)
         if self.scoped_input and self.stop_visible(frame):
             raise RuntimeError("the requested session is already running; no restart input")
@@ -908,6 +951,7 @@ def main():
     args.evidence.mkdir()
     dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input,
                         standing=args.standing)
+    dispatch.allow_navigation = args.phase == "prepare"
     try:
         if args.phase == "open":
             if args.thread != THREAD:

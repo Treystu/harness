@@ -23,13 +23,14 @@ SETTLE_SECONDS = 8.0
 class FreeBuffWindow:
     """One visible top-level FreeBuff window, owned by a FreeBuff.exe process.
 
-    The application recycles its top-level handle (measured 2026-11-22: the
-    same PID owned two different handles minutes apart with no input), and it
-    rewrites its own title when a session is opened, so neither a stored
-    handle nor a byte-exact title can be the identity. Ownership by the
-    FreeBuff.exe process set plus one visible titled window is the identity;
-    every use re-resolves both, and a discovery that finds nothing settles
-    before it refuses instead of failing on a single enumeration.
+    The application recycles its top-level handle (measured 2026-11-22: one
+    PID owned four different handles within twelve minutes with no input), so
+    a stored handle is not the identity. Ownership by the FreeBuff.exe process
+    set plus one visible titled window is; the title is matched by its
+    "Freebuff" prefix because the application, not this driver, owns the rest
+    of that string. Every use re-resolves ownership, and a discovery that
+    finds nothing settles before it refuses instead of failing on a single
+    enumeration.
     """
 
     def __init__(self, *, settle=SETTLE_SECONDS):

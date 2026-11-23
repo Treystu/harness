@@ -268,11 +268,16 @@ def execute(output, number, mission, digest, bystanders):
                           timeout=mission.get("phase_timeout", 65)):
             fallback = mission.get("fallback")
             if not fallback:
-                raise RuntimeError("the requested session is already running")
-            folder = output / "disk-fallback"
-            folder.mkdir()
-            if not run_phases(folder, fallback, audit):
-                raise RuntimeError("both authorized sessions are already running")
+                # The child proved the session's identity and then found its turn
+                # already running, so no input was sent: that is a standup, not a park.
+                state = "verified running: the session was already in a turn; no input sent"
+                audit.append("verification", step_id="already-running", target=mission["thread"],
+                             passed=True)
+            else:
+                folder = output / "disk-fallback"
+                folder.mkdir()
+                if not run_phases(folder, fallback, audit):
+                    raise RuntimeError("both authorized sessions are already running")
         if t5_before:
             paired = observe_bystander(output, audit, "after")
             audit.append("verification", step_id="t5-pair", target=THREAD, passed=paired)
@@ -306,10 +311,17 @@ def execute(output, number, mission, digest, bystanders):
             except (OSError, RuntimeError) as error:
                 audit.append("escalation", step_id="after", reason=str(error))
         audit.append("verification", step_id="result", state=state)
-        links = publish(output, number)
+        note = ""
+        try:
+            links = publish(output, number)
+        except (RuntimeError, OSError) as error:
+            # An evidence-upload failure must never silence the verdict.
+            audit.append("escalation", step_id="publish", reason=str(error))
+            links = []
+            note = f" Evidence upload failed: {error}"
         api(ISSUE, method="POST", body={"body": (
             f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}. Evidence: "
-            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)))})
+            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note)})
     print(state)
     if uncertain:
         raise uncertain
