@@ -952,15 +952,24 @@ class Dispatch:
         raise RuntimeError("one send dispatched; the Stop square and exact queue placeholder were not verified")
 
     def settle_view(self, step, seconds=12):
-        """A session view still rendering its transcript is not a composer state."""
+        """A session view still rendering its transcript is not a composer state.
+
+        Pixel equality is the wrong test here: a focused composer blinks a
+        caret, so the band never repeats byte for byte. Settled means the
+        change has fallen to caret-sized noise, not zero.
+        """
+        from PIL import ImageChops, ImageStat
+
         deadline = time.monotonic() + seconds
         frame = self.frame(f"{step}-0")
-        band = COMPOSER
         previous = None
         while True:
-            current = frame.crop(band).tobytes()
-            if current == previous:
-                return frame
+            current = frame.crop(COMPOSER).convert("L")
+            if previous is not None:
+                drift = ImageStat.Stat(ImageChops.difference(previous, current)).mean[0]
+                if drift <= 0.8:
+                    self.audit.append("verification", step_id=f"{step}-settled", drift=round(drift, 3))
+                    return frame
             if time.monotonic() >= deadline:
                 raise RuntimeError(f"{step}: the session view did not settle within {seconds}s")
             previous = current
