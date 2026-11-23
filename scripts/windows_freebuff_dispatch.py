@@ -526,6 +526,32 @@ class Dispatch:
                 return False
         return False
 
+    def find_highlighted_row(self, pages=5):
+        """Find the selected row wherever the project list has it, read-only."""
+        frame = self.scroll_sidebar_to_top()
+        seen = []
+        for page in range(1, pages + 1):
+            try:
+                frame, rows = self.settled_roster(f"highlight-{page}", SIDEBAR, attempts=3)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="find-highlight", reason=str(error))
+                return None
+            texts = [self._norm(row["text"]) for row in rows]
+            if texts in seen:
+                return None
+            seen.append(texts)
+            row = self.highlighted_row(frame, rows)
+            if row:
+                return row
+            band = frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes()
+            self.act(f"highlight-scroll-{page}", SCROLL,
+                     {"point": [196, 850], "size": list(frame.size), "delta": -240})
+            time.sleep(0.9)
+            frame = self.frame(f"highlight-{page}-after")
+            if frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes() == band:
+                return None
+        return None
+
     def navigate_by_session_list(self):
         """Open the lane from the project session list: no dialog, no typing."""
         if self.selected_label_matches():
@@ -745,6 +771,11 @@ class Dispatch:
                 self.audit.append("verification", step_id="active-session-row", label=self.label,
                                   source="re-opened from the project session list")
                 return
+        row = self.find_highlighted_row()
+        if row and self.row_matches(row["text"], self.label):
+            self.audit.append("verification", step_id="active-session-row", label=self.label,
+                              row=row["text"], source="highlight found in the project list")
+            return
         raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
                            f"({self.label})")
 
