@@ -33,7 +33,9 @@ TYPE = Action("type_freebuff", MUTATING, "type_freebuff", ("text",),
 SEND = Action("send_freebuff", MUTATING, "send_freebuff",
               ("thread", "text", "control", "point", "size"),
               "Send the exact authorized draft in the verified Lane 1 session once.", "gui")
-VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.1.0", [FOCUS, CLICK, TYPE, SEND])
+QUERY = Action("query_freebuff", MUTATING, "query_freebuff", ("thread", "text", "control"),
+               "Search FreeBuff for the exact existing session title.", "gui")
+VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.2.0", [FOCUS, CLICK, TYPE, SEND, QUERY])
 THREAD = "315608d2"
 CONTINUATION = "continue in full"
 DISK_THREAD = "f90f01e9"
@@ -84,6 +86,7 @@ class Dispatch:
         self.goal = (GOAL if thread == THREAD else
                      f"Restart the existing {self.label} FreeBuff session ({thread}) once in place.")
         self.composer_renderer = None
+        self.search_renderer = None
         self.audit = AuditLog(output / "driver.jsonl")
         self.screen = WindowsWindowScreen(self.window, source="windows-freebuff")
         self.driver = Driver(settings=Settings(jev_api_key=key, allow_write=True),
@@ -92,6 +95,7 @@ class Dispatch:
         self.driver.register_executor(CLICK.name, self.click)
         self.driver.register_executor(TYPE.name, self.type_text)
         self.driver.register_executor(SEND.name, self.send)
+        self.driver.register_executor(QUERY.name, self.query)
 
     def require_foreground(self):
         hwnd = self.window.require_window()
@@ -151,6 +155,8 @@ class Dispatch:
             time.sleep(0.05)
         if params["control"] == f"{self.label} composer":
             self.composer_renderer = hit
+        if params["control"] == "Search chats field":
+            self.search_renderer = hit
 
     def type_text(self, action, params):
         if params["text"] != self.text:
@@ -167,8 +173,19 @@ class Dispatch:
             raise RuntimeError("the thread or text differs from the approved continuation")
         self.click(action, params)
 
+    def query(self, action, params):
+        if (params["thread"] != self.thread or params["text"] != self.label
+                or params["control"] != "Search chats field"):
+            raise RuntimeError("search parameters differ from the approved session")
+        renderer = self.search_renderer
+        for character in self.label:
+            if not renderer or self.user.GetAncestor(renderer, 2) != self.require_foreground():
+                raise RuntimeError("the verified search renderer changed")
+            if not self.user.PostMessageW(renderer, 0x0102, ord(character), 1):
+                raise RuntimeError("FreeBuff refused a search character")
+
     def act(self, step, action, params):
-        grant = Consent(True, action.name, params, by="operator:freebuff-lane1")
+        grant = Consent(True, action.name, params, by=f"operator:freebuff-{self.thread}")
         result = self.driver.executor.execute(action.name, params, consent=grant, step_id=step)
         if not result.ok:
             raise RuntimeError(f"{step}: {result.detail}")
@@ -280,6 +297,21 @@ class Dispatch:
         time.sleep(0.6)
         self.frame("freebuff-search-open")
 
+    def search_for_session(self):
+        frame = self.frame("freebuff-before-query")
+        self.require_foreground()
+        region = (527, 168, 774, 228)
+        self.yes("verify-search-field", frame,
+                 "Are the literal words 'Search chats' visible in the empty search field?",
+                 region=region)
+        point = self.locate_exact_text("locate-search-field", frame, "Search chats", region)
+        self.act("focus-search-field", CLICK,
+                 {"control": "Search chats field", "point": point, "size": list(frame.size)})
+        self.act("query-session", QUERY, {"thread": self.thread, "text": self.label,
+                                          "control": "Search chats field"})
+        time.sleep(1.4)
+        self.frame("freebuff-search-results")
+
     def verify_lane(self, frame):
         self.require_foreground()
         self.yes("verify-lane1", frame,
@@ -377,7 +409,8 @@ class Dispatch:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
-    parser.add_argument("--phase", choices=("open", "search", "prepare", "send"), default="open")
+    parser.add_argument("--phase", choices=("open", "search", "query", "prepare", "send"),
+                        default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
@@ -392,6 +425,8 @@ def main():
             dispatch.open_lane()
         elif args.phase == "search":
             dispatch.open_search()
+        elif args.phase == "query":
+            dispatch.search_for_session()
         elif args.phase == "prepare":
             if args.thread != THREAD:
                 raise RuntimeError("the session composer must be scoped before preparing a draft")
