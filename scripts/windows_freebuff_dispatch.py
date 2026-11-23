@@ -512,6 +512,15 @@ class Dispatch:
                 return False
             time.sleep(0.8)
 
+    def scroll_by(self, step, frame, point, delta):
+        """A scroll step; a compositor change between capture and input is retried."""
+        try:
+            self.act(step, SCROLL, {"point": point, "size": list(frame.size), "delta": delta})
+            return True
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id=step, reason=str(error))
+            return False
+
     def scroll_sidebar_to_top(self, steps=8):
         """Reach the top of the project list, proven by two identical rosters."""
         previous = None
@@ -522,8 +531,9 @@ class Dispatch:
             if current and current == previous:
                 return frame
             previous = current
-            self.act(f"sidebar-top-scroll-{attempt}", SCROLL,
-                     {"point": [196, 600], "size": list(frame.size), "delta": 1200})
+            if not self.scroll_by(f"sidebar-top-scroll-{attempt}", frame, [196, 600], 1200):
+                frame = self.frame(f"sidebar-top-{attempt}-recapture")
+                continue
             time.sleep(0.8)
             frame = self.frame(f"sidebar-top-{attempt}-after")
         return frame
@@ -553,8 +563,9 @@ class Dispatch:
                 time.sleep(1.0)
                 continue
             band = frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes()
-            self.act(f"session-list-scroll-{page}", SCROLL, {"point": [196, 850],
-                                                            "size": list(frame.size), "delta": -240})
+            if not self.scroll_by(f"session-list-scroll-{page}", frame, [196, 850], -240):
+                frame = self.frame(f"session-list-scrolled-{page}-recapture")
+                continue
             time.sleep(0.9)
             frame = self.frame(f"session-list-scrolled-{page}")
             if frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes() == band:
@@ -595,9 +606,14 @@ class Dispatch:
                 break
             seen.append(texts)
             for index, row in enumerate(rows):
-                if wanted and wanted not in self._norm(row["text"]):
+                seen_text = self._norm(row["text"])
+                # Rows are clipped by the app's own column width (measured:
+                # "SCMessenger Audit L"), so a plain substring test misses the
+                # very rows this path exists to find.
+                if wanted and wanted not in seen_text and not self.row_matches(
+                        row["text"], self.label):
                     continue
-                if self._norm(row["text"]) == wanted:
+                if seen_text == wanted:
                     # A bare label is also how the app names project headings
                     # and duplicate sessions; this path exists for the rows the
                     # exact matcher could not settle, so those are not clicked
@@ -622,8 +638,9 @@ class Dispatch:
                     return True
                 self.audit.append("extraction", step_id=f"identify-{page}-{index}-routes",
                                   row=row["text"], exposed=routes[:6])
-            self.act(f"identify-scroll-{page}", SCROLL,
-                     {"point": [196, 850], "size": list(frame.size), "delta": -400})
+            if not self.scroll_by(f"identify-scroll-{page}", frame, [196, 850], -400):
+                frame = self.frame(f"identify-{page}-recapture")
+                continue
             time.sleep(0.9)
             frame = self.frame(f"identify-{page}-after")
         return False
@@ -646,8 +663,9 @@ class Dispatch:
             if row:
                 return row
             band = frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes()
-            self.act(f"highlight-scroll-{page}", SCROLL,
-                     {"point": [196, 850], "size": list(frame.size), "delta": -400})
+            if not self.scroll_by(f"highlight-scroll-{page}", frame, [196, 850], -400):
+                frame = self.frame(f"highlight-{page}-recapture")
+                continue
             time.sleep(0.9)
             frame = self.frame(f"highlight-{page}-after")
             if frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes() == band:
