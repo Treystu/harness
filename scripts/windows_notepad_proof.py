@@ -70,18 +70,14 @@ def wait_for_document(window, original, audit):
                 time.sleep(0.1)
     if len(fresh) != 1:
         raise RuntimeError("could not identify one fresh untitled Notepad window")
-    window.owner = fresh[0]
-    window.activate(window.owner)
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        if window.foreground() == window.owner:
-            return
-        time.sleep(0.1)
-    raise RuntimeError("the fresh Notepad window did not become foreground within 5s")
+    window.bind(fresh[0])
+    foreground = window.activate(window.owner)
+    audit.append("capture", step_id="launch", source="windows-notepad",
+                 foreground=foreground, input_scope="bound Notepad window")
 
 
 def save_document(window, destination, params):
-    window.require_foreground()
+    window.require_window()
     if params["destination"] != f"Desktop\\{FILE_NAME}" or destination.exists():
         raise RuntimeError("the requested destination is unavailable")
     run_notepad_controls(window.owner, "-Destination", str(destination))
@@ -121,7 +117,7 @@ def prove(goal, output, destination, key):
 
     def send(kind, *, value=None, target=None):
         window.type_text(value)
-        return True, "sent character messages to the bound foreground Notepad control"
+        return True, "sent character messages to the bound Notepad editor"
 
     send.supported_kinds = ("type",)
     driver = Driver(settings=settings, audit=audit, vocabulary=VOCABULARY, input_backend=send)

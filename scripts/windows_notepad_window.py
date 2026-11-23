@@ -7,20 +7,6 @@ from ctypes import wintypes
 from driver_core.observation import Capture, fingerprint
 
 
-class GuiThreadInfo(ctypes.Structure):
-    _fields_ = [
-        ("size", wintypes.DWORD),
-        ("flags", wintypes.DWORD),
-        ("active", wintypes.HWND),
-        ("focus", wintypes.HWND),
-        ("capture", wintypes.HWND),
-        ("menu_owner", wintypes.HWND),
-        ("move_size", wintypes.HWND),
-        ("caret", wintypes.HWND),
-        ("caret_rect", wintypes.RECT),
-    ]
-
-
 class NotepadWindow:
     def __init__(self):
         self.user = ctypes.WinDLL("user32", use_last_error=True)
@@ -28,8 +14,6 @@ class NotepadWindow:
         self.user.GetWindowThreadProcessId.argtypes = (
             wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
         self.user.GetWindowThreadProcessId.restype = wintypes.DWORD
-        self.user.GetGUIThreadInfo.argtypes = (
-            wintypes.DWORD, ctypes.POINTER(GuiThreadInfo))
         self.user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
         self.user.GetAncestor.restype = wintypes.HWND
         self.user.GetClassNameW.argtypes = (
@@ -45,30 +29,39 @@ class NotepadWindow:
             wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t))
         self.user.SendMessageTimeoutW.restype = wintypes.LPARAM
         self.user.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+        callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        self.callback = callback
+        self.user.EnumWindows.argtypes = (callback, wintypes.LPARAM)
+        self.user.EnumChildWindows.argtypes = (wintypes.HWND, callback, wintypes.LPARAM)
         self.owner = None
+        self.owner_pid = None
 
     def foreground(self):
         return self.user.GetForegroundWindow()
 
     def handles(self, notepad_pids):
         handles = []
-        callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
-        @callback
+        @self.callback
         def visit(hwnd, _):
-            pid = wintypes.DWORD()
-            self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-            if pid.value in notepad_pids and self.user.IsWindowVisible(hwnd):
-                name = ctypes.create_unicode_buffer(128)
-                self.user.GetClassNameW(hwnd, name, len(name))
-                if name.value == "Notepad":
-                    handles.append(hwnd)
+            if (self.pid(hwnd) in notepad_pids and self.user.IsWindowVisible(hwnd)
+                    and self.class_name(hwnd) == "Notepad"):
+                handles.append(hwnd)
             return True
 
-        self.user.EnumWindows.argtypes = (callback, wintypes.LPARAM)
         if not self.user.EnumWindows(visit, 0):
             raise RuntimeError("could not enumerate visible Notepad windows")
         return handles
+
+    def pid(self, hwnd):
+        pid = wintypes.DWORD()
+        self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return pid.value
+
+    def class_name(self, hwnd):
+        name = ctypes.create_unicode_buffer(128)
+        self.user.GetClassNameW(hwnd, name, len(name))
+        return name.value
 
     def activate(self, hwnd):
         if self.foreground() != hwnd and not self.user.SetForegroundWindow(hwnd):
@@ -80,32 +73,44 @@ class NotepadWindow:
         self.user.GetWindowTextW(hwnd, title, len(title))
         return title.value.casefold().startswith("untitled")
 
-    def require_foreground(self):
-        hwnd = self.foreground()
-        if not self.owner or self.user.GetAncestor(hwnd, 3) != self.owner:
-            raise RuntimeError("the mission Notepad window lost foreground")
-        return hwnd
+    def bind(self, hwnd):
+        self.owner = hwnd
+        self.owner_pid = self.pid(hwnd)
+        self.require_window()
+
+    def require_window(self):
+        if (not self.owner_pid or self.pid(self.owner) != self.owner_pid
+                or self.class_name(self.owner) != "Notepad"):
+            raise RuntimeError("the mission Notepad window is no longer available")
+        return self.owner
 
     def type_text(self, text):
-        foreground = self.require_foreground()
-        thread = self.user.GetWindowThreadProcessId(foreground, None)
-        info = GuiThreadInfo(size=ctypes.sizeof(GuiThreadInfo))
-        if not self.user.GetGUIThreadInfo(thread, ctypes.byref(info)):
-            raise ctypes.WinError(ctypes.get_last_error())
-        if not info.focus or self.user.GetAncestor(info.focus, 3) != self.owner:
-            raise RuntimeError("the focused control is outside the mission window")
+        owner = self.require_window()
+        editors = []
+
+        @self.callback
+        def visit(hwnd, _):
+            if (self.pid(hwnd) == self.owner_pid and self.user.IsWindowVisible(hwnd)
+                    and self.class_name(hwnd) in ("RichEditD2DPT", "Edit")):
+                editors.append(hwnd)
+            return True
+
+        self.user.EnumChildWindows(owner, visit, 0)
+        if len(editors) != 1:
+            raise RuntimeError("could not identify one editor in the mission Notepad window")
+        editor = editors[0]
         for char in text:
-            self.require_foreground()
-            if self.user.GetAncestor(info.focus, 3) != self.owner:
+            self.require_window()
+            if self.pid(editor) != self.owner_pid or self.user.GetAncestor(editor, 2) != owner:
                 raise RuntimeError("the Notepad control changed ownership")
             result = ctypes.c_size_t()
             if not self.user.SendMessageTimeoutW(
-                    info.focus, 0x0102, ord(char), 1, 0x22, 250,
+                    editor, 0x0102, ord(char), 1, 0x22, 250,
                     ctypes.byref(result)):
                 raise RuntimeError("Notepad did not accept the character message")
 
     def release_foreground(self):
-        if self.owner and self.user.GetAncestor(self.foreground(), 3) == self.owner:
+        if self.owner and self.pid(self.owner) == self.owner_pid:
             self.user.ShowWindow(self.owner, 6)  # Minimize only the new window.
 
 
@@ -117,9 +122,9 @@ class NotepadScreen:
     def capture(self, target):
         from PIL import ImageGrab
 
-        hwnd = self.window.require_foreground()
+        hwnd = self.window.require_window()
         frame = ImageGrab.grab(window=hwnd)
-        if self.window.require_foreground() != hwnd:
+        if self.window.require_window() != hwnd:
             raise RuntimeError("the Notepad window changed during capture")
         if all(low == high for low, high in frame.getextrema()):
             raise RuntimeError("window-scoped capture returned uniform pixels")
