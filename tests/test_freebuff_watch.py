@@ -108,6 +108,36 @@ def test_census_tolerates_only_small_ocr_differences_for_navigation():
     assert not census.similar_census_label("SCMessenger Audit Lar", "SCMessenger Cloud Cure")
 
 
+def test_census_inventory_refuses_duplicate_or_visually_ambiguous_titles():
+    census.validate_census_inventory(["SCMessenger", "SCMessenger Audit Lar"])
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        census.validate_census_inventory(["SCMessenger", "SCMessenger"])
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        census.validate_census_inventory(["SCMessenger Audit Lar", "SCMessenger Audit Lan"])
+
+
+def test_census_inventories_before_opening_and_tolerates_reordering(monkeypatch, tmp_path):
+    frame = Image.new("RGB", (400, 200))
+    reads = iter([["SCMessenger", "SCMessenger Audit"], ["SCMessenger Audit", "SCMessenger"],
+                  ["SCMessenger Audit", "SCMessenger"]])
+    monkeypatch.setattr(census, "visual_project_pages", lambda *args: iter([(frame, 0,
+                        [(name, 100) for name in next(reads)])]))
+    selected = []
+    monkeypatch.setattr(census, "visual_select_row", lambda driver, frame, label, y, step:
+                        selected.append(label) or label)
+    monkeypatch.setattr(census, "observe_census_candidate", lambda driver, frame, label, index: {"title": label})
+    monkeypatch.setattr(census, "census_signature", lambda fields: False)
+    monkeypatch.setattr(census.time, "sleep", lambda _: None)
+    driver = Mock()
+    driver.output = tmp_path
+    driver.scroll_sidebar_to_top.return_value = frame
+    driver.frame.return_value = frame
+    with pytest.raises(RuntimeError, match="0 verified matches across 2 rows"):
+        census.visual_census(driver, frame)
+    assert selected == ["SCMessenger", "SCMessenger Audit"]
+    assert (tmp_path / "project-roster.json").is_file()
+
+
 def test_census_jev_verifies_visible_prefix_without_guessing_clipped_suffix():
     frame = Image.new("RGB", (400, 200), "white")
     driver = Mock()

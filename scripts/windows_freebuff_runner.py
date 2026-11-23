@@ -119,6 +119,7 @@ def publish(output, number):
     paths = [output / "runner.jsonl", *sorted(output.glob("**/driver.jsonl")),
              *sorted(output.glob("t5-*/observe-running/observed-stop.png")),
              *sorted(output.glob("project-census/project-*.json")),
+             *sorted(output.glob("project-census/candidate-*/visual-census-*-open.png")),
              *sorted(output.glob("before-*.png")), *sorted(output.glob("after-*.png"))]
     links = []
     for path in paths:

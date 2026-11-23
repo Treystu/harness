@@ -380,7 +380,16 @@ def run_restoration(receipts, known):
                                                                 continue
                                                             item = f"restore-{dispatch_id}-{thread}-scroll-recapture-cure"
                                                             if f"claim-{item}.json" in known:
-                                                                continue
+                                                                if (f"result-{item}.json" not in known or not cure_eligible(
+                                                                        state_dir / item, ("roster reordered",),
+                                                                        ("observation-foreground", "navigate-to-bystander",
+                                                                         "scroll-project-sidebar-0", "scroll-project-sidebar-1",
+                                                                         "expand-scm-project-2", "visual-census-select-3-0",
+                                                                         "visual-census-select-3-1", "scroll-project-sidebar-3"))):
+                                                                    continue
+                                                                item = f"restore-{dispatch_id}-{thread}-inventory-first-cure"
+                                                                if f"claim-{item}.json" in known:
+                                                                    continue
             elif dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
                 output = state_dir / item
                 runner = output / "runner.jsonl"
@@ -517,9 +526,9 @@ def run_restoration(receipts, known):
                               "-fresh-label-cure-consistent-ocr-scale-cure", "-ocr2-verified-prefix-cure",
                               "-exact-short-prefix-long-cure", "-sticky-footer-cure",
                               "-settled-geometry-cure", "-visible-project-anchor-cure", "-reacquire-row-cure",
-                              "-scroll-recapture-cure")):
+                              "-scroll-recapture-cure", "-inventory-first-cure")):
                 mission["phases"] = ("project-census",)
-                mission["phase_timeout"] = 600
+                mission["phase_timeout"] = 1500 if item.endswith("-inventory-first-cure") else 600
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
         except UncertainDriverExit as error:
             checkpoint(f"interlock-{item}.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})

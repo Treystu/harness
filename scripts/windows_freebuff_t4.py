@@ -394,15 +394,47 @@ def similar_census_label(old, new):
                           and SequenceMatcher(None, old, new).ratio() >= 0.9)
 
 
+def validate_census_inventory(inventory):
+    if not inventory or len({name.casefold() for name in inventory}) != len(inventory):
+        raise RuntimeError("the complete project roster is empty or has ambiguous visible titles")
+    for index, name in enumerate(inventory):
+        if any(similar_census_label(name, other) for other in inventory[index + 1:]):
+            raise RuntimeError("the project roster has visually ambiguous truncated titles")
+
+
 def visual_census(driver, frame):
+    # Inventory without opening chats: FreeBuff moves opened chats to the top.
+    inventory = []
+    for _, _, rows in visual_project_pages(driver, frame):
+        inventory.extend(label for label, _ in rows)
+    (driver.output / "project-roster.json").write_text(json.dumps(inventory, ensure_ascii=False, indent=2),
+                                                       encoding="utf-8")
+    validate_census_inventory(inventory)
     evidence = []
-    for page_frame, page, rows in visual_project_pages(driver, frame):
-        for index, (label, y) in enumerate(rows):
-            label = visual_select_row(driver, page_frame, label, y, f"visual-census-select-{page}-{index}")
-            time.sleep(7)
-            opened = driver.frame(f"visual-census-{page}-{index}-open")
-            fields = observe_census_candidate(driver, opened, label, len(evidence) + 1)
-            append_census(driver, evidence, fields)
+    root = driver.output
+    for index, expected in enumerate(inventory):
+        driver.output = root / f"candidate-{index:03}"
+        driver.output.mkdir(parents=True, exist_ok=True)
+        try:
+            frame = driver.scroll_sidebar_to_top()
+            found = False
+            for page_frame, page, rows in visual_project_pages(driver, frame):
+                for label, y in rows:
+                    if not similar_census_label(expected, label):
+                        continue
+                    label = visual_select_row(driver, page_frame, label, y, f"visual-census-select-{page}-{index}")
+                    time.sleep(7)
+                    opened = driver.frame(f"visual-census-{index}-open")
+                    fields = observe_census_candidate(driver, opened, label, index + 1)
+                    found = True
+                    break
+                if found:
+                    break
+            if not found:
+                raise RuntimeError(f"the inventoried project row {expected!r} could not be reopened")
+        finally:
+            driver.output = root
+        append_census(driver, evidence, fields)
     matches = [index for index, fields in enumerate(evidence) if census_signature(fields)]
     driver.audit.append("verification", step_id="visual-project-census-verdict",
                         inspected=len(evidence), matches=matches)
@@ -414,12 +446,10 @@ def visual_census(driver, frame):
     })
     time.sleep(2)
     frame = driver.frame("scm-roster-top")
-    seen = 0
+    target = inventory[matches[0]]
     for page_frame, _, rows in visual_project_pages(driver, frame):
         for label, y in rows:
-            if seen >= len(evidence) or not similar_census_label(label, evidence[seen]["title"]):
-                raise RuntimeError("the project roster order changed before reopening")
-            if seen == matches[0]:
+            if similar_census_label(label, target):
                 visual_select_row(driver, page_frame, label, y, "visual-reopen-unique-scm-match")
                 time.sleep(3)
                 reopened = driver.frame("visual-reopened-scm")
@@ -428,7 +458,6 @@ def visual_census(driver, frame):
                 driver.prepare_draft()
                 driver.send_draft()
                 return
-            seen += 1
     raise RuntimeError("the unique SCM chat could not be reopened")
 
 
