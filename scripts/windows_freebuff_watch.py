@@ -401,20 +401,6 @@ def run_restoration(receipts, known):
                                         item = f"restore-{dispatch_id}-{thread}-mission-draft-identity-cure"
                                         if f"claim-{item}.json" in known:
                                             continue
-            if dispatch_id == STANDUP:
-                resumed = state_dir / f"restore-{STANDUP}-{VISION_THREAD}-vision-transcript-crop-cure"
-                runner = resumed / "runner.jsonl"
-                trace = resumed / "vision-resume" / "driver.jsonl"
-                next_item = f"restore-{STANDUP}-{VISION_THREAD}-start-staged-mission"
-                if (runner.is_file() and trace.is_file() and AuditLog(runner).verify().ok
-                        and AuditLog(trace).verify().ok and f"claim-{next_item}.json" not in known):
-                    events = [json.loads(line) for line in trace.read_text(encoding="utf-8").splitlines()]
-                    resumes = [row for row in events if row.get("step_id") == "vision-resume"
-                               and row.get("kind") == "action" and row.get("ok")]
-                    starts = [row for row in events if row.get("step_id") in {"vision-start", "send-once"}
-                              and row.get("kind") == "action"]
-                    if len(resumes) == 1 and not starts:
-                        item = next_item
             else:
                 continue
         guard_approval()

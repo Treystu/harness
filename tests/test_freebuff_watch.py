@@ -101,3 +101,28 @@ def test_cure_never_replays_an_uncertain_send(tmp_path):
     assert watch.cure_eligible(tmp_path, ("identify-",))
     trace.append("action", step_id="send-once", action="send_freebuff", ok=False)
     assert not watch.cure_eligible(tmp_path, ("identify-",))
+
+
+def test_scm_timeout_cure_is_admitted_after_vision_seat(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    item = f"restore-{watch.SCM_RESTART}-2ae32937"
+    folder = tmp_path / "harness-freebuff-runner" / item
+    phase = folder / "search"
+    phase.mkdir(parents=True)
+    AuditLog(folder / "runner.jsonl").append(
+        "verification", step_id="result", state="parked: search: driver tree termination unverified")
+    AuditLog(phase / "driver.jsonl").append(
+        "action", step_id="scroll", action="scroll_freebuff", ok=True)
+    known = {
+        f"claim-restore-{watch.STANDUP}-{watch.VISION_THREAD}.json",
+        f"claim-restore-{watch.LANE_RESTART}-{watch.THREAD}.json",
+        f"claim-{item}.json", f"result-{item}.json",
+    }
+    monkeypatch.setattr(watch, "desktop_idle", lambda: True)
+    monkeypatch.setattr(watch, "guard_approval", Mock())
+    monkeypatch.setattr(watch, "checkpoint", Mock())
+    monkeypatch.setattr(watch, "execute", execute := Mock(return_value=1))
+
+    assert watch.run_restoration({watch.SCM_RESTART: {"body": "authorized"}}, known)
+    assert execute.call_args.args[1] == f"{item}-project-roster-cure"
+    assert execute.call_args.args[2]["phases"] == ("project-census",)
