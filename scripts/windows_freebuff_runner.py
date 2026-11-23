@@ -186,13 +186,14 @@ def reconcile_demo(output):
     return 0
 
 
-def run_phases(output, thread, audit, phases=PHASES):
+def run_phases(output, thread, audit, phases=PHASES, *, standing=False):
     for phase in phases:
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
         result = subprocess.run(
             ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(helper),
              "-Python", sys.executable, "-Thread", thread,
-             "-Phase", phase, "-Evidence", str(output / phase)],
+             "-Phase", phase, "-Evidence", str(output / phase),
+             *(["-Standing"] if standing else [])],
             capture_output=True, text=True, timeout=65, check=False)
         if result.returncode:
             detail = result.stdout.strip().splitlines()
@@ -208,18 +209,26 @@ def run_phases(output, thread, audit, phases=PHASES):
 def execute(output, number, mission, digest, bystanders):
     audit = AuditLog(output / "runner.jsonl")
     audit.append("decision", step_id="claim", comment=number, thread=mission["thread"], blob=digest)
-    api(ISSUE, method="POST", body={"body": f"T8 ack #{number}: claimed the pinned restart for `{mission['thread']}`."})
+    dispatch_id = mission.get("dispatch", number)
+    api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}."})
     state = "verified running"
     windows = []
     before = {}
+    foreground = None
+    prior = None
     try:
         freebuff = FreeBuffWindow()
+        if mission.get("standing"):
+            foreground = freebuff.api.foreground()
+            if not foreground:
+                raise RuntimeError("the original foreground window could not be identified")
+            prior = (freebuff.pid(foreground), freebuff.api.title_of(foreground))
         windows = [("freebuff", freebuff)]
         windows.extend((f"bystander-{index}", Bystander(title, freebuff))
                        for index, title in enumerate(bystanders, start=1))
         before = capture_set(output, "before", windows, audit)
         phases = ("prepare", "send") if mission.get("resume_inside") else PHASES
-        if not run_phases(output, mission["thread"], audit, phases):
+        if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False)):
             fallback = mission.get("fallback")
             if not fallback:
                 raise RuntimeError("the requested session is already running")
@@ -230,6 +239,18 @@ def execute(output, number, mission, digest, bystanders):
     except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         state = f"parked: {error}"
     finally:
+        if prior and freebuff.api.foreground() == freebuff.handle and foreground != freebuff.handle:
+            try:
+                pid, title = prior
+                if (freebuff.pid(foreground) != pid
+                        or not freebuff.api.focus(foreground, title)
+                        or freebuff.api.foreground() != foreground):
+                    raise RuntimeError("the exact original foreground could not be restored")
+                audit.append("verification", step_id="foreground-restored", hwnd=foreground, pid=pid)
+            except (OSError, RuntimeError) as error:
+                audit.append("escalation", step_id="foreground-restore", reason=str(error))
+                if state == "verified running":
+                    state = f"parked after verified send: {error}"
         if windows:
             try:
                 after = capture_set(output, "after", windows, audit)
@@ -243,7 +264,7 @@ def execute(output, number, mission, digest, bystanders):
         audit.append("verification", step_id="result", state=state)
         links = publish(output, number)
         api(ISSUE, method="POST", body={"body": (
-            f"T8 result #{number}: {state}. Evidence: "
+            f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}. Evidence: "
             + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)))})
     print(state)
     return int(state != "verified running")

@@ -42,12 +42,19 @@ THREAD = "315608d2"
 CONTINUATION = "continue in full"
 DISK_THREAD = "f90f01e9"
 SCM_THREAD = "2ae32937"
+BURN_SESSIONS = {
+    "0d7e2f37": "BigEnergyCo",
+    "7d4a9b14": "Kalshi",
+    "9ecc3453": "Lane 2",
+    "918dad1a": "Harness Audit",
+}
 DISK_POINTER = ("Run D-007 from Treystu/slow-lane-ledger. Read "
                 "DISK-AUDIT-MISSION-V3-2026-11-22.md in oversight/disk-audit-2026-11-19.")
 SESSIONS = {
     THREAD: ("Lane 1", CONTINUATION),
     DISK_THREAD: ("Disk Audit", CONTINUATION),
     SCM_THREAD: ("SCMessenger", CONTINUATION),
+    **{thread: (label, CONTINUATION) for thread, label in BURN_SESSIONS.items()},
 }
 COMPOSER = (630, 918, 1550, 1110)
 LANE_NAV = (80, 590, 390, 750)
@@ -57,7 +64,7 @@ QUEUE_REGION = (644, 947, 1250, 1020)
 
 
 class Dispatch:
-    def __init__(self, output, key, *, thread=THREAD, scoped_input=False):
+    def __init__(self, output, key, *, thread=THREAD, scoped_input=False, standing=False):
         from PIL import Image, ImageOps
 
         self.image = Image
@@ -87,11 +94,13 @@ class Dispatch:
         self.key = key
         self.thread = thread
         self.scoped_input = scoped_input
+        self.standing = standing
         self.label, self.text = SESSIONS[thread]
         self.goal = (GOAL if thread == THREAD else
                      f"Restart the existing {self.label} FreeBuff session ({thread}) once in place.")
         self.composer_renderer = None
         self.search_renderer = None
+        self.send_deadline = None
         self.audit = AuditLog(output / "driver.jsonl")
         self.screen = WindowsWindowScreen(self.window, source="windows-freebuff")
         self.driver = Driver(settings=Settings(jev_api_key=key, allow_write=True),
@@ -112,6 +121,11 @@ class Dispatch:
         hwnd = self.window.require_window()
         if params["title"] != TITLE:
             raise RuntimeError("the requested window title differs")
+        if self.standing:
+            from .windows_freebuff_watch import desktop_idle
+
+            if not desktop_idle():
+                raise RuntimeError("desktop activity resumed before taking FreeBuff focus")
         if self.window.api.foreground() != hwnd:
             if not self.window.api.focus(hwnd, TITLE):
                 self.user.SwitchToThisWindow(hwnd, True)
@@ -184,6 +198,8 @@ class Dispatch:
     def send(self, action, params):
         if params["thread"] != self.thread or params["text"] != self.text:
             raise RuntimeError("the thread or text differs from the approved continuation")
+        if self.send_deadline is None or time.monotonic() > self.send_deadline:
+            raise RuntimeError("the verified send window expired before input")
         self.click(action, params)
 
     def query(self, action, params):
@@ -198,6 +214,10 @@ class Dispatch:
                 raise RuntimeError("FreeBuff refused a search character")
 
     def act(self, step, action, params):
+        if self.standing:
+            from .windows_freebuff_watch import guard_approval
+
+            guard_approval()
         grant = Consent(True, action.name, params, by=f"operator:freebuff-{self.thread}")
         result = self.driver.executor.execute(action.name, params, consent=grant, step_id=step)
         if not result.ok:
@@ -383,6 +403,9 @@ class Dispatch:
 
     def verify_lane(self, frame):
         self.require_foreground()
+        if self.thread in BURN_SESSIONS:
+            self.verify_active_session()
+            return
         if self.thread == DISK_THREAD:
             self.yes("verify-disk-audit-tab", frame,
                      "Does the selected dark tab show the word 'Disk'?",
@@ -407,6 +430,19 @@ class Dispatch:
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "in the sidebar? Reject a plain unselected row.",
                  region=region)
+
+    def verify_active_session(self):
+        hwnd = self.require_foreground()
+        helper = Path(__file__).with_name("windows_freebuff_active_session.ps1")
+        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+                           str(helper), "-Window", str(hwnd)], timeout=8)
+        if not result.ok:
+            raise RuntimeError("the active FreeBuff document identity could not be read")
+        sessions = json.loads(result.stdout)
+        if len(sessions) != 1 or sessions[0].split("-")[0] != self.thread:
+            raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
+        self.require_foreground()
+        self.audit.append("verification", step_id="active-session-id", exact_id=sessions[0])
 
     def require_cached_session(self, step, session_id):
         profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
@@ -490,10 +526,18 @@ class Dispatch:
         params = {"thread": self.thread, "text": self.text, "control": control,
                   "point": point, "size": list(frame.size)}
         self.require_foreground()
+        if self.thread in BURN_SESSIONS:
+            self.verify_active_session()
+        if self.standing:
+            fresh = self.frame("pre-send-readback")
+            if (frame.crop(COMPOSER).tobytes() != fresh.crop(COMPOSER).tobytes()
+                    or (not pointer and self.stop_visible(fresh))):
+                raise RuntimeError("composer changed between verification and send")
         age = time.monotonic() - observed_at
         if age > 60:
             raise RuntimeError("the verified session and composer observations expired before send")
         self.audit.append("verification", step_id="pre-send-freshness", age_seconds=round(age, 3))
+        self.send_deadline = observed_at + 60
         with marker.open("x", encoding="utf-8") as handle:
             json.dump({"thread": self.thread, "step": f"{operation}-once", "text": self.text,
                        "evidence": self.output.name}, handle)
@@ -573,12 +617,14 @@ def main():
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     parser.add_argument("--scoped-input", action="store_true")
+    parser.add_argument("--standing", action="store_true")
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
     if not key:
         parser.error("the trusted child needs the existing TypeSafe key")
     args.evidence.mkdir()
-    dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input)
+    dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input,
+                        standing=args.standing)
     try:
         if args.phase == "open":
             if args.thread != THREAD:
