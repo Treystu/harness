@@ -352,7 +352,18 @@ def run_restoration(receipts, known):
                                                     continue
                                                 item = f"restore-{dispatch_id}-{thread}-settled-geometry-cure"
                                                 if f"claim-{item}.json" in known:
-                                                    continue
+                                                    if (f"result-{item}.json" not in known or not cure_eligible(
+                                                            state_dir / item, ("no verified overlapping chat row",),
+                                                            ("observation-foreground", "navigate-to-bystander",
+                                                             "census-foreground", "scroll-project-sidebar-0",
+                                                             "scroll-project-sidebar-1", "scroll-project-sidebar-2",
+                                                             "visual-census-select-2-0", "visual-census-select-2-1",
+                                                             "expand-scm-project-3", "expand-scm-project-4",
+                                                             "expand-scm-project-5"))):
+                                                        continue
+                                                    item = f"restore-{dispatch_id}-{thread}-visible-project-anchor-cure"
+                                                    if f"claim-{item}.json" in known:
+                                                        continue
             elif dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
                 output = state_dir / item
                 runner = output / "runner.jsonl"
@@ -488,7 +499,7 @@ def run_restoration(receipts, known):
                               "-fresh-row-ocr-cure-fresh-label-cure",
                               "-fresh-label-cure-consistent-ocr-scale-cure", "-ocr2-verified-prefix-cure",
                               "-exact-short-prefix-long-cure", "-sticky-footer-cure",
-                              "-settled-geometry-cure")):
+                              "-settled-geometry-cure", "-visible-project-anchor-cure")):
                 mission["phases"] = ("project-census",)
                 mission["phase_timeout"] = 600
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"

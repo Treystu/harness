@@ -222,12 +222,16 @@ def visual_project_pages(driver, frame):
         roster = []
         expand = None
         ended = False
-        in_project = started
+        # A newly visible SCM heading supersedes any continuation state: rows
+        # and controls above it belong to a different project.
+        has_anchor = any(114 <= x < 128 and label == "SCMessenger" for label, x, _ in lines)
+        in_project = started and not has_anchor
         anchored = False
         for label, x, y in lines:
             heading = 114 <= x < 128
             if heading and label == "SCMessenger":
                 in_project = anchored = True
+                roster = []
                 driver.yes(f"verify-project-heading-{page}", frame,
                            "Is the folder label SCMessenger in the project sidebar?",
                            region=(88, round(y - 5), 280, round(y + 23)))
@@ -243,14 +247,14 @@ def visual_project_pages(driver, frame):
                     break
                 continue
             if label in {"Show more", "More chats"} and x < 120:
+                if not anchored:
+                    raise RuntimeError("project expansion lacks a visible SCMessenger heading")
                 expand = (label, y)
                 break
             if 128 <= x <= 150:
                 roster.append((label, y))
         if expand:
             label, y = expand
-            if not anchored and not previous:
-                raise RuntimeError("the project expansion was not inside the verified roster")
             region = (103, round(y - 5), 246, round(y + 23))
             point = driver.locate_exact_text(f"expand-scm-ocr-{page}", frame, label, region)
             driver.yes(f"verify-expand-scm-{page}", frame,

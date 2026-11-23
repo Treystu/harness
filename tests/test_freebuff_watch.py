@@ -145,6 +145,22 @@ def test_census_waits_for_capture_geometry_before_navigation(monkeypatch):
     driver.act.assert_not_called()
 
 
+def test_census_never_expands_another_project_above_visible_scm_heading(monkeypatch):
+    def line(text, x, y):
+        return {"text": text, "words": [{"text": text, "x": 2 * (x - 95), "y": 2 * (y - 294)}]}
+
+    readings = iter([{"lines": [line("SCMessenger", 120, 400), line("SCMessenger", 132, 450)]},
+                     {"lines": [line("Show more", 105, 360), line("SCMessenger", 120, 450),
+                                line("SCMessenger", 132, 500), line("Next project", 120, 600)]}])
+    monkeypatch.setattr(census, "inspect_crop", lambda *args: next(readings))
+    monkeypatch.setattr(census.time, "sleep", lambda _: None)
+    driver = Mock()
+    first = Image.new("RGB", (1800, 1131), "white")
+    driver.frame.return_value = Image.new("RGB", (1800, 1131), "black")
+    list(census.visual_project_pages(driver, first))
+    assert [call.args[1] for call in driver.act.call_args_list] == [census.SCROLL]
+
+
 def test_census_match_requires_active_uuid_and_both_activity_markers():
     fields = {"toolbar": "Local DeepSeek V4.1 Flash Slow", "transcript-upper": "#745",
               "transcript-lower": "Codex #746", "rail_marks": 22,
