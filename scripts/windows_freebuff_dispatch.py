@@ -17,6 +17,7 @@ from driver_core.config import Settings
 from driver_core.driver import Driver
 from driver_core.executor import Consent
 from driver_core.jev_client import SYSTEM_ONE_URL
+from driver_core.locate import parse_box
 from driver_core.observation import GUI, Target
 
 from .windows_freebuff_capture import TITLE, FreeBuffWindow
@@ -126,7 +127,7 @@ class Dispatch:
         if fitted is None:
             raise RuntimeError(f"{step}: {why}")
         assets = {"frame": {"type": "image", "format": "png",
-                            "data_base64": base64.b64encode(fitted.data).decode("ascii")}}
+                            "data_base64": base64.b64encode(fitted).decode("ascii")}}
         response = transport.call_service(
             SYSTEM_ONE_URL, questions, headers={"Authorization": f"Bearer {self.key}"},
             timeout=10, body_extra={"state": {"goal": GOAL, "screen": "frame"},
@@ -137,7 +138,9 @@ class Dispatch:
         answers = response.payload["answers"]
         self.audit.append("decision", step_id=step, goal=GOAL, model=response.payload.get("model"),
                           answers=answers)
-        return answers, fitted.geometry
+        canvas = osal.fit_target(*image.size)
+        drawing = osal.fit_size(*image.size, *canvas)
+        return answers, osal.ImageGeometry(*image.size, *canvas, *drawing)
 
     def yes(self, step, frame, question, *, region=None):
         answers, _ = self.ask(step, frame, {"yes": transport.noul(question)}, region=region)
@@ -151,10 +154,10 @@ class Dispatch:
             "location": transport.box(f"Tight box around the exact {label} in `frame`."),
         }, region=region)
         present = answers.get("present", {}).get("noul", 0)
-        location = answers.get("location", {})
-        if present < 0.9 or location.get("confidence", 0) < 0.6:
+        raw, confidence = parse_box(answers.get("location"))
+        if present < 0.9 or confidence is None or confidence < 0.6:
             raise RuntimeError(f"{step}: no confident {label} target")
-        box = geometry.source_box(location["box"])
+        box = geometry.source_box(raw)
         if box is None:
             raise RuntimeError(f"{step}: Jev target was outside the captured region")
         left, top, right, bottom = region
