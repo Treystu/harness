@@ -66,7 +66,9 @@ SEND_CONTROL = (1480, 1043, 1535, 1100)
 QUEUE_PLACEHOLDER = "Type a message — added to the queue"
 QUEUE_REGION = (644, 947, 1250, 1020)
 SIDEBAR = (88, 225, 390, 1060)
-SEARCH_RESULTS = (546, 249, 1220, 926)
+# The dialog panel only covers its own rows; a taller region picks up the
+# transcript behind it (measured: prose lines censused as search results).
+SEARCH_RESULTS = (546, 232, 1300, 470)
 SEARCH_PLACEHOLDER = (527, 168, 774, 228)
 SEARCH_PLACEHOLDER_TAIL = (626, 180, 700, 216)
 SEARCH_CLOSE = (1257, 185, 1278, 207)
@@ -528,6 +530,66 @@ class Dispatch:
                 return False
         return False
 
+    def routes(self):
+        try:
+            return [str(route) for route in self.read_app_structure()]
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id="routes", reason=str(error))
+            return []
+
+    def identify_by_route(self, limit=8):
+        """Open candidate sessions until the app's own route names the pinned thread.
+
+        Configured session names are ours; the app's are not always the same
+        string (measured: no session is titled "Lane 2", but one is titled
+        "Lane 2 Waist Composition Mission Brief"). The route is the only
+        identity the app states itself, so an unnamed lane is resolved by
+        opening its candidates and reading what the app says it opened.
+        """
+        wanted = self._norm(self.label)
+        if not self.allow_navigation:
+            return False
+        frame = self.scroll_sidebar_to_top()
+        frame = self.ensure_search_closed(frame)  # a live dialog covers the list
+        seen = []
+        for page in range(1, 9):
+            try:
+                frame, rows = self.settled_roster(f"identify-{page}", SIDEBAR, attempts=3)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="identify-route", reason=str(error))
+                return False
+            texts = [self._norm(row["text"]) for row in rows]
+            if texts in seen:
+                break
+            seen.append(texts)
+            for index, row in enumerate(rows):
+                if wanted and wanted not in self._norm(row["text"]):
+                    continue
+                if limit <= 0:
+                    return False
+                limit -= 1
+                try:
+                    self.click_roster_row(f"identify-{page}-{index}", frame, row, index)
+                except RuntimeError as error:
+                    self.audit.append("escalation", step_id=f"identify-{page}-{index}",
+                                      reason=str(error))
+                    frame = self.frame(f"identify-{page}-{index}-after")
+                    continue
+                frame = self.frame(f"identify-{page}-{index}-opened")
+                routes = self.routes()
+                hit = [route for route in routes if self.thread in route]
+                if hit:
+                    self.audit.append("verification", step_id="identify-route", row=row["text"],
+                                      exact_id=hit[0], exposed=routes[:6])
+                    return True
+                self.audit.append("extraction", step_id=f"identify-{page}-{index}-routes",
+                                  row=row["text"], exposed=routes[:6])
+            self.act(f"identify-scroll-{page}", SCROLL,
+                     {"point": [196, 850], "size": list(frame.size), "delta": -400})
+            time.sleep(0.9)
+            frame = self.frame(f"identify-{page}-after")
+        return False
+
     def find_highlighted_row(self, pages=5):
         """Find the selected row wherever the project list has it, read-only."""
         frame = self.scroll_sidebar_to_top()
@@ -705,7 +767,14 @@ class Dispatch:
         if self.navigate_by_session_list():
             return
         frame, rows = self.settled_roster("before-select-session", SEARCH_RESULTS)
-        row = self.click_roster_row("select-existing-session", frame, rows, self.label)
+        try:
+            row = self.click_roster_row("select-existing-session", frame, rows, self.label)
+        except RuntimeError:
+            # No result carries the configured name: the name is ours, not the
+            # app's. Let the app's own route say which candidate this thread is.
+            if self.identify_by_route():
+                return
+            raise
         time.sleep(1.5)
         self.frame("existing-session-selected")
         self.audit.append("verification", step_id="select", row=row["text"],
