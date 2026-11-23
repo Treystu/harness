@@ -4,11 +4,22 @@ import argparse
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from driver_core import osal
 
 from .windows_freebuff_dispatch import CLICK, SCM_THREAD, Dispatch
+
+
+CENSUS_REGIONS = {
+    "project": (65, 100, 465, 1085),
+    "toolbar": (475, 25, 1790, 112),
+    "transcript-upper": (610, 108, 1550, 540),
+    "transcript-lower": (610, 540, 1550, 915),
+    "composer": (630, 915, 1545, 1110),
+    "right-rail": (1551, 112, 1795, 1100),
+}
 
 
 def inspect_crop(driver, frame, label, region, *options):
@@ -38,16 +49,18 @@ def probe(driver, ordinal):
                {"control": f"SCMessenger exact search candidate {ordinal}",
                 "point": [x, y], "size": list(frame.size)})
     time.sleep(7)
-    frame = driver.frame("scm-selected")
-    composer = inspect_crop(driver, frame, "composer-readonly", (644, 929, 1518, 1040), "-ReadText")
-    activity = inspect_crop(driver, frame, "activity-readonly", (620, 70, 1546, 810), "-ReadText")
-    staged = "continue in full" in composer["text"].strip().splitlines()
-    newest = "#745" in activity["text"] or "cab43b2" in activity["text"].casefold()
-    driver.audit.append("extraction", step_id="scm-signatures", ordinal=ordinal,
-                        staged_restart=staged, newest_scm_work=newest)
-    (driver.output / "ocr-local.json").write_text(
-        json.dumps({"composer": composer["text"], "activity": activity["text"]}), encoding="utf-8")
-    print(json.dumps({"candidate": ordinal, "staged": staged, "newest": newest}))
+    driver.frame("scm-selected")
+    time.sleep(11)
+    frame = driver.frame("scm-settled")
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        readings = {label: pool.submit(inspect_crop, driver, frame, label, region, "-ReadText")
+                    for label, region in CENSUS_REGIONS.items()}
+        census = {label: reading.result()["text"] for label, reading in readings.items()}
+    (driver.output / "census.json").write_text(
+        json.dumps(census, indent=2, ensure_ascii=False), encoding="utf-8")
+    driver.audit.append("extraction", step_id="scm-census", ordinal=ordinal,
+                        regions={label: len(value) for label, value in census.items()})
+    print(json.dumps({"candidate": ordinal, "evidence": "census.json"}))
 
 
 def main():
