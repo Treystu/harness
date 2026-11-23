@@ -539,6 +539,83 @@ class Dispatch:
                 return False
             time.sleep(0.8)
 
+    def reloaded(self, frame):
+        """Has the renderer thrown its session away and landed on a new chat?
+
+        Measured 2026-11-23: mid-phase the app replaces the session view with a
+        blank "What can I help build?" page - the draft vanishes, the sidebar
+        censuses empty, and the accessibility tree goes quiet. That greeting is
+        the app stating its own state, so it is the detector.
+        """
+        for step, label, region in (("reload-greeting", "What can I help build?",
+                                     (700, 280, 1460, 430)),
+                                    ("reload-composer", "Ask Freebuff... Use / for commands",
+                                     (640, 930, 1300, 1000))):
+            lines = self.read_lines(step, frame, region)
+            reading = self._norm(" ".join(lines))
+            if reading and self._norm(label) in reading:
+                self.audit.append("extraction", step_id=f"{step}-reading", text=reading[:160])
+                return True
+        return False
+
+    def stable_window(self, step, seconds=25, attempts=12):
+        """Wait for a window that has finished re-rendering.
+
+        A reloaded app answers with an empty sidebar for a while. Nothing may be
+        selected or typed until the roster is non-empty and two consecutive
+        censuses agree, which is the same two-census rule the order requires.
+        """
+        deadline = time.monotonic() + seconds
+        previous = None
+        rows = []
+        frame = self.frame(f"{step}-0")
+        for attempt in range(1, attempts + 1):
+            rows = self.read_roster(f"{step}-{attempt}", frame, SIDEBAR)
+            current = tuple(round(row["y"] / 2) for row in rows)
+            if rows and previous is not None and same_rows(previous, current):
+                self.audit.append("verification", step_id=f"{step}-stable", rows=len(rows),
+                                  censuses=attempt)
+                return frame, rows
+            if time.monotonic() >= deadline:
+                break
+            previous = current
+            time.sleep(1.0)
+            frame = self.frame(f"{step}-{attempt}-resettle")
+        raise RuntimeError(f"{step}: the window did not reach a stable roster in {seconds}s "
+                           f"(last census {len(rows)} rows)")
+
+    def reestablish_if_reloaded(self, step):
+        """Detect a reload, wait it out, re-open the lane and re-stage the draft.
+
+        This is the cure for the defect that killed Lane 1's proof: the app
+        reloaded between the draft check and the click, so the send had nothing
+        to send into. Waiting for stability first and re-preparing inside the
+        settled window is the only version of the send that is not a race.
+        """
+        frame = self.frame(f"{step}-reload-detect")
+        if not self.reloaded(frame):
+            return False
+        self.audit.append("escalation", step_id=f"{step}-reload",
+                          reason="the renderer reloaded onto a new chat; re-establishing the lane")
+        self.stable_window(f"{step}-reload-stable")
+        allowed = self.allow_navigation
+        self.allow_navigation = True
+        try:
+            opened = self.navigate_by_session_list() or self.navigate_by_unique_prefix()
+        finally:
+            self.allow_navigation = allowed
+        if not opened:
+            raise RuntimeError(f"{step}: the app reloaded and {self.label!r} could not be re-opened "
+                               "from the project session list")
+        self.audit.append("verification", step_id=f"{step}-reopened", label=self.label)
+        self.settle_view(f"{step}-reopened-settle", seconds=25)
+        self.recovering = True
+        try:
+            self.prepare_draft()
+        finally:
+            self.recovering = False
+        return True
+
     def scroll_by(self, step, frame, point, delta):
         """A scroll step; a compositor change between capture and input is retried."""
         try:
@@ -1178,8 +1255,10 @@ class Dispatch:
         marker = self.output.parent / f"harness-freebuff-{self.thread}-{operation}-20261122.json"
         if marker.exists():
             raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
-        observed_at = time.monotonic()
         frame = self.frame("lane1-before-send")
+        if self.reestablish_if_reloaded("send"):
+            frame = self.frame("lane1-before-send-recovered")
+        observed_at = time.monotonic()
         self.verify_lane(frame)
         frame = self.verify_draft(frame)
         if self.scoped_input and not pointer and self.stop_visible(frame):
@@ -1264,6 +1343,8 @@ class Dispatch:
             frame = self.frame(f"{step}-settle")
 
     def prepare_draft(self):
+        if not getattr(self, "recovering", False):
+            self.reestablish_if_reloaded("prepare")
         frame = self.settle_view("lane1-before-draft")
         self.verify_lane(frame)
         if self.scoped_input and self.stop_visible(frame):
