@@ -98,9 +98,23 @@ def probe(driver, ordinal, *, scan=False):
     print(json.dumps({"candidate": ordinal, "evidence": "census.json"}))
 
 
+def scan_local(driver):
+    frame = driver.frame("before-local-navigation")
+    driver.require_foreground()
+    driver.locate_exact_text("verify-scm-project", frame, "SCMessenger", (116, 811, 265, 852))
+    point = driver.locate_exact_text("locate-scm-project-row", frame, "SCMessenger", (128, 858, 280, 891))
+    driver.yes("verify-scm-project-row", frame,
+               "Does SCMessenger appear as a chat row immediately below its same-named folder?",
+               region=(92, 810, 300, 891))
+    driver.act("navigate-local-candidate", CLICK,
+               {"control": "SCMessenger chat under SCMessenger project", "point": point, "size": list(frame.size)})
+    time.sleep(8)
+    scan_draft(driver, driver.frame("selected-local-candidate"))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("search", "query", "probe"))
+    parser.add_argument("--phase", required=True, choices=("search", "query", "probe", "scan-local"))
     parser.add_argument("--ordinal", type=int, choices=(1, 2))
     parser.add_argument("--scan-draft", action="store_true")
     parser.add_argument("--evidence", required=True, type=Path)
@@ -115,6 +129,8 @@ def main():
             driver.open_search()
         elif args.phase == "query":
             driver.search_for_session()
+        elif args.phase == "scan-local":
+            scan_local(driver)
         else:
             probe(driver, args.ordinal, scan=args.scan_draft)
     except (OSError, RuntimeError, ValueError, KeyError) as error:
