@@ -1700,8 +1700,12 @@ class Dispatch:
         frame = self.frame("lane1-before-send")
         if self.reestablish_if_reloaded("send"):
             frame = self.frame("lane1-before-send-recovered")
-        observed_at = time.monotonic()
         self.verify_lane(frame)
+        # Identity may have re-opened the lane from the project list after a
+        # reload. Read the draft on a frame captured after that, and start the
+        # send window at this read rather than at the stale pre-identity one.
+        frame = self.frame("lane1-after-identity")
+        observed_at = time.monotonic()
         frame = self.verify_draft(frame)
         if self.scoped_input and not pointer and self.stop_visible(frame):
             raise RuntimeError("the requested session resumed before send; no restart input")
@@ -1720,8 +1724,8 @@ class Dispatch:
                   "point": point, "size": list(frame.size)}
         self.require_foreground()
         if self.thread in BURN_SESSIONS or self.thread == SCM_THREAD:
-            # Identity, not the route alone: send never navigates, so a dead
-            # accessibility tree must not become a dead-end here.
+            # Identity, not the route alone: a dead accessibility tree must not
+            # become a dead-end at the click.
             self.verify_session_identity()
         if self.standing:
             fresh = self.frame("pre-send-readback")
@@ -1879,7 +1883,7 @@ def main():
     args.evidence.mkdir()
     dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input,
                         standing=args.standing)
-    dispatch.allow_navigation = args.phase == "prepare"
+    dispatch.allow_navigation = args.phase in {"prepare", "send"}
     dispatch.phase = args.phase
     try:
         if args.phase == "open":
