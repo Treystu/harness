@@ -262,7 +262,7 @@ def execute(output, number, mission, digest, bystanders):
                        for index, title in enumerate(bystanders, start=1))
         before = capture_set(output, "before", windows, audit)
         phases = mission.get("phases", ("prepare", "send") if mission.get("resume_inside") else PHASES)
-        t5_before = mission.get("standing") and mission["thread"] != THREAD and observe_bystander(
+        t5_before = mission.get("standing") and not mission.get("skip_t5") and mission["thread"] != THREAD and observe_bystander(
             output, audit, "before")
         if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False),
                           timeout=mission.get("phase_timeout", 65)):

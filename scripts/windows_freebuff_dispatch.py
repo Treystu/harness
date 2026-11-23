@@ -1387,6 +1387,46 @@ class Dispatch:
             raise RuntimeError("Start mission was clicked but a running Stop cue was not verified")
         self.audit.append("verification", step_id="vision-running-after-start", stop_cue=True)
 
+    def start_staged_vision(self):
+        """Complete the staged mission produced by the recorded Resume action."""
+        started = time.monotonic()
+        frame = self.settle_view("vision-staged-before-start")
+        self.verify_session_identity()
+        if self.stop_visible(frame):
+            raise RuntimeError("the requested session is already running; no restart input")
+        draft = self._norm(" ".join(self.read_lines("vision-staged-heading", frame, (640, 745, 1530, 1048))))
+        if "harnessjevvisiondriverfullstandup" not in draft:
+            raise RuntimeError("the resumed vision mission is not visibly staged")
+        self.yes("vision-staged-mission", frame,
+                 "Does this editor contain the harness vision driver full standup mission?",
+                 region=(640, 745, 1530, 1048))
+        region = SEND_CONTROL
+        self.yes("vision-staged-start-arrow", frame,
+                 "Does this crop show a white button containing a black upward arrow?", region=region)
+        left, top, _, _ = region
+        outline = frame.crop(region).convert("L").point(lambda level: 255 if level >= 205 else 0).getbbox()
+        if outline is None or not (26 <= outline[2] - outline[0] <= 47 and 26 <= outline[3] - outline[1] <= 47):
+            raise RuntimeError("the staged mission's arrow outline was not located")
+        point = [left + (outline[0] + outline[2]) // 2, top + (outline[1] + outline[3]) // 2]
+        fresh = self.frame("vision-staged-before-click")
+        if fresh.crop(COMPOSER).tobytes() != frame.crop(COMPOSER).tobytes():
+            raise RuntimeError("the staged mission changed before the start action")
+        self.verify_session_identity()
+        if time.monotonic() - started > 60:
+            raise RuntimeError("the staged mission verification expired before start")
+        marker = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner" / "vision-start-7111294374.json"
+        with marker.open("x", encoding="utf-8") as handle:
+            json.dump({"thread": self.thread, "step": "vision-start-staged"}, handle)
+        self.act("vision-submit-staged-mission", CLICK,
+                 {"control": "Vision Driver staged mission start arrow", "point": point, "size": list(frame.size)})
+        for attempt, delay in enumerate((2, 3, 5), start=1):
+            time.sleep(delay)
+            current = self.frame(f"vision-staged-response-{attempt}")
+            if self.stop_visible(current):
+                self.audit.append("verification", step_id="vision-running", stop_cue=True)
+                return
+        raise RuntimeError("the staged mission was submitted once but no running Stop cue was verified")
+
     def verify_active_session(self):
         sessions = self.routes()
         if len(sessions) != 1 or self.thread not in sessions[0]:
@@ -1668,7 +1708,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
     parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare",
-                                           "send", "steer-prepare", "steer-send", "observe-running", "vision-resume"),
+                                           "send", "steer-prepare", "steer-send", "observe-running", "vision-resume",
+                                           "vision-start-staged"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     parser.add_argument("--scoped-input", action="store_true")
@@ -1693,6 +1734,10 @@ def main():
             if args.thread != VISION_THREAD or not args.standing:
                 raise RuntimeError("vision resume requires the standing pinned vision seat")
             dispatch.resume_vision_mission()
+        elif args.phase == "vision-start-staged":
+            if args.thread != VISION_THREAD or not args.standing:
+                raise RuntimeError("vision start requires the standing pinned vision seat")
+            dispatch.start_staged_vision()
         elif args.phase == "search":
             dispatch.open_search()
         elif args.phase == "query":
