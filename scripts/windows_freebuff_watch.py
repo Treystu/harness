@@ -236,7 +236,15 @@ def run_restoration(receipts, known):
     for dispatch_id, thread in ((STANDUP, VISION_THREAD), (LANE_RESTART, THREAD), (SCM_RESTART, SCM_THREAD)):
         item = f"restore-{dispatch_id}-{thread}"
         if f"claim-{item}.json" in known:
-            continue
+            if dispatch_id != STANDUP or f"result-{item}.json" not in known or not cure_eligible(
+                state_dir / item, ("search: driver tree termination unverified",),
+                ("observation-foreground", "navigate-to-bystander", "scroll-project-sidebar",
+                 "scroll-sidebar-top", "search-foreground", "close-old-search"),
+            ):
+                continue
+            item += "-verified-process-stop-cure"
+            if f"claim-{item}.json" in known:
+                continue
         guard_approval()
         if not desktop_idle():
             heartbeat(known, "waiting for owner desktop idle before restoration")
@@ -247,6 +255,7 @@ def run_restoration(receipts, known):
         try:
             output.mkdir(parents=True)
             mission = {"thread": thread, "dispatch": dispatch_id, "standing": True}
+            mission["phase_timeout"] = 240
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
         except UncertainDriverExit as error:
             checkpoint("desktop-interlock.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
@@ -265,8 +274,11 @@ def main():
     if head is None:
         return
     known = checkpoints()
-    if {"owner-paused.json", "desktop-interlock.json"} & known:
+    if "owner-paused.json" in known:
         return
+    if "desktop-interlock.json" in known:
+        if "interlock-released-7111294374.json" not in known:
+            return
     if "paused.json" in known and read_checkpoint("paused.json")["state"] == "owner-paused":
         return
     pause = pause_requested()
