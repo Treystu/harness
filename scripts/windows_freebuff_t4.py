@@ -5,6 +5,7 @@ import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from ctypes import byref, wintypes
 from pathlib import Path
 
 from driver_core import osal
@@ -35,35 +36,52 @@ def inspect_crop(driver, frame, label, region, *options):
     return json.loads(response.stdout)
 
 
-def scan_draft(driver, frame):
+def scan_draft(driver, frame, *, continuation=False):
     region = (650, 756, 1530, 1050)
-    driver.locate_exact_text("verify-fresh-carrier-heading", frame,
-                             "SCMESSENGER LANE - FRESH SESSION CARRIER (D-2026-11-13-032 FIRST)",
-                             (652, 790, 1400, 825))
-    driver.yes("verify-visible-carrier", frame,
-               "Do the opening lines describe a FRESH SESSION CARRIER?",
-               region=(650, 756, 1395, 861))
+    if continuation:
+        driver.locate_exact_text("verify-local-draft-tab", frame, "SCMessenger", (411, 17, 642, 54))
+        driver.yes("verify-local-carrier-continuation", frame,
+                   "Do the visible lines state that this is a FRESH session and say do not resume the previous?",
+                   region=(650, 754, 1375, 919))
+    else:
+        driver.locate_exact_text("verify-fresh-carrier-heading", frame,
+                                 "SCMESSENGER LANE - FRESH SESSION CARRIER (D-2026-11-13-032 FIRST)",
+                                 (652, 790, 1400, 825))
+        driver.yes("verify-visible-carrier", frame,
+                   "Do the opening lines describe a FRESH SESSION CARRIER?",
+                   region=(650, 756, 1395, 861))
 
     def scroll(action, params):
         hit, x, y = driver.renderer_point(params)
         if driver.user.GetAncestor(hit, 2) != driver.require_foreground():
             raise RuntimeError("the renderer changed before draft scrolling")
+        client = wintypes.POINT(x, y)
+        if not driver.user.ScreenToClient(hit, byref(client)):
+            raise RuntimeError("could not bind the scroll point to the renderer")
+        hover = (client.x & 0xFFFF) | ((client.y & 0xFFFF) << 16)
+        if not driver.user.PostMessageW(hit, 0x0200, 0, hover):
+            raise RuntimeError("the renderer rejected the draft hover")
         packed = (x & 0xFFFF) | ((y & 0xFFFF) << 16)
         if not driver.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
             raise RuntimeError("the renderer rejected draft scrolling")
 
     driver.driver.register_executor(SCROLL.name, scroll)
     readings = []
-    params = {"point": [1200, 954], "size": list(frame.size), "delta": -120}
+    unchanged = 0
+    params = {"point": [1100, 930], "size": list(frame.size), "delta": -120}
     for page in range(1, 25):
         text = inspect_crop(driver, frame, f"draft-page-{page:02}", region, "-ReadText")["text"]
         if readings and readings[-1] == text:
-            break
-        readings.append(text)
-        (driver.output / "draft-pages.json").write_text(
-            json.dumps(readings, indent=2, ensure_ascii=False), encoding="utf-8")
+            unchanged += 1
+            if unchanged == 3:
+                break
+        else:
+            unchanged = 0
+            readings.append(text)
+            (driver.output / "draft-pages.json").write_text(
+                json.dumps(readings, indent=2, ensure_ascii=False), encoding="utf-8")
         driver.act("scroll-carrier-readonly", SCROLL, params)
-        time.sleep(0.4)
+        time.sleep(0.75)
         frame = driver.frame(f"draft-scroll-{page:02}")
     driver.audit.append("verification", step_id="draft-page-count", pages=len(readings))
 
@@ -114,7 +132,7 @@ def scan_local(driver):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("search", "query", "probe", "scan-local"))
+    parser.add_argument("--phase", required=True, choices=("search", "query", "probe", "scan-local", "scan-current"))
     parser.add_argument("--ordinal", type=int, choices=(1, 2))
     parser.add_argument("--scan-draft", action="store_true")
     parser.add_argument("--evidence", required=True, type=Path)
@@ -131,6 +149,8 @@ def main():
             driver.search_for_session()
         elif args.phase == "scan-local":
             scan_local(driver)
+        elif args.phase == "scan-current":
+            scan_draft(driver, driver.frame("local-carrier-continuation"), continuation=True)
         else:
             probe(driver, args.ordinal, scan=args.scan_draft)
     except (OSError, RuntimeError, ValueError, KeyError) as error:
