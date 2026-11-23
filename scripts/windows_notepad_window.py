@@ -4,7 +4,7 @@ import ctypes
 import io
 from ctypes import wintypes
 from threading import Event
-from time import monotonic
+from time import monotonic, sleep
 
 from driver_core.observation import Capture, fingerprint
 
@@ -18,6 +18,13 @@ class NotepadWindow:
         self.user.GetWindowThreadProcessId.restype = wintypes.DWORD
         self.user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
         self.user.GetAncestor.restype = wintypes.HWND
+        self.user.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
+        self.user.GetWindow.restype = wintypes.HWND
+        self.user.GetLastActivePopup.argtypes = (wintypes.HWND,)
+        self.user.GetLastActivePopup.restype = wintypes.HWND
+        self.user.GetDlgCtrlID.argtypes = (wintypes.HWND,)
+        self.user.PostMessageW.argtypes = (
+            wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
         self.user.GetClassNameW.argtypes = (
             wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
         self.user.GetWindowTextW.argtypes = (
@@ -72,9 +79,12 @@ class NotepadWindow:
         return self.foreground() == hwnd
 
     def is_untitled(self, hwnd):
+        return self.title(hwnd).casefold().startswith("untitled")
+
+    def title(self, hwnd):
         title = ctypes.create_unicode_buffer(256)
         self.user.GetWindowTextW(hwnd, title, len(title))
-        return title.value.casefold().startswith("untitled")
+        return title.value
 
     def bind(self, hwnd):
         self.owner = hwnd
@@ -105,23 +115,77 @@ class NotepadWindow:
             raise RuntimeError("could not identify one editor in the mission Notepad window")
         return editors[0]
 
-    def send_editor_message(self, editor, message, value=0, data=0):
+    def send_message(self, hwnd, message, value=0, data=0):
         owner = self.require_window()
-        if self.pid(editor) != self.owner_pid or self.user.GetAncestor(editor, 2) != owner:
-            raise RuntimeError("the Notepad control changed ownership")
+        if self.pid(hwnd) != self.owner_pid or self.user.GetAncestor(hwnd, 3) != owner:
+            raise RuntimeError("the Notepad target changed ownership")
         result = ctypes.c_size_t()
         if not self.user.SendMessageTimeoutW(
-                editor, message, value, data, 0x22, 250, ctypes.byref(result)):
-            raise RuntimeError("the Notepad editor did not answer the window message")
+                hwnd, message, value, data, 0x22, 750, ctypes.byref(result)):
+            raise RuntimeError("the Notepad target did not answer the window message")
         return result.value
 
     def text_length(self):
-        return self.send_editor_message(self.editor(), 0x000E)  # WM_GETTEXTLENGTH
+        return self.send_message(self.editor(), 0x000E)  # WM_GETTEXTLENGTH
 
     def type_text(self, text):
         editor = self.editor()
         for char in text:
-            self.send_editor_message(editor, 0x0102, ord(char), 1)  # WM_CHAR
+            self.send_message(editor, 0x0102, ord(char), 1)  # WM_CHAR
+
+    def save_dialog(self):
+        owner = self.require_window()
+        popup = self.user.GetLastActivePopup(owner)
+        if (popup and popup != owner and self.user.GetWindow(popup, 4) == owner
+                and self.pid(popup) == self.owner_pid and self.class_name(popup) == "#32770"
+                and self.title(popup).casefold() == "save as"):
+            return popup
+        return None
+
+    def dialog_control(self, dialog, control_id, class_name):
+        controls = []
+
+        @self.callback
+        def visit(hwnd, _):
+            if (self.pid(hwnd) == self.owner_pid and self.class_name(hwnd) == class_name
+                    and self.user.GetDlgCtrlID(hwnd) == control_id):
+                controls.append(hwnd)
+            return True
+
+        self.user.EnumChildWindows(dialog, visit, 0)
+        if len(controls) != 1:
+            raise RuntimeError(f"could not identify Save As {class_name} control {control_id}")
+        return controls[0]
+
+    def save_to(self, destination):
+        deadline = monotonic() + 3
+        dialog = self.save_dialog()
+        while dialog is None and monotonic() < deadline:
+            sleep(0.1)
+            dialog = self.save_dialog()
+        if dialog is None:
+            raise RuntimeError("the resolved Notepad window has no owned Save As dialog")
+        entry = self.dialog_control(dialog, 1001, "Edit")
+        button = self.dialog_control(dialog, 1, "Button")
+        name = ctypes.create_unicode_buffer(str(destination))
+        self.send_message(entry, 0x000C, 0, ctypes.addressof(name))  # WM_SETTEXT
+        readback = ctypes.create_unicode_buffer(len(name))
+        self.send_message(entry, 0x000D, len(readback), ctypes.addressof(readback))
+        if readback.value != str(destination) or destination.exists():
+            raise RuntimeError("Save As filename readback or destination changed")
+        self.submit_dialog(dialog, 1, button)
+
+    def submit_dialog(self, dialog, control_id, button):
+        if self.save_dialog() != dialog:
+            raise RuntimeError("the owned Save As dialog changed")
+        if not self.user.PostMessageW(dialog, 0x0111, control_id, button):  # WM_COMMAND
+            raise RuntimeError("Notepad refused the Save As command")
+
+    def cancel_save(self):
+        dialog = self.save_dialog()
+        if dialog:
+            button = self.dialog_control(dialog, 2, "Button")
+            self.submit_dialog(dialog, 2, button)
 
     def release_foreground(self):
         if self.owner and self.pid(self.owner) == self.owner_pid:

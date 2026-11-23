@@ -1,4 +1,4 @@
-param([long]$Window, [string]$Destination, [switch]$NewWindow)
+param([long]$Window, [switch]$NewWindow)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 
@@ -24,7 +24,6 @@ function Open-Control($Control) {
     }
 }
 
-if (!$NewWindow -and (Test-Path -LiteralPath $Destination)) { throw 'The destination already exists.' }
 $editor = [Windows.Automation.AutomationElement]::FromHandle([IntPtr]$Window)
 $process = [Diagnostics.Process]::GetProcessById($editor.Current.ProcessId)
 if ($process.ProcessName -ine 'Notepad') { throw 'The bound window is no longer Notepad.' }
@@ -39,25 +38,3 @@ for ($attempt = 0; $attempt -lt 20 -and !$menuItem; $attempt++) {
 }
 if (!$menuItem) { throw "Could not identify one Notepad $menuName menu item." }
 Open-Control $menuItem
-if ($NewWindow) { exit 0 }
-
-$root = [Windows.Automation.AutomationElement]::RootElement
-$owner = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
-for ($attempt = 0; $attempt -lt 30 -and !$nameField; $attempt++) {
-    $windows = $root.FindAll([Windows.Automation.TreeScope]::Children, $owner)
-    foreach ($windowNode in $windows) {
-        if ($windowNode.Current.Name -ine 'Save As') { continue }
-        $dialog = $windowNode
-        $nameField = Find-Control $dialog 'File name:' ([Windows.Automation.ControlType]::Edit)
-    }
-    if (!$nameField) { Start-Sleep -Milliseconds 100 }
-}
-if (!$nameField) { throw 'Could not identify the Notepad Save As filename field.' }
-$value = $nameField.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
-$value.SetValue($Destination)
-if ($value.Current.Value -cne $Destination) { throw 'Save As filename readback differed.' }
-if (Test-Path -LiteralPath $Destination) { throw 'The destination appeared before save.' }
-$saveButton = Find-Control $dialog 'Save' ([Windows.Automation.ControlType]::Button)
-if (!$saveButton) { throw 'Could not identify one Save As Save button.' }
-Open-Control $saveButton

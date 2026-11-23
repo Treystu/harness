@@ -81,7 +81,8 @@ def save_document(window, destination, params):
     window.require_window()
     if params["destination"] != f"Desktop\\{FILE_NAME}" or destination.exists():
         raise RuntimeError("the requested destination is unavailable")
-    run_notepad_controls(window.owner, "-Destination", str(destination))
+    run_notepad_controls(window.owner)
+    window.save_to(destination)
     for _ in range(30):
         if destination.exists():
             if destination.read_bytes() != TEXT.encode("utf-8"):
@@ -178,6 +179,11 @@ def prove(goal, output, destination, key):
         audit.append("escalation", step_id=step, reason=str(error))
         print(f"FAIL {step}: {error}", flush=True)
     finally:
+        if window.owner and not saved:
+            try:
+                window.cancel_save()
+            except RuntimeError as error:
+                audit.append("escalation", step_id="restore", reason=str(error))
         window.release_foreground()
         if original_foreground and window.foreground() != original_foreground:
             window.activate(original_foreground)
