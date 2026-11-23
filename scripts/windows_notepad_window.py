@@ -20,8 +20,6 @@ class NotepadWindow:
         self.user.GetAncestor.restype = wintypes.HWND
         self.user.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
         self.user.GetWindow.restype = wintypes.HWND
-        self.user.GetLastActivePopup.argtypes = (wintypes.HWND,)
-        self.user.GetLastActivePopup.restype = wintypes.HWND
         self.user.GetDlgCtrlID.argtypes = (wintypes.HWND,)
         self.user.PostMessageW.argtypes = (
             wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
@@ -133,14 +131,21 @@ class NotepadWindow:
         for char in text:
             self.send_message(editor, 0x0102, ord(char), 1)  # WM_CHAR
 
+    def owned_dialog(self, owner, title):
+        dialogs = []
+
+        @self.callback
+        def visit(hwnd, _):
+            if (self.user.GetWindow(hwnd, 4) == owner and self.pid(hwnd) == self.owner_pid
+                    and self.class_name(hwnd) == "#32770" and self.title(hwnd).casefold() == title):
+                dialogs.append(hwnd)
+            return True
+
+        self.user.EnumWindows(visit, 0)
+        return dialogs[0] if len(dialogs) == 1 else None
+
     def save_dialog(self):
-        owner = self.require_window()
-        popup = self.user.GetLastActivePopup(owner)
-        if (popup and popup != owner and self.user.GetWindow(popup, 4) == owner
-                and self.pid(popup) == self.owner_pid and self.class_name(popup) == "#32770"
-                and self.title(popup).casefold() == "save as"):
-            return popup
-        return None
+        return self.owned_dialog(self.require_window(), "save as")
 
     def dialog_control(self, dialog, control_id, class_name):
         controls = []
@@ -167,9 +172,12 @@ class NotepadWindow:
             raise RuntimeError("the resolved Notepad window has no owned Save As dialog")
         entry = self.dialog_control(dialog, 1001, "Edit")
         self.dialog_control(dialog, 1, "Button")
-        name = ctypes.create_unicode_buffer(str(destination))
-        self.send_message(entry, 0x000C, 0, ctypes.addressof(name))  # WM_SETTEXT
-        readback = ctypes.create_unicode_buffer(len(name))
+        # Typing through the edit control sends the change notifications the
+        # shell dialog needs to update its pending filename.
+        self.send_message(entry, 0x00B1, 0, -1)  # EM_SETSEL (select all)
+        for char in str(destination):
+            self.send_message(entry, 0x0102, ord(char), 1)  # WM_CHAR
+        readback = ctypes.create_unicode_buffer(len(str(destination)) + 1)
         self.send_message(entry, 0x000D, len(readback), ctypes.addressof(readback))
         if readback.value != str(destination) or destination.exists():
             raise RuntimeError("Save As filename readback or destination changed")
@@ -179,17 +187,17 @@ class NotepadWindow:
         if not self.user.PostMessageW(entry, 0x0100, 0x0D, 0x001C0001):  # WM_KEYDOWN
             raise RuntimeError("Notepad refused the Save As Enter message")
 
-    def submit_dialog(self, dialog, control_id, button):
-        if self.save_dialog() != dialog:
-            raise RuntimeError("the owned Save As dialog changed")
-        if not self.user.PostMessageW(dialog, 0x0111, control_id, button):  # WM_COMMAND
-            raise RuntimeError("Notepad refused the Save As command")
-
     def cancel_save(self):
         dialog = self.save_dialog()
         if dialog:
-            button = self.dialog_control(dialog, 2, "Button")
-            self.submit_dialog(dialog, 2, button)
+            confirmation = self.owned_dialog(dialog, "confirm save as")
+            if confirmation:
+                self.send_message(confirmation, 0x0010)  # WM_CLOSE, never confirm overwrite.
+            self.cancel_dialog(dialog)
+
+    def cancel_dialog(self, dialog):
+        button = self.dialog_control(dialog, 2, "Button")
+        self.send_message(dialog, 0x0111, 2, button)  # WM_COMMAND / IDCANCEL
 
     def release_foreground(self):
         if self.owner and self.pid(self.owner) == self.owner_pid:
