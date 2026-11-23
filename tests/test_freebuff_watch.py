@@ -135,6 +135,16 @@ def test_census_scrolls_past_sticky_footer_after_project_heading(monkeypatch):
     driver.act.assert_called_once()
 
 
+def test_census_waits_for_capture_geometry_before_navigation(monkeypatch):
+    monkeypatch.setattr(census.time, "sleep", lambda _: None)
+    driver = Mock()
+    driver.frame.side_effect = [Image.new("RGB", (400, 194)), Image.new("RGB", (400, 200))]
+    driver.compositor_bounds.return_value = Mock(left=0, top=0, right=400, bottom=200)
+    assert census.settled_census_frame(driver).size == (400, 200)
+    assert driver.frame.call_count == 2
+    driver.act.assert_not_called()
+
+
 def test_census_match_requires_active_uuid_and_both_activity_markers():
     fields = {"toolbar": "Local DeepSeek V4.1 Flash Slow", "transcript-upper": "#745",
               "transcript-lower": "Codex #746", "rail_marks": 22,

@@ -382,9 +382,20 @@ def visual_census(driver, frame):
     raise RuntimeError("the unique SCM chat could not be reopened")
 
 
+def settled_census_frame(driver):
+    for attempt in range(8):
+        frame = driver.frame(f"census-geometry-{attempt}")
+        bounds = driver.compositor_bounds()
+        if (abs(bounds.right - bounds.left - frame.width) <= 2
+                and abs(bounds.bottom - bounds.top - frame.height) <= 2):
+            return frame
+        time.sleep(1)
+    raise RuntimeError("FreeBuff capture and compositor geometry did not settle")
+
+
 def census_project(driver):
     driver.goal = "Census the SCMessenger project's existing chat list and verify the pinned SCM session."
-    frame = driver.frame("census-before")
+    frame = settled_census_frame(driver)
     if driver.window.api.foreground() != driver.window.handle:
         driver.verify_freebuff_logo(frame, "identify-census-window")
         driver.act("census-foreground", FOCUS, {"title": TITLE})
