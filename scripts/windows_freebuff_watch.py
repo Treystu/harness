@@ -271,6 +271,28 @@ def run_restoration(receipts, known):
                 staged = len(resumed_actions) == 1 and not start_actions
             if staged:
                 item = staged_item
+            elif dispatch_id == SCM_RESTART and f"result-{item}.json" in known:
+                previous = state_dir / item
+                receipt = previous / "runner.jsonl"
+                traces = list(previous.glob("**/driver.jsonl"))
+                if (not receipt.is_file() or not AuditLog(receipt).verify().ok or not traces
+                        or any(not AuditLog(trace).verify().ok for trace in traces)):
+                    continue
+                results = [json.loads(line) for line in receipt.read_text(encoding="utf-8").splitlines()]
+                if not any(row.get("step_id") == "result" and
+                           "search: driver tree termination unverified" in row.get("state", "")
+                           for row in results):
+                    continue
+                actions = [json.loads(line) for trace in traces
+                           for line in trace.read_text(encoding="utf-8").splitlines()]
+                if any(row["kind"] == "action" and (
+                    row.get("action") not in {"click_freebuff", "scroll_freebuff", "focus_freebuff"}
+                    or "composer" in row.get("consent", {}).get("params", {}).get("control", "").casefold()
+                ) for row in actions):
+                    continue
+                item += "-project-roster-cure"
+                if f"claim-{item}.json" in known:
+                    continue
             elif dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
                 output = state_dir / item
                 runner = output / "runner.jsonl"
@@ -415,6 +437,9 @@ def run_restoration(receipts, known):
             if item.endswith("-start-focus-cure"):
                 mission["phases"] = ("vision-start-focus-cure",)
                 mission["skip_t5"] = True
+            if item.endswith("-project-roster-cure"):
+                mission["phases"] = ("project-census",)
+                mission["phase_timeout"] = 600
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
         except UncertainDriverExit as error:
             checkpoint(f"interlock-{item}.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
