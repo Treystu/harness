@@ -369,13 +369,15 @@ class Dispatch:
         frame = self.frame(f"{step}-0")
         for attempt in range(1, attempts + 1):
             rows = self.read_roster(f"{step}-{attempt}", frame, region)
-            # Settling is about the list's structure: one glyph the OCR engine
-            # alternates on must not read as a moving row.
-            current = tuple((self._norm(row["text"]), round(row["x"] / 2), round(row["y"] / 2))
-                            for row in rows)
-            if current and current == previous:
+            # Settling is about where the rows ARE: the OCR engine alternates
+            # icons and truncations on a stationary list (measured: "Kalshi
+            # Paper Bumd" vs "Kalshi Paper Burndc V" on one unchanged row), so
+            # comparing text can never settle and comparing geometry can.
+            current = (len(rows), tuple(round(row["y"] / 2) for row in rows))
+            if rows and current == previous:
                 self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
-                                  censuses=attempt)
+                                  censuses=attempt,
+                                  texts=[row["text"] for row in rows][:16])
                 return frame, rows
             previous = current
             time.sleep(0.7)

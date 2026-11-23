@@ -43,12 +43,35 @@ def test_selection_waits_for_two_identical_rosters(tmp_path, monkeypatch):
 
 def test_a_roster_that_never_settles_refuses_by_name(tmp_path, monkeypatch):
     dispatch = shim(tmp_path, [Mock() for _ in range(8)])
+    positions = iter([740, 752, 764, 726, 738, 750])
     dispatch.read_roster = Mock(side_effect=lambda step, frame, region: [
-        {"text": f"row {step}", "x": 133, "y": 740, "x1": 200}])
+        {"text": "Kalshi Paper Burndown", "x": 133, "y": next(positions), "x1": 200}])
     monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
 
     with pytest.raises(RuntimeError, match="did not settle"):
         dispatch.settled_roster("probe", SIDEBAR, attempts=3)
+
+
+def test_ocr_flicker_on_a_stationary_row_still_settles(tmp_path, monkeypatch):
+    """The measured case: one row, two readings, no movement at all."""
+    frames = [Mock(name=f"frame-{index}") for index in range(3)]
+    dispatch = shim(tmp_path, frames)
+    readings = [[{"text": "Kalshi Paper Bumd", "x": 133, "y": 740, "x1": 200}],
+                [{"text": "Kalshi Paper Burndc V", "x": 133, "y": 740, "x1": 200}]]
+    calls = []
+
+    def flicker(step, frame, region):
+        calls.append(step)
+        return readings[(len(calls) - 1) % 2]
+
+    dispatch.read_roster = Mock(side_effect=flicker)
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+
+    frame, rows = dispatch.settled_roster("probe", SIDEBAR)
+
+    assert frame is frames[1]
+    assert rows[0]["text"] in {"Kalshi Paper Bumd", "Kalshi Paper Burndc V"}
+    assert Dispatch.row_matches(rows[0]["text"], "Kalshi Paper Burndown")
 
 
 def test_ambiguous_row_refusal_names_every_candidate(tmp_path):
