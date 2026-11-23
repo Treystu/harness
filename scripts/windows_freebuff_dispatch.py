@@ -958,7 +958,11 @@ class Dispatch:
 
     def verify_lane(self, frame):
         self.require_foreground()
-        if self.thread in BURN_SESSIONS or self.thread == SCM_THREAD:
+        if self.thread != DISK_THREAD:
+            # One identity proof for every local lane: the fixed LANE_NAV crop
+            # only works while the list happens to be scrolled to it (measured:
+            # Lane 1 parked at send with its draft staged and verified when the
+            # row had scrolled out of that box).
             self.verify_session_identity()
             return
         if self.thread == DISK_THREAD:
