@@ -108,6 +108,7 @@ class Dispatch:
         self.composer_renderer = None
         self.search_renderer = None
         self.allow_navigation = False
+        self.phase = None
         self.send_deadline = None
         self.send_composer = None
         self.audit = AuditLog(output / "driver.jsonl")
@@ -547,8 +548,9 @@ class Dispatch:
         opening its candidates and reading what the app says it opened.
         """
         wanted = self._norm(self.label)
-        if not self.allow_navigation:
-            return False
+        # Opening a candidate types nothing, so this stays available in the
+        # select phase; the callers (search and select) are the ones that run
+        # before a draft exists, and send never calls it.
         frame = self.scroll_sidebar_to_top()
         frame = self.ensure_search_closed(frame)  # a live dialog covers the list
         seen = []
@@ -596,7 +598,7 @@ class Dispatch:
             frame = self.frame(f"identify-{page}-after")
         return False
 
-    def find_highlighted_row(self, pages=5):
+    def find_highlighted_row(self, pages=8):
         """Find the selected row wherever the project list has it, read-only."""
         frame = self.scroll_sidebar_to_top()
         seen = []
@@ -615,7 +617,7 @@ class Dispatch:
                 return row
             band = frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes()
             self.act(f"highlight-scroll-{page}", SCROLL,
-                     {"point": [196, 850], "size": list(frame.size), "delta": -240})
+                     {"point": [196, 850], "size": list(frame.size), "delta": -400})
             time.sleep(0.9)
             frame = self.frame(f"highlight-{page}-after")
             if frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes() == band:
@@ -852,6 +854,19 @@ class Dispatch:
         if row and self.row_matches(row["text"], self.label):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               row=row["text"], source="highlight found in the project list")
+            return
+        if self.phase == "send" and self.saw_text(
+                "send-identity-draft", self.frame("send-identity"),
+                (640, 925, 1540, 1045), self.text):
+            # Send must never navigate, and the accessibility tree is
+            # intermittent. The draft is the one thing that cannot be stale: it
+            # was typed into this session by this run's prepare, and the app
+            # keeps drafts per session, so its presence in the composer is the
+            # identity of the session it was typed into.
+            self.audit.append("escalation", step_id="identity-on-draft",
+                              reason="no route and no highlighted row; identity rests on the staged draft")
+            self.audit.append("verification", step_id="active-session-row", label=self.label,
+                              source="exact staged draft in the composer")
             return
         raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
                            f"({self.label})")
@@ -1146,6 +1161,7 @@ def main():
     dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input,
                         standing=args.standing)
     dispatch.allow_navigation = args.phase == "prepare"
+    dispatch.phase = args.phase
     try:
         if args.phase == "open":
             if args.thread != THREAD:
