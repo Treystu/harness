@@ -29,10 +29,10 @@ FOCUS = Action("focus_freebuff", MUTATING, "focus_freebuff", ("title",),
 CLICK = Action("click_freebuff", MUTATING, "click_freebuff", ("control", "point", "size"),
                "Click the vision-verified FreeBuff control.", "gui")
 TYPE = Action("type_freebuff", MUTATING, "type_freebuff", ("text",),
-              "Type the exact approved continuation into the empty Lane 1 composer.", "gui")
+              "Type the exact approved continuation into the empty verified composer.", "gui")
 SEND = Action("send_freebuff", MUTATING, "send_freebuff",
               ("thread", "text", "control", "point", "size"),
-              "Send the exact authorized draft in the verified Lane 1 session once.", "gui")
+              "Send the exact authorized draft in the verified session once.", "gui")
 QUERY = Action("query_freebuff", MUTATING, "query_freebuff", ("thread", "text", "control"),
                "Search FreeBuff for the exact existing session title.", "gui")
 VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.2.0", [FOCUS, CLICK, TYPE, SEND, QUERY])
@@ -328,6 +328,20 @@ class Dispatch:
 
     def verify_lane(self, frame):
         self.require_foreground()
+        if self.thread == DISK_THREAD:
+            self.yes("verify-disk-audit-tab", frame,
+                     "Does this tab show the text 'Disk' and a close X on its right?",
+                     region=(1436, 0, 1551, 60))
+            profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
+            stores = list(profile.glob("*/Local Storage/leveldb/*.log"))
+            stores += list(profile.glob("*/Local Storage/leveldb/*.ldb"))
+            session_id = b"f90f01e9-128f-497b-b64f-2662ee4051e0"
+            if not any(session_id in path.read_bytes() for path in
+                       sorted(stores, key=lambda path: path.stat().st_mtime, reverse=True)[:12]):
+                raise RuntimeError("Disk Audit UUID is absent from recent FreeBuff local state")
+            self.audit.append("extraction", step_id="verify-disk-audit-id",
+                              exact_id=session_id.decode("ascii"))
+            return
         self.yes("verify-lane1", frame,
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "under the Harness heading? Reject if a different row is selected.",
@@ -336,20 +350,20 @@ class Dispatch:
     def verify_draft(self, frame):
         region = (644, 949, 1040, 1010)
         try:
-            self.locate_exact_text("read-exact-draft", frame, CONTINUATION, region)
+            self.locate_exact_text("read-exact-draft", frame, self.text, region)
         except RuntimeError as error:
             self.audit.append("extraction", step_id="read-exact-draft", ok=False, reason=str(error))
             time.sleep(0.4)  # A blinking caret can obscure the last OCR glyph.
             frame = self.frame("draft-ocr-retry")
             self.verify_lane(frame)
-            self.locate_exact_text("read-exact-draft-retry", frame, CONTINUATION, region)
+            self.locate_exact_text("read-exact-draft-retry", frame, self.text, region)
         self.yes("verify-staged-text", frame,
-                 "Does the visible text read exactly 'continue in full'?",
+                 f"Does the visible text read exactly '{self.text}'?",
                  region=region)
         return frame
 
     def send_draft(self):
-        marker = self.output.parent / f"harness-freebuff-{THREAD}-send-20261122.json"
+        marker = self.output.parent / f"harness-freebuff-{self.thread}-send-20261122.json"
         if marker.exists():
             raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
         frame = self.frame("lane1-before-send")
@@ -364,10 +378,10 @@ class Dispatch:
         if box is None or not (26 <= box[2] - box[0] <= 47 and 26 <= box[3] - box[1] <= 47):
             raise RuntimeError("the verified Send button outline could not be located")
         point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
-        params = {"thread": THREAD, "text": CONTINUATION,
-                  "control": "Lane 1 Send (up arrow)", "point": point, "size": list(frame.size)}
+        params = {"thread": self.thread, "text": self.text,
+                  "control": f"{self.label} Send (up arrow)", "point": point, "size": list(frame.size)}
         with marker.open("x", encoding="utf-8") as handle:
-            json.dump({"thread": THREAD, "step": "send-once", "text": CONTINUATION,
+            json.dump({"thread": self.thread, "step": "send-once", "text": self.text,
                        "evidence": self.output.name}, handle)
         self.act("send-once", SEND, params)
         options = {
@@ -412,10 +426,10 @@ class Dispatch:
                  region=(642, 937, 1195, 1048))
         point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
         point[1] -= 68
-        self.act("focus-lane1-composer", CLICK,
-                 {"control": "Lane 1 composer", "point": point, "size": list(frame.size)})
-        self.act("type-continuation", TYPE, {"text": CONTINUATION})
-        time.sleep(0.4)
+        self.act("focus-verified-composer", CLICK,
+                 {"control": f"{self.label} composer", "point": point, "size": list(frame.size)})
+        self.act("type-continuation", TYPE, {"text": self.text})
+        time.sleep(1.5)
         frame = self.frame("lane1-draft-ready")
         self.verify_draft(frame)
 
@@ -444,11 +458,11 @@ def main():
         elif args.phase == "select":
             dispatch.select_search_result()
         elif args.phase == "prepare":
-            if args.thread != THREAD:
+            if args.thread == SCM_THREAD:
                 raise RuntimeError("the session composer must be scoped before preparing a draft")
             dispatch.prepare_draft()
         else:
-            if args.thread != THREAD:
+            if args.thread == SCM_THREAD:
                 raise RuntimeError("the session composer must be scoped before sending")
             dispatch.send_draft()
     except (OSError, RuntimeError, KeyError, TypeError, ValueError) as error:
