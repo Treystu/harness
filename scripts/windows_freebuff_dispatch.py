@@ -780,7 +780,7 @@ class Dispatch:
         a result list that shows transcript when the panel is gone. The project
         session list, walked and censused, has been correct every time.
         """
-        return self.thread in BURN_SESSIONS or self.thread == SCM_THREAD
+        return self.thread in SESSIONS and self.thread != DISK_THREAD
 
     def open_search(self):
         frame = self.frame("freebuff-before-search")
