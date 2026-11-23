@@ -52,6 +52,13 @@ Harness is a dependency-light Python package with three surfaces:
   real transport the cache and breaker board are shared per process and
   endpoint+key (policies are built per request); an injected transport gets
   private ones, so the breaker is per-`JevPolicy` there.
+- `jev_repo.py`: the JEV-P6 repo-summary evaluator family (#309): the
+  bounded element-text view, the judgment carrying declared axis, score
+  and noul ids only (an out-of-vocabulary answer is reported, never
+  replaced by a guess) and the 0-hallucination envelope with the keyword
+  fallback. It receives the `JevPolicy` instance and never imports it at
+  module scope, so dispatch, spend, settlement and ledger semantics stay
+  in the one policy owner.
 - `jev_log.py`: the JEV-LOG log-item evaluator family (#309): item-text
   normalization, the judgment bound to operator pack fields and declared
   score levels only (no invented bucket, path, action or level) and the
