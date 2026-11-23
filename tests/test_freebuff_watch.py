@@ -88,6 +88,7 @@ def test_census_reidentifies_row_on_fresh_stable_frame():
     driver.locate_exact_text.return_value = [150, 100]
     census.visual_select_row(driver, old, "SCMessenger", 100, "candidate")
     assert driver.locate_exact_text.call_args.args[1] is fresh
+    assert driver.locate_exact_text.call_args.kwargs["scale"] == 2
     driver.yes.assert_called_once()
     driver.act.assert_called_once()
 

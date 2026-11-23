@@ -339,9 +339,9 @@ class Dispatch:
             raise RuntimeError(f"{step}: Jev choice {selected!r} confidence was {probability}")
         return selected
 
-    def locate_exact_text(self, step, frame, label, region, *, whole=False, with_bounds=False):
+    def locate_exact_text(self, step, frame, label, region, *, whole=False, with_bounds=False, scale=3):
         left, top, right, bottom = region
-        crop = frame.crop(region).resize(((right - left) * 3, (bottom - top) * 3))
+        crop = frame.crop(region).resize(((right - left) * scale, (bottom - top) * scale))
         # Windows OCR resolves files by absolute path only.
         path = (self.output / f"{step}-ocr.png").resolve()
         self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
@@ -354,11 +354,11 @@ class Dispatch:
         if not result.ok:
             raise RuntimeError(f"{step}: exact OCR label {label!r} was not verified")
         point = json.loads(result.stdout)
-        xy = [left + round(point["x"] / 3), top + round(point["y"] / 3)]
+        xy = [left + round(point["x"] / scale), top + round(point["y"] / scale)]
         self.audit.append("extraction", step_id=step, source="windows-ocr",
                           exact_label=label, point=xy)
         if with_bounds:
-            bounds = [round(value / 3) + origin for value, origin in
+            bounds = [round(value / scale) + origin for value, origin in
                       zip(point["bounds"], (left, top, left, top), strict=True)]
             return xy, bounds
         return xy

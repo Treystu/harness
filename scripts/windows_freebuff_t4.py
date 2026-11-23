@@ -321,7 +321,7 @@ def visual_select_row(driver, frame, label, y, step):
     current_label = rows[0]["text"].strip()
     if not similar_census_label(label, current_label):
         raise RuntimeError("the fresh census row no longer matches the roster")
-    point = driver.locate_exact_text(f"{step}-ocr", fresh, current_label, scope)
+    point = driver.locate_exact_text(f"{step}-ocr", fresh, current_label, scope, scale=2)
     driver.yes(f"{step}-verify", fresh, f"Does the sidebar text read {current_label!r}?", region=scope)
     current = driver.frame(f"{step}-ready")
     if current.crop(scope).tobytes() != fresh.crop(scope).tobytes():
