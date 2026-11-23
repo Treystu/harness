@@ -1,5 +1,7 @@
 """The class cure for lane standup: settled rosters, unique rows, named refusals."""
 
+import json
+import os
 from unittest.mock import Mock
 
 import pytest
@@ -216,3 +218,30 @@ def test_a_standing_run_never_takes_foreground_from_an_owner_surface(tmp_path, m
     with pytest.raises(RuntimeError, match="not the foreground"):
         dispatch.require_foreground()
     activate.assert_not_called()
+
+
+def test_the_watch_console_is_recognised_by_its_temp_python_title():
+    dispatch = object.__new__(Dispatch)
+    dispatch.user = Mock()
+    dispatch.window = Mock()
+    temp = os.path.join(os.environ.get("TEMP", os.environ.get("LOCALAPPDATA", "")),
+                        "harness-notepad-venv-20261122", "Scripts", "python.exe")
+    dispatch.window.api.title_of.return_value = temp
+    assert dispatch.transient_holder(1)
+    dispatch.window.api.title_of.return_value = "C:\\Windows\\explorer.exe"
+    assert not dispatch.transient_holder(1)
+
+
+def test_a_marker_is_released_only_by_a_pre_input_foreground_refusal(tmp_path):
+    dispatch = object.__new__(Dispatch)
+    dispatch.output = tmp_path
+    trace = tmp_path / "driver.jsonl"
+    trace.write_text(json.dumps({
+        "kind": "action", "step_id": "send-once", "ok": False,
+        "detail": "executor failed: FreeBuff is not the foreground window; held by hwnd 1"}) + "\n",
+        encoding="utf-8")
+    assert dispatch.prior_send_refused_before_input()
+    trace.write_text(json.dumps({
+        "kind": "action", "step_id": "send-once", "ok": True, "detail": ""}) + "\n",
+        encoding="utf-8")
+    assert not dispatch.prior_send_refused_before_input()

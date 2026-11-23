@@ -179,14 +179,18 @@ class Dispatch:
         """
         if not hwnd:
             return False
-        buffer = ctypes.create_unicode_buffer(64)
-        if not self.user.GetClassNameW(hwnd, buffer, 64):
-            return False
-        if buffer.value.casefold() != "consolewindowclass":
-            return False
         title = self.window.api.title_of(hwnd) or ""
         roots = (os.environ.get("TEMP"), os.environ.get("TMP"), os.environ.get("LOCALAPPDATA"))
-        return any(root and root.casefold() in title.casefold() for root in roots)
+        if not any(root and root.casefold() in title.casefold() for root in roots):
+            return False
+        # The console host owns the window (measured: Windows Terminal hosts it
+        # in another process), so the class varies; the title is the stable
+        # fact and names the temp interpreter that was launched.
+        buffer = ctypes.create_unicode_buffer(64)
+        self.user.GetClassNameW(hwnd, buffer, 64)
+        console = buffer.value.casefold() in {"consolewindowclass", "cascadia_hosting_window_class",
+                                              "pseudoconsolewindow"}
+        return console or title.strip().casefold().endswith("python.exe")
 
     def require_foreground(self, attempts=6, timeout=8.0):
         """FreeBuff must hold the foreground; obtain and prove it before giving up.
@@ -1666,12 +1670,33 @@ class Dispatch:
         time.sleep(3)
         self.verify_draft(self.frame("disk-pointer-staged"))
 
+    def prior_send_refused_before_input(self):
+        """Did the prior marker's send-once fail before the renderer click?"""
+        trace = self.output / "driver.jsonl"
+        if not trace.is_file():
+            return False
+        for line in trace.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if (row.get("kind") == "action" and row.get("step_id") == "send-once"
+                    and not row.get("ok")):
+                return "FreeBuff is not the foreground window" in row.get("detail", "")
+        return False
+
     def send_draft(self):
         pointer = self.text == DISK_POINTER
         operation = "steer" if pointer else "send"
         marker = self.output.parent / f"harness-freebuff-{self.thread}-{operation}-20261122.json"
         if marker.exists():
-            raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
+            if not self.prior_send_refused_before_input():
+                raise RuntimeError("the one-send marker already exists; inspect the prior outcome")
+            # A refused foreground check dispatched no input, so the marker was
+            # never consumed; park it and let the verified retry use the budget.
+            marker.replace(marker.with_name(marker.name + ".aborted"))
+            self.audit.append("escalation", step_id="send-marker-released",
+                              reason="the prior send-once was refused before any input")
         frame = self.frame("lane1-before-send")
         if self.reestablish_if_reloaded("send"):
             frame = self.frame("lane1-before-send-recovered")
