@@ -128,14 +128,19 @@ Harness is a dependency-light Python package with three surfaces:
   the per-stage ceiling (`stage_budget`), the state view
   (`stage_states`), `composition_envelope`, `plan_outcome` and the
   `planning_ladder` (#308).
-- `waist.py`: the plan-lane composition root. It keeps `compose_plan`, the
-  planning loop (`run_planning`/`PlanningOutcome`), single-pass fitting
-  (`chunk_oversized_nodes`: a target past the engine's rewrite cap or
-  output budget becomes ONE node with the `backend: "diff"` hint, while an
+- `plan_chunker.py`: the tier-0 chunking policy owner -- the one-pass output
+  budget (`single_pass_output_tokens`), the word-boundary instruction split,
+  each node's rung read budget (`rung_read_budgets`), range slicing and
+  `chunk_oversized_nodes`: a target past the engine's rewrite cap or output
+  budget becomes ONE node with the `backend: "diff"` hint, while an
   instruction past `MAX_INSTRUCTION_CHARS` or a target larger than the
   rung's declared read budget -- `capability.source_budget_for` -- splits
-  into ordered chunks), per-node routing kwargs (`node_apply_kwargs`) and
-  the ladder resolvers. Callers plan by calling `compose_plan`; the
+  into ordered chunks (#308).
+- `waist.py`: the plan-lane composition root. It keeps `compose_plan`, the
+  planning loop (`run_planning`/`PlanningOutcome`), the single-pass fitting
+  wrapper (`_fit_plan_to_single_pass`, which applies the chunker owner's
+  policy and re-derives node details when the DAG changed), per-node routing
+  kwargs (`node_apply_kwargs`) and the ladder resolvers. Callers plan by calling `compose_plan`; the
   concerns above are owned by their own modules and remain importable from
   the waist for existing callers (`_COMPAT_308`).
 - `worktree.py`: `WorktreeIsolation` -- create/audit/**commit**/merge/discard

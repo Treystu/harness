@@ -45,6 +45,16 @@ OWNERS = {
         "_call_worst_case",
         "_refuse_composed_ceiling",
     ),
+    "harness.plan_chunker": (
+        "single_pass_output_tokens",
+        "_split_text",
+        "_target_text",
+        "_passes_to_read",
+        "rung_read_budgets",
+        "_line_ranges",
+        "chunk_oversized_nodes",
+        "_slice_marker",
+    ),
     "harness.plan_stages": (
         "compose_stages",
         "stage_budget",
@@ -64,11 +74,12 @@ OWNERS = {
 }
 
 # The waist keeps orchestration only: the one compose entry point, the planning
-# loop, the tier-0 chunker and per-node routing kwargs.
+# loop, the wrapper that applies the tier-0 chunk policy, and per-node routing
+# kwargs.
 WAIST_ORCHESTRATION = (
     "compose_plan",
     "run_planning",
-    "chunk_oversized_nodes",
+    "_fit_plan_to_single_pass",
     "node_apply_kwargs",
     "PlanningOutcome",
 )
@@ -141,6 +152,8 @@ class OwnerModuleTests(unittest.TestCase):
             "build_decomposition_prompt", "parse_decomposition_response",
             "heuristic_decompose_goal", "build_waist_prompt", "parse_waist_verdict",
             "plan_task_id", "read_window", "stage_budget",
+            "chunk_oversized_nodes", "rung_read_budgets",
+            "single_pass_output_tokens", "_split_text", "_slice_marker",
         )
         missing = [name for name in compat if not hasattr(waist, name)]
         self.assertEqual(missing, [], f"compatibility surface broken: {missing}")
@@ -166,6 +179,18 @@ class OwnerModuleTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIs(getattr(waist, name),
                               getattr(plan_budget, name))
+
+    def test_waist_consumes_the_chunker_owner_not_a_copy(self):
+        """The plan lane applies the owner's chunk policy, not a local copy."""
+        from harness import plan_chunker, waist
+
+        for name in ("chunk_oversized_nodes", "rung_read_budgets",
+                     "single_pass_output_tokens", "_slice_marker",
+                     "_line_ranges", "_passes_to_read", "_split_text",
+                     "_target_text"):
+            with self.subTest(name=name):
+                self.assertIs(getattr(waist, name),
+                              getattr(plan_chunker, name))
 
     def test_no_concern_module_imports_the_waist_at_module_scope(self):
         for module_name in OWNERS:
