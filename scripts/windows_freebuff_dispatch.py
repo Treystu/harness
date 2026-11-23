@@ -712,6 +712,30 @@ class Dispatch:
         return [str(item.get("route") or item.get("url") or item)
                 if isinstance(item, dict) else str(item) for item in items]
 
+    def expand_project(self, page, frame, rows, step):
+        """Open a collapsed project before censusing its sessions.
+
+        Measured after a reload: the SCMessenger project was collapsed, so its
+        sessions were nowhere in the eight censused pages and the lane looked
+        absent. "Show more" is the app's own control for that, so it is clicked
+        once per page and the page is re-censused.
+        """
+        expand = next((row for row in rows
+                       if row["text"].strip() in {"Show more", "More chats"}), None)
+        if expand is None:
+            return frame, rows
+        try:
+            self.click_exact_row(f"{step}-expand-{page}", frame, expand)
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id=f"{step}-expand-{page}", reason=str(error))
+            return frame, rows
+        time.sleep(1.1)
+        try:
+            return self.settled_roster(f"{step}-{page}-expanded", SIDEBAR, attempts=4)
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id=f"{step}-expand-{page}", reason=str(error))
+            return frame, rows
+
     def _prefix_matches(self, text, label):
         """Is this row plausibly the configured lane, allowing app clipping?"""
         seen, wanted = self._norm(text), self._norm(label)
@@ -734,6 +758,7 @@ class Dispatch:
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="prefix-walk", reason=str(error))
                 return False
+            frame, rows = self.expand_project(page, frame, rows, "prefix")
             texts = [self._norm(row["text"]) for row in rows]
             if texts in seen:
                 break
@@ -794,6 +819,7 @@ class Dispatch:
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="content-walk", reason=str(error))
                 return False
+            frame, rows = self.expand_project(page, frame, rows, "content")
             texts = [self._norm(row["text"]) for row in rows]
             if texts in seen:
                 break
