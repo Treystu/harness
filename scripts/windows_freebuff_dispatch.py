@@ -1387,9 +1387,13 @@ class Dispatch:
             raise RuntimeError("Start mission was clicked but a running Stop cue was not verified")
         self.audit.append("verification", step_id="vision-running-after-start", stop_cue=True)
 
-    def start_staged_vision(self):
+    def start_staged_vision(self, *, focus_cure=False):
         """Complete the staged mission produced by the recorded Resume action."""
         started = time.monotonic()
+        frame = self.frame("vision-start-before-focus")
+        if self.window.api.foreground() != self.window.handle:
+            self.verify_freebuff_logo(frame, "vision-start-window")
+            self.act("vision-start-foreground", FOCUS, {"title": self.window.title})
         frame = self.settle_view("vision-staged-before-start")
         self.verify_session_identity()
         if self.stop_visible(frame):
@@ -1414,7 +1418,9 @@ class Dispatch:
         self.verify_session_identity()
         if time.monotonic() - started > 60:
             raise RuntimeError("the staged mission verification expired before start")
-        marker = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner" / "vision-start-7111294374.json"
+        suffix = "-focus-cure" if focus_cure else ""
+        marker = (Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner" /
+                  f"vision-start-7111294374{suffix}.json")
         with marker.open("x", encoding="utf-8") as handle:
             json.dump({"thread": self.thread, "step": "vision-start-staged"}, handle)
         self.act("vision-submit-staged-mission", CLICK,
@@ -1709,7 +1715,7 @@ def main():
     parser.add_argument("--evidence", required=True, type=Path)
     parser.add_argument("--phase", choices=("open", "search", "query", "select", "prepare",
                                            "send", "steer-prepare", "steer-send", "observe-running", "vision-resume",
-                                           "vision-start-staged"),
+                                           "vision-start-staged", "vision-start-focus-cure"),
                         default="open")
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     parser.add_argument("--scoped-input", action="store_true")
@@ -1734,10 +1740,10 @@ def main():
             if args.thread != VISION_THREAD or not args.standing:
                 raise RuntimeError("vision resume requires the standing pinned vision seat")
             dispatch.resume_vision_mission()
-        elif args.phase == "vision-start-staged":
+        elif args.phase in {"vision-start-staged", "vision-start-focus-cure"}:
             if args.thread != VISION_THREAD or not args.standing:
                 raise RuntimeError("vision start requires the standing pinned vision seat")
-            dispatch.start_staged_vision()
+            dispatch.start_staged_vision(focus_cure=args.phase == "vision-start-focus-cure")
         elif args.phase == "search":
             dispatch.open_search()
         elif args.phase == "query":

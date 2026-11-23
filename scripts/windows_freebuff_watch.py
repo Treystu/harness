@@ -246,6 +246,19 @@ def run_restoration(receipts, known):
             resume_trace = resumed / "vision-resume" / "driver.jsonl"
             resume_runner = resumed / "runner.jsonl"
             staged_item = f"restore-{STANDUP}-{VISION_THREAD}-start-staged-mission"
+            focus_item = f"restore-{STANDUP}-{VISION_THREAD}-start-focus-cure"
+            if dispatch_id == STANDUP and f"result-{staged_item}.json" in known:
+                prior_start = state_dir / staged_item / "vision-start-staged" / "driver.jsonl"
+                prior_run = state_dir / staged_item / "runner.jsonl"
+                if (f"claim-{focus_item}.json" not in known and prior_start.is_file()
+                        and prior_run.is_file() and AuditLog(prior_start).verify().ok
+                        and AuditLog(prior_run).verify().ok):
+                    attempts = [json.loads(line) for line in prior_start.read_text(encoding="utf-8").splitlines()]
+                    clicks = [row for row in attempts if row.get("step_id") == "vision-submit-staged-mission"
+                              and row.get("kind") == "action"]
+                    if (len(clicks) == 1 and not clicks[0].get("ok")
+                            and "FreeBuff is not the foreground window" in clicks[0].get("detail", "")):
+                        staged_item = focus_item
             staged = False
             if (dispatch_id == STANDUP and f"claim-{staged_item}.json" not in known
                     and resume_trace.is_file() and resume_runner.is_file()
@@ -398,6 +411,9 @@ def run_restoration(receipts, known):
                 mission["phases"] = ("search", "vision-resume")
             if item.endswith("-start-staged-mission"):
                 mission["phases"] = ("vision-start-staged",)
+                mission["skip_t5"] = True
+            if item.endswith("-start-focus-cure"):
+                mission["phases"] = ("vision-start-focus-cure",)
                 mission["skip_t5"] = True
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
         except UncertainDriverExit as error:
