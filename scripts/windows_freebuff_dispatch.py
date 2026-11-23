@@ -565,6 +565,12 @@ class Dispatch:
             for index, row in enumerate(rows):
                 if wanted and wanted not in self._norm(row["text"]):
                     continue
+                if self._norm(row["text"]) == wanted:
+                    # A bare label is also how the app names project headings
+                    # and duplicate sessions; this path exists for the rows the
+                    # exact matcher could not settle, so those are not clicked
+                    # blind here.
+                    continue
                 if limit <= 0:
                     return False
                 limit -= 1
