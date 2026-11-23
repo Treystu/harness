@@ -317,17 +317,55 @@ def append_census(driver, evidence, fields):
                                                         encoding="utf-8")
 
 
-def visual_select_row(driver, frame, label, y, step):
+def reacquire_project_row(driver, label, step):
+    """Find the row again beneath the visible SCM heading after an app auto-scroll."""
+    for attempt in range(12):
+        frame = driver.frame(f"{step}-reacquire-{attempt}")
+        reading = inspect_crop(driver, frame, f"{step}-reacquire-roster-{attempt}",
+                               (95, 294, 321, 1058), "-ReadLines")
+        lines = []
+        for line in reading.get("lines", []):
+            words = [word for word in line["words"] if 95 + word["x"] / 2 >= 114]
+            if words:
+                lines.append((" ".join(word["text"] for word in words),
+                              95 + words[0]["x"] / 2, 294 + words[0]["y"] / 2))
+        anchors = [i for i, (name, x, _) in enumerate(lines) if name == "SCMessenger" and 114 <= x < 128]
+        if len(anchors) > 1:
+            raise RuntimeError("multiple SCM project headings appeared during reacquisition")
+        if anchors:
+            start = anchors[0]
+            candidates = []
+            for name, x, y in lines[start + 1:]:
+                if 114 <= x < 128:
+                    break
+                if 128 <= x <= 150 and similar_census_label(label, name):
+                    candidates.append((name, y))
+            if len(candidates) > 1:
+                raise RuntimeError("the project row was ambiguous after reacquisition")
+            if candidates:
+                driver.yes(f"{step}-reacquire-project", frame,
+                           "Is the folder label SCMessenger visible above the chat rows?",
+                           region=(88, round(lines[start][2] - 5), 280, round(lines[start][2] + 23)))
+                return frame, candidates[0][1]
+        driver.act(f"{step}-reacquire-scroll-{attempt}", SCROLL, {
+            "point": [196, 850], "size": list(frame.size), "delta": 240,
+        })
+        time.sleep(1)
+    raise RuntimeError("the SCM project row could not be reacquired under its visible heading")
+
+
+def visual_select_row(driver, frame, label, y, step, *, reacquire=True):
     scope = (127, round(y - 5), 318, round(y + 23))
     fresh = driver.frame(f"{step}-before")
     # Opening a preceding candidate changes sidebar styling. Re-identify this
     # row on the fresh frame; retain the stability check immediately before input.
     rows = driver.read_roster(f"{step}-fresh-roster", fresh, scope)
-    if len(rows) != 1:
-        raise RuntimeError("the fresh census row was not uniquely readable")
-    current_label = rows[0]["text"].strip()
-    if not similar_census_label(label, current_label):
-        raise RuntimeError("the fresh census row no longer matches the roster")
+    current_label = rows[0]["text"].strip() if len(rows) == 1 else ""
+    if not current_label or not similar_census_label(label, current_label):
+        if not reacquire:
+            raise RuntimeError("the fresh census row no longer matches the roster")
+        frame, new_y = reacquire_project_row(driver, label, step)
+        return visual_select_row(driver, frame, label, new_y, step, reacquire=False)
     point = driver.locate_exact_text(f"{step}-ocr", fresh, current_label, scope, scale=2)
     words = current_label.split()
     question = (f"Does this sidebar chat label start with {' '.join(words[:-1])!r}?" if len(words) >= 3

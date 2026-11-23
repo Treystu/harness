@@ -161,6 +161,21 @@ def test_census_never_expands_another_project_above_visible_scm_heading(monkeypa
     assert [call.args[1] for call in driver.act.call_args_list] == [census.SCROLL]
 
 
+def test_census_reacquires_stale_row_only_beneath_project_heading(monkeypatch):
+    def line(text, x, y):
+        return {"text": text, "words": [{"text": text, "x": 2 * (x - 95), "y": 2 * (y - 294)}]}
+
+    monkeypatch.setattr(census, "inspect_crop", lambda *args: {"lines": [
+        line("SCMessenger", 120, 400), line("SCMessenger Audit Lar", 132, 450),
+        line("SCMessenger CLOUD", 120, 500), line("SCMessenger Audit Lar", 132, 550)]})
+    driver = Mock()
+    frame = Image.new("RGB", (1800, 1131), "white")
+    driver.frame.return_value = frame
+    assert census.reacquire_project_row(driver, "SCMessenger Audit Lar", "row") == (frame, 450)
+    driver.act.assert_not_called()
+    driver.yes.assert_called_once()
+
+
 def test_census_match_requires_active_uuid_and_both_activity_markers():
     fields = {"toolbar": "Local DeepSeek V4.1 Flash Slow", "transcript-upper": "#745",
               "transcript-lower": "Codex #746", "rail_marks": 22,
