@@ -643,8 +643,16 @@ class Dispatch:
             return
         frame = self.frame("freebuff-before-query")
         if not self.dialog_open(frame):
-            frame = self.ensure_search_closed(frame)
-            raise RuntimeError("the search dialog is not open for the query")
+            # The search phase may have opened the lane from the session list
+            # instead, so this phase makes the dialog itself rather than assume it.
+            self.audit.append("escalation", step_id="query",
+                              reason="no dialog was open; ensuring the lane is open")
+            self.open_search()
+            if self.selected_label_matches(wait=4):
+                return
+            frame = self.frame("freebuff-before-query-open")
+            if not self.dialog_open(frame):
+                raise RuntimeError("the search dialog is not open for the query")
         try:
             point = self.locate_exact_text("locate-search-field", frame, "Search chats",
                                            SEARCH_PLACEHOLDER)
