@@ -242,7 +242,23 @@ def run_restoration(receipts, known):
     for dispatch_id, thread in queue:
         item = f"restore-{dispatch_id}-{thread}"
         if f"claim-{item}.json" in known:
-            if dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
+            resumed = state_dir / f"restore-{STANDUP}-{VISION_THREAD}-vision-transcript-crop-cure"
+            resume_trace = resumed / "vision-resume" / "driver.jsonl"
+            resume_runner = resumed / "runner.jsonl"
+            staged_item = f"restore-{STANDUP}-{VISION_THREAD}-start-staged-mission"
+            staged = False
+            if (dispatch_id == STANDUP and f"claim-{staged_item}.json" not in known
+                    and resume_trace.is_file() and resume_runner.is_file()
+                    and AuditLog(resume_trace).verify().ok and AuditLog(resume_runner).verify().ok):
+                events = [json.loads(line) for line in resume_trace.read_text(encoding="utf-8").splitlines()]
+                resumed_actions = [row for row in events if row.get("step_id") == "vision-resume"
+                                   and row.get("kind") == "action" and row.get("ok")]
+                start_actions = [row for row in events if row.get("step_id") in {"vision-start", "send-once"}
+                                 and row.get("kind") == "action"]
+                staged = len(resumed_actions) == 1 and not start_actions
+            if staged:
+                item = staged_item
+            elif dispatch_id == LANE_RESTART and f"result-{item}.json" in known:
                 output = state_dir / item
                 runner = output / "runner.jsonl"
                 trace = output / "send" / "driver.jsonl"
