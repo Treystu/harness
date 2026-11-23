@@ -453,9 +453,11 @@ class Dispatch:
         return json.loads(result.stdout)
 
     def verify_freebuff_logo(self, frame, step):
+        hwnd = self.window.require_window()
         box = (87, 73, 218, 107)
         self.locate_exact_text(f"{step}-ocr", frame, "Freebuff", box)
-        self.yes(step, frame, "Does the white text read 'Freebuff'?", region=box)
+        self.audit.append("verification", step_id=step, hwnd=hwnd, pid=self.window.process,
+                          exact_label="Freebuff", source="native-window-and-ocr")
 
     def require_cached_session(self, step, session_id):
         profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"

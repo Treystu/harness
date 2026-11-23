@@ -9,6 +9,8 @@ from ctypes import wintypes
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from driver_core.audit import AuditLog
+
 from .windows_freebuff_dispatch import BURN_SESSIONS, SCM_THREAD
 from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, api, execute
 
@@ -107,6 +109,21 @@ def heartbeat(known, state):
         issue_comment(f"Vision watch {CUTOVER} heartbeat. {state}.")
 
 
+def logo_cure_eligible(output):
+    traces = sorted(output.glob("**/driver.jsonl"))
+    receipt = output / "runner.jsonl"
+    if not traces or not receipt.is_file() or not AuditLog(receipt).verify().ok:
+        return False
+    if any(not AuditLog(trace).verify().ok for trace in traces):
+        return False
+    results = [json.loads(line) for line in receipt.read_text(encoding="utf-8").splitlines()]
+    if not any(r["step_id"] == "result" and "identify-" in r["state"]
+               and "requires 0.90" in r["state"] for r in results):
+        return False
+    return not any(json.loads(line)["kind"] == "action" for trace in traces
+                   for line in trace.read_text(encoding="utf-8").splitlines())
+
+
 def run_burn(receipts, known):
     source = receipts[BURN_QUEUE]
     end = datetime.fromisoformat(source["created_at"]) + timedelta(hours=3)
@@ -116,8 +133,15 @@ def run_burn(receipts, known):
     digest = hashlib.sha256(source["body"].encode()).hexdigest()
     queue = [(CENSUS, SCM_THREAD), *((BURN_QUEUE if thread == "918dad1a" else BURNDOWN, thread)
                                     for thread in BURN_SESSIONS)]
+    work = []
+    state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
     for dispatch_id, thread in queue:
         item = f"{dispatch_id}-{thread}"
+        if f"claim-{item}.json" not in known:
+            work.append((dispatch_id, thread, item))
+        elif f"result-{item}.json" in known and logo_cure_eligible(state_dir / item):
+            work.append((dispatch_id, thread, f"{item}-native-logo-cure"))
+    for dispatch_id, thread, item in work:
         claim = f"claim-{item}.json"
         if claim in known:
             continue
@@ -127,7 +151,7 @@ def run_burn(receipts, known):
             return
         # A create-only remote claim is the at-most-once boundary, including crashes.
         checkpoint(claim, {"dispatch": dispatch_id, "queue": BURN_QUEUE, "thread": thread, "sha256": digest})
-        out = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner" / item
+        out = state_dir / item
         try:
             out.mkdir(parents=True)
             mission = {"thread": thread, "dispatch": dispatch_id, "standing": True}
