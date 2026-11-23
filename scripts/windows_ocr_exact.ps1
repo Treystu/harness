@@ -1,4 +1,4 @@
-param([string]$Path, [string]$Label, [switch]$WholeText)
+param([string]$Path, [string]$Label, [switch]$WholeText, [switch]$ReadText, [int]$Ordinal)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType=WindowsRuntime]
@@ -25,12 +25,19 @@ try {
         $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
         if (!$engine) { throw 'Windows OCR has no available language.' }
         $result = Await-Operation ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
+        if ($ReadText) {
+            @{ text=($result.Lines.Text -join "`n") } | ConvertTo-Json -Compress
+            exit 0
+        }
         if ($WholeText) {
             $matches = @($result.Lines)
             if (($matches.Text -join ' ').Trim() -cne $Label) { throw 'OCR text differed from the requested message.' }
         } else {
             $matches = @($result.Lines | Where-Object { $_.Text.Trim() -ceq $Label })
-            if ($matches.Count -ne 1) { throw "Expected one OCR line with the requested label; found $($matches.Count)." }
+            if ($Ordinal) {
+                if ($matches.Count -ne 2 -or $Ordinal -notin 1,2) { throw "Expected two exact candidate rows; found $($matches.Count)." }
+                $matches = @($matches[$Ordinal-1])
+            } elseif ($matches.Count -ne 1) { throw "Expected one OCR line with the requested label; found $($matches.Count)." }
         }
         $rects = @($matches | ForEach-Object { $_.Words } | ForEach-Object { $_.BoundingRect })
         $left = ($rects.X | Measure-Object -Minimum).Minimum
