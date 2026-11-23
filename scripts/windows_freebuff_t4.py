@@ -323,8 +323,9 @@ def visual_select_row(driver, frame, label, y, step):
         raise RuntimeError("the fresh census row no longer matches the roster")
     point = driver.locate_exact_text(f"{step}-ocr", fresh, current_label, scope, scale=2)
     words = current_label.split()
-    readable = " ".join(words[:-1]) if len(words) >= 3 else current_label
-    driver.yes(f"{step}-verify", fresh, f"Does this sidebar chat label start with {readable!r}?", region=scope)
+    question = (f"Does this sidebar chat label start with {' '.join(words[:-1])!r}?" if len(words) >= 3
+                else f"Does the sidebar text read {current_label!r}?")
+    driver.yes(f"{step}-verify", fresh, question, region=scope)
     current = driver.frame(f"{step}-ready")
     if current.crop(scope).tobytes() != fresh.crop(scope).tobytes():
         raise RuntimeError("SCMessenger chat row changed before selection")
