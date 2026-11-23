@@ -87,7 +87,7 @@ class NotepadWindow:
             raise RuntimeError("the mission Notepad window is no longer available")
         return self.owner
 
-    def type_text(self, text):
+    def editor(self):
         owner = self.require_window()
         if not self.user.IsWindowEnabled(owner):
             raise RuntimeError("an owned dialog blocks the Notepad editor")
@@ -103,16 +103,25 @@ class NotepadWindow:
         self.user.EnumChildWindows(owner, visit, 0)
         if len(editors) != 1:
             raise RuntimeError("could not identify one editor in the mission Notepad window")
-        editor = editors[0]
+        return editors[0]
+
+    def send_editor_message(self, editor, message, value=0, data=0):
+        owner = self.require_window()
+        if self.pid(editor) != self.owner_pid or self.user.GetAncestor(editor, 2) != owner:
+            raise RuntimeError("the Notepad control changed ownership")
+        result = ctypes.c_size_t()
+        if not self.user.SendMessageTimeoutW(
+                editor, message, value, data, 0x22, 250, ctypes.byref(result)):
+            raise RuntimeError("the Notepad editor did not answer the window message")
+        return result.value
+
+    def text_length(self):
+        return self.send_editor_message(self.editor(), 0x000E)  # WM_GETTEXTLENGTH
+
+    def type_text(self, text):
+        editor = self.editor()
         for char in text:
-            self.require_window()
-            if self.pid(editor) != self.owner_pid or self.user.GetAncestor(editor, 2) != owner:
-                raise RuntimeError("the Notepad control changed ownership")
-            result = ctypes.c_size_t()
-            if not self.user.SendMessageTimeoutW(
-                    editor, 0x0102, ord(char), 1, 0x22, 250,
-                    ctypes.byref(result)):
-                raise RuntimeError("Notepad did not accept the character message")
+            self.send_editor_message(editor, 0x0102, ord(char), 1)  # WM_CHAR
 
     def release_foreground(self):
         if self.owner and self.pid(self.owner) == self.owner_pid:

@@ -72,9 +72,9 @@ def wait_for_document(window, original, audit):
     if len(fresh) != 1:
         raise RuntimeError("could not identify one fresh untitled Notepad window")
     window.bind(fresh[0])
-    foreground = window.activate(window.owner)
     audit.append("capture", step_id="launch", source="windows-notepad",
-                 foreground=foreground, input_scope="bound Notepad window")
+                 foreground=window.foreground() == window.owner,
+                 input_scope="bound Notepad window")
 
 
 def save_document(window, destination, params):
@@ -141,9 +141,14 @@ def prove(goal, output, destination, key):
                             "stage": "open a fresh, dedicated Notepad window for this proof; "
                             "any other Notepad window is outside the mission"})
             wait_for_document(window, original_notepad, audit)
+            if window.text_length() != 0:
+                raise RuntimeError("the fresh Notepad editor is not empty")
             opened = vision._verify_visibility(
-                "application", "Does the screenshot show a blank Notepad text editor?",
+                "application", "Is the large document area below the toolbar empty, "
+                "with no document text visible in that area?",
                 APP_VISIBILITY_THRESHOLD, step_id=step, polls=LAUNCH_POLLS)
+            if screen.last_png:
+                (output / "launch-observation.png").write_bytes(screen.last_png)
             require_vision(opened)
             audit.append("capture", step_id=step, source="windows-notepad",
                          capture_seconds=screen.capture_seconds)
