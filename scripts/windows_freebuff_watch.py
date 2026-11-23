@@ -220,7 +220,7 @@ def run_burn(receipts, known):
                 mission["phase_timeout"] = 480
             status = "parked" if execute(out, item, mission, claim_digest, ()) else "verified running"
         except UncertainDriverExit as error:
-            checkpoint("desktop-interlock.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
+            checkpoint(f"interlock-{item}.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
             issue_comment(f"Vision watch desktop interlock #{dispatch_id} / `{thread}`. {error}")
             status = "parked with desktop interlock"
         except (OSError, RuntimeError) as error:
@@ -282,7 +282,7 @@ def run_restoration(receipts, known):
             mission["phase_timeout"] = 240
             state = "parked" if execute(output, item, mission, digest, (),) else "verified running"
         except UncertainDriverExit as error:
-            checkpoint("desktop-interlock.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
+            checkpoint(f"interlock-{item}.json", {"dispatch": dispatch_id, "thread": thread, "state": str(error)})
             issue_comment(f"Vision watch desktop interlock #{dispatch_id} / `{thread}`. {error}")
             state = "parked with desktop interlock"
         except (OSError, RuntimeError) as error:
@@ -299,6 +299,9 @@ def main():
         return
     known = checkpoints()
     if "owner-paused.json" in known:
+        return
+    if any(name.startswith("interlock-") and not name.startswith("interlock-released-")
+           and f"interlock-released-{name[len('interlock-'):]}" not in known for name in known):
         return
     if "desktop-interlock.json" in known:
         if "interlock-released-7111294374.json" not in known:
