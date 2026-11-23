@@ -783,17 +783,43 @@ class Dispatch:
                         continue
         raise RuntimeError("the exact UUID was absent from the FreeBuff session stores")
 
+    def read_lines(self, step, frame, region):
+        left, top, right, bottom = region
+        crop = frame.crop(region)
+        crop = crop.resize((crop.width * 3, crop.height * 3))
+        path = (self.output / f"{step}-text.png").resolve()
+        self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
+        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+                           str(Path(__file__).with_name("windows_ocr_exact.ps1")),
+                           "-Path", str(path), "-ReadLines"], timeout=10)
+        if not result.ok:
+            return []
+        return [(line.get("text") or "").strip()
+                for line in json.loads(result.stdout).get("lines") or []]
+
+    def saw_text(self, step, frame, region, wanted):
+        """Is this text on screen, allowing the slips the OCR engine makes?"""
+        lines = self.read_lines(step, frame, region)
+        reading = self._norm(" ".join(lines))
+        target = self._norm(wanted)
+        self.audit.append("extraction", step_id=f"{step}-reading", text=reading[:300])
+        if not target or not reading:
+            return False
+        if target in reading:
+            return True
+        return SequenceMatcher(None, target, reading).ratio() >= 0.9
+
     def verify_draft(self, frame):
         pointer = self.text == DISK_POINTER
-        region = (644, 949, 1528, 1039) if pointer else (644, 949, 1040, 1010)
-        try:
-            self.locate_exact_text("read-exact-draft", frame, self.text, region, whole=pointer)
-        except RuntimeError as error:
-            self.audit.append("extraction", step_id="read-exact-draft", ok=False, reason=str(error))
+        region = (644, 949, 1528, 1039) if pointer else (640, 925, 1540, 1045)
+        if pointer:
+            self.locate_exact_text("read-exact-draft", frame, self.text, region, whole=True)
+        elif not self.saw_text("read-exact-draft", frame, region, self.text):
             time.sleep(0.4)  # A blinking caret can obscure the last OCR glyph.
             frame = self.frame("draft-ocr-retry")
             self.verify_lane(frame)
-            self.locate_exact_text("read-exact-draft-retry", frame, self.text, region, whole=pointer)
+            if not self.saw_text("read-exact-draft-retry", frame, region, self.text):
+                raise RuntimeError(f"the draft was not read back as {self.text!r}")
         self.yes("verify-staged-text", frame,
                  ("Is this user-entered text a D-007 mission pointer?" if pointer else
                   f"Does the visible text read exactly '{self.text}'?"),
