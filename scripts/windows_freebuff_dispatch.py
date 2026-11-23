@@ -881,7 +881,9 @@ class Dispatch:
                   "point": point, "size": list(frame.size)}
         self.require_foreground()
         if self.thread in BURN_SESSIONS or self.thread == SCM_THREAD:
-            self.verify_active_session()
+            # Identity, not the route alone: send never navigates, so a dead
+            # accessibility tree must not become a dead-end here.
+            self.verify_session_identity()
         if self.standing:
             fresh = self.frame("pre-send-readback")
             if (frame.crop(COMPOSER).tobytes() != fresh.crop(COMPOSER).tobytes()
