@@ -101,3 +101,37 @@ def test_ambiguous_row_refusal_names_every_candidate(tmp_path):
 
     with pytest.raises(RuntimeError, match="matched 0 settled rows"):
         dispatch.click_roster_row("select", Mock(), rows, "Lane 3")
+
+
+def test_a_reloaded_window_must_census_non_empty_twice_before_use(tmp_path, monkeypatch):
+    """The empty sidebar after a reload is not a roster: wait for two agreeing ones."""
+    frames = [Mock(name=f"frame-{index}") for index in range(6)]
+    dispatch = shim(tmp_path, frames)
+    censuses = iter([[], [], [{"text": "Lane 1", "x": 133, "y": 740, "x1": 200}],
+                     [{"text": "Lane 1", "x": 133, "y": 740, "x1": 200}]])
+    dispatch.read_roster = Mock(side_effect=lambda step, frame, region: next(censuses))
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+
+    frame, rows = dispatch.stable_window("reload")
+
+    assert rows[0]["text"] == "Lane 1"
+    assert frame is frames[2]
+
+
+def test_a_window_that_never_census_anything_refuses_by_name(tmp_path, monkeypatch):
+    dispatch = shim(tmp_path, [Mock() for _ in range(6)])
+    dispatch.read_roster = Mock(return_value=[])
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.monotonic",
+                        Mock(side_effect=[0, 1, 2, 3, 40]))
+
+    with pytest.raises(RuntimeError, match="stable roster"):
+        dispatch.stable_window("reload", seconds=5, attempts=3)
+
+
+def test_a_project_heading_and_its_chat_are_separated_by_the_glyph():
+    """SCMessenger's project heading and one chat share a name; only the chat is plain."""
+    rows = [{"text": "B SCMessenger", "x": 133, "y": 517, "x1": 200},
+            {"text": "SCMessenger", "x": 133, "y": 561, "x1": 200}]
+    assert [row for row in rows if Dispatch.row_matches(row["text"], "SCMessenger")] == rows
+    assert len([row for row in rows if row["text"].strip() == "SCMessenger"]) == 1

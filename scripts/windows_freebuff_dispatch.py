@@ -52,6 +52,11 @@ BURN_SESSIONS = {
     "918dad1a": "Harness Audit Lane",
     "0319b9f6": "SCMessenger Audit Lane",
 }
+# What a lane's own transcript must contain for the app to identify it when its
+# row name cannot (BigEnergyCo has five sessions that all open with its name).
+LANE_MARKERS = {
+    "0d7e2f37": ("466", "467"),
+}
 DISK_POINTER = ("Run D-007 from Treystu/slow-lane-ledger. Read "
                 "DISK-AUDIT-MISSION-V3-2026-11-22.md in oversight/disk-audit-2026-11-19.")
 SESSIONS = {
@@ -493,6 +498,16 @@ class Dispatch:
 
     def click_roster_row(self, step, frame, rows, label):
         matches = [row for row in rows if self.row_matches(row["text"], label)]
+        if len(matches) > 1:
+            # The app names a chat the same as its project (measured: the
+            # SCMessenger project heading and one chat both read "SCMessenger").
+            # The heading carries the project's icon glyph into the OCR text,
+            # the chat does not, so exactly one plain row is the unique match.
+            plain = [row for row in matches if row["text"].strip() == label.strip()]
+            if len(plain) == 1:
+                self.audit.append("verification", step_id=f"{step}-unique-plain",
+                                  row=plain[0]["text"], rivals=len(matches))
+                matches = plain
         if len(matches) != 1:
             raise RuntimeError(f"{step}: {label!r} matched {len(matches)} settled rows; "
                                f"roster: {[row['text'] for row in rows][:14]}")
@@ -760,6 +775,87 @@ class Dispatch:
                           reason="the candidate row was not on any page when re-walked")
         return False
 
+    def identify_by_content(self, limit=8):
+        """Pick the lane whose own transcript carries the marker the order names.
+
+        BigEnergyCo has five sessions that all open with its name, so the name
+        cannot choose between them. The transcripts can: the order describes
+        `0d7e2f37` as the Codex #466/#467 queue, and a transcript that mentions
+        both is that lane. Several or none is a refusal naming the census.
+        """
+        markers = LANE_MARKERS.get(self.thread, ())
+        if not markers:
+            return False
+        frame = self.scroll_sidebar_to_top()
+        seen, hits = [], []
+        for page in range(1, 9):
+            try:
+                frame, rows = self.settled_roster(f"content-{page}", SIDEBAR, attempts=4)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="content-walk", reason=str(error))
+                return False
+            texts = [self._norm(row["text"]) for row in rows]
+            if texts in seen:
+                break
+            seen.append(texts)
+            for row in rows:
+                if not self._prefix_matches(row["text"], self.label):
+                    continue
+                if self._norm(row["text"]) in [self._norm(name) for name in hits]:
+                    continue
+                if limit <= 0:
+                    break
+                limit -= 1
+                try:
+                    self.click_exact_row(f"content-{page}-{len(hits)}", frame, row)
+                except RuntimeError as error:
+                    self.audit.append("escalation", step_id="content-click", reason=str(error))
+                    frame = self.frame(f"content-{page}-after")
+                    continue
+                time.sleep(1.2)
+                frame = self.settle_view(f"content-{page}-{len(hits)}-settle", seconds=20)
+                lines = self.read_lines(f"content-{page}-{len(hits)}-transcript", frame,
+                                        (560, 180, 1720, 900))
+                reading = self._norm(" ".join(lines))
+                found = all(self._norm(marker) in reading for marker in markers)
+                self.audit.append("extraction", step_id=f"content-{page}-{len(hits)}-markers",
+                                  row=row["text"], matched=found)
+                if found:
+                    hits.append(row["text"])
+            if not self.scroll_by(f"content-scroll-{page}", frame, [196, 850], -400):
+                frame = self.frame(f"content-{page}-recapture")
+                continue
+            time.sleep(0.9)
+            frame = self.frame(f"content-{page}-after")
+        if len(hits) != 1:
+            self.audit.append("escalation", step_id="content-census", label=self.label,
+                              matched=hits[:6], reason="no unique transcript carries the markers")
+            return False
+        self.audit.append("verification", step_id="content-unique", label=self.label, row=hits[0])
+        return self.click_row_by_text(hits[0])
+
+    def click_row_by_text(self, name, pages=8):
+        """Re-open one row by its own text, wherever the list now has it."""
+        frame = self.scroll_sidebar_to_top()
+        for page in range(1, pages + 1):
+            try:
+                frame, rows = self.settled_roster(f"pick-{page}", SIDEBAR, attempts=4)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="pick-walk", reason=str(error))
+                return False
+            row = next((row for row in rows if self._norm(row["text"]) == self._norm(name)), None)
+            if row is not None:
+                self.click_exact_row("pick-row", frame, row)
+                time.sleep(1.2)
+                self.audit.append("verification", step_id="pick-row", row=row["text"], page=page)
+                return True
+            if not self.scroll_by(f"pick-scroll-{page}", frame, [196, 850], -400):
+                frame = self.frame(f"pick-{page}-recapture")
+                continue
+            time.sleep(0.9)
+            frame = self.frame(f"pick-{page}-after")
+        return False
+
     def identify_by_route(self, limit=8):
         """Open candidate sessions until the app's own route names the pinned thread.
 
@@ -896,7 +992,8 @@ class Dispatch:
         if self.navigate_by_session_list():
             return
         if self.list_only():
-            if self.navigate_by_unique_prefix() or self.identify_by_route():
+            if (self.navigate_by_unique_prefix() or self.identify_by_content()
+                    or self.identify_by_route()):
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
@@ -986,7 +1083,7 @@ class Dispatch:
                                   reason="the target row is already the selected session")
                 return
             if (self.navigate_by_session_list() or self.navigate_by_unique_prefix()
-                    or self.identify_by_route()):
+                    or self.identify_by_content() or self.identify_by_route()):
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
@@ -1030,7 +1127,8 @@ class Dispatch:
         if self.navigate_by_session_list():
             return
         if self.list_only():
-            if self.navigate_by_unique_prefix() or self.identify_by_route():
+            if (self.navigate_by_unique_prefix() or self.identify_by_content()
+                    or self.identify_by_route()):
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
