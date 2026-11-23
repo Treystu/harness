@@ -55,6 +55,10 @@ class Dispatch:
         self.user.WindowFromPoint.restype = wintypes.HWND
         self.user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
         self.user.GetAncestor.restype = wintypes.HWND
+        self.user.GetClassNameW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+        self.user.ScreenToClient.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.POINT))
+        self.user.PostMessageW.argtypes = (
+            wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
         self.dwm = ctypes.WinDLL("dwmapi")
         self.dwm.DwmGetWindowAttribute.argtypes = (
             wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
@@ -110,8 +114,20 @@ class Dispatch:
         hit = self.user.WindowFromPoint(wintypes.POINT(x, y))
         if not hit or self.user.GetAncestor(hit, 2) != hwnd:
             raise RuntimeError("the click point is obstructed by a different window")
-        self.require_foreground()
-        osal._WindowsInputApi().click(x, y)
+        name = ctypes.create_unicode_buffer(128)
+        self.user.GetClassNameW(hit, name, len(name))
+        if name.value != "Chrome_RenderWidgetHostHWND":
+            raise RuntimeError("the verified point did not land in the FreeBuff renderer")
+        client = wintypes.POINT(x, y)
+        if not self.user.ScreenToClient(hit, ctypes.byref(client)):
+            raise RuntimeError("could not convert the click into renderer coordinates")
+        packed = (client.x & 0xFFFF) | ((client.y & 0xFFFF) << 16)
+        for message, keys in ((0x0200, 0), (0x0201, 1), (0x0202, 0)):
+            if self.require_foreground() != self.user.GetAncestor(hit, 2):
+                raise RuntimeError("the FreeBuff renderer changed before the click")
+            if not self.user.PostMessageW(hit, message, keys, packed):
+                raise RuntimeError(f"renderer rejected click message (Win32 {ctypes.get_last_error()})")
+            time.sleep(0.05)
 
     def type_text(self, action, params):
         self.require_foreground()
