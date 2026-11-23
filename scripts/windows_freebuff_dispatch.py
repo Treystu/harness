@@ -676,6 +676,17 @@ class Dispatch:
                           reason="the clicked session row did not become the selected session")
         return False
 
+    def list_only(self):
+        """Standup lanes navigate by the session list, never by the dialog.
+
+        The dialog is the last resort in the approved order, and in the filed
+        runs it is also the least reliable surface on this app: a toggle that
+        closes what it is asked to open, an icon that scrolls out of reach, and
+        a result list that shows transcript when the panel is gone. The project
+        session list, walked and censused, has been correct every time.
+        """
+        return self.thread in BURN_SESSIONS or self.thread == SCM_THREAD
+
     def open_search(self):
         frame = self.frame("freebuff-before-search")
         if self.window.api.foreground() != self.window.handle:
@@ -685,6 +696,11 @@ class Dispatch:
         self.require_foreground()
         if self.navigate_by_session_list():
             return
+        if self.list_only():
+            if self.identify_by_route():
+                return
+            raise RuntimeError(f"the project session list does not hold {self.label!r} "
+                               "and no candidate exposes this thread's route")
         frame = self.ensure_search_closed(self.frame("freebuff-before-search-reset"))
         region = (296, 75, 333, 104)
         left, top, _, _ = region
@@ -765,6 +781,15 @@ class Dispatch:
 
     def search_for_session(self):
         self.require_foreground()
+        if self.list_only():
+            if self.selected_label_matches(wait=2):
+                self.audit.append("verification", step_id="query-skip",
+                                  reason="the target row is already the selected session")
+                return
+            if self.navigate_by_session_list() or self.identify_by_route():
+                return
+            raise RuntimeError(f"the project session list does not hold {self.label!r} "
+                               "and no candidate exposes this thread's route")
         if self.selected_label_matches():
             self.audit.append("verification", step_id="query-skip",
                               reason="the target row is already the selected session")
@@ -804,6 +829,11 @@ class Dispatch:
             return
         if self.navigate_by_session_list():
             return
+        if self.list_only():
+            if self.identify_by_route():
+                return
+            raise RuntimeError(f"the project session list does not hold {self.label!r} "
+                               "and no candidate exposes this thread's route")
         frame = self.frame("before-select-session-0")
         if not self.dialog_open(frame):
             # Each phase is its own process: a phase may not assume the one
