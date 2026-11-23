@@ -432,11 +432,26 @@ class Dispatch:
         over the clipped length can; ambiguity is still refused downstream by
         requiring exactly one matching row.
         """
-        seen, wanted = cls._norm(text), cls._norm(label)
-        if not seen or not wanted:
+        wanted = cls._norm(label)
+        # Rows carry their status glyph into the OCR text ("B Lane 1",
+        # "Ra Kalshi Paper Burndown"), so the leading one-to-three character
+        # token is not part of the name - without this, a short label like
+        # "Lane 1" could never match its own row at all (measured, l5).
+        candidates = {cls._norm(text)}
+        head, _, tail = text.strip().partition(" ")
+        if len(head) <= 3 and tail:
+            candidates.add(cls._norm(tail))
+        if not wanted or not any(candidates):
             return False
-        if seen == wanted:
+        if wanted in candidates:
             return True
+        # A row that OPENS with the configured name is that name (its tail is
+        # the app's own longer title); this is what lets a short label match
+        # "Ra Lane 2 Waist Composition Mission Brief".
+        for name in (text.strip(), tail):
+            if name and name.casefold().startswith(label.strip().casefold()):
+                return True
+        seen = max(candidates, key=len)
         if len(seen) < 10:
             return False
         common = 0

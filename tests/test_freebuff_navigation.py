@@ -52,6 +52,13 @@ def test_a_roster_that_never_settles_refuses_by_name(tmp_path, monkeypatch):
         dispatch.settled_roster("probe", SIDEBAR, attempts=3)
 
 
+def test_a_short_label_matches_its_own_row_through_the_icon_glyph():
+    assert Dispatch.row_matches("Lane 1", "Lane 1")
+    assert Dispatch.row_matches("B Lane 1", "Lane 1")
+    assert Dispatch.row_matches("Ra Lane 2 Waist Composition Mission Brief", "Lane 2")
+    assert not Dispatch.row_matches("Lane 1", "Lane 2")
+
+
 def test_a_phantom_row_settles_but_a_moved_row_does_not():
     stationary = (370, 385, 400)
     phantom = (370, 377, 385, 400)
