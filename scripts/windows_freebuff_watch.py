@@ -239,7 +239,10 @@ def run_restoration(receipts, known):
             if dispatch_id != STANDUP or f"result-{item}.json" not in known or not cure_eligible(
                 state_dir / item, ("search: driver tree termination unverified",),
                 ("observation-foreground", "navigate-to-bystander", "scroll-project-sidebar",
-                 "scroll-sidebar-top", "search-foreground", "close-old-search"),
+                 "scroll-sidebar-top", "search-foreground", "close-old-search",
+                 "sidebar-top-scroll-1", "sidebar-top-scroll-2", "sidebar-top-scroll-3",
+                 "sidebar-top-scroll-4", "sidebar-top-scroll-5", "session-list-pick-1",
+                 "prefix-scroll-1"),
             ):
                 continue
             item += "-verified-process-stop-cure"
