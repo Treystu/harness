@@ -135,3 +135,49 @@ def test_a_project_heading_and_its_chat_are_separated_by_the_glyph():
             {"text": "SCMessenger", "x": 133, "y": 561, "x1": 200}]
     assert [row for row in rows if Dispatch.row_matches(row["text"], "SCMessenger")] == rows
     assert len([row for row in rows if row["text"].strip() == "SCMessenger"]) == 1
+
+
+def live_sidebar():
+    """The measured 2026-11-23 layout: a CLOUD Lane 1 above the LOCAL one."""
+    return [{"text": "B GitHub", "x": 60, "y": 250, "x1": 200},
+            {"text": "Vision Driver Standu", "x": 72, "y": 270, "x1": 330},
+            {"text": "Disk Audit", "x": 72, "y": 290, "x1": 330},
+            {"text": "harness CLOUD", "x": 60, "y": 330, "x1": 200},
+            {"text": "Lane 2", "x": 72, "y": 350, "x1": 330},
+            {"text": "Ra Lane 1", "x": 72, "y": 370, "x1": 330},
+            {"text": "Harness", "x": 60, "y": 410, "x1": 200},
+            {"text": "Ra Harness Audit Lane", "x": 72, "y": 430, "x1": 330},
+            {"text": "Ra Lane 2", "x": 72, "y": 450, "x1": 330},
+            {"text": "Ra Lane 1", "x": 72, "y": 470, "x1": 330}]
+
+
+def test_headings_distinguish_cloud_from_local():
+    assert Dispatch.heading_name("B GitHub") == "GitHub"
+    assert Dispatch.heading_name("harness CLOUD") == "harness CLOUD"
+    assert Dispatch.heading_name("Harness") == "Harness"
+    assert Dispatch.heading_name("Ra Lane 1") is None
+
+
+def test_a_row_is_bound_to_the_heading_above_it():
+    rows = live_sidebar()
+    cloud, local = rows[5], rows[9]
+    assert Dispatch.project_of_row(rows, cloud) == "harness CLOUD"
+    assert Dispatch.project_of_row(rows, local) == "Harness"
+    # No heading above this row in the frame: unscoped, never guessed.
+    above = {"text": "Ra Lane 1", "x": 72, "y": 100, "x1": 330}
+    assert Dispatch.project_of_row(rows, above) is None
+
+
+def test_a_cloud_lane_1_does_not_satisfy_the_local_lane_1():
+    """The 19:30Z false green: title alone accepted the CLOUD row."""
+    rows = live_sidebar()
+    cloud, local = rows[5], rows[9]
+    assert Dispatch.row_matches(cloud["text"], "Lane 1")
+    assert not Dispatch.scoped_row(rows, cloud, "Lane 1", "Harness")
+    assert Dispatch.scoped_row(rows, local, "Lane 1", "Harness")
+    assert not Dispatch.scoped_row(rows, local, "Lane 1", "harness CLOUD")
+
+
+def test_a_row_without_a_visible_heading_is_refused():
+    row = {"text": "Ra Lane 1", "x": 72, "y": 900, "x1": 330}
+    assert not Dispatch.scoped_row([row], row, "Lane 1", "Harness")

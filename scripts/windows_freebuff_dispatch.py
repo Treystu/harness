@@ -67,6 +67,23 @@ SESSIONS = {
     VISION_THREAD: ("Vision Driver Standup and Audit", CONTINUATION),
     **{thread: (label, CONTINUATION) for thread, label in BURN_SESSIONS.items()},
 }
+# A title is not an identity: the app keeps a CLOUD and a LOCAL "Lane 1", and a
+# local session and a same-named chat can both sit in one sidebar. Every row is
+# therefore bound to the project heading printed above it; a row whose heading
+# is not in the same frame is refused rather than guessed.
+PROJECT_OF = {
+    THREAD: "Harness",
+    VISION_THREAD: "GitHub",
+    DISK_THREAD: "GitHub",
+    SCM_THREAD: "SCMessenger",
+    "0319b9f6": "SCMessenger",
+    "9ecc3453": "Harness",
+    "918dad1a": "Harness",
+    "0d7e2f37": "BigEnergyCo",
+    "7d4a9b14": "Kalshi-Trader",
+}
+PROJECT_HEADINGS = ("GitHub", "harness CLOUD", "Harness", "SCMessenger",
+                    "Kalshi-Trader", "BigEnergyCo", "agensi-skills")
 COMPOSER = (630, 918, 1550, 1110)
 LANE_NAV = (80, 590, 390, 750)
 SEND_CONTROL = (1480, 1043, 1535, 1100)
@@ -125,6 +142,7 @@ class Dispatch:
         self.scoped_input = scoped_input
         self.standing = standing
         self.label, self.text = SESSIONS[thread]
+        self.project = PROJECT_OF.get(thread, self.label)
         self.goal = (GOAL if thread == THREAD else
                      f"Restart the existing {self.label} FreeBuff session ({thread}) once in place.")
         self.composer_renderer = None
@@ -478,6 +496,49 @@ class Dispatch:
                 return True
         return False
 
+    @classmethod
+    def heading_name(cls, text):
+        """Which project heading this row is, if it is one.
+
+        Headings carry the project's icon glyph into the OCR text ("B GitHub"),
+        so the leading one-to-three character token is stripped exactly as
+        row_matches does for session titles. "harness CLOUD" and "Harness" are
+        distinct headings and must never collapse into one another.
+        """
+        normed = cls._norm(text)
+        for name in PROJECT_HEADINGS:
+            if normed == cls._norm(name):
+                return name
+        head, _, tail = text.strip().partition(" ")
+        if len(head) <= 3 and tail:
+            for name in PROJECT_HEADINGS:
+                if cls._norm(tail) == cls._norm(name):
+                    return name
+        return None
+
+    @classmethod
+    def project_of_row(cls, rows, row):
+        """The project heading above a row in this frame, or None if offscreen."""
+        heading = None
+        for candidate in sorted(rows, key=lambda item: item["y"]):
+            if candidate["y"] > row["y"] + 2:
+                break
+            name = cls.heading_name(candidate["text"])
+            if name:
+                heading = name
+        return heading
+
+    @classmethod
+    def scoped_row(cls, rows, row, label, project):
+        """Is this row the configured session, in its own project?
+
+        Title alone is not identity: the app has a CLOUD "Lane 1" and a LOCAL
+        "Lane 1", and the 19:30Z receipt read the CLOUD row green for the local
+        lane. A row with no visible heading above it is unscoped and refused.
+        """
+        return (cls.row_matches(row["text"], label)
+                and cls.project_of_row(rows, row) == project)
+
     def scroll(self, action, params):
         """Scroll the renderer read-only: hover, then one wheel step."""
         hit, x, y = self.renderer_point(params)
@@ -555,8 +616,15 @@ class Dispatch:
                 return False
             row = self.highlighted_row(frame, rows)
             if row and self.row_matches(row["text"], self.label):
-                self.audit.append("verification", step_id="selected-row", row=row["text"])
-                return True
+                project = self.project_of_row(rows, row)
+                if project == self.project:
+                    self.audit.append("verification", step_id="selected-row", row=row["text"],
+                                      project=project)
+                    return True
+                # A highlighted same-titled row in another project is the
+                # false-green defect, not this lane.
+                self.audit.append("escalation", step_id="selected-row-project", row=row["text"],
+                                  project=project, expected=self.project)
             if time.monotonic() >= deadline:
                 return False
             time.sleep(0.8)
@@ -679,9 +747,19 @@ class Dispatch:
                 return False
             seen.append(texts)
             matches = [row for row in rows if self.row_matches(row["text"], self.label)]
-            if len(matches) == 1:
+            unrelated = [row["text"] for row in matches
+                         if self.project_of_row(rows, row) != self.project]
+            if unrelated:
+                self.audit.append("escalation", step_id=f"session-list-foreign-{page}",
+                                  rows=unrelated[:6], expected=self.project)
+            scoped = [row for row in matches if self.project_of_row(rows, row) == self.project]
+            if len(scoped) == 1:
                 self.click_roster_row(f"session-list-pick-{page}", frame, rows, self.label)
                 return True
+            if len(scoped) > 1:
+                self.audit.append("escalation", step_id=f"session-list-ambiguous-{page}",
+                                  rows=[row["text"] for row in scoped])
+                return False
             expand = next((row for row in rows
                            if row["text"].strip() in {"Show more", "More chats"}), None)
             if expand:
@@ -771,7 +849,8 @@ class Dispatch:
                 break
             seen.append(texts)
             for row in rows:
-                if self._prefix_matches(row["text"], self.label):
+                if (self._prefix_matches(row["text"], self.label)
+                        and self.project_of_row(rows, row) == self.project):
                     if all(self._norm(row["text"]) != self._norm(name) for _, name in found):
                         found.append((page, row["text"]))
             if not self.scroll_by(f"prefix-scroll-{page}", frame, [196, 850], -400):
@@ -802,7 +881,8 @@ class Dispatch:
                 frame = self.frame(f"prefix-pick-{index}-single")
                 rows = self.read_roster(f"prefix-pick-{index}-single", frame, SIDEBAR)
             row = next((candidate for candidate in rows
-                        if self._norm(candidate["text"]) == self._norm(name)), None)
+                        if self._norm(candidate["text"]) == self._norm(name)
+                        and self.project_of_row(rows, candidate) == self.project), None)
             if row is not None:
                 self.click_exact_row("prefix-pick", frame, row)
                 time.sleep(1.2)
@@ -979,7 +1059,7 @@ class Dispatch:
                 return None
             seen.append(texts)
             row = self.highlighted_row(frame, rows)
-            if row:
+            if row and self.project_of_row(rows, row) == self.project:
                 return row
             band = frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes()
             if not self.scroll_by(f"highlight-scroll-{page}", frame, [196, 850], -400):
