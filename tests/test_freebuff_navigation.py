@@ -181,3 +181,38 @@ def test_a_cloud_lane_1_does_not_satisfy_the_local_lane_1():
 def test_a_row_without_a_visible_heading_is_refused():
     row = {"text": "Ra Lane 1", "x": 72, "y": 900, "x1": 330}
     assert not Dispatch.scoped_row([row], row, "Lane 1", "Harness")
+
+
+def foreground_shim(hwnd, sequence, transient):
+    dispatch = object.__new__(Dispatch)
+    dispatch.standing = True
+    dispatch.audit = Mock()
+    dispatch.window = Mock()
+    dispatch.window.require_window.return_value = hwnd
+    dispatch.window.api.foreground = Mock(side_effect=list(sequence))
+    dispatch.describe = Mock(return_value="holder")
+    dispatch.transient_holder = Mock(return_value=transient)
+    return dispatch
+
+
+def test_a_standing_run_reclaims_a_transient_temp_console(tmp_path, monkeypatch):
+    """R1: the two-minute watch console must not park a valid send."""
+    activate = Mock(return_value=True)
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.activate_exact", activate)
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+    dispatch = foreground_shim(111, [222, 111], transient=True)
+
+    assert dispatch.require_foreground() == 111
+    activate.assert_called_once()
+    assert any(call.args[0] == "verification" and call.kwargs.get("step_id") == "foreground-obtained"
+               for call in dispatch.audit.append.call_args_list)
+
+
+def test_a_standing_run_never_takes_foreground_from_an_owner_surface(tmp_path, monkeypatch):
+    activate = Mock(return_value=True)
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.activate_exact", activate)
+    dispatch = foreground_shim(111, [222, 222], transient=False)
+
+    with pytest.raises(RuntimeError, match="not the foreground"):
+        dispatch.require_foreground()
+    activate.assert_not_called()

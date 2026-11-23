@@ -168,15 +168,38 @@ class Dispatch:
         return (f"hwnd {hwnd} pid {self.window.pid(hwnd)} "
                 f"title {self.window.api.title_of(hwnd)!r}")
 
-    def require_foreground(self, attempts=3):
-        """FreeBuff must hold the foreground; re-assert it before giving up.
+    def transient_holder(self, hwnd):
+        """Is the foreground holder a console that lives in the temp tree?
 
-        The measured holder of a lost foreground was the driver's own phase
-        child (a console window titled with its interpreter path), so a single
-        observation that FreeBuff is not in front is not a reason to park a
-        lane. Take the foreground back, then prove it.
+        Measured 2026-11-23: a scheduler starts the standing watch every two
+        minutes from a temp venv, and its console window takes the foreground
+        for a few seconds before exiting. That holder is the driver's own
+        machinery, so it may be displaced. Any other window is the owner's
+        surface and is never taken.
+        """
+        if not hwnd:
+            return False
+        buffer = ctypes.create_unicode_buffer(64)
+        if not self.user.GetClassNameW(hwnd, buffer, 64):
+            return False
+        if buffer.value.casefold() != "consolewindowclass":
+            return False
+        title = self.window.api.title_of(hwnd) or ""
+        roots = (os.environ.get("TEMP"), os.environ.get("TMP"), os.environ.get("LOCALAPPDATA"))
+        return any(root and root.casefold() in title.casefold() for root in roots)
+
+    def require_foreground(self, attempts=6, timeout=8.0):
+        """FreeBuff must hold the foreground; obtain and prove it before giving up.
+
+        The measured holder of a lost foreground was a transient temp console
+        (the standing watch), so one observation that FreeBuff is not in front
+        is not a reason to park a lane. Every executor path re-asserts and
+        re-proves the foreground here; a standing run reclaims only a verified
+        transient console and refuses from any other surface.
         """
         hwnd = self.window.require_window()
+        started = time.monotonic()
+        deadline = started + timeout
         for attempt in range(1, attempts + 1):
             current = self.window.api.foreground()
             if current == hwnd:
@@ -184,12 +207,21 @@ class Dispatch:
             # Name the holder: an unnamed park cannot be resolved from its evidence.
             self.audit.append("escalation", step_id=f"foreground-{attempt}", expected=hwnd,
                               holder=current, holder_detail=self.describe(current))
-            if self.standing or attempt == attempts:
+            if self.standing and not self.transient_holder(current):
                 break
             if not activate_exact(hwnd, self.window.api.foreground):
+                if time.monotonic() >= deadline:
+                    break
                 time.sleep(0.6)
                 continue
             time.sleep(0.5)
+            if self.window.api.foreground() == hwnd:
+                self.audit.append("verification", step_id="foreground-obtained", attempt=attempt,
+                                  holder=current, holder_detail=self.describe(current),
+                                  age_seconds=round(time.monotonic() - started, 3))
+                return hwnd
+            if time.monotonic() >= deadline:
+                break
         current = self.window.api.foreground()
         raise RuntimeError(f"FreeBuff is not the foreground window; held by {self.describe(current)}")
 
