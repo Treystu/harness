@@ -43,7 +43,7 @@ def api(endpoint, *, method="GET", body=None):
     if body is not None:
         args.extend(("--input", "-"))
     result = subprocess.run(args, input=json.dumps(body) if body is not None else None,
-                            capture_output=True, text=True, timeout=20, check=False)
+                            capture_output=True, text=True, encoding="utf-8", timeout=20, check=False)
     if result.returncode:
         raise RuntimeError(f"GitHub {method} failed for {endpoint}: {result.stderr.strip()[:220]}")
     return json.loads(result.stdout)
