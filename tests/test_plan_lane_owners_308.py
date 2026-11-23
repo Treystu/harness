@@ -39,6 +39,12 @@ OWNERS = {
         "_unrepresented",
         "_validated_plan",
     ),
+    "harness.plan_budget": (
+        "DECOMPOSE_MAX_TOKENS",
+        "composed_worst_case",
+        "_call_worst_case",
+        "_refuse_composed_ceiling",
+    ),
     "harness.plan_stages": (
         "compose_stages",
         "stage_budget",
@@ -150,6 +156,16 @@ class OwnerModuleTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIs(getattr(waist, name),
                               getattr(plan_evidence, name))
+
+    def test_waist_consumes_the_budget_owner_not_a_copy(self):
+        """The plan lane asks the owner for the envelope and uses its refusal."""
+        from harness import plan_budget, waist
+
+        for name in ("composed_worst_case", "_refuse_composed_ceiling",
+                     "DECOMPOSE_MAX_TOKENS"):
+            with self.subTest(name=name):
+                self.assertIs(getattr(waist, name),
+                              getattr(plan_budget, name))
 
     def test_no_concern_module_imports_the_waist_at_module_scope(self):
         for module_name in OWNERS:
