@@ -52,6 +52,13 @@ Harness is a dependency-light Python package with three surfaces:
   real transport the cache and breaker board are shared per process and
   endpoint+key (policies are built per request); an injected transport gets
   private ones, so the breaker is per-`JevPolicy` there.
+- `jev_scope.py`: the HUL-C mission-scope evaluator family (#309): the
+  typed answer readers, the determination (complete only when verifier,
+  success, scope coverage, claims and the human block all hold; an unkeyed
+  or fallback evaluation can never alone mark complete), the state-facts
+  normalizer and the fail-closed envelope. It receives the `JevPolicy`
+  instance and never imports it at module scope, so dispatch, spend,
+  settlement and ledger semantics stay in the one policy owner.
 - `jev_packs.py`: typed question packs + local heuristics imported by
   `jev_policy` (still one policy owner, never a second client).
 - `jev_completion.py`: owns the phase-completion bar; packs in `jev_packs.py`; policy call via `JevPolicy.evaluate_phase_completion` (site `phase_completion`).
