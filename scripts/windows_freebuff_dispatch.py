@@ -36,13 +36,22 @@ SEND = Action("send_freebuff", MUTATING, "send_freebuff",
 VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.1.0", [FOCUS, CLICK, TYPE, SEND])
 THREAD = "315608d2"
 CONTINUATION = "continue in full"
+DISK_THREAD = "f90f01e9"
+SCM_THREAD = "2ae32937"
+DISK_POINTER = ("Run D-007 from Treystu/slow-lane-ledger. Read "
+                "DISK-AUDIT-MISSION-V3-2026-11-22.md in oversight/disk-audit-2026-11-19.")
+SESSIONS = {
+    THREAD: ("Lane 1", CONTINUATION),
+    DISK_THREAD: ("Disk Audit", CONTINUATION),
+    SCM_THREAD: ("SCMessenger", CONTINUATION),
+}
 COMPOSER = (630, 918, 1550, 1110)
 LANE_NAV = (80, 590, 390, 750)
 SEND_CONTROL = (1480, 1043, 1535, 1100)
 
 
 class Dispatch:
-    def __init__(self, output, key):
+    def __init__(self, output, key, *, thread=THREAD):
         from PIL import Image, ImageOps
 
         self.image = Image
@@ -70,6 +79,10 @@ class Dispatch:
             wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD)
         self.output = output
         self.key = key
+        self.thread = thread
+        self.label, self.text = SESSIONS[thread]
+        self.goal = (GOAL if thread == THREAD else
+                     f"Restart the existing {self.label} FreeBuff session ({thread}) once in place.")
         self.composer_renderer = None
         self.audit = AuditLog(output / "driver.jsonl")
         self.screen = WindowsWindowScreen(self.window, source="windows-freebuff")
@@ -136,21 +149,21 @@ class Dispatch:
             if not self.user.PostMessageW(hit, message, keys, packed):
                 raise RuntimeError(f"renderer rejected click message (Win32 {ctypes.get_last_error()})")
             time.sleep(0.05)
-        if params["control"] == "Lane 1 composer":
+        if params["control"] == f"{self.label} composer":
             self.composer_renderer = hit
 
     def type_text(self, action, params):
-        if params["text"] != CONTINUATION:
+        if params["text"] != self.text:
             raise RuntimeError("the text differs from the approved continuation")
         hit = self.composer_renderer
         keyboard = osal._WindowsInputApi()
-        for character in CONTINUATION:
+        for character in self.text:
             if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
                 raise RuntimeError("the verified composer renderer is no longer available")
             keyboard.type_text(character)
 
     def send(self, action, params):
-        if params["thread"] != THREAD or params["text"] != CONTINUATION:
+        if params["thread"] != self.thread or params["text"] != self.text:
             raise RuntimeError("the thread or text differs from the approved continuation")
         self.click(action, params)
 
@@ -188,13 +201,13 @@ class Dispatch:
                             "data_base64": base64.b64encode(fitted).decode("ascii")}}
         response = transport.call_service(
             SYSTEM_ONE_URL, questions, headers={"Authorization": f"Bearer {self.key}"},
-            timeout=10, body_extra={"state": {"goal": GOAL, "screen": "frame"},
+            timeout=10, body_extra={"state": {"goal": self.goal, "screen": "frame"},
                                     "model": "jev-1.14.0"},
             assets=assets, images_enabled=True)
         if not response.ok:
             raise RuntimeError(f"{step}: {response.outcome}: {response.detail}")
         answers = response.payload["answers"]
-        self.audit.append("decision", step_id=step, goal=GOAL, model=response.payload.get("model"),
+        self.audit.append("decision", step_id=step, goal=self.goal, model=response.payload.get("model"),
                           answers=answers)
         return answers
 
@@ -248,6 +261,24 @@ class Dispatch:
         time.sleep(0.7)
         frame = self.frame("lane1-open")
         self.verify_lane(frame)
+
+    def open_search(self):
+        frame = self.frame("freebuff-before-search")
+        self.require_foreground()
+        region = (297, 94, 331, 131)
+        self.yes("identify-search-control", frame,
+                 "Does this crop show a magnifying glass search icon?",
+                 region=region)
+        left, top, _, _ = region
+        pixels = frame.crop(region).convert("L")
+        box = pixels.point(lambda level: 255 if level >= 140 else 0).getbbox()
+        if box is None or not (8 <= box[2] - box[0] <= 25 and 8 <= box[3] - box[1] <= 25):
+            raise RuntimeError("the verified Search icon outline could not be located")
+        point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
+        self.act("open-session-search", CLICK,
+                 {"control": "FreeBuff session search", "point": point, "size": list(frame.size)})
+        time.sleep(0.6)
+        self.frame("freebuff-search-open")
 
     def verify_lane(self, frame):
         self.require_foreground()
@@ -346,19 +377,28 @@ class Dispatch:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
-    parser.add_argument("--phase", choices=("open", "prepare", "send"), default="open")
+    parser.add_argument("--phase", choices=("open", "search", "prepare", "send"), default="open")
+    parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
     if not key:
         parser.error("the trusted child needs the existing TypeSafe key")
     args.evidence.mkdir()
-    dispatch = Dispatch(args.evidence, key)
+    dispatch = Dispatch(args.evidence, key, thread=args.thread)
     try:
         if args.phase == "open":
+            if args.thread != THREAD:
+                raise RuntimeError("use verified search for this session")
             dispatch.open_lane()
+        elif args.phase == "search":
+            dispatch.open_search()
         elif args.phase == "prepare":
+            if args.thread != THREAD:
+                raise RuntimeError("the session composer must be scoped before preparing a draft")
             dispatch.prepare_draft()
         else:
+            if args.thread != THREAD:
+                raise RuntimeError("the session composer must be scoped before sending")
             dispatch.send_draft()
     except (OSError, RuntimeError, KeyError, TypeError, ValueError) as error:
         dispatch.audit.append("escalation", step_id="dispatch", reason=str(error))
