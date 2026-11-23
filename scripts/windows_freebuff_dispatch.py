@@ -729,10 +729,13 @@ class Dispatch:
             self.audit.append("escalation", step_id="active-session-route", reason=str(error))
             sessions = None
         if sessions:
-            if len(sessions) == 1 and sessions[0].split("-")[0] == self.thread:
-                self.audit.append("verification", step_id="active-session-id", exact_id=sessions[0])
+            matched = [route for route in sessions if route.split("-")[0] == self.thread]
+            if matched:
+                self.audit.append("verification", step_id="active-session-id", exact_id=matched[0],
+                                  exposed=sessions[:8])
                 return
-            raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
+            self.audit.append("escalation", step_id="active-session-id", exposed=sessions[:8],
+                              reason="no exposed route is the pinned thread; trying the selection")
         if self.selected_label_matches(wait=3):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               source="settled sidebar selection")
