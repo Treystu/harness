@@ -47,6 +47,9 @@ class Dispatch:
         self.user.SetThreadDpiAwarenessContext(-4)
         self.user.SwitchToThisWindow.argtypes = (wintypes.HWND, wintypes.BOOL)
         self.user.SwitchToThisWindow.restype = None
+        self.user.AttachThreadInput.argtypes = (wintypes.DWORD, wintypes.DWORD, wintypes.BOOL)
+        self.user.BringWindowToTop.argtypes = (wintypes.HWND,)
+        self.user.SetForegroundWindow.argtypes = (wintypes.HWND,)
         self.user.WindowFromPoint.argtypes = (wintypes.POINT,)
         self.user.WindowFromPoint.restype = wintypes.HWND
         self.user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
@@ -77,6 +80,18 @@ class Dispatch:
         if self.window.api.foreground() != hwnd:
             if not self.window.api.focus(hwnd, TITLE):
                 self.user.SwitchToThisWindow(hwnd, True)
+        previous = self.window.api.foreground()
+        if previous and previous != hwnd:
+            caller = ctypes.windll.kernel32.GetCurrentThreadId()
+            current = self.user.GetWindowThreadProcessId(previous, None)
+            attached = caller != current and self.user.AttachThreadInput(caller, current, True)
+            try:
+                self.user.BringWindowToTop(hwnd)
+                self.user.SetForegroundWindow(hwnd)
+            finally:
+                if attached:
+                    self.user.AttachThreadInput(caller, current, False)
+            time.sleep(0.15)
         self.require_foreground()
 
     def click(self, action, params):
