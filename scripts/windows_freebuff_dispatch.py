@@ -167,7 +167,7 @@ class Dispatch:
         for character in self.text:
             if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
                 raise RuntimeError("the verified composer renderer is no longer available")
-            if self.scoped_input or self.text == DISK_POINTER:
+            if self.text == DISK_POINTER or (self.scoped_input and self.thread == DISK_THREAD):
                 if not self.user.PostMessageW(hit, 0x0102, ord(character), 1):
                     raise RuntimeError("the verified Disk Audit composer refused a character")
             else:

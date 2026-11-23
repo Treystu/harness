@@ -202,16 +202,23 @@ def main():
                         help="resume after the recorded recent-cache refusal")
     source.add_argument("--resume-placeholder-cure", action="store_true",
                         help="resume after the plain empty composer was not classified")
+    source.add_argument("--resume-keyboard-cure", action="store_true",
+                        help="resume after the scoped composer rejected character input")
     parser.add_argument("--wait", type=int, default=120)
     parser.add_argument("--bystander-title", action="append", default=[])
     args = parser.parse_args()
     args.state.mkdir(parents=True, exist_ok=True)
     if (args.oversight_demo or args.resume_before_input or args.resume_selection_cure
-            or args.resume_highlight_cure or args.resume_cache_cure or args.resume_placeholder_cure):
+            or args.resume_highlight_cure or args.resume_cache_cure or args.resume_placeholder_cure
+            or args.resume_keyboard_cure):
         mission, digest = one_shot_dispatch()
         execution = args.state / str(DEMO_COMMENT)
-        if args.resume_highlight_cure or args.resume_cache_cure or args.resume_placeholder_cure:
-            if args.resume_placeholder_cure:
+        if (args.resume_highlight_cure or args.resume_cache_cure or args.resume_placeholder_cure
+                or args.resume_keyboard_cure):
+            if args.resume_keyboard_cure:
+                previous_stage, current_stage = "placeholder-cure", "keyboard-cure"
+                reason = "read-exact-draft-retry: exact OCR label"
+            elif args.resume_placeholder_cure:
                 previous_stage, current_stage = "cache-cure", "placeholder-cure"
                 reason = "composer-route: Jev choice 'stop' confidence was 0.63"
             elif args.resume_cache_cure:
@@ -224,10 +231,13 @@ def main():
             prepared = previous / "prepare" / "driver.jsonl"
             if ((previous / "send").exists() or not prepared.is_file()
                     or not AuditLog(prepared).verify().ok
-                    or reason not in prepared.read_text(encoding="utf-8")
-                    or any(json.loads(line)["kind"] == "action"
-                           for line in prepared.read_text(encoding="utf-8").splitlines())):
+                    or reason not in prepared.read_text(encoding="utf-8")):
                 parser.error("no verified inside-view refusal to resume")
+            actions = [record["step_id"] for line in prepared.read_text(encoding="utf-8").splitlines()
+                       if (record := json.loads(line))["kind"] == "action"]
+            expected = ["focus-verified-composer", "type-continuation"] if args.resume_keyboard_cure else []
+            if actions != expected:
+                parser.error("unexpected actions in the previous attempt")
             execution = args.state / f"{DEMO_COMMENT}-{current_stage}"
             try:
                 execution.mkdir()
