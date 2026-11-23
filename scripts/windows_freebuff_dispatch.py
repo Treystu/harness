@@ -251,7 +251,7 @@ class Dispatch:
             raise RuntimeError(f"{step}: Jev choice {selected!r} confidence was {probability}")
         return selected
 
-    def locate_exact_text(self, step, frame, label, region, *, whole=False):
+    def locate_exact_text(self, step, frame, label, region, *, whole=False, with_bounds=False):
         left, top, right, bottom = region
         crop = frame.crop(region).resize(((right - left) * 3, (bottom - top) * 3))
         path = self.output / f"{step}-ocr.png"
@@ -268,6 +268,10 @@ class Dispatch:
         xy = [left + round(point["x"] / 3), top + round(point["y"] / 3)]
         self.audit.append("extraction", step_id=step, source="windows-ocr",
                           exact_label=label, point=xy)
+        if with_bounds:
+            bounds = [round(value / 3) + origin for value, origin in
+                      zip(point["bounds"], (left, top, left, top), strict=True)]
+            return xy, bounds
         return xy
 
     def open_lane(self):
@@ -350,12 +354,15 @@ class Dispatch:
     def select_search_result(self):
         frame = self.frame("before-select-session")
         self.require_foreground()
-        point = self.locate_exact_text("locate-existing-search-result", frame, self.label,
-                                       (546, 249, 1220, 926))
-        region = (541, point[1] - 21, 1120, point[1] + 21)
+        point, box = self.locate_exact_text("locate-existing-search-result", frame, self.label,
+                                            (546, 249, 1220, 926), with_bounds=True)
+        region = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
         self.yes("verify-existing-search-result", frame,
-                 f"Does this search result row show the exact session title '{self.label}'?",
+                 f"Does the printed text read '{self.label}'?",
                  region=region)
+        fresh = self.frame("fresh-selection-readback")
+        if fresh.size != frame.size or fresh.crop(region).tobytes() != frame.crop(region).tobytes():
+            raise RuntimeError("the OCR-verified selection label changed before the click")
         self.act("select-existing-session", CLICK,
                  {"control": f"existing {self.label} ({self.thread}) search result",
                   "point": point, "size": list(frame.size)})
@@ -383,6 +390,20 @@ class Dispatch:
             _, y = self.locate_exact_text("locate-selected-lane1", frame, self.label,
                                           (128, 300, 300, 850))
             region = (93, y - 22, 365, y + 22)
+            profile = Path(os.environ["APPDATA"]) / "Freebuff" / "Partitions"
+            stores = list(profile.glob("*/Local Storage/leveldb/*.log"))
+            stores += list(profile.glob("*/Local Storage/leveldb/*.ldb"))
+            session_id = b"315608d2-1531-456b-918a-f7e97db56496"
+            for path in sorted(stores, key=lambda path: path.stat().st_mtime, reverse=True)[:12]:
+                try:
+                    if session_id in path.read_bytes():
+                        self.audit.append("extraction", step_id="verify-lane1-id",
+                                          exact_id=session_id.decode("ascii"))
+                        break
+                except OSError:
+                    continue
+            else:
+                raise RuntimeError("Lane 1 UUID absent from recent FreeBuff local state")
         self.yes("verify-lane1", frame,
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "in the sidebar? Reject a plain unselected row.",

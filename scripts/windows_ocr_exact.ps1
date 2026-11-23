@@ -44,7 +44,7 @@ try {
         $top = ($rects.Y | Measure-Object -Minimum).Minimum
         $right = ($rects | ForEach-Object { $_.X + $_.Width } | Measure-Object -Maximum).Maximum
         $bottom = ($rects | ForEach-Object { $_.Y + $_.Height } | Measure-Object -Maximum).Maximum
-        @{ x=[int](($left+$right)/2); y=[int](($top+$bottom)/2) } | ConvertTo-Json -Compress
+        @{ x=[int](($left+$right)/2); y=[int](($top+$bottom)/2); bounds=@($left,$top,$right,$bottom) } | ConvertTo-Json -Compress
     } finally {
         $bitmap.Dispose()
     }
