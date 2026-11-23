@@ -95,7 +95,7 @@ def save_document(window, destination, params):
 
 
 def decide_and_act(driver, goal, step, action, params, observed):
-    state = {"goal": goal, **observed}
+    state = {"goal": goal, "authorized_action_for_this_stage": action, **observed}
     driver.audit.append("capture", step_id=step, source="windows-notepad-proof", state=state)
     decision = driver.jev.decide(
         state, VOCABULARY, step_id=step, performable=(action, "no_action"))
@@ -134,8 +134,9 @@ def prove(goal, output, destination, key):
         with driver.budget.step_scope(step):
             original_notepad = notepad_handles(window)
             decide_and_act(driver, goal, step, "launch_app", {"app_name": "notepad"},
-                           {"existing_notepad_windows": len(original_notepad),
-                            "stage": "before opening a fresh Notepad document"})
+                           {"mission_window_exists": False,
+                            "stage": "open a fresh, dedicated Notepad window for this proof; "
+                            "any other Notepad window is outside the mission"})
             wait_for_document(window, original_notepad, audit)
             opened = vision._verify_visibility(
                 "application", "Is Notepad visible with a single blank untitled document "
