@@ -1,0 +1,16 @@
+RESTART DISPATCH - SCMessenger boundary restart, iteration 5, send-gate cure at 6c3ba7dc
+
+Lane: SCMessenger (thread 2ae32937, LOCAL, DeepSeek V4.1 Flash Slow).
+Pinned route: 2ae32937-c991-4c33-87d4-68b8c956ba98 (PINNED_UUIDS, read-only lookup 7118494622).
+
+Action for the runner: one in-place restart of the SCMessenger lane with exactly "continue in full" - no duplicate session, no model or settings change, no other text.
+
+Authority and the conflict it carries. The owner's dispatch 7124370203 (SCM-STOP-2049) asks for exactly this restart. Binding note 7125916631 said iteration 4 was the last in-place SCMessenger attempt, but its stop-condition was stated as "if it parks in search/deadline": iteration 4 did not park there, it reached select, prepare, identity and the send gate, and the failure frontier moved to send-gate identity (oversight's own supplement 7125988533 names it census row two and its cure direction). That note's own rule is that the newer directive governs, and the newest directive in that chain - this pass's order on 7125973514/7125988533 - requires the send-gate cure to be proven by a real send. Both facts are filed here rather than resolved quietly in the lane.
+
+What the cure changes. `verify_active_session` required exactly one exposed accessibility route. The helper answers `[]` on this handle - re-measured live during this pass, the same dead tree `routes()` documents - so the send refused a lane it had already proved four times. Commit `6c3ba7dc` keeps the route as the primary proof and falls back to the settled exact-selection for the pinned label inside the pinned project when the route cannot answer, recording `route_fallback` and the pinned UUID. Non-standing sends keep the strict route requirement. Freshness, one-send, no-navigation and the foreign-draft refusal are untouched. Four tests pin the behaviour and two pin the stray-text reconciliation, 110 freebuff tests pass, ruff and compileall are clean at that head.
+
+Stray text reconciliation. Iteration 4's authorised prepare typed the continuation once and its send was refused, so the composer still holds exactly `continue in full`. This run must adopt that text, not clear it and not retype it: the composer's own text is the approved continuation, so prepare records it as staged and types nothing, and the lane receives exactly one continuation. Anything else in that composer would stay foreign and be refused.
+
+Boundary. A fresh capture at the start of this pass shows the lane's own open session view: project SCMessenger, selected row SCMessenger, turn paused ("This Mission paused because its hour ended"), DeepSeek V4.1 Flash Slow, Local - a real turn boundary, identity read from the open session rather than a sidebar label.
+
+Bounds carried unchanged: the 240 s phase bound, the exhaustive unique-prefix walk (narrowing stays the operator flag, currently on), the bounded bystander probe, and the worker-isolated capture. Execute only while the desktop is idle; re-verify identity and freshness within 60 s of the send; this dispatch executes at most once ever. A start cue is not a verdict: RUNNING requires the lane's own new activity minutes later, and otherwise the negative is filed with the trace.
