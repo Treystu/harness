@@ -860,16 +860,26 @@ class Dispatch:
             frame = self.frame(f"sidebar-top-{attempt}-after")
         return frame
 
-    def walk_session_list(self, pages=8):
-        """Walk the project session list page by page, each page settled before a pick."""
+    def walk_session_list(self, pages=16):
+        """Walk the project session list page by page, each page settled before a pick.
+
+        Sixteen pages is the measured depth of the laptop's list: the
+        SCMessenger section sits below page eight, so an eight-page walk
+        reported a present project as absent (measured, 1545).
+        """
         frame = self.scroll_sidebar_to_top()
         seen = []
         for page in range(1, pages + 1):
             try:
                 frame, rows = self.settled_roster(f"session-list-{page}", SIDEBAR, attempts=5)
             except RuntimeError as error:
-                self.audit.append("escalation", step_id="walk-session-list", reason=str(error))
-                return False
+                # A page that never settles (the list is reordering under the
+                # census) must not end the walk; the next page may settle.
+                self.audit.append("escalation", step_id=f"walk-session-list-{page}",
+                                  reason=str(error))
+                self.scroll_by(f"walk-session-list-{page}-advance", frame, [196, 850], -400)
+                time.sleep(0.8)
+                continue
             texts = [row["text"] for row in rows]
             if texts in seen:
                 return False
@@ -1225,7 +1235,8 @@ class Dispatch:
         try:
             if not self.walk_session_list():
                 self.audit.append("escalation", step_id="navigate-session-list",
-                                  reason=f"{self.label!r} is not in the project session list")
+                                  reason=f"{self.label!r} is not in the project session list "
+                                         "within the bounded walk")
                 return False
         except RuntimeError as error:
             self.audit.append("escalation", step_id="navigate-session-list", reason=str(error))
