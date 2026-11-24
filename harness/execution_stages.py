@@ -428,15 +428,25 @@ class ExecutionStageMixin:
 
         # Always provide a prompt response to the user's inquiry whenever possible,
         # using conversational / Jev-driven handling rather than returning only a bare refusal.
+        #
+        # #705: this refusal belongs to the plan lane, and the chat lane defers
+        # straight back into the plan lane. The re-entry therefore carries the
+        # siblings' guards -- no escalation and no persisted turn (the refusal
+        # already owns this turn's history) -- and the shared handoff budget
+        # bounds the pair: past it the refusal renders without a chat answer
+        # instead of re-entering forever.
         answer_text = ""
-        try:
-            conv = self._handle_conversation(prompt, session_id)
-            if isinstance(conv, dict) and conv.get("response"):
-                cand = str(conv["response"]).strip()
-                if not cand.startswith("The waist confirmation gate refused"):
-                    answer_text = cand
-        except (Exception, AssertionError):
-            pass
+        if not self._handoff_suppressed("conversation", reason):
+            try:
+                with self._handler_handoff():
+                    conv = self._handle_conversation(
+                        prompt, session_id, allow_escalation=False, persist=False)
+                    if isinstance(conv, dict) and conv.get("response"):
+                        cand = str(conv["response"]).strip()
+                        if not cand.startswith("The waist confirmation gate refused"):
+                            answer_text = cand
+            except (Exception, AssertionError):
+                pass
 
         if not answer_text:
             # #206: refused/empty renders as refused, never as verified.
