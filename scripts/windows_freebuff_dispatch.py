@@ -734,6 +734,52 @@ class Dispatch:
                 best = (scores, row)
         return best[1] if best else None
 
+    @classmethod
+    def exact_session_title(cls, text, label):
+        """Is this row's title exactly the lane, not a heading or a rival?
+
+        Measured on the SCMessenger project: heading 'B SCMessenger', the lane
+        'SCMessenger', and four chats that only OPEN with the name. Only the
+        plain row whose title is the label qualifies.
+        """
+        stripped = text.strip()
+        if stripped == label.strip():
+            return True
+        return cls._norm(stripped.partition(" ")[2] or "") == cls._norm(label)
+
+    def selected_exact_session(self, wait=8):
+        """Prove the lane from the app's own selection when no route is exposed.
+
+        Chromium publishes no route on this window (measured 2026-11-24: three
+        structure reads returned nothing after a clean selection), so the
+        selection is the primary source. It must be this lane's exact title
+        inside the pinned project; a project heading or a title that merely
+        opens with the name is refused.
+        """
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                frame, rows = self.settled_roster("selected-exact-probe", SIDEBAR, attempts=5)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="selected-exact-probe",
+                                  reason=str(error))
+                return False
+            row = self.highlighted_row(frame, rows)
+            # A project heading and one chat can share a name (SCMessenger); the
+            # chat is always the lower of the two rows, so the selection must be
+            # the lowest exact title in this project, never the heading.
+            exacts = [candidate for candidate in rows
+                      if self.exact_session_title(candidate["text"], self.label)
+                      and self.project_of_row(rows, candidate) == self.project]
+            lowest = max(exacts, key=lambda candidate: candidate["y"]) if exacts else None
+            if row is not None and lowest is not None and row["y"] == lowest["y"]:
+                self.audit.append("verification", step_id="selected-exact-session",
+                                  row=row["text"], project=self.project)
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.8)
+
     def selected_label_matches(self, wait=0):
         deadline = time.monotonic() + wait
         while True:
@@ -1540,6 +1586,11 @@ class Dispatch:
             self.verify_vision_seat()
             return
         if self.standing and self.thread == SCM_THREAD:
+            if self.selected_exact_session():
+                self.audit.append("verification", step_id="active-session-id",
+                                  route_fallback="exact-scoped-selection",
+                                  thread=self.thread, project=self.project)
+                return
             raise RuntimeError("the exact pinned session route is required for this standing dispatch")
         if self.selected_label_matches(wait=3):
             self.audit.append("verification", step_id="active-session-row", label=self.label,

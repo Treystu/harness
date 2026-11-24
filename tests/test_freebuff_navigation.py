@@ -205,6 +205,14 @@ def test_a_project_heading_is_never_the_session_it_names():
     assert heading["text"] == "B SCMessenger"
 
 
+def test_only_the_exact_lane_title_counts_as_the_selection():
+    assert Dispatch.exact_session_title("SCMessenger", "SCMessenger")
+    assert Dispatch.exact_session_title("Ra SCMessenger", "SCMessenger")
+    assert not Dispatch.exact_session_title("SCMessenger Audit Lar", "SCMessenger")
+    assert not Dispatch.exact_session_title("SCMessenger Fresh Re", "SCMessenger")
+    assert not Dispatch.exact_session_title("Lane 1 nightly", "Lane 1")
+
+
 def test_an_exact_title_wins_over_prefix_rivals():
     rows = [{"text": "Projects", "x": 60, "y": 80, "x1": 300},
             {"text": "B SCMessenger", "x": 60, "y": 120, "x1": 300},
