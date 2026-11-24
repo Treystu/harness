@@ -197,11 +197,11 @@ class CommandWiringTests(unittest.TestCase):
         with mock.patch("sys.stderr", new=err):
             for index, name in enumerate(names):
                 handler.log_message(
-                    "%s", 'GET /?%s=secretvalue%d&page=1" 200' % (name, index))
+                    "%s", f'GET /?{name}=secretvalue{index}&page=1" 200')
         for sink in (self.path.read_text(encoding="utf-8"), err.getvalue()):
             for index, name in enumerate(names):
-                self.assertIn("%s=REDACTED" % name, sink)
-                self.assertNotIn("secretvalue%d" % index, sink)
+                self.assertIn(f"{name}=REDACTED", sink)
+                self.assertNotIn(f"secretvalue{index}", sink)
             # The scrubber replaces values, not the rest of the request line.
             self.assertIn("page=1", sink)
             self.assertIn("GET /?", sink)
