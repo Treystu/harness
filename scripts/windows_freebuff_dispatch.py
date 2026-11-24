@@ -1304,7 +1304,7 @@ class Dispatch:
         that cannot finish.
         """
         self.require_foreground()
-        frame = self.frame("narrow-before-search")
+        frame = self.ensure_search_dialog(self.frame("narrow-before-search"))
         # Each phase is its own process, and the query phase has usually already
         # put this label in the field. Typing again would read "Lane 1Lane 1" and
         # match nothing, so the field's own text decides.
@@ -1665,7 +1665,20 @@ class Dispatch:
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
-        frame = self.ensure_search_closed(self.frame("freebuff-before-search-reset"))
+        self.ensure_search_dialog(frame)
+
+    def ensure_search_dialog(self, frame):
+        """Open the session-search dialog, verified, without touching the list.
+
+        The narrowed prefix walk needs this field in whichever phase it runs,
+        and each phase is its own process, so the dialog is usually closed by
+        then. It is opened here by the same verified Search-icon click open_search
+        uses - not by open_search itself, which falls back to walking the whole
+        list and would put the 240 s cost straight back.
+        """
+        if self.dialog_open(frame):
+            return frame
+        frame = self.ensure_search_closed(frame)
         region = (296, 75, 333, 104)
         left, top, _, _ = region
         for attempt in (1, 2):
@@ -1678,16 +1691,14 @@ class Dispatch:
                      {"control": "FreeBuff session search", "point": point,
                       "size": list(frame.size)})
             try:
-                frame = self.wait_dialog(True, seconds=8)
-                break
+                return self.wait_dialog(True, seconds=8)
             except RuntimeError:
                 # A toggle that closed a stale dialog reads the same as one that
                 # failed to open it; one more verified click settles which it was.
                 self.audit.append("escalation", step_id=f"open-session-search-{attempt}",
                                   reason="the dialog was not open after the click")
                 frame = self.frame(f"search-open-retry-{attempt}")
-        else:
-            raise RuntimeError("the search dialog did not open after two verified search clicks")
+        raise RuntimeError("the search dialog did not open after two verified search clicks")
 
     def open_vision_seat(self):
         """Inspect the observed GitHub-project row, then require the pinned route."""

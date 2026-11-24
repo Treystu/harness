@@ -350,6 +350,7 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch.audit = Mock()
         dispatch.require_foreground = Mock()
         dispatch.frame = Mock(return_value=Mock(size=(1800, 1131)))
+        dispatch.ensure_search_dialog = Mock(side_effect=lambda current: current)
         dispatch.scroll_sidebar_to_top = Mock(return_value=Mock(size=(1800, 1131)))
         dispatch.read_lines = Mock(return_value=[typed] if typed else [])
         dispatch.locate_exact_text = Mock(
