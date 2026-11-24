@@ -1998,6 +1998,7 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                 return self._api_driver_drive(body)
             if parsed.path == "/api/provision/plan":
                 from . import provision as pv
+                from .provision_plan import render_plan
                 goal = str(body.get("goal") or "").strip()
                 if not goal:
                     raise HarnessError("provision goal is required")
@@ -2009,7 +2010,7 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                 policy = pv.policy_for_probe(probe, [root])
                 plan = pv.plan_provision(goal, probe, policy=policy)
                 res = plan.to_dict()
-                res["rendered"] = pv.render_plan(plan)
+                res["rendered"] = render_plan(plan)
                 return self._send_json(res)
             if parsed.path == "/api/route":
                 # SITE local mode: same policy owner as `harness route`.

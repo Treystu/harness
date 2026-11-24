@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import osal, provision as pv
+from harness import provision_plan as pp
 from harness.ledger import AutonomyLedger
 from tests.test_provision import (FAKE_BIN, FakeRunner, TempRootCase, fake_which,
                                   mutating_plan, step, which_of)
@@ -445,7 +446,7 @@ class UnsafeTextTests(HardeningCase):
             pv.MUTATING, "creates" + esc + "[1A" + esc + "[2K", "undo\r\nDigest: 0")
         plan = pv.Plan("goal\rDigest: 000", [forged], self.root, "re\ncipe",
                        "s\u202ee", True, ("note\nnote2",))
-        text = pv.render_plan(plan)
+        text = pp.render_plan(plan)
         # 5 header lines + 4 for the one step + 1 note: nothing forged a line
         self.assertEqual(len(text.splitlines()), 10, msg=repr(text))
         for char in (esc, "\r", "\u202e", "\u200b"):
