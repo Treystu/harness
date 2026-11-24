@@ -252,6 +252,9 @@ def build_parser():
     pask.add_argument("prompt", nargs="+", help="ordinary question or short request")
     pask.add_argument("--session-id", default=None,
                       help="optional shared chat-history session id")
+    pask.add_argument("--web", action="store_true", dest="web",
+                      help="request bounded web retrieval; native Jev must "
+                           "accept a ResearchPlan before any search or fetch")
     _add_output_flags(pask)
 
     pv = sub.add_parser("verify", help="Panel + judge verification (back-compat with fusion_lite.py)")

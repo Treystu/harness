@@ -687,11 +687,15 @@ class McpServer:
             settings = self.settings or load_settings()
             session_id = (validate_mcp_task_id(args.get("session_id"))
                           if args.get("session_id") is not None else None)
+            # #342: the web flag is capability only. The shared plan owner
+            # proposes one ResearchPlan and native Jev judges it before any
+            # search or fetch; the returned record is the gate receipt.
+            web = validate_mcp_bool(args.get("web", False), "web")
             agent = AutonomousAgent(settings=settings,
                                     transport=self.transport)
             return agent.run_prompt(
                 prompt=prompt, auto_apply=False, session_id=session_id,
-                cancel_check=cancel_check, force_conversation=True)
+                cancel_check=cancel_check, force_conversation=True, web=web)
 
         if name == "site_check":
             prompt = validate_mcp_prompt(args.get("prompt"))
