@@ -1,0 +1,13 @@
+{
+  "issue": 342,
+  "code_pr": {"number": 715, "head": "283707bb1d1c01961f146cfdd657b43ba239fbc4",
+              "rail": "n=16 ok=16 pend=0 bad=",
+              "merge": "c26902b14dcd77a1289ec32ca70f4e3e6c3eaa38"},
+  "register_pr": {"number": 716, "head": "017f19215f7e0fca0f9fcdbf332f3d47ea9fba98",
+                  "rail": "n=16 ok=16 pend=0 bad=",
+                  "merge": "b35cab9d53ae309e8b259aa2bc30e6e05f49e905"},
+  "filing_comment": 7137259911,
+  "checkin_comment": 7137289468,
+  "verified_in_merged_tree": "treystu/main docs/jev-roadmap.md carries 'PR #715 (`c26902b1`) closes that remainder' exactly once",
+  "completion_credit": "none; #342 and #344 remain OPEN"
+}
