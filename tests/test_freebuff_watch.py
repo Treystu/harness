@@ -434,6 +434,15 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertEqual(write.call_args_list[0].args[0], "claim-dyn-990003-2ae32937.json")
             self.assertEqual(write.call_args_list[1].args[0], "result-dyn-990003-2ae32937.json")
 
+    def test_missing_driver_runtime_is_refused_by_name_before_a_claim(self):
+        """L17: the %TEMP% proof venv is not durable, so the runtime the watch
+        actually runs under is checked before any claim and named when absent."""
+        self.assertIsNone(watch.require_driver_runtime())
+        with patch.object(watch.importlib.util, "find_spec",
+                          side_effect=lambda name: None if name == "windows_capture" else object()):
+            with self.assertRaisesRegex(RuntimeError, "driver runtime missing: windows_capture"):
+                watch.require_driver_runtime()
+
     def test_local_control_state_accepts_utf8_bom_control_json(self):
         with tempfile.TemporaryDirectory() as tmp:
             ctl = Path(tmp) / "control.json"

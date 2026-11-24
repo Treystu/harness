@@ -3,6 +3,7 @@
 import base64
 import ctypes
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -142,6 +143,24 @@ def worktree_head():
                             **_hidden_subprocess_kwargs())
     heads = result.stdout.splitlines()
     return heads[0] if result.returncode == 0 and len(heads) == 2 and heads[0] == heads[1] else None
+
+
+RUNTIME_MODULES = ("windows_capture", "PIL", "driver_core")
+
+
+def require_driver_runtime():
+    """Refuse by name when the driving runtime is absent, before any claim.
+
+    The documented proof venv under %TEMP% is not durable (measured 2026-11-24:
+    it no longer exists), so the interpreter that runs the watch is the only
+    runtime there is. Checked at the moment a dispatch would execute - not at
+    tick start - so the heartbeat keeps reporting liveness while the refusal
+    names exactly what is missing instead of failing inside a phase.
+    """
+    missing = [name for name in RUNTIME_MODULES
+               if importlib.util.find_spec(name) is None]
+    if missing:
+        raise RuntimeError("driver runtime missing: " + ", ".join(missing))
 
 
 def desktop_idle():
@@ -319,6 +338,7 @@ def poll_dynamic_dispatches(known, *, now=None):
             checkpoint(f"result-{item}.json", {"dispatch": cid, "target": "antigravity", "state": status})
             issue_comment(f"Vision watch #{cid} / `antigravity`: {status}. FreeBuff remains active.")
             return True
+        require_driver_runtime()
         if not desktop_idle():
             heartbeat(known, "waiting for owner desktop idle")
             return True
@@ -390,6 +410,7 @@ def run_burn(receipts, known):
         if claim in known:
             continue
         guard_approval()
+        require_driver_runtime()
         if not desktop_idle():
             heartbeat(known, "waiting for owner desktop idle")
             return
@@ -683,6 +704,7 @@ def run_restoration(receipts, known):
             else:
                 continue
         guard_approval()
+        require_driver_runtime()
         if not desktop_idle():
             heartbeat(known, "waiting for owner desktop idle before restoration")
             return True
