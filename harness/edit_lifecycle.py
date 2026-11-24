@@ -24,7 +24,12 @@ from .jev_policy import JevPolicy, aggregate_structural, policy_for
 from .lifecycle import adapter_for, review_probability
 from .orchestrator import MAX_ORCH_ROUNDS, drive
 from .prompts import MAX_FILE_LINES
-from .repo_scope import discover_verification_gate, enumerate_repo_files
+from .repo_scope import (
+    discover_target_files,
+    discover_verification_gate,
+    enumerate_repo_files,
+    pasted_absolute_path,
+)
 from .results import SUCCESS_STATUSES, model_envelope
 from .session import (
     apply_session, attest_model_for, ensure_offered_task_id, governor_for,
@@ -130,7 +135,27 @@ class AutoEditLifecycleMixin:
             auto_apply = True
 
         prior_plan = None
-        if past_turns and is_exec_directive:
+        # #707: a file the CURRENT prompt names outranks a past turn's
+        # target_files. This used to be decided the other way round, so an
+        # operator who pasted a new path in an execution directive kept editing
+        # the previous plan's file on every iteration of the edit loop.
+        # Discovery here is the local, explicit-name pass -- no model call, so
+        # an ordinary "execute the plan" directive costs exactly what it did --
+        # and the full triage stays a fallback further down.
+        if not target_files:
+            target_files = discover_target_files(prompt, self.root_dir)
+        if not target_files:
+            # #707: an absolute path the operator pasted is the target even
+            # when it lives outside the workspace -- including the recorded
+            # case, a script on the Desktop. Discovery above resolves inside
+            # the workspace, so it cannot see one; without this the run fell
+            # back to the stale plan and silently edited the wrong file
+            # instead of stopping at the workspace gate that names the path.
+            pasted = pasted_absolute_path(prompt)
+            if pasted:
+                target_files = [pasted]
+
+        if past_turns and is_exec_directive and not target_files:
             for turn in reversed(past_turns):
                 if isinstance(turn, dict):
                     if turn.get("dag") and turn.get("target_files"):
