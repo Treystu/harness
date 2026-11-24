@@ -950,9 +950,12 @@ def _cmd_ask(opts, settings):
     """CLI face over the same conversational owner used by the GUI."""
     prompt = " ".join(opts.prompt).strip()
     agent = AutonomousAgent(settings=settings)
+    # #342: --web grants capability only. The shared plan owner proposes and
+    # has native Jev judge one ResearchPlan before any search or fetch, and the
+    # result carries the gate receipt so the CLI shows what was decided.
     result = agent.run_prompt(
         prompt=prompt, auto_apply=False, session_id=opts.session_id,
-        force_conversation=True)
+        force_conversation=True, web=bool(getattr(opts, "web", False)))
     _emit(result, opts.out)
     code = terminal_exit_code(result.get("status"))
     if code:

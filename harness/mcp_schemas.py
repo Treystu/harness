@@ -14,11 +14,17 @@ TOOL_SCHEMAS = [
         "description": (
             "When: an ordinary conversational request or a short follow-up to "
             "the shared session. "
-            "In: prompt plus optional session_id. "
-            "Out: one lifecycle answer; never repository-write scope."),
+            "In: prompt plus optional session_id and optional web (a boolean "
+            "that requests bounded retrieval; native Jev must accept a "
+            "ResearchPlan before any search or fetch). "
+            "Out: one lifecycle answer with its research_plan gate receipt; "
+            "never repository-write scope."),
         "inputSchema": {"type": "object", "properties": {
             "prompt": {"type": "string", "description": "Question or short ordinary request"},
             "session_id": {"type": "string", "description": "Optional shared chat-history session id"},
+            "web": {"type": "boolean",
+                    "description": "Request bounded web retrieval; capability only, "
+                                   "never approval -- native Jev must accept the plan first"},
         }, "required": ["prompt"]},
         "annotations": {"readOnlyHint": True, "destructiveHint": False,
                         "openWorldHint": True},
