@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 from harness.agent import AutonomousAgent
 from harness.config import load_settings
 from harness.history import save_chat_turn
+from harness.repo_scope import pasted_absolute_path
 
 
 def setUpModule():
@@ -69,23 +70,40 @@ class EditScopeOrderTests(unittest.TestCase):
             "prompt": prompt, "target_files": list(files),
             "dag": {"nodes": [{"name": "n1"}]}}, root)
 
-    def test_pasted_path_beats_a_stale_prior_plan(self):
+    def test_pasted_outside_path_stops_instead_of_editing_the_stale_plan(self):
+        # The recorded session: the prior plan is orders_of_magnitude.py and
+        # the operator pastes a script on the Desktop. The pasted path is the
+        # turn's scope even though it is outside the workspace, so the run
+        # stops at the workspace gate naming it instead of quietly editing
+        # the stale file on every iteration.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             agent = _agent(tmp)
             self._prior_plan(root, "s1", ["orders_of_magnitude.py"],
                              prompt="Refactor orders_of_magnitude.py")
-            pasted = str(Path(tmp) / "script" / "magnitude_infographic.py")
+            pasted = ("C:\\Users\\SCM\\Desktop\\test\\script"
+                      "\\magnitude_infographic.py")
             seen, seam = self._capture(agent)
-            with seam, patch.object(agent, "_triage_scope",
-                                    return_value=[pasted]):
+            with seam:
                 agent._handle_edit(
                     "execute the plan for " + pasted, "s1", False)
 
+        # The plan is built for the pasted path, not the stale one, and the
+        # stale plan's goal is not grafted onto a differently scoped turn.
         self.assertEqual(seen["files"], [pasted])
-        # A differently scoped turn does not inherit the stale plan's goal.
         self.assertNotIn("Refactor orders_of_magnitude.py", seen["goal"])
         self.assertIn("magnitude_infographic.py", seen["goal"])
+
+    def test_pasted_path_is_read_from_the_prompt_not_a_url(self):
+        self.assertEqual(
+            pasted_absolute_path("execute C:/work/script.py please"),
+            "C:/work/script.py")
+        self.assertEqual(
+            pasted_absolute_path("run /home/me/infographic.py"),
+            "/home/me/infographic.py")
+        self.assertIsNone(pasted_absolute_path(
+            "see https://example.com/docs/read.py for context"))
+        self.assertIsNone(pasted_absolute_path("execute the plan"))
 
     def test_scope_is_triaged_from_the_current_prompt_itself(self):
         with tempfile.TemporaryDirectory() as tmp:

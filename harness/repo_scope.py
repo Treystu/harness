@@ -27,6 +27,30 @@ def _gate_python() -> str:
     """
     return tools.python_token()
 
+# #707: an absolute path a user pasted into a request. Two shapes, both
+# anchored at a token boundary so a URL's slash is never mistaken for one:
+# a Windows drive path and a POSIX absolute path. The extension is required
+# because a bare directory mention is not an edit target.
+_PASTED_PATH = re.compile(
+    r"(?:^|[\s\"'`(<])((?:[A-Za-z]:[\\/]|/)[^\s\"'`<>|]*\.[A-Za-z0-9]{1,8})\b")
+
+
+def pasted_absolute_path(prompt: str) -> Optional[str]:
+    """The absolute file path the request itself names, if any.
+
+    Pure text: the path need not exist and need not sit inside the workspace --
+    that is the point. An operator pasting ``C:\\Users\\...\\script.py`` names
+    their target; callers let the workspace gate judge it instead of silently
+    substituting some other file. ``://`` is refused so a URL never matches.
+    """
+    for match in _PASTED_PATH.finditer(prompt or ""):
+        candidate = match.group(1).strip()
+        if candidate.startswith("//") or "://" in candidate:
+            continue
+        return candidate
+    return None
+
+
 def discover_target_files(prompt: str, root_dir: Optional[Path] = None) -> List[str]:
     # Autonomously identify candidate target files from prompt or repository
     if root_dir is None:
