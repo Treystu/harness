@@ -148,39 +148,6 @@ def worktree_head():
 RUNTIME_MODULES = ("windows_capture", "PIL", "driver_core")
 
 
-INPUT_ACTIONS = {"send_freebuff", "type_freebuff", "click_freebuff"}
-
-
-def retry_after_deadline(output):
-    """May this dispatch be retried once after a verified deadline park?
-
-    Only when the runner recorded the framework's own deadline string, every
-    trace chain verifies, and no action in any trace carried input. A park that
-    names any other reason keeps its at-most-once claim, and so does a trace
-    that cannot be verified - an unreadable chain is never evidence.
-    """
-    receipt = output / "runner.jsonl"
-    traces = sorted(output.glob("**/driver.jsonl"))
-    if not receipt.is_file() or not traces:
-        return False
-    if not AuditLog(receipt).verify().ok or any(not AuditLog(trace).verify().ok for trace in traces):
-        return False
-    rows = [json.loads(line) for line in receipt.read_text(encoding="utf-8").splitlines()]
-    if not any(row.get("step_id") == "result"
-               and "driver tree terminated after deadline" in row.get("state", "")
-               for row in rows):
-        return False
-    for trace in traces:
-        for line in trace.read_text(encoding="utf-8").splitlines():
-            row = json.loads(line)
-            if row.get("kind") == "action" and (
-                    row.get("action") in INPUT_ACTIONS
-                    or "composer" in (row.get("consent", {}).get("params", {})
-                                      .get("control", "").casefold())):
-                return False
-    return True
-
-
 def require_driver_runtime():
     """Refuse by name when the driving runtime is absent, before any claim.
 
@@ -359,18 +326,12 @@ def poll_dynamic_dispatches(known, *, now=None):
         item = f"dyn-{cid}-{thread}"
         claim = f"claim-{item}.json"
         if claim in known:
-            # One bounded retry, and only for a park the driver itself proved:
-            # the phase tree was verified stopped at the deadline and no trace
-            # carries an input action. A send, a type or a click is never
-            # retried here; those keep their at-most-once claim.
-            retry = f"{item}-deadline-cure"
-            if (f"claim-{retry}.json" in known
-                    or f"result-{item}.json" not in known
-                    or not retry_after_deadline(state_dir / item)):
-                continue
-            item = retry
-            claim = f"claim-{retry}.json"
-        elif parsed["kind"] == "restart" and filed_on_issue(comments, cid):
+            # At-most-once stands: a claimed dispatch is never re-run by this
+            # watch. Product Jev escalated the one-shot auto-retry draft
+            # (advances 0.52, destructive 0.21, confidence 0.31), so retry
+            # authority is oversight's to grant, not this code's to assume.
+            continue
+        if parsed["kind"] == "restart" and filed_on_issue(comments, cid):
             # Already executed through another channel: claim nothing, send
             # nothing, and file no duplicate verdict.
             continue

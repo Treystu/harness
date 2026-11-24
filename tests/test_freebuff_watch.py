@@ -434,29 +434,25 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertEqual(write.call_args_list[0].args[0], "claim-dyn-990003-2ae32937.json")
             self.assertEqual(write.call_args_list[1].args[0], "result-dyn-990003-2ae32937.json")
 
-    def test_retry_after_deadline_requires_a_verified_park_and_no_input(self):
-        """The Lane 1 dispatch 7119751841 parked at `search: driver tree
-        terminated after deadline` after two scroll steps and no input; that is
-        the only shape that may be retried once under R9's 240 s bound."""
+    def test_a_claimed_dispatch_is_never_re_run_by_the_watch(self):
+        """At-most-once under the cutover: after the Lane 1 claim parked at the
+        phase deadline, Product Jev escalated an auto-retry draft, so retry
+        authority stays with oversight and the watch keeps the spent claim."""
+        now = datetime(2026, 11, 24, 4, 30, tzinfo=timezone.utc)
+        comments = [{
+            "id": 7119751841, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T02:05:55Z",
+            "body": "RESTART DISPATCH\nLane: Lane 1\nAction requested: \"continue in full\"",
+        }]
         with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp)
-            search = out / "search"
-            search.mkdir()
-            receipt = AuditLog(out / "runner.jsonl")
-            trace = AuditLog(search / "driver.jsonl")
-            trace.append("action", step_id="search-foreground", action="focus_freebuff", ok=True,
-                         consent={"params": {}})
-            trace.append("action", step_id="sidebar-top-scroll-1", action="scroll_freebuff", ok=True,
-                         consent={"params": {}})
-            self.assertFalse(watch.retry_after_deadline(out))
-            receipt.append("verification", step_id="result",
-                           state="parked: search: driver tree terminated after deadline")
-            self.assertTrue(watch.retry_after_deadline(out))
-
-            AuditLog(search / "driver.jsonl").append(
-                "action", step_id="send-once", action="send_freebuff", ok=True,
-                consent={"params": {"control": "Lane 1 Send (up arrow)"}})
-            self.assertFalse(watch.retry_after_deadline(out))
+            execute = Mock(return_value=0)
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=comments), \
+                 patch.object(watch, "checkpoint", Mock()), \
+                 patch.object(watch, "execute", execute):
+                self.assertFalse(watch.poll_dynamic_dispatches(
+                    {"claim-dyn-7119751841-315608d2.json"}, now=now))
+            execute.assert_not_called()
 
     def test_missing_driver_runtime_is_refused_by_name_before_a_claim(self):
         """L17: the %TEMP% proof venv is not durable, so the runtime the watch
