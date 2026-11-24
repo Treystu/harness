@@ -1343,7 +1343,7 @@ class Dispatch:
         return bool(seen and wanted and len(wanted) >= 4
                     and (seen.startswith(wanted) or wanted.startswith(seen)))
 
-    def navigate_by_unique_prefix(self, pages=8, narrow=True):
+    def navigate_by_unique_prefix(self, pages=8, narrow=False):
         """Open the configured lane when exactly ONE session list row can be it.
 
         The configured names are ours and the app clips its own rows (measured:
@@ -1351,11 +1351,13 @@ class Dispatch:
         Brief"; none reads "BigEnergyCo", five read "BigEnergyCo ..."). One
         candidate is a pick; several are named and refused, never guessed.
 
-        The proof is unchanged by `narrow`: the candidate set is restricted with
-        the app's search field first, which only removes rows that cannot carry
-        the label, and the same exact-wins and one-candidate rules then run over
-        what is left. `narrow=False` keeps the exhaustive walk for the cold runs
-        that need to census the whole list.
+        `narrow=True` restricts the candidate set with the app's search results
+        panel first and runs the same exact-wins and one-candidate rules over
+        what is left. It is **not** the default: on claims 7122996519 and
+        7123056197 the field did not filter the sidebar (54 unfiltered rows) and
+        the results panel returned four rows for a different query, so the
+        narrowed path is written and tested but unproven against the live panel.
+        The exhaustive walk stays the default until that evidence exists.
         """
         found = []
         if narrow:
