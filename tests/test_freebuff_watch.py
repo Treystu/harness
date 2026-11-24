@@ -434,6 +434,30 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertEqual(write.call_args_list[0].args[0], "claim-dyn-990003-2ae32937.json")
             self.assertEqual(write.call_args_list[1].args[0], "result-dyn-990003-2ae32937.json")
 
+    def test_retry_after_deadline_requires_a_verified_park_and_no_input(self):
+        """The Lane 1 dispatch 7119751841 parked at `search: driver tree
+        terminated after deadline` after two scroll steps and no input; that is
+        the only shape that may be retried once under R9's 240 s bound."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            search = out / "search"
+            search.mkdir()
+            receipt = AuditLog(out / "runner.jsonl")
+            trace = AuditLog(search / "driver.jsonl")
+            trace.append("action", step_id="search-foreground", action="focus_freebuff", ok=True,
+                         consent={"params": {}})
+            trace.append("action", step_id="sidebar-top-scroll-1", action="scroll_freebuff", ok=True,
+                         consent={"params": {}})
+            self.assertFalse(watch.retry_after_deadline(out))
+            receipt.append("verification", step_id="result",
+                           state="parked: search: driver tree terminated after deadline")
+            self.assertTrue(watch.retry_after_deadline(out))
+
+            AuditLog(search / "driver.jsonl").append(
+                "action", step_id="send-once", action="send_freebuff", ok=True,
+                consent={"params": {"control": "Lane 1 Send (up arrow)"}})
+            self.assertFalse(watch.retry_after_deadline(out))
+
     def test_missing_driver_runtime_is_refused_by_name_before_a_claim(self):
         """L17: the %TEMP% proof venv is not durable, so the runtime the watch
         actually runs under is checked before any claim and named when absent."""
