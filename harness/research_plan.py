@@ -128,6 +128,49 @@ class ResearchPlan:
     def hash(self) -> str:
         return _hash(self.payload())
 
+    @classmethod
+    def from_payload(cls, payload: Any) -> Optional["ResearchPlan"]:
+        """Rebuild a plan from its canonical payload, or ``None``.
+
+        #344: a lane persists ``payload()`` beside the plan hash, so a resume
+        that supplies no plan can still compare the saved route decision with
+        the plan it was actually made under. Only an exact read is usable: a
+        missing field, a wrong type or another schema version returns ``None``
+        and the caller decides again instead of reusing an unread decision.
+        """
+        if not isinstance(payload, dict):
+            return None
+        try:
+            if int(payload["schema_version"]) != SCHEMA_VERSION:
+                return None
+            queries = tuple(
+                PlanQuery(query_id=str(item["query_id"]),
+                          query=str(item["query"]),
+                          purpose=str(item["purpose"]),
+                          url=str(item.get("url") or ""))
+                for item in payload["queries"])
+            return cls(
+                goal=str(payload["goal"]),
+                request_id=str(payload["request_id"]),
+                request_hash=str(payload["request_hash"]),
+                queries=queries,
+                domains=tuple(str(d) for d in payload["domains"]),
+                freshness=str(payload["freshness"]),
+                evidence_requirements=tuple(
+                    str(e) for e in payload["evidence_requirements"]),
+                max_results=int(payload["max_results"]),
+                max_sources=int(payload["max_sources"]),
+                timeout_s=float(payload["timeout_s"]),
+                max_tokens=int(payload["max_tokens"]),
+                max_spend_usd=float(payload["max_spend_usd"]),
+                capabilities=tuple(str(c) for c in payload["capabilities"]),
+                fallback_policy=str(payload["fallback_policy"]),
+                revision=int(payload["revision"]),
+                schema_version=int(payload["schema_version"])
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+
     def revised(self, **changes: Any) -> "ResearchPlan":
         """A new revision of the same plan; the request binding is kept."""
         revision = int(changes.pop("revision", self.revision + 1))
