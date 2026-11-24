@@ -57,7 +57,12 @@ class EditScopeOrderTests(unittest.TestCase):
         def fake(goal, files, gov, **kwargs):
             seen["goal"], seen["files"] = goal, list(files)
             return _refused()
-        return seen, patch.object(agent, "_plan_round", side_effect=fake)
+        # The refused envelope hands off to the conversation lane; these tests
+        # are about scope ordering, so that lane is stubbed, not driven.
+        return seen, patch.multiple(
+            agent,
+            _plan_round=MagicMock(side_effect=fake),
+            _handle_conversation=MagicMock(side_effect=RuntimeError("lane down")))
 
     def _prior_plan(self, root, session, files, prompt="Refactor orders.py"):
         save_chat_turn(session, {
