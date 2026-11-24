@@ -135,6 +135,32 @@ SEARCH_CLOSE = (1257, 185, 1278, 207)
 COUNTS = (6, 16, 26, 36, 46)
 
 
+CAPTURE_BUDGETS = (2.0, 5.0)
+
+
+def bounded_capture(capture, *, budgets=CAPTURE_BUDGETS, clock=time.monotonic):
+    """Capture the window, tolerating one slow frame before escalating.
+
+    A single 2 s budget escalated dispatch 7122154514 in its search walk
+    (`sidebar-top-3-after: capture exceeded 2s`, 2026-11-24T04:38:53Z) while the
+    window was healthy: the frame took longer than the budget because the app
+    was rendering, not because ownership or identity had changed. A capture is
+    only ever a snapshot, so a slow one is re-taken once under a wider budget
+    instead of failing the run; if the retry is also slow the run escalates with
+    the same refusal as before. Returns (payload, elapsed, attempts).
+    """
+    elapsed = 0.0
+    for attempt, budget in enumerate(budgets, start=1):
+        started = clock()
+        payload = capture()
+        elapsed = clock() - started
+        if elapsed <= budget:
+            return payload, elapsed, attempt
+    raise RuntimeError(
+        f"capture exceeded {budgets[-1]:.0f}s on {len(budgets)} attempts "
+        f"(last {elapsed:.3f}s)")
+
+
 def same_rows(previous, current):
     """Do two censuses describe the same list?
 
@@ -374,15 +400,15 @@ class Dispatch:
             raise RuntimeError(f"{step}: {result.detail}")
 
     def frame(self, step):
-        started = time.monotonic()
-        capture = self.screen.capture(Target("existing FreeBuff desktop", GUI))
-        elapsed = time.monotonic() - started
-        if elapsed > 2:
-            raise RuntimeError(f"{step}: capture exceeded 2s")
+        try:
+            capture, elapsed, attempts = bounded_capture(
+                lambda: self.screen.capture(Target("existing FreeBuff desktop", GUI)))
+        except RuntimeError as error:
+            raise RuntimeError(f"{step}: {error}") from error
         (self.output / f"{step}.png").write_bytes(capture.payload)
         self.audit.append("capture", step_id=step, **capture.summary(),
                           foreground=self.window.api.foreground() == self.window.handle,
-                          capture_seconds=round(elapsed, 3))
+                          capture_seconds=round(elapsed, 3), capture_attempts=attempts)
         return self.image.open(io.BytesIO(capture.payload)).convert("RGB")
 
     def ask(self, step, frame, questions, *, region):

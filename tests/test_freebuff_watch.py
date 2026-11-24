@@ -27,10 +27,42 @@ except ImportError:
             return _FakeImage(size, color)
 
 from driver_core.audit import AuditLog
+from scripts import windows_freebuff_dispatch as dispatch
 from scripts import windows_freebuff_runner as runner
 from scripts import windows_freebuff_t4 as census
 from scripts import windows_freebuff_watch as watch
 from scripts.windows_freebuff_dispatch import Dispatch
+
+
+class CaptureBudgetTests(unittest.TestCase):
+    def test_one_slow_frame_is_retaken_instead_of_escalated(self):
+        """Dispatch 7122154514 escalated at `sidebar-top-3-after: capture exceeded
+        2s` with the window healthy; a slow snapshot is re-taken once."""
+        ticks = iter([0.0, 2.4, 10.0, 10.3])
+        payloads = iter(["slow-frame", "fresh-frame"])
+        payload, elapsed, attempts = dispatch.bounded_capture(
+            lambda: next(payloads), clock=lambda: next(ticks))
+        self.assertEqual(payload, "fresh-frame")
+        self.assertEqual(attempts, 2)
+        self.assertAlmostEqual(elapsed, 0.3)
+
+    def test_a_fast_frame_is_never_retaken(self):
+        calls = []
+
+        def capture():
+            calls.append(1)
+            return "only"
+
+        ticks = iter([0.0, 0.4])
+        payload, elapsed, attempts = dispatch.bounded_capture(capture, clock=lambda: next(ticks))
+        self.assertEqual((payload, attempts), ("only", 1))
+        self.assertEqual(len(calls), 1)
+
+    def test_two_slow_frames_still_refuse_by_name(self):
+        ticks = iter([0.0, 2.4, 10.0, 16.0])
+        with self.assertRaises(RuntimeError) as caught:
+            dispatch.bounded_capture(lambda: "slow", clock=lambda: next(ticks))
+        self.assertIn("capture exceeded 5s on 2 attempts", str(caught.exception))
 
 
 class FreebuffWatchTests(unittest.TestCase):
