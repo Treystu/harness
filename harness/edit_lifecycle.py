@@ -189,8 +189,12 @@ class AutoEditLifecycleMixin:
                 prompt, session_id=session_id, cancel_check=cancel_check)
             if generated.get("status") in ("ok", "deferred"):
                 return generated
-            return self._handle_conversation(
-                prompt, session_id, cancel_check)
+            # #705: the chat lane can defer straight back into this lane, so
+            # the fallback spends the shared handoff budget; past it the chat
+            # lane refuses to escalate, which is what ends the pair.
+            with self._handler_handoff():
+                return self._handle_conversation(
+                    prompt, session_id, cancel_check)
 
         if root_dir is None:
             # The plan reaches a file operation but no workspace is selected:
