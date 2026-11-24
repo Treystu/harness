@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "1d0622e65e1afb0c12e2359a66a28119e716fd0b063b03fef26fcd4de9fe2a95"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.04,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/466-champion-replay-inputs.md",
+    "site": "466-champion-inputs"
+  }
+}
