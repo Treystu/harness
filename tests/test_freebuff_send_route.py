@@ -37,6 +37,28 @@ class SendRouteFallbackTests(unittest.TestCase):
 
     def test_a_selection_that_is_not_the_pinned_lane_still_refuses(self):
         dispatch = _dispatch(False)
+        dispatch.phase = "prepare"
+        with self.assertRaisesRegex(RuntimeError, "did not expose the exact pinned thread"):
+            dispatch.verify_active_session()
+
+    def test_the_staged_continuation_proves_the_send_when_no_selection_is_readable(self):
+        """7126349762: the ring was drawn as an outline the fill probe cannot see."""
+        dispatch = _dispatch(False)
+        dispatch.phase = "send"
+        dispatch.text = "continue in full"
+        dispatch.saw_text = Mock(return_value=True)
+        dispatch.frame = Mock(return_value=Mock())
+        dispatch.verify_active_session()
+        recorded = [c.kwargs for c in dispatch.audit.append.call_args_list
+                    if c.kwargs.get("step_id") == "active-session-id"][-1]
+        self.assertEqual(recorded.get("route_fallback"), "staged-continuation")
+
+    def test_a_composer_without_the_continuation_still_refuses_at_send(self):
+        dispatch = _dispatch(False)
+        dispatch.phase = "send"
+        dispatch.text = "continue in full"
+        dispatch.saw_text = Mock(return_value=False)
+        dispatch.frame = Mock(return_value=Mock())
         with self.assertRaisesRegex(RuntimeError, "did not expose the exact pinned thread"):
             dispatch.verify_active_session()
 

@@ -2077,12 +2077,14 @@ class Dispatch:
             self.verify_vision_seat()
             return
         if self.standing and self.thread == SCM_THREAD:
+            derived_uuid = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
             if self.selected_exact_session():
-                derived_uuid = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
                 self.audit.append("verification", step_id="active-session-id",
                                   route_fallback="exact-scoped-selection",
                                   thread=self.thread, project=self.project,
                                   pinned_uuid=derived_uuid)
+                return
+            if self.identity_by_continuation():
                 return
             raise RuntimeError("the exact pinned session route is required for this standing dispatch")
         if not sessions and self.phase != "send" and getattr(self, "allow_navigation", True):
@@ -2103,18 +2105,11 @@ class Dispatch:
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               row=row["text"], source="highlight found in the project list")
             return
-        if not self.standing and self.phase == "send" and self.saw_text(
-                "send-identity-draft", self.frame("send-identity"),
-                (640, 925, 1540, 1045), self.text):
-            # Send must never navigate, and the accessibility tree is
-            # intermittent. The draft is the one thing that cannot be stale: it
-            # was typed into this session by this run's prepare, and the app
-            # keeps drafts per session, so its presence in the composer is the
-            # identity of the session it was typed into.
-            self.audit.append("escalation", step_id="identity-on-draft",
-                              reason="no route and no highlighted row; identity rests on the staged draft")
-            self.audit.append("verification", step_id="active-session-row", label=self.label,
-                              source="exact staged draft in the composer")
+        # Send must never navigate, and the accessibility tree is intermittent. The
+        # draft is the one thing that cannot be stale: it was typed into this
+        # session by this run's prepare, and the app keeps drafts per session, so
+        # its presence in the composer is the identity of the session it holds.
+        if self.identity_by_continuation():
             return
         raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
                            f"({self.label})")
@@ -2248,6 +2243,29 @@ class Dispatch:
                                        "Send your message again to start a new one.")
         raise RuntimeError("the staged mission was submitted once but a sustained Stop cue was not verified")
 
+    def identity_by_continuation(self):
+        """Prove the session from the approved continuation only it can hold.
+
+        The app keeps drafts per session, so the continuation typed into this lane
+        after it was proved identifies the session it was typed into. Measured
+        2026-11-24 on 7126349762: at send time the selection was drawn as an
+        outline the fill probe cannot see, while the draft read back exactly.
+        """
+        if self.phase != "send" or not self.text:
+            return False
+        if not self.saw_text("send-identity-draft", self.frame("send-identity"),
+                             COMPOSER_TEXT, self.text):
+            return False
+        self.require_foreground()
+        pinned = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
+        self.audit.append("escalation", step_id="identity-on-draft",
+                          reason="no route and no readable selection ring; identity rests on the "
+                                 "approved continuation this lane already holds")
+        self.audit.append("verification", step_id="active-session-id",
+                          route_fallback="staged-continuation", thread=self.thread,
+                          project=self.project, pinned_uuid=pinned)
+        return True
+
     def verify_active_session(self):
         """Prove the active document is the pinned thread, by route or selection.
 
@@ -2257,10 +2275,17 @@ class Dispatch:
         because the accessibility helper returned [] on this handle - the dead tree
         that routes() already documents, re-measured on the live window the same
         way. A channel that is usually absent cannot be the only identity a send
-        may stand on, so the exposed route stays the primary proof and the settled
-        exact-selection for the pinned lane is the fallback, which is the same
-        fallback verify_session_identity already uses for Lane 1 and SCMessenger.
-        The send's other bounds are untouched: freshness, one send, no navigation.
+        may stand on, so the proofs are ordered and each is recorded by source:
+
+        1. the exposed accessibility route, exactly one and naming this thread;
+        2. the settled exact-selection for the pinned label in its pinned project;
+        3. at send only, the approved continuation this lane already holds, which is
+           exact because the app keeps drafts per session (7126349762 measured the
+           selection ring drawn as an outline the fill probe cannot see, while the
+           draft read back exactly).
+
+        The send's other bounds are untouched: freshness, one send, no navigation,
+        and the composer pixels must still match the approved frame.
         """
         sessions = self.routes()
         if len(sessions) == 1 and self.thread in sessions[0]:
@@ -2272,15 +2297,24 @@ class Dispatch:
                           reason="no single exposed route is the pinned thread; trying the selection")
         if not self.standing:
             raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
-        if not self.selected_exact_session():
-            raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
         pinned = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
-        if pinned and pinned != self.thread and not pinned.startswith(self.thread):
-            raise RuntimeError("the selected lane is not the pinned thread")
-        self.require_foreground()
-        self.audit.append("verification", step_id="active-session-id",
-                          route_fallback="exact-scoped-selection", thread=self.thread,
-                          project=self.project, pinned_uuid=pinned)
+        if self.selected_exact_session():
+            if pinned and pinned != self.thread and not pinned.startswith(self.thread):
+                raise RuntimeError("the selected lane is not the pinned thread")
+            self.require_foreground()
+            self.audit.append("verification", step_id="active-session-id",
+                              route_fallback="exact-scoped-selection", thread=self.thread,
+                              project=self.project, pinned_uuid=pinned)
+            return
+        # Third proof, and the one this app makes exact: a draft is kept per
+        # session, so the continuation typed into this lane after it was proved
+        # identifies the session it was typed into. Measured 2026-11-24 on 7126349762,
+        # where the selection ring at send time was drawn as an outline the fill probe
+        # cannot see; the draft was read back exactly, and the send bounds below still
+        # hold (unchanged composer pixels since approval, freshness, one send).
+        if self.identity_by_continuation():
+            return
+        raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
 
     def read_app_structure(self, *options):
         hwnd = self.require_foreground()
