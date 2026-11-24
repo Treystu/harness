@@ -207,6 +207,20 @@ def cure_eligible(output, reasons, allowed_actions=()):
     return True
 
 
+def dynamic_phase_timeout(item):
+    """Per-phase bound for one claimed dynamic dispatch.
+
+    Measured 2026-11-24: CivicScope (dispatch 7127711668) reached page 11 of the
+    expanded session walk and was parked at the old 240 s bound while still
+    censusing, so the bound - not the lane - ended the run. Expanding every
+    collapsed section makes the walk deeper by design (that is the cure for the
+    Kalshi and Harness Audit refusals), so the bound has to cover the deeper list
+    the app actually renders. The walk still stops at its own end test; this only
+    stops the clock from cutting a real census short.
+    """
+    return 480 if item else 240
+
+
 def _lane_thread_from_dispatch(body):
     thread_pattern = re.compile(r"\b(" + "|".join(re.escape(tid) for tid in SESSIONS) + r")\b")
     match = thread_pattern.search(body)
@@ -746,7 +760,7 @@ def run_restoration(receipts, known):
         try:
             output.mkdir(parents=True)
             mission = {"thread": thread, "dispatch": dispatch_id, "standing": True}
-            mission["phase_timeout"] = 240
+            mission["phase_timeout"] = dynamic_phase_timeout(item)
             if item.endswith(("-last-work-identity-cure", "-ocr-glyph-prefix-cure",
                               "-vision-transcript-crop-cure", "-mission-draft-identity-cure")):
                 mission["phases"] = ("search", "vision-resume")
