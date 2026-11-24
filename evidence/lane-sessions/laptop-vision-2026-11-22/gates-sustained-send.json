@@ -1,0 +1,91 @@
+{
+  "site": "vision_standup_sustained_send",
+  "product_jev": {
+    "verdict": "investigate",
+    "reasons": [
+      "advances_goal 0.89 < threshold 0.95; investigate the actual risk before acting (Jev Gate Policy v1 rule 6) -- proceed with a documented note if none is found, escalate if it is"
+    ],
+    "is_destructive": 0.06,
+    "disposition": "proceed",
+    "disposition_confidence": 0.58,
+    "disposition_lead": 0.5599999999999999,
+    "advances_goal": 0.89,
+    "threshold": 0.95,
+    "margin": 0.2,
+    "pack_version": "decision-gate-v3"
+  },
+  "structural": {
+    "verdict": "fail",
+    "confidence": 0.58,
+    "supported": 0.06,
+    "cost": 3.9312000000000006e-05,
+    "input_tokens": 936,
+    "output_tokens": 86,
+    "is_fallback": false,
+    "fallback_reason": null,
+    "model": "jev-1.14.0",
+    "site": "vision_standup_sustained_send",
+    "discarded": false
+  },
+  "lucas_gate_v2": {
+    "status": "pass",
+    "track": "typed",
+    "judgment_owner": "calling agent",
+    "validation": "deterministic_scorecard_contract",
+    "artifact_sha256": "379adac53d39f72bf22d63bbb52b617a0b4fdc13b8e175bb72d263336202ac5a",
+    "category_ids": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "8",
+      "9",
+      "10",
+      "11"
+    ],
+    "applicable_category_ids": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "8",
+      "9",
+      "10",
+      "11"
+    ],
+    "not_applicable_categories": [],
+    "bias_ids": [
+      "B1",
+      "B3",
+      "B4",
+      "B5",
+      "B8",
+      "B9",
+      "B10",
+      "B11"
+    ],
+    "bias_minimums": {
+      "B1": 10.0,
+      "B3": 9.0,
+      "B4": 9.0,
+      "B5": 9.0,
+      "B8": 9.0,
+      "B9": 8.0,
+      "B10": 8.0,
+      "B11": 9.0
+    },
+    "failing_categories": [],
+    "failing_bias_checks": [],
+    "rounded_categories": [],
+    "investigated_exception": false,
+    "investigated_category": null,
+    "actual_risk": false,
+    "product_jev_run": false,
+    "model_called": false,
+    "reasons": []
+  }
+}
