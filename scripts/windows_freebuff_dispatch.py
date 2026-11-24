@@ -1979,6 +1979,35 @@ class Dispatch:
                  "in the sidebar? Reject a plain unselected row.",
                  region=region)
 
+    def reveal_lane_row(self, pages=4, step="reveal-lane"):
+        """Bring the lane's own row into view so its selection can be read.
+
+        Measured on claim 7124457637: search, query and select all passed and the
+        lane was open, then prepare refused with "no route and no highlighted
+        sidebar row" because the walk had left the list scrolled away from the
+        row. Visibility is not identity - this only scrolls the row into view,
+        and verify_session_identity still requires the highlight or the route.
+        Refuses by name when the row is not in the bounded reveal, never guesses.
+        """
+        frame = self.scroll_sidebar_to_top()
+        for page in range(1, pages + 1):
+            try:
+                frame, rows = self.settled_roster(f"{step}-{page}", SIDEBAR, attempts=4)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id=f"{step}-{page}", reason=str(error))
+                continue
+            if any(self.exact_session_title(row["text"], self.label) for row in rows):
+                self.audit.append("verification", step_id=f"{step}-visible",
+                                  page=page, label=self.label)
+                return frame, rows
+            if not self.scroll_by(f"{step}-scroll-{page}", frame, [196, 850], -400):
+                break
+            time.sleep(0.8)
+            frame = self.frame(f"{step}-{page}-after")
+        self.audit.append("escalation", step_id=step, label=self.label,
+                          reason="the lane row was not visible in the bounded reveal")
+        return frame, []
+
     def verify_session_identity(self):
         """Prove which session is open, from the app itself.
 
@@ -2010,6 +2039,10 @@ class Dispatch:
                                   pinned_uuid=derived_uuid)
                 return
             raise RuntimeError("the exact pinned session route is required for this standing dispatch")
+        if not sessions and self.phase != "send" and getattr(self, "allow_navigation", True):
+            # The walk that opened the lane can leave the list scrolled past its
+            # row; the selection is still the proof, it just has to be in view.
+            self.reveal_lane_row()
         if self.selected_label_matches(wait=3):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               source="settled sidebar selection")

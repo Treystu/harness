@@ -460,6 +460,59 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         self.assertIn("narrow-walk", steps)
 
 
+class RevealLaneRowTests(unittest.TestCase):
+    """Claim 7124457637 opened the lane, then prepare refused identity because
+    the walk had left the list scrolled away from the row."""
+
+    def _dispatch(self, pages):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 1"
+        dispatch.thread = "315608d2"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.scroll_sidebar_to_top = Mock(return_value=Mock(size=(1800, 1131)))
+        dispatch.frame = Mock(return_value=Mock(size=(1800, 1131)))
+        dispatch.settled_roster = Mock(side_effect=[(Mock(), page) for page in pages])
+        dispatch.scroll_by = Mock(return_value=True)
+        return dispatch
+
+    def test_the_row_is_revealed_on_a_later_page(self):
+        rows = [
+            [{"text": "Harness"}, {"text": "BigEnergyCo Audit"}],
+            [{"text": "Harness"}, {"text": "Lane 1"}],
+        ]
+        dispatch = self._dispatch(rows)
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            _, found = dispatch.reveal_lane_row()
+        self.assertEqual(found[1]["text"], "Lane 1")
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("reveal-lane-visible", steps)
+
+    def test_a_row_that_is_never_visible_is_refused_by_name(self):
+        dispatch = self._dispatch([[{"text": "Harness"}]] * 4)
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            _, found = dispatch.reveal_lane_row()
+        self.assertEqual(found, [])
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("reveal-lane", steps)
+
+    def test_reveal_never_runs_in_the_send_phase(self):
+        dispatch = self._dispatch([[{"text": "Lane 1"}]])
+        dispatch.routes = Mock(return_value=[])
+        dispatch.phase = "send"
+        dispatch.standing = False
+        dispatch.text = "continue in full"
+        dispatch.allow_navigation = True
+        dispatch.reveal_lane_row = Mock()
+        dispatch.selected_label_matches = Mock(return_value=False)
+        dispatch.navigate_by_session_list = Mock(return_value=False)
+        dispatch.find_highlighted_row = Mock(return_value=None)
+        dispatch.saw_text = Mock(return_value=False)
+        with self.assertRaises(RuntimeError):
+            dispatch.verify_session_identity()
+        dispatch.reveal_lane_row.assert_not_called()
+
+
 class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
     def test_an_empty_sidebar_never_settles_into_a_roster(self):
         """R17: three empty reads are a re-render, not a census."""
