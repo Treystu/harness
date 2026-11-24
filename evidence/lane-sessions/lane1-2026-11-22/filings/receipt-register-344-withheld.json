@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "80d3a1d0d9a01a8c168d95e9f62b00b326a750f298c41708b6b57feb7e055d70"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "needs_improvement",
+    "supported": 0.04,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": ".filing-register-344.md",
+    "site": "344-register-landing-2"
+  }
+}
