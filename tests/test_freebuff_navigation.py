@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
+from scripts import windows_freebuff_dispatch as dispatch_module
 from scripts.windows_freebuff_dispatch import SIDEBAR, Dispatch, lookup_local_session_uuid, same_rows
 
 
@@ -344,8 +345,11 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
     """
 
     def _dispatch(self, *, rows, typed="", locate_error=False):
+        rows = [dict(row, x=100, x1=300, y=200 + index * 40) if "x" not in row else row
+                for index, row in enumerate(rows)]
         dispatch = object.__new__(Dispatch)
         dispatch.label = "Lane 1"
+        dispatch.thread = "315608d2"
         dispatch.project = "Harness"
         dispatch.audit = Mock()
         dispatch.require_foreground = Mock()
@@ -361,6 +365,7 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch.settled_roster = Mock(return_value=(Mock(size=(1800, 1131)), rows))
         dispatch.read_roster = Mock(return_value=rows)
         dispatch.click_exact_row = Mock()
+        dispatch.click_roster_row = Mock()
         dispatch.project_of_row = Mock(return_value="Harness")
         return dispatch
 
@@ -369,8 +374,8 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch = self._dispatch(rows=rows, typed="Lane 1")
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             self.assertTrue(dispatch.navigate_by_unique_prefix(narrow=True))
-        dispatch.click_exact_row.assert_called_once()
-        self.assertEqual(dispatch.click_exact_row.call_args.args[2]["text"], "Lane 1")
+        dispatch.click_roster_row.assert_called_once()
+        self.assertEqual(dispatch.click_roster_row.call_args.args[3], "Lane 1")
 
     def test_two_rivals_are_refused_not_guessed(self):
         """Neither row carries the exact title, so nothing may be picked."""
@@ -378,7 +383,7 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch = self._dispatch(rows=rows, typed="Lane 1")
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             self.assertFalse(dispatch.navigate_by_unique_prefix(narrow=True))
-        dispatch.click_exact_row.assert_not_called()
+        dispatch.click_roster_row.assert_not_called()
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
         self.assertIn("prefix-census", steps)
 
@@ -388,8 +393,8 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch = self._dispatch(rows=rows, typed="Lane 1")
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             self.assertTrue(dispatch.navigate_by_unique_prefix(narrow=True))
-        dispatch.click_exact_row.assert_called_once()
-        self.assertEqual(dispatch.click_exact_row.call_args.args[2]["text"], "Lane 1")
+        dispatch.click_roster_row.assert_called_once()
+        self.assertEqual(dispatch.click_roster_row.call_args.args[3], "Lane 1")
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
         self.assertIn("prefix-exact-wins", steps)
 
@@ -397,13 +402,43 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch = self._dispatch(rows=[{"text": "Harness"}], typed="Lane 1")
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             self.assertFalse(dispatch.navigate_by_unique_prefix(narrow=True))
-        dispatch.click_exact_row.assert_not_called()
+        dispatch.click_roster_row.assert_not_called()
 
-    def test_the_default_walk_is_the_exhaustive_one(self):
-        """The narrowed path is unproven against the live panel, so it is opt-in."""
+    def test_typing_that_never_lands_is_refused_not_censused(self):
+        """Claim 7123056197 read four stale panel rows because the keystrokes
+        never reached the field; the field's own text is now the gate."""
+        dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            with self.assertRaises(RuntimeError) as caught:
+                dispatch.query_search_field(Mock(size=(1800, 1131)))
+        self.assertIn("never showed the query", str(caught.exception))
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertNotIn("narrow-query-landed", steps)
+
+    def test_a_field_holding_foreign_text_is_not_typed_over(self):
+        dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="GitHub Lane Oversight")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            with self.assertRaises(RuntimeError) as caught:
+                dispatch.query_search_field(Mock(size=(1800, 1131)))
+        self.assertIn("holds text this query did not write", str(caught.exception))
+
+    def test_typing_that_lands_is_proven_by_the_readback(self):
+        dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="Lane 1")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            dispatch.query_search_field(Mock(size=(1800, 1131)))
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("narrow-query-landed", steps)
+
+    def test_the_narrowed_walk_is_opt_in_and_off_without_the_flag(self):
+        """Unproven live, so no flag means the exhaustive walk runs."""
         import inspect
         signature = inspect.signature(Dispatch.navigate_by_unique_prefix)
-        self.assertFalse(signature.parameters["narrow"].default)
+        self.assertIsNone(signature.parameters["narrow"].default)
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertFalse(dispatch_module.narrowing_enabled(tmp))
+            (Path(tmp) / "harness-freebuff-runner").mkdir()
+            (Path(tmp) / "harness-freebuff-runner" / dispatch_module.NARROW_FLAG).write_text("", encoding="utf-8")
+            self.assertTrue(dispatch_module.narrowing_enabled(tmp))
 
     def test_a_query_already_in_the_field_is_not_typed_again(self):
         dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="Lane 1")
@@ -419,7 +454,7 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="", locate_error=True)
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             self.assertFalse(dispatch.navigate_by_unique_prefix(narrow=True))
-        dispatch.click_exact_row.assert_not_called()
+        dispatch.click_roster_row.assert_not_called()
         dispatch.settled_roster.assert_not_called()
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
         self.assertIn("narrow-walk", steps)

@@ -149,6 +149,22 @@ PROJECT_DIALOG = {
 JSON_ACT = 0
 
 
+NARROW_FLAG = "narrow-walk.flag"
+
+
+def narrowing_enabled(appdata=None):
+    """Is the narrowed walk switched on for this machine?
+
+    The narrowed path is being proven against the live panel one claim at a
+    time, so it is opt-in rather than default: the flag is a local file beside
+    the run receipts, it is visible in the evidence, and removing it puts the
+    exhaustive walk back without a code change. A narrowed path that is not yet
+    proven must never be the one the watch uses by default.
+    """
+    root = Path(appdata or os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
+    return (root / NARROW_FLAG).is_file()
+
+
 def project_anchor(surface, step, frame, key):
     """Locate one dialog control by its exact label, or refuse by name."""
     label, region = PROJECT_DIALOG[key]
@@ -1281,6 +1297,80 @@ class Dispatch:
             self.audit.append("escalation", step_id=f"{step}-expand-{page}", reason=str(error))
             return frame, rows
 
+    def query_search_field(self, frame, attempts=2):
+        """Focus the search field, type the label, and prove the text landed.
+
+        Measured on claim 7123056197: the click missed the field, the keystrokes
+        went nowhere, and the results panel still showed four rows for a
+        different query. A stale panel read as a census is worse than a refusal,
+        so the field's own text is the proof - type, read it back, and refuse by
+        name rather than narrow from a panel the query never reached. A second
+        attempt retypes only into an empty field: text this lane did not put
+        there is left alone, never typed over.
+        """
+        wanted = self._norm(self.label)
+        for attempt in range(1, attempts + 1):
+            try:
+                point = self.locate_exact_text(f"narrow-search-field-{attempt}", frame,
+                                               "Search chats", SEARCH_PLACEHOLDER)
+            except RuntimeError:
+                # The placeholder can be hidden by a caret; the field's own row
+                # is the anchor, and the readback below is what proves focus.
+                left, top, _right, bottom = SEARCH_PLACEHOLDER
+                point = [left + 40, (top + bottom) // 2]
+                self.audit.append("verification", step_id=f"narrow-anchor-{attempt}",
+                                  source="field-row anchor, proven by readback")
+            self.act(f"narrow-focus-{attempt}", CLICK,
+                     {"control": "Search chats field", "point": point,
+                      "size": list(frame.size)})
+            self.act(f"narrow-query-{attempt}", QUERY,
+                     {"thread": self.thread, "text": self.label,
+                      "control": "Search chats field"})
+            time.sleep(1.3)
+            frame = self.frame(f"narrow-readback-{attempt}")
+            try:
+                reading = " ".join(self.read_lines(f"narrow-field-verify-{attempt}",
+                                                   frame, SEARCH_PLACEHOLDER))
+            except RuntimeError:
+                reading = ""
+            if wanted and wanted in self._norm(reading):
+                self.audit.append("verification", step_id="narrow-query-landed",
+                                  attempt=attempt, reading=reading[:60])
+                return frame
+            self.audit.append("escalation", step_id=f"narrow-query-{attempt}",
+                              reason="the field did not show the query after typing",
+                              reading=reading[:60])
+            if self._norm(reading):
+                raise RuntimeError(
+                    "the search field holds text this query did not write "
+                    f"({reading[:60]!r}); not typing over it")
+            frame = self.frame(f"narrow-retry-{attempt}")
+        raise RuntimeError(
+            f"the search field never showed the query after {attempts} attempts; "
+            "refusing to narrow from a stale results panel")
+
+    def resolve_unique(self, found):
+        """Exactly one candidate row, or a named refusal - never a guess."""
+        if len(found) > 1:
+            # Chats that merely OPEN with this name are rivals, not copies of it
+            # (measured: five chats open with "SCMessenger", one IS SCMessenger).
+            exact = [(page, name) for page, name in found
+                     if name.strip() == self.label.strip()
+                     or self._norm(name.partition(" ")[2] or "") == self._norm(self.label)]
+            if len(exact) == 1:
+                self.audit.append("verification", step_id="prefix-exact-wins",
+                                  row=exact[0][1], rivals=len(found))
+                found = exact
+        if len(found) != 1:
+            self.audit.append("escalation", step_id="prefix-census", label=self.label,
+                              candidates=[name for _, name in found][:8], count=len(found),
+                              reason="no unique session row for this lane; not guessing")
+            return None
+        page, name = found[0]
+        self.audit.append("verification", step_id="prefix-unique", label=self.label,
+                          row=name, page=page)
+        return page, name
+
     def candidates_in(self, rows, page, found):
         """Collect the rows on one page that could be this lane, by identity."""
         for row in rows:
@@ -1316,19 +1406,7 @@ class Dispatch:
             self.audit.append("verification", step_id="narrow-reused-query",
                               reason="the search field already carries this label")
         else:
-            try:
-                point = self.locate_exact_text("narrow-search-field", frame, "Search chats",
-                                               SEARCH_PLACEHOLDER)
-            except RuntimeError:
-                frame = self.frame("narrow-search-caret")
-                point = self.locate_exact_text("narrow-search-field-tail", frame, "chats",
-                                               SEARCH_PLACEHOLDER_TAIL)
-            self.act("narrow-focus-search", CLICK,
-                     {"control": "Search chats field", "point": point,
-                      "size": list(frame.size)})
-            self.act("narrow-query", QUERY, {"thread": self.thread, "text": self.label,
-                                             "control": "Search chats field"})
-            time.sleep(1.4)
+            frame = self.query_search_field(frame)
         # Measured on claim 7122996519: the field filters the dialog's result
         # panel, not the sidebar - reading the sidebar after typing returned 54
         # unfiltered rows. The results panel is the narrowed set.
@@ -1343,7 +1421,7 @@ class Dispatch:
         return bool(seen and wanted and len(wanted) >= 4
                     and (seen.startswith(wanted) or wanted.startswith(seen)))
 
-    def navigate_by_unique_prefix(self, pages=8, narrow=False):
+    def navigate_by_unique_prefix(self, pages=8, narrow=None):
         """Open the configured lane when exactly ONE session list row can be it.
 
         The configured names are ours and the app clips its own rows (measured:
@@ -1353,12 +1431,11 @@ class Dispatch:
 
         `narrow=True` restricts the candidate set with the app's search results
         panel first and runs the same exact-wins and one-candidate rules over
-        what is left. It is **not** the default: on claims 7122996519 and
-        7123056197 the field did not filter the sidebar (54 unfiltered rows) and
-        the results panel returned four rows for a different query, so the
-        narrowed path is written and tested but unproven against the live panel.
-        The exhaustive walk stays the default until that evidence exists.
+        what is left. Unproven live, so it is opt-in: `None` resolves through
+        `narrowing_enabled()`, and with no flag the exhaustive walk runs.
         """
+        if narrow is None:
+            narrow = narrowing_enabled()
         found = []
         if narrow:
             try:
@@ -1367,6 +1444,16 @@ class Dispatch:
                 self.audit.append("escalation", step_id="narrow-walk", reason=str(error))
                 return False
             found = self.candidates_in(rows, 1, found)
+            picked = self.resolve_unique(found)
+            if picked is None:
+                return False
+            try:
+                self.click_roster_row("narrow-pick", frame, rows, picked[1])
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="narrow-pick", reason=str(error))
+                return False
+            time.sleep(1.2)
+            return True
         else:
             frame = self.scroll_sidebar_to_top()
             seen = []
@@ -1387,24 +1474,10 @@ class Dispatch:
                     continue
                 time.sleep(0.9)
                 frame = self.frame(f"prefix-{page}-after")
-        if len(found) > 1:
-            # Chats that merely OPEN with this name are rivals, not copies of it
-            # (measured: five chats open with "SCMessenger", one IS SCMessenger).
-            exact = [(page, name) for page, name in found
-                     if name.strip() == self.label.strip()
-                     or self._norm(name.partition(" ")[2] or "") == self._norm(self.label)]
-            if len(exact) == 1:
-                self.audit.append("verification", step_id="prefix-exact-wins",
-                                  row=exact[0][1], rivals=len(found))
-                found = exact
-        if len(found) != 1:
-            self.audit.append("escalation", step_id="prefix-census", label=self.label,
-                              candidates=[name for _, name in found][:8], count=len(found),
-                              reason="no unique session row for this lane; not guessing")
+        picked = self.resolve_unique(found)
+        if picked is None:
             return False
-        page, name = found[0]
-        self.audit.append("verification", step_id="prefix-unique", label=self.label,
-                          row=name, page=page)
+        page, name = picked
         frame = self.scroll_sidebar_to_top()
         # Page boundaries drift between walks (measured: the candidate was one
         # page past where the first walk found it), so the re-walk looks for the
