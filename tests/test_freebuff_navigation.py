@@ -318,7 +318,7 @@ def row(text, y):
     return {"text": text, "x": 72, "y": y, "x1": 330}
 
 
-def walking_dispatch(monkeypatch, pages, advances):
+def walking_dispatch(pages, advances):
     dispatch = object.__new__(Dispatch)
     dispatch.audit = Mock()
     dispatch.label = "SCMessenger"
@@ -330,64 +330,108 @@ def walking_dispatch(monkeypatch, pages, advances):
                                                  for moved in advances])
     dispatch.click_exact_row = Mock()
     dispatch.click_row_by_text = Mock(return_value=True)
-    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
     return dispatch
 
 
-def test_a_scroll_step_that_does_not_move_the_census_is_retried(tmp_path, monkeypatch):
-    """R16: one unchanged page is not the end of the list."""
-    dispatch = object.__new__(Dispatch)
-    dispatch.output = tmp_path
-    dispatch.audit = Mock()
-    dispatch.frame = Mock(return_value=Mock())
-    dispatch.scroll_by = Mock(return_value=True)
-    censuses = iter([[row("B Harness", 120)],
-                     [row("B Harness", 120)],
-                     [row("B SCMessenger", 120)]])
-    dispatch.read_roster = Mock(side_effect=lambda *args: next(censuses))
-    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
+    def test_a_scroll_step_that_does_not_move_the_census_is_retried(self):
+        """R16: one unchanged page is not the end of the list."""
+        with tempfile.TemporaryDirectory() as tmp:
+            dispatch = object.__new__(Dispatch)
+            dispatch.output = Path(tmp)
+            dispatch.audit = Mock()
+            dispatch.frame = Mock(return_value=Mock())
+            dispatch.scroll_by = Mock(return_value=True)
+            censuses = iter([[row("B Harness", 120)],
+                             [row("B Harness", 120)],
+                             [row("B SCMessenger", 120)]])
+            dispatch.read_roster = Mock(side_effect=lambda *args: next(censuses))
+            with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+                _, moved = dispatch.advance_sidebar("probe", Mock())
 
-    _, moved = dispatch.advance_sidebar("probe", Mock())
+        self.assertTrue(moved)
+        self.assertEqual(dispatch.scroll_by.call_count, 2)
+        self.assertEqual(dispatch.scroll_by.call_args.args[3], -900)
 
-    assert moved
-    assert dispatch.scroll_by.call_count == 2
-    assert dispatch.scroll_by.call_args.args[3] == -900
+    def test_a_repeated_page_does_not_end_the_session_list_walk(self):
+        dispatch = walking_dispatch(
+            [[row("B Harness", 120), row("Disk Audit", 150)],
+             [row("B Harness", 120), row("Disk Audit", 150)],
+             [row("B SCMessenger", 120), row("SCMessenger", 150)]],
+            [True, True])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.walk_session_list())
+        clicked = dispatch.click_exact_row.call_args.args[2]
+        self.assertEqual(clicked["text"], "SCMessenger")
 
+    def test_an_exact_title_on_a_later_page_beats_an_earlier_prefix_rival(self):
+        """A page holding only 'SCMessenger Audit Lar' cannot be the lane."""
+        dispatch = walking_dispatch(
+            [[row("B SCMessenger", 120), row("SCMessenger Audit Lar", 150)],
+             [row("B SCMessenger", 120), row("SCMessenger", 150)]],
+            [True])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.walk_session_list())
+        self.assertEqual(dispatch.click_exact_row.call_args.args[2]["text"], "SCMessenger")
 
-def test_a_repeated_page_does_not_end_the_session_list_walk(monkeypatch):
-    dispatch = walking_dispatch(
-        monkeypatch,
-        [[row("B Harness", 120), row("Disk Audit", 150)],
-         [row("B Harness", 120), row("Disk Audit", 150)],
-         [row("B SCMessenger", 120), row("SCMessenger", 150)]],
-        [True, True])
+    def test_the_only_clipped_candidate_is_picked_after_the_whole_list_is_censused(self):
+        dispatch = walking_dispatch(
+            [[row("B SCMessenger", 120), row("SCMessenger Bumdown Tc", 150)]],
+            [False])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.walk_session_list())
+        dispatch.click_exact_row.assert_not_called()
+        self.assertEqual(dispatch.click_row_by_text.call_args.args[0], "SCMessenger Bumdown Tc")
 
-    assert dispatch.walk_session_list()
-    clicked = dispatch.click_exact_row.call_args.args[2]
-    assert clicked["text"] == "SCMessenger"
+    def test_prepare_draft_clicks_and_types_when_placeholder_ocr_matches(self):
+        """Regression e768fc24: route=='placeholder' must click and type, not abort."""
+        dispatch = object.__new__(Dispatch)
+        dispatch.recovering = False
+        dispatch.scoped_input = True
+        dispatch.label = "SCMessenger"
+        dispatch.text = "continue in full"
+        dispatch.audit = Mock()
+        frame = Mock(size=(1800, 1131))
+        ready = Mock(size=(1800, 1131))
+        dispatch.reestablish_if_reloaded = Mock(return_value=False)
+        dispatch.settle_view = Mock(return_value=frame)
+        dispatch.verify_lane = Mock()
+        dispatch.turn_running = Mock(return_value=False)
+        dispatch.locate_exact_text = Mock(return_value=[780, 980])
+        dispatch.choose = Mock()
+        dispatch.act = Mock()
+        dispatch.frame = Mock(return_value=ready)
+        dispatch.verify_draft = Mock(return_value=ready)
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            dispatch.prepare_draft()
+        dispatch.choose.assert_not_called()
+        self.assertEqual([c.args[0] for c in dispatch.act.call_args_list],
+                         ["focus-verified-composer", "type-continuation"])
+        self.assertEqual(dispatch.act.call_args_list[0].args[2]["point"], [780, 980])
 
+    def test_disk_audit_verify_lane_refuses_unmatched_active_session(self):
+        """Codex P1: Disk tab + cached UUID must not pass while another Disk chat is active."""
+        dispatch = object.__new__(Dispatch)
+        dispatch.thread = "f90f01e9"
+        dispatch.audit = Mock()
+        dispatch.require_foreground = Mock(return_value=1)
+        dispatch.routes = Mock(return_value=["/chats/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"])
+        dispatch.yes = Mock()
+        dispatch.require_cached_session = Mock()
+        with self.assertRaisesRegex(RuntimeError, "does not match Disk Audit"):
+            dispatch.verify_lane(Mock())
+        dispatch.yes.assert_not_called()
+        dispatch.require_cached_session.assert_not_called()
 
-def test_an_exact_title_on_a_later_page_beats_an_earlier_prefix_rival(monkeypatch):
-    """A page holding only "SCMessenger Audit Lar" cannot be the lane."""
-    dispatch = walking_dispatch(
-        monkeypatch,
-        [[row("B SCMessenger", 120), row("SCMessenger Audit Lar", 150)],
-         [row("B SCMessenger", 120), row("SCMessenger", 150)]],
-        [True])
+        dispatch.routes = Mock(return_value=[])
+        dispatch.selected_exact_session = Mock(return_value=False)
+        with self.assertRaisesRegex(RuntimeError, "could not be bound"):
+            dispatch.verify_lane(Mock())
 
-    assert dispatch.walk_session_list()
-    assert dispatch.click_exact_row.call_args.args[2]["text"] == "SCMessenger"
-
-
-def test_the_only_clipped_candidate_is_picked_after_the_whole_list_is_censused(monkeypatch):
-    dispatch = walking_dispatch(
-        monkeypatch,
-        [[row("B SCMessenger", 120), row("SCMessenger Bumdown Tc", 150)]],
-        [False])
-
-    assert dispatch.walk_session_list()
-    dispatch.click_exact_row.assert_not_called()
-    assert dispatch.click_row_by_text.call_args.args[0] == "SCMessenger Bumdown Tc"
+        dispatch.selected_exact_session = Mock(return_value=True)
+        dispatch.verify_lane(Mock())
+        dispatch.yes.assert_called_once()
+        dispatch.require_cached_session.assert_called_once()
 
 
 if __name__ == "__main__":

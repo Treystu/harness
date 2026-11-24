@@ -285,6 +285,21 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertEqual(execute.call_args.args[1], f"{item}-project-roster-cure")
             self.assertEqual(execute.call_args.args[2]["phases"], ("project-census",))
 
+    def test_runner_propagates_platform_refused_even_on_zero_exit(self):
+        """Codex P2: Platform state: refused in child stdout must fail closed."""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            audit = AuditLog(tmp_path / "runner.jsonl")
+            fake_proc = Mock()
+            fake_proc.returncode = 0
+            fake_proc.communicate.return_value = ("Platform state: refused: usage limit notice\n", "")
+            with patch.object(runner.subprocess, "Popen", return_value=fake_proc) as popen_mock:
+                with self.assertRaisesRegex(RuntimeError, "Platform state: refused: usage limit notice"):
+                    runner.run_phases(tmp_path, "f90f01e9", audit, phases=("steer-send",), standing=True)
+            cmd = popen_mock.call_args.args[0]
+            self.assertIn("-WindowStyle", cmd)
+            self.assertIn("Hidden", cmd)
+
 
 if __name__ == "__main__":
     unittest.main()

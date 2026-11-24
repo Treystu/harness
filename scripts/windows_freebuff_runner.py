@@ -5,6 +5,7 @@ import base64
 import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -38,12 +39,20 @@ class UncertainDriverExit(RuntimeError):
     """The driver process tree could not be confirmed stopped."""
 
 
+def _hidden_subprocess_kwargs():
+    """Return Windows CREATE_NO_WINDOW kwargs so background subprocesses never flash a console."""
+    if os.name == "nt" and hasattr(subprocess, "CREATE_NO_WINDOW"):
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
 def api(endpoint, *, method="GET", body=None):
     args = ["gh", "api", "--method", method, endpoint]
     if body is not None:
         args.extend(("--input", "-"))
     result = subprocess.run(args, input=json.dumps(body) if body is not None else None,
-                            capture_output=True, text=True, encoding="utf-8", timeout=20, check=False)
+                            capture_output=True, text=True, encoding="utf-8", timeout=20, check=False,
+                            **_hidden_subprocess_kwargs())
     if result.returncode:
         raise RuntimeError(f"GitHub {method} failed for {endpoint}: {result.stderr.strip()[:220]}")
     return json.loads(result.stdout)
@@ -182,9 +191,9 @@ def reconcile_demo(output):
         png = output / "reconciled-queue-ocr.png"
         ImageOps.invert(ImageOps.grayscale(crop.resize((crop.width * 3, crop.height * 3)))).save(png)
     subprocess.run(
-        ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
          str(Path(__file__).with_name("windows_ocr_exact.ps1")), "-Path", str(png), "-Label", QUEUE_PLACEHOLDER],
-        check=True, timeout=10, capture_output=True)
+        check=True, timeout=10, capture_output=True, **_hidden_subprocess_kwargs())
     receipt = api(ISSUE, method="POST", body={"body": (
         f"T8 reconciled #{DEMO_COMMENT}: one exact OCR-verified send to `{THREAD}`. "
         "Archived PNG hashes match the sealed trace. Stop changed false→true, exact queue placeholder verified, "
@@ -195,25 +204,36 @@ def reconcile_demo(output):
     return 0
 
 
+def _platform_state_lines(stdout):
+    return [line.strip() for line in (stdout or "").splitlines() if line.strip().startswith("Platform state:")]
+
+
 def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=65):
     for phase in phases:
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
-        command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-File", str(helper),
-                   "-Python", sys.executable, "-Thread", thread, "-Phase", phase,
+        command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
+                   str(helper), "-Python", sys.executable, "-Thread", thread, "-Phase", phase,
                    "-Evidence", str(output / phase), *(["-Standing"] if standing else [])]
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                   **_hidden_subprocess_kwargs())
         try:
             stdout, stderr = process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as cause:
             try:
                 ended = subprocess.run(["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
-                                       capture_output=True, timeout=10, check=False)
+                                       capture_output=True, timeout=10, check=False,
+                                       **_hidden_subprocess_kwargs())
                 if ended.returncode:
                     raise UncertainDriverExit(f"{phase}: driver tree termination unverified") from cause
                 process.communicate(timeout=10)
             except (OSError, subprocess.TimeoutExpired) as error:
                 raise UncertainDriverExit(f"{phase}: driver tree termination unverified") from error
             raise RuntimeError(f"{phase}: driver tree terminated after deadline") from cause
+        platform_states = _platform_state_lines(stdout)
+        refused = [line for line in platform_states if line.lower().startswith("platform state: refused")]
+        if refused:
+            audit.append("escalation", step_id=phase, target=thread, state=refused[-1])
+            raise RuntimeError(f"{phase}: {refused[-1]}")
         if process.returncode:
             detail = stdout.strip().splitlines()
             if phase == "prepare" and detail and "already running; no restart input" in detail[-1]:
@@ -222,7 +242,8 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
             errors = stderr.strip().splitlines()
             message = detail[-1] if detail else errors[-1][:200] if errors else "driver exited unsuccessfully"
             raise RuntimeError(f"{phase}: {message}")
-        audit.append("verification", step_id=phase, target=thread, passed=True)
+        audit.append("verification", step_id=phase, target=thread, passed=True,
+                     platform_state=platform_states[-1] if platform_states else None)
         time.sleep(2)
     return True
 

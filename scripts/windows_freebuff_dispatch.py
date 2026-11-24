@@ -399,7 +399,7 @@ class Dispatch:
         # Windows OCR resolves files by absolute path only.
         path = (self.output / f"{step}-ocr.png").resolve()
         self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
-        command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+        command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
                    str(Path(__file__).with_name("windows_ocr_exact.ps1")),
                    "-Path", str(path), "-Label", label]
         if whole:
@@ -440,7 +440,7 @@ class Dispatch:
         crop = crop.resize((crop.width * 2, crop.height * 2))
         path = (self.output / f"{step}-roster.png").resolve()
         self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
-        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
                            str(Path(__file__).with_name("windows_ocr_exact.ps1")),
                            "-Path", str(path), "-ReadLines"], timeout=15)
         if not result.ok:
@@ -1585,6 +1585,20 @@ class Dispatch:
             self.verify_session_identity()
             return
         if self.thread == DISK_THREAD:
+            # Bind Disk Audit to the active session before verifying tab/cache (Codex P1):
+            # a global LevelDB UUID hit plus the word 'Disk' can pass while another
+            # Disk-labeled session is open.
+            sessions = self.routes()
+            if sessions:
+                matched = [route for route in sessions if self.thread in route]
+                if not matched:
+                    raise RuntimeError(
+                        "the active FreeBuff document does not match Disk Audit (f90f01e9)")
+                self.audit.append("verification", step_id="active-session-id", exact_id=matched[0],
+                                  exposed=sessions[:8])
+            elif not self.selected_exact_session(wait=3):
+                raise RuntimeError(
+                    "Disk Audit (f90f01e9) could not be bound to the active session")
             self.yes("verify-disk-audit-tab", frame,
                      "Does the selected dark tab show the word 'Disk'?",
                      region=(1436, 0, 1551, 60))
@@ -1807,7 +1821,7 @@ class Dispatch:
     def read_app_structure(self, *options):
         hwnd = self.require_foreground()
         helper = Path(__file__).with_name("windows_freebuff_active_session.ps1")
-        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
                            str(helper), "-Window", str(hwnd), *options], timeout=8)
         if not result.ok:
             raise RuntimeError("the scoped FreeBuff accessibility evidence could not be read")
@@ -1849,7 +1863,7 @@ class Dispatch:
         crop = crop.resize((crop.width * 3, crop.height * 3))
         path = (self.output / f"{step}-text.png").resolve()
         self.image_ops.invert(self.image_ops.grayscale(crop)).save(path)
-        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+        result = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
                            str(Path(__file__).with_name("windows_ocr_exact.ps1")),
                            "-Path", str(path), "-ReadLines"], timeout=10)
         if not result.ok:
@@ -1977,12 +1991,23 @@ class Dispatch:
         self.act(f"{operation}-once", SEND, params)
         if pointer:
             time.sleep(2)
-            self.frame("disk-steering-response")
+            response_frame = self.frame("disk-steering-response")
+            notice = self.platform_refusal_notice("disk-steering-refusal", response_frame)
+            if notice:
+                self.audit.append("escalation", step_id="platform-refused", reason=notice)
+                print(f"Platform state: refused: {notice}")
+                raise RuntimeError(f"platform refused steering: {notice}")
+            print("Platform state: running")
             return
         for observation, delay in enumerate((1.2, 2.0, 3.0, 5.0), start=1):
             time.sleep(delay)
             frame = self.frame(f"platform-response-{observation}")
             if not self.stop_visible(frame):
+                notice = self.platform_refusal_notice(f"platform-refusal-{observation}", frame)
+                if notice:
+                    self.audit.append("escalation", step_id="platform-refused", reason=notice)
+                    print(f"Platform state: refused: {notice}")
+                    raise RuntimeError(f"platform refused restart: {notice}")
                 continue
             try:
                 self.locate_exact_text("verify-queue-placeholder", frame,
@@ -1994,7 +2019,25 @@ class Dispatch:
                               target=self.thread, stop_cue=True)
             print("Platform state: running")
             return
+        print("Platform state: refused: Stop square and exact queue placeholder were not verified")
         raise RuntimeError("one send dispatched; the Stop square and exact queue placeholder were not verified")
+
+    def platform_refusal_notice(self, step, frame):
+        """Return a named refusal/expiry string if FreeBuff displayed one after send."""
+        lines = self.read_lines(step, frame, (630, 350, 1550, 960))
+        joined = " ".join(lines)
+        reading = self._norm(joined)
+        markers = (
+            ("yourfreesessionhasexpired", "free session expired"),
+            ("usagelimit", "usage limit notice"),
+            ("ratelimit", "rate limit notice"),
+            ("failedtosend", "failed to send message"),
+            ("errorsubmitting", "error submitting message"),
+        )
+        for needle, label in markers:
+            if needle in reading:
+                return f"{label}: {joined[:160]}".strip()
+        return None
 
     def settle_view(self, step, seconds=12):
         """A session view still rendering its transcript is not a composer state.
@@ -2032,6 +2075,7 @@ class Dispatch:
         # lane is mid-turn (no restart input), and the placeholder's own glyphs
         # mean an empty editor. Jev decides only what these cannot (measured:
         # a 0.53 'stop' guess on a composer the OCR could read outright).
+        point = None
         placeholder = "Ask Freebuff... Use / for commands, @ for files"
         try:
             point = self.locate_exact_text("locate-empty-placeholder", frame, placeholder,
@@ -2054,7 +2098,11 @@ class Dispatch:
         if route == "staged":
             self.verify_draft(frame)
             return
-        if route == "empty":
+        if route == "placeholder":
+            if point is None:
+                point = self.locate_exact_text("locate-empty-placeholder", frame, placeholder,
+                                               (646, 950, 1260, 1014))
+        elif route == "empty":
             self.yes("verify-empty-editor", frame,
                      "Is there a small button or badge labeled Tab below the gray text?",
                      region=(642, 937, 1195, 1048))

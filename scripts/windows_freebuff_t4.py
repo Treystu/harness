@@ -30,7 +30,7 @@ def inspect_crop(driver, frame, label, region, *options):
     path = (driver.output / f"{label}.png").resolve()
     driver.image_ops.invert(driver.image_ops.grayscale(crop)).save(path)
     helper = Path(__file__).with_name("windows_ocr_exact.ps1")
-    response = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-File",
+    response = osal.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
                          str(helper), "-Path", str(path), *options], timeout=15)
     if not response.ok:
         raise RuntimeError(f"{label}: {response.stderr.strip().splitlines()[0]}")
