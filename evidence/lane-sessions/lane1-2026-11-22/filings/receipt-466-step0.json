@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "4cb085e15968f5e20ebc437f6871ae11c88baef1c60ba58f25012436378fd230"
+  },
+  "product_jev": {
+    "verdict": "escalate",
+    "disposition": "proceed",
+    "supported": 0.06,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/466-step0-trace-counts.md",
+    "site": "466-step0"
+  }
+}
