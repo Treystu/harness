@@ -136,6 +136,14 @@ class ServerServeLogTests(unittest.TestCase):
         self.assertIn("token=REDACTED", text)
         self.assertNotIn("super-secret-value", text)
 
+    def test_a_key_in_the_url_is_redacted_in_the_file(self):
+        # #653: the file sink covers the credential family, not just token=.
+        httpd, path = self._server()
+        _get(httpd.server_address[1], "/?api_key=sk-live-abcdef&page=1")
+        text = self._wait_for(path, "page=1")
+        self.assertIn("api_key=REDACTED", text)
+        self.assertNotIn("sk-live-abcdef", text)
+
     def test_no_path_means_no_file_and_close_is_safe(self):
         httpd = make_server("127.0.0.1", 0)
         self.assertIsNone(httpd.serve_log)
@@ -173,6 +181,44 @@ class CommandWiringTests(unittest.TestCase):
         text = self.path.read_text(encoding="utf-8")
         self.assertIn("token=REDACTED", text)
         self.assertNotIn("token=abc", text)
+
+    def test_each_credential_parameter_name_is_redacted_on_both_sinks(self):
+        # #653: a credential under any of these names travelled in plaintext
+        # while only token= was scrubbed; the value must not reach stderr or
+        # the on-disk sink, and the name must stay readable.
+        names = ("token", "key", "api_key", "apikey", "api-key", "auth",
+                 "access_token", "refresh_token", "password", "passwd",
+                 "secret", "client_secret", "session_id", "TOKEN", "Api_Key")
+        log = open_serve_log(self.path, pid=7, port=1)
+        self.addCleanup(log.close)
+        handler = UiRequestHandler.__new__(UiRequestHandler)
+        handler.server = type("S", (), {"serve_log": log})()
+        err = io.StringIO()
+        with mock.patch("sys.stderr", new=err):
+            for index, name in enumerate(names):
+                handler.log_message(
+                    "%s", f'GET /?{name}=secretvalue{index}&page=1" 200')
+        for sink in (self.path.read_text(encoding="utf-8"), err.getvalue()):
+            for index, name in enumerate(names):
+                self.assertIn(f"{name}=REDACTED", sink)
+                self.assertNotIn(f"secretvalue{index}", sink)
+            # The scrubber replaces values, not the rest of the request line.
+            self.assertIn("page=1", sink)
+            self.assertIn("GET /?", sink)
+
+    def test_a_parameter_that_only_ends_in_a_credential_name_keeps_its_value(self):
+        # The word boundary is what keeps ordinary parameters out of the net.
+        log = open_serve_log(self.path, pid=7, port=1)
+        self.addCleanup(log.close)
+        handler = UiRequestHandler.__new__(UiRequestHandler)
+        handler.server = type("S", (), {"serve_log": log})()
+        with mock.patch("sys.stderr", new=io.StringIO()):
+            handler.log_message(
+                "%s", 'GET /?monkey=banana&keys=visible HTTP/1.1" 200')
+        text = self.path.read_text(encoding="utf-8")
+        self.assertIn("monkey=banana", text)
+        self.assertIn("keys=visible", text)
+        self.assertNotIn("REDACTED", text)
 
     def test_handler_without_a_server_still_logs_to_stderr(self):
         handler = UiRequestHandler.__new__(UiRequestHandler)
