@@ -334,6 +334,90 @@ def walking_dispatch(pages, advances):
     return dispatch
 
 
+class NarrowedPrefixWalkTests(unittest.TestCase):
+    """The unique-prefix proof over a search-filtered roster.
+
+    Measured 2026-11-24T04:48-04:52Z: the exhaustive walk (8 pages at ~30 s)
+    spent the register's whole 240 s bound before it could pick, so no dispatch
+    reached its phases. Narrowing with the app's own field keeps the same proof
+    over the rows that could carry the label, and never falls back silently.
+    """
+
+    def _dispatch(self, *, rows, typed="", locate_error=False):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 1"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.require_foreground = Mock()
+        dispatch.frame = Mock(return_value=Mock(size=(1800, 1131)))
+        dispatch.scroll_sidebar_to_top = Mock(return_value=Mock(size=(1800, 1131)))
+        dispatch.read_lines = Mock(return_value=[typed] if typed else [])
+        dispatch.locate_exact_text = Mock(
+            side_effect=RuntimeError("field missing") if locate_error else None,
+            return_value=[700, 200])
+        dispatch.act = Mock()
+        dispatch.scroll_by = Mock(return_value=False)
+        dispatch.settled_roster = Mock(return_value=(Mock(size=(1800, 1131)), rows))
+        dispatch.read_roster = Mock(return_value=rows)
+        dispatch.click_exact_row = Mock()
+        dispatch.project_of_row = Mock(return_value="Harness")
+        return dispatch
+
+    def test_one_candidate_on_the_filtered_roster_is_picked(self):
+        rows = [{"text": "Harness"}, {"text": "Lane 1"}, {"text": "Vision Driver Standu"}]
+        dispatch = self._dispatch(rows=rows, typed="Lane 1")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.navigate_by_unique_prefix())
+        dispatch.click_exact_row.assert_called_once()
+        self.assertEqual(dispatch.click_exact_row.call_args.args[2]["text"], "Lane 1")
+
+    def test_two_rivals_are_refused_not_guessed(self):
+        """Neither row carries the exact title, so nothing may be picked."""
+        rows = [{"text": "Lane 1 Copy"}, {"text": "Lane 1 Second Copy"}]
+        dispatch = self._dispatch(rows=rows, typed="Lane 1")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertFalse(dispatch.navigate_by_unique_prefix())
+        dispatch.click_exact_row.assert_not_called()
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("prefix-census", steps)
+
+    def test_the_exact_title_wins_over_a_rival_that_merely_opens_with_it(self):
+        """Measured: five chats open with "SCMessenger", one IS SCMessenger."""
+        rows = [{"text": "Lane 1"}, {"text": "Lane 1 Second Copy"}]
+        dispatch = self._dispatch(rows=rows, typed="Lane 1")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.navigate_by_unique_prefix())
+        dispatch.click_exact_row.assert_called_once()
+        self.assertEqual(dispatch.click_exact_row.call_args.args[2]["text"], "Lane 1")
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("prefix-exact-wins", steps)
+
+    def test_an_empty_filtered_roster_is_refused(self):
+        dispatch = self._dispatch(rows=[{"text": "Harness"}], typed="Lane 1")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertFalse(dispatch.navigate_by_unique_prefix())
+        dispatch.click_exact_row.assert_not_called()
+
+    def test_a_query_already_in_the_field_is_not_typed_again(self):
+        dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="Lane 1")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            dispatch.narrow_session_list()
+        typed_controls = [c.args[2].get("control") for c in dispatch.act.call_args_list
+                          if len(c.args) > 2 and isinstance(c.args[2], dict)]
+        self.assertNotIn("Search chats field", typed_controls)
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("narrow-reused-query", steps)
+
+    def test_a_missing_field_refuses_by_name_without_walking(self):
+        dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="", locate_error=True)
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertFalse(dispatch.navigate_by_unique_prefix())
+        dispatch.click_exact_row.assert_not_called()
+        dispatch.settled_roster.assert_not_called()
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("narrow-walk", steps)
+
+
 class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
     def test_an_empty_sidebar_never_settles_into_a_roster(self):
         """R17: three empty reads are a re-render, not a census."""

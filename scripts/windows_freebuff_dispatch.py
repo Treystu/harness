@@ -1281,43 +1281,115 @@ class Dispatch:
             self.audit.append("escalation", step_id=f"{step}-expand-{page}", reason=str(error))
             return frame, rows
 
+    def candidates_in(self, rows, page, found):
+        """Collect the rows on one page that could be this lane, by identity."""
+        for row in rows:
+            if (self._prefix_matches(row["text"], self.label)
+                    and self.project_of_row(rows, row) == self.project):
+                if all(self._norm(row["text"]) != self._norm(name) for _, name in found):
+                    found.append((page, row["text"]))
+        return found
+
+    def narrow_session_list(self, steps=3):
+        """Filter the session list with the app's own search field.
+
+        Measured 2026-11-24T04:48-04:52Z: the exhaustive sidebar walk needed
+        eight pages at roughly 30 s each and spent the register's whole 240 s
+        bound before it could pick, so no dispatch ever reached its phases. The
+        field returns every row whose text carries the label - rivals and
+        clipped rows included, which is exactly the set the uniqueness proof
+        needs - so the same proof runs over far fewer pages while the bound and
+        the no-guessing rule stay as they are. Refuses by name when the field
+        itself cannot be located, rather than silently falling back to a walk
+        that cannot finish.
+        """
+        self.require_foreground()
+        frame = self.frame("narrow-before-search")
+        # Each phase is its own process, and the query phase has usually already
+        # put this label in the field. Typing again would read "Lane 1Lane 1" and
+        # match nothing, so the field's own text decides.
+        try:
+            typed = " ".join(self.read_lines("narrow-field-read", frame, SEARCH_PLACEHOLDER))
+        except RuntimeError:
+            typed = ""
+        if self._norm(self.label) and self._norm(self.label) in self._norm(typed):
+            self.audit.append("verification", step_id="narrow-reused-query",
+                              reason="the search field already carries this label")
+        else:
+            try:
+                point = self.locate_exact_text("narrow-search-field", frame, "Search chats",
+                                               SEARCH_PLACEHOLDER)
+            except RuntimeError:
+                frame = self.frame("narrow-search-caret")
+                point = self.locate_exact_text("narrow-search-field-tail", frame, "chats",
+                                               SEARCH_PLACEHOLDER_TAIL)
+            self.act("narrow-focus-search", CLICK,
+                     {"control": "Search chats field", "point": point,
+                      "size": list(frame.size)})
+            self.act("narrow-query", QUERY, {"thread": self.thread, "text": self.label,
+                                             "control": "Search chats field"})
+            time.sleep(1.4)
+        rows = []
+        for index in range(1, steps + 1):
+            frame, page = self.settled_roster(f"narrowed-{index}", SIDEBAR, attempts=3)
+            rows.extend(page)
+            if index >= steps or not self.scroll_by(
+                    f"narrowed-scroll-{index}", frame, [196, 850], -400):
+                break
+            time.sleep(0.9)
+            frame = self.frame(f"narrowed-{index}-after")
+        self.audit.append("verification", step_id="narrowed-roster", label=self.label,
+                          rows=len(rows))
+        return frame, rows
+
     def _prefix_matches(self, text, label):
         """Is this row plausibly the configured lane, allowing app clipping?"""
         seen, wanted = self._norm(text), self._norm(label)
         return bool(seen and wanted and len(wanted) >= 4
                     and (seen.startswith(wanted) or wanted.startswith(seen)))
 
-    def navigate_by_unique_prefix(self, pages=8):
+    def navigate_by_unique_prefix(self, pages=8, narrow=True):
         """Open the configured lane when exactly ONE session list row can be it.
 
         The configured names are ours and the app clips its own rows (measured:
         no row reads "Lane 2", one reads "Lane 2 Waist Composition Mission
         Brief"; none reads "BigEnergyCo", five read "BigEnergyCo ..."). One
         candidate is a pick; several are named and refused, never guessed.
+
+        The proof is unchanged by `narrow`: the candidate set is restricted with
+        the app's search field first, which only removes rows that cannot carry
+        the label, and the same exact-wins and one-candidate rules then run over
+        what is left. `narrow=False` keeps the exhaustive walk for the cold runs
+        that need to census the whole list.
         """
-        frame = self.scroll_sidebar_to_top()
-        found, seen = [], []
-        for page in range(1, pages + 1):
+        found = []
+        if narrow:
             try:
-                frame, rows = self.settled_roster(f"prefix-{page}", SIDEBAR, attempts=4)
+                frame, rows = self.narrow_session_list()
             except RuntimeError as error:
-                self.audit.append("escalation", step_id="prefix-walk", reason=str(error))
+                self.audit.append("escalation", step_id="narrow-walk", reason=str(error))
                 return False
-            frame, rows = self.expand_project(page, frame, rows, "prefix")
-            texts = [self._norm(row["text"]) for row in rows]
-            if texts in seen:
-                break
-            seen.append(texts)
-            for row in rows:
-                if (self._prefix_matches(row["text"], self.label)
-                        and self.project_of_row(rows, row) == self.project):
-                    if all(self._norm(row["text"]) != self._norm(name) for _, name in found):
-                        found.append((page, row["text"]))
-            if not self.scroll_by(f"prefix-scroll-{page}", frame, [196, 850], -400):
-                frame = self.frame(f"prefix-{page}-recapture")
-                continue
-            time.sleep(0.9)
-            frame = self.frame(f"prefix-{page}-after")
+            found = self.candidates_in(rows, 1, found)
+        else:
+            frame = self.scroll_sidebar_to_top()
+            seen = []
+            for page in range(1, pages + 1):
+                try:
+                    frame, rows = self.settled_roster(f"prefix-{page}", SIDEBAR, attempts=4)
+                except RuntimeError as error:
+                    self.audit.append("escalation", step_id="prefix-walk", reason=str(error))
+                    return False
+                frame, rows = self.expand_project(page, frame, rows, "prefix")
+                texts = [self._norm(row["text"]) for row in rows]
+                if texts in seen:
+                    break
+                seen.append(texts)
+                found = self.candidates_in(rows, page, found)
+                if not self.scroll_by(f"prefix-scroll-{page}", frame, [196, 850], -400):
+                    frame = self.frame(f"prefix-{page}-recapture")
+                    continue
+                time.sleep(0.9)
+                frame = self.frame(f"prefix-{page}-after")
         if len(found) > 1:
             # Chats that merely OPEN with this name are rivals, not copies of it
             # (measured: five chats open with "SCMessenger", one IS SCMessenger).
