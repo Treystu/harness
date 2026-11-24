@@ -228,6 +228,25 @@ def _lane_thread_from_dispatch(body):
 
 
 RUNNER_ACTION = re.compile(r"^Action\s+(?:for\s+the\s+runner|requested)\b", re.I | re.M)
+DISPATCH_BANNER = re.compile(r"^(?:VISION\s+DRIVER\s+)?(?:RESTART\s+)?DISPATCH\b", re.I)
+
+
+def restart_dispatch(body):
+    """Is this comment a restart dispatch, whatever banner the oversight used?
+
+    The header used to have to start with the literal words "RESTART DISPATCH".
+    Dispatch 7122154514 instead leads with "DISPATCH - LANE 1 RESTART, RETRY
+    UNDER THE CURED BOUND", so the reserved retry was unclaimable while the
+    watch reported "no unclaimed dispatches". A banner that opens with DISPATCH
+    counts only when RESTART is named in the same opening block; the runner's
+    instruction line and the exact quoted continuation are still required by
+    the caller, so naming a lane is not by itself an instruction.
+    """
+    if not DISPATCH_BANNER.match(body):
+        return False
+    if body.upper().startswith("RESTART DISPATCH"):
+        return True
+    return "RESTART" in body[:600].upper()
 
 
 def filed_on_issue(comments, dispatch_id):
@@ -275,9 +294,13 @@ def parse_dynamic_dispatch(comment, now=None):
     # (early dispatches) or "Action requested (runner alone, ...)" (the L1-STOP
     # episode and later). Both are the same bounded restart; anything else is not
     # an instruction and is never claimed.
-    if not (body.startswith("RESTART DISPATCH") and RUNNER_ACTION.search(body)):
+    if not (restart_dispatch(body) and RUNNER_ACTION.search(body)):
         return None
-    if f'"{CONTINUATION}"' not in body and f"'{CONTINUATION}'" not in body:
+    # The instruction may be wrapped mid-quote: 7122154514 writes
+    # '"continue in\nfull"'. Compare the flattened text so the required words
+    # survive a line break, while the digest stays over the comment as filed.
+    flat = re.sub(r"\s+", " ", body)
+    if f'"{CONTINUATION}"' not in flat and f"'{CONTINUATION}'" not in flat:
         return None
     created = comment.get("created_at")
     if created:

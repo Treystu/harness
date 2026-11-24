@@ -371,6 +371,40 @@ class FreebuffWatchTests(unittest.TestCase):
             'The owner already said action requested "continue in full" elsewhere.'))
         self.assertIsNone(watch.parse_dynamic_dispatch(prose, now=now))
 
+    def test_parse_dynamic_dispatch_accepts_the_lane1_retry_banner(self):
+        """Dispatch 7122154514 leads with "DISPATCH - LANE 1 RESTART, RETRY
+        UNDER THE CURED BOUND". Requiring the literal RESTART DISPATCH prefix
+        left the reserved retry unclaimable; it is a restart in every other
+        respect, so it must claim, and a banner that never says restart must
+        not."""
+        now = datetime(2026, 11, 24, 4, 40, tzinfo=timezone.utc)
+        comment = {
+            "id": 7122154514,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T04:35:12Z",
+            "body": (
+                "DISPATCH - LANE 1 RESTART, RETRY UNDER THE CURED BOUND (2026-11-23;\n"
+                "gate receipt in this filing).\n"
+                "\n"
+                "Action requested: execute ONE in-place restart of Lane 1 (thread\n"
+                "315608d2, LOCAL Harness, Flash Slow): send its staged \"continue in\n"
+                "full\" - no duplicate session, no model/settings change, no other\n"
+                "text.\n"
+            ),
+        }
+        # Filed as wrapped: the quoted instruction spans a line break.
+        self.assertIn('"continue in\nfull"', comment["body"])
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], watch.THREAD)
+        self.assertEqual(parsed["text"], watch.CONTINUATION)
+
+        fill = dict(comment, id=7122154599, body=(
+            "DISPATCH - FILL STAGES 1-8\n"
+            "Action requested: stand every lane up in stage order.\n"
+            'Send "continue in full" to each idle lane (thread 2ae32937).\n'))
+        self.assertIsNone(watch.parse_dynamic_dispatch(fill, now=now))
+
     def test_filed_on_issue_skips_a_dispatch_another_channel_already_executed(self):
         comments = [
             {"id": 7117989632, "body": "RESTART DISPATCH — SCMessenger"},
