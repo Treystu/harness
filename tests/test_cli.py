@@ -1383,7 +1383,7 @@ class AskCliTests(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue()), expected)
         run_prompt.assert_called_once_with(
             prompt="what's the answer?", auto_apply=False, session_id="s1",
-            force_conversation=True)
+            force_conversation=True, web=False)
 
 
 class ScriptCommandTests(unittest.TestCase):
