@@ -122,6 +122,71 @@ class ResumeStartCureTests(unittest.TestCase):
         self.assertIn("no running Stop cue appeared", str(caught.exception))
 
 
+class _SingleUseSurface(_Surface):
+    """A surface whose controls can be located exactly once each.
+
+    This is the composition proof's measuring stick: a Resume-then-Start built as
+    two independent driver actions locates each control again in its own pass,
+    and here the second locate raises. One bounded action locates each once.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.located = []
+
+    def locate_exact_text(self, step, frame, label, region, **_kwargs):
+        if label in self.located:
+            raise RuntimeError(f"{step}: exact OCR label {label!r} was not verified")
+        self.located.append(label)
+        return super().locate_exact_text(step, frame, label, region, **_kwargs)
+
+
+class ResumeStartCompositionTests(unittest.TestCase):
+    """R7: Resume staging then Start firing is ONE bounded driver action.
+
+    The failure this pins is the one that matters on a live lane: splitting the
+    composition into two actions gives the second one its own frame and its own
+    consent, so Start can fire against a session that moved on between them.
+    """
+
+    def test_one_call_locates_each_control_once_and_fires_both(self):
+        surface = _SingleUseSurface(stops=[False, False, True],
+                                    labels={"Resume mission": (900, 700),
+                                            "Start mission": (900, 600)})
+        with patch.object(dispatch.time, "sleep"):
+            outcome = dispatch.resume_staged_session(surface, surface.frame("f"))
+        self.assertEqual(outcome, "started")
+        self.assertEqual(surface.acts, ["Resume mission", "Start mission"])
+        self.assertEqual(surface.located, ["Resume mission", "Start mission"])
+
+    def test_a_second_pass_at_the_same_controls_is_refused(self):
+        """Split into two actions, the second locate has nothing left to find."""
+        surface = _SingleUseSurface(stops=[False, False, True],
+                                    labels={"Resume mission": (900, 700),
+                                            "Start mission": (900, 600)})
+        with patch.object(dispatch.time, "sleep"):
+            dispatch.resume_staged_session(surface, surface.frame("f"))
+            with self.assertRaises(RuntimeError) as caught:
+                dispatch.resume_staged_session(surface, surface.frame("f2"))
+        self.assertIn("was not verified", str(caught.exception))
+
+    def test_start_is_located_on_a_frame_taken_after_the_resume_click(self):
+        surface = _Surface(stops=[False, False, True],
+                           labels={"Resume mission": (900, 700), "Start mission": (900, 600)})
+        seen = []
+        original = surface.locate_exact_text
+
+        def recording(step, frame, label, region, **kwargs):
+            seen.append((label, id(frame)))
+            return original(step, frame, label, region, **kwargs)
+
+        surface.locate_exact_text = recording
+        with patch.object(dispatch.time, "sleep"):
+            dispatch.resume_staged_session(surface, surface.frame("before"))
+        self.assertEqual([label for label, _ in seen], ["Resume mission", "Start mission"])
+        self.assertNotEqual(seen[0][1], seen[1][1])
+
+
 class ProjectCreationCureTests(unittest.TestCase):
     """R10: a dispatch can create a project and hand its row on."""
 
