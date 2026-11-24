@@ -939,10 +939,19 @@ class Dispatch:
         tree) and a list of routes when the tree is live; it is never assumed
         to be either.
         """
-        try:
-            payload = self.read_app_structure()
-        except RuntimeError as error:
-            self.audit.append("escalation", step_id="routes", reason=str(error))
+        payload = None
+        for attempt in (1, 2, 3):
+            try:
+                payload = self.read_app_structure()
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id=f"routes-{attempt}", reason=str(error))
+                payload = None
+            if payload:
+                if attempt > 1:
+                    self.audit.append("verification", step_id="routes-retry", attempt=attempt)
+                break
+            time.sleep(0.7)
+        if payload is None:
             return []
         if isinstance(payload, dict):
             items = payload.get("documents") or payload.get("routes") or []
