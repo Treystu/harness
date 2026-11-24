@@ -278,7 +278,11 @@ def observe_bystander(output, audit, phase):
     folder = output / f"t5-{phase}"
     folder.mkdir()
     try:
-        run_phases(folder, THREAD, audit, ("observe-running",), standing=True)
+        # A bystander observation is evidence, not the dispatch's own gate: it
+        # gets a short budget so an idle or unreadable lane cannot eat the run.
+        # Measured on 7125647656: the probe alone exceeded its deadline and every
+        # retry paid it again before the dispatch's own phases began.
+        run_phases(folder, THREAD, audit, ("observe-running",), standing=True, timeout=20)
         return True
     except UncertainDriverExit:
         raise
@@ -314,8 +318,11 @@ def execute(output, number, mission, digest, bystanders):
                        for index, title in enumerate(bystanders, start=1))
         before = capture_set(output, "before", windows, audit)
         phases = mission.get("phases", ("prepare", "send") if mission.get("resume_inside") else PHASES)
-        t5_before = mission.get("standing") and not mission.get("skip_t5") and mission["thread"] != THREAD and observe_bystander(
-            output, audit, "before")
+        t5_before = False
+        if mission.get("standing") and not mission.get("skip_t5") and mission["thread"] != THREAD:
+            # Never a gate: this dispatch does not touch that lane, and the
+            # before/after pixel comparison still records whether it moved.
+            t5_before = observe_bystander(output, audit, "before")
         if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False),
                           timeout=mission.get("phase_timeout", 65)):
             fallback = mission.get("fallback")
