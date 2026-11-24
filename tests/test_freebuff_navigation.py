@@ -225,6 +225,13 @@ def test_two_equally_exact_titles_are_still_refused():
     assert len(found) == 2
 
 
+def test_identities_tolerate_ocr_slips_but_not_a_new_roster():
+    assert Dispatch.identities_compatible(("kalshipaperbumd",), ("kalshipaperburndcv",))
+    assert Dispatch.identities_compatible(("lanel",), ("lanel",))
+    assert not Dispatch.identities_compatible(("kalshipaperburndown",), ("kalshipaperrotation",))
+    assert not Dispatch.identities_compatible(("lanel",), ("lanel", "lane2"))
+
+
 def test_roster_identity_ignores_reordering():
     first = [{"text": "B Harness", "x": 60, "y": 120, "x1": 300},
              {"text": "Lane 1", "x": 72, "y": 150, "x1": 330}]

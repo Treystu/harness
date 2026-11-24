@@ -469,6 +469,22 @@ class Dispatch:
         """
         return tuple(sorted(cls._norm(row["text"]) for row in rows))
 
+    @classmethod
+    def identities_compatible(cls, previous, current):
+        """Whether two censuses read the same rows, allowing OCR slips.
+
+        Geometry alone is not enough: a different row can occupy the same slot
+        (measured: a whole roster changing under one stationary position), while
+        the OCR engine also re-reads a stationary row differently ("Kalshi Paper
+        Bumd" vs "Kalshi Paper Burndc V").
+        """
+        if previous == current:
+            return True
+        if not previous or not current or len(previous) != len(current):
+            return False
+        return all(SequenceMatcher(None, left, right).ratio() >= 0.7
+                   for left, right in zip(previous, current))
+
     def settled_roster(self, step, region, attempts=6):
         """A roster two consecutive censuses agree on, or a refusal naming both."""
         previous = None
@@ -484,7 +500,8 @@ class Dispatch:
             # comparing text can never settle and comparing geometry can.
             current = tuple(round(row["y"] / 2) for row in rows)
             identity = self.identity_of(rows)
-            if rows and previous is not None and same_rows(previous, current):
+            if (rows and previous is not None and same_rows(previous, current)
+                    and self.identities_compatible(previous_identity, identity)):
                 self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
                                   censuses=attempt, settled_by="geometry",
                                   texts=[row["text"] for row in rows][:16])
