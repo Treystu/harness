@@ -282,12 +282,13 @@ class FreebuffNavigationTests(unittest.TestCase):
         dispatch = object.__new__(Dispatch)
         dispatch.user = Mock()
         dispatch.window = Mock()
-        temp = os.path.join(os.environ.get("TEMP", os.environ.get("LOCALAPPDATA", "")),
-                            "harness-notepad-venv-20261122", "Scripts", "python.exe")
-        dispatch.window.api.title_of.return_value = temp
-        self.assertTrue(dispatch.transient_holder(1))
-        dispatch.window.api.title_of.return_value = "C:\\Windows\\explorer.exe"
-        self.assertFalse(dispatch.transient_holder(1))
+        fake_temp = r"C:\Users\tester\AppData\Local\Temp"
+        temp = os.path.join(fake_temp, "harness-notepad-venv-20261122", "Scripts", "python.exe")
+        with patch.dict("os.environ", {"TEMP": fake_temp}, clear=False):
+            dispatch.window.api.title_of.return_value = temp
+            self.assertTrue(dispatch.transient_holder(1))
+            dispatch.window.api.title_of.return_value = "C:\\Windows\\explorer.exe"
+            self.assertFalse(dispatch.transient_holder(1))
 
     def test_an_ended_turn_is_not_running_even_when_the_stop_glyph_flickers(self):
         dispatch = object.__new__(Dispatch)
