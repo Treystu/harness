@@ -373,6 +373,15 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertEqual(write.call_args_list[0].args[0], "claim-dyn-990003-2ae32937.json")
             self.assertEqual(write.call_args_list[1].args[0], "result-dyn-990003-2ae32937.json")
 
+    def test_local_control_state_accepts_utf8_bom_control_json(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ctl = Path(tmp) / "control.json"
+            ctl.write_bytes(b'\xef\xbb\xbf{"enabled": true, "paused": false}\n')
+            with patch.dict("os.environ", {"HARNESS_DRIVER_CONTROL_FILE": str(ctl)}):
+                state = watch.local_control_state()
+            self.assertTrue(state["enabled"])
+            self.assertFalse(state["paused"])
+
 
 if __name__ == "__main__":
     unittest.main()

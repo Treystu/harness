@@ -123,7 +123,7 @@ def local_control_state():
     if not path.is_file():
         return {"enabled": True, "paused": False, "path": str(path)}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return {"enabled": False, "paused": True, "path": str(path), "reason": "unreadable-control-file"}
     return {
