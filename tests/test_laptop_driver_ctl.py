@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import threading
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from harness import cli, laptop_driver_ctl
 from harness.errors import HarnessError
@@ -64,7 +64,7 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
         with patch.dict(os.environ, {"HARNESS_DRIVER_WATCH_DIR": "", "HARNESS_DRIVER_LOG_PATH": "", "HARNESS_DRIVER_WATCH_NO_SCHEDULER": ""}):
             self.assertEqual(laptop_driver_ctl.watch_dir(), Path.home() / ".harness" / "driver-watch")
             self.assertEqual(laptop_driver_ctl.log_path(), Path.home() / ".harness" / "logs" / "driver-watch.log")
-            self.assertEqual(laptop_driver_ctl._scheduler_enabled(), os.name == "nt")
+            self.assertEqual(laptop_driver_ctl._scheduler_enabled(), laptop_driver_ctl.osal.IS_WINDOWS)
         self.assertEqual(laptop_driver_ctl._run_ps("Get-Date"), "")
 
     def test_unreadable_control_file_and_invalid_action_fail_closed(self):
@@ -100,9 +100,9 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
         self.assertIn("driver-watch state=", out2.getvalue())
 
     def test_windows_scheduler_paths_run_hidden_and_handle_errors(self):
-        ok_proc = Mock(returncode=0, stdout="Ready\n", stderr="")
+        ok_proc = laptop_driver_ctl.osal.CommandResult(0, "Ready\n", "")
         with patch.object(laptop_driver_ctl, "_scheduler_enabled", return_value=True), \
-             patch.object(laptop_driver_ctl.subprocess, "run", return_value=ok_proc) as run_mock:
+             patch.object(laptop_driver_ctl.osal, "run", return_value=ok_proc) as run_mock:
             self.assertEqual(laptop_driver_ctl._task_state("HarnessLaptopDriverWatch"), "Ready")
             for act in ("start", "stop", "run-once"):
                 laptop_driver_ctl._set_task_state(act)
@@ -110,9 +110,9 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
         self.assertIn("-WindowStyle", cmd)
         self.assertIn("Hidden", cmd)
 
-        bad_proc = Mock(returncode=1, stdout="", stderr="Access is denied")
+        bad_proc = laptop_driver_ctl.osal.CommandResult(1, "", "Access is denied")
         with patch.object(laptop_driver_ctl, "_scheduler_enabled", return_value=True), \
-             patch.object(laptop_driver_ctl.subprocess, "run", return_value=bad_proc):
+             patch.object(laptop_driver_ctl.osal, "run", return_value=bad_proc):
             with self.assertRaisesRegex(HarnessError, "scheduled task command failed"):
                 laptop_driver_ctl._run_ps("Get-Date")
 

@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 
+from . import osal
 from .errors import HarnessError
 
 WATCH_TASK_NAME = "HarnessLaptopDriverWatch"
@@ -145,18 +145,15 @@ def _read_json(path: Path, default: dict) -> dict:
 def _scheduler_enabled() -> bool:
     if os.environ.get("HARNESS_DRIVER_WATCH_NO_SCHEDULER", "").strip():
         return False
-    return os.name == "nt"
+    return osal.IS_WINDOWS
 
 
 def _run_ps(script: str) -> str:
     if not _scheduler_enabled():
         return ""
-    kwargs = {"capture_output": True, "text": True, "timeout": 15, "check": False}
-    if hasattr(subprocess, "CREATE_NO_WINDOW"):
-        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
-    proc = subprocess.run(
+    proc = osal.run(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
-        **kwargs,
+        timeout=15,
     )
     if proc.returncode != 0:
         raise HarnessError(f"scheduled task command failed: {(proc.stderr or proc.stdout).strip()[:200]}")
