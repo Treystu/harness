@@ -2249,11 +2249,38 @@ class Dispatch:
         raise RuntimeError("the staged mission was submitted once but a sustained Stop cue was not verified")
 
     def verify_active_session(self):
+        """Prove the active document is the pinned thread, by route or selection.
+
+        Measured 2026-11-24 on dispatch 7125887396: prepare proved this lane four
+        times over, typed the continuation exactly once, and the send then refused
+        with "the active FreeBuff document did not expose the exact pinned thread"
+        because the accessibility helper returned [] on this handle - the dead tree
+        that routes() already documents, re-measured on the live window the same
+        way. A channel that is usually absent cannot be the only identity a send
+        may stand on, so the exposed route stays the primary proof and the settled
+        exact-selection for the pinned lane is the fallback, which is the same
+        fallback verify_session_identity already uses for Lane 1 and SCMessenger.
+        The send's other bounds are untouched: freshness, one send, no navigation.
+        """
         sessions = self.routes()
-        if len(sessions) != 1 or self.thread not in sessions[0]:
+        if len(sessions) == 1 and self.thread in sessions[0]:
+            self.require_foreground()
+            self.audit.append("verification", step_id="active-session-id", exact_id=sessions[0],
+                              source="accessibility-route")
+            return
+        self.audit.append("escalation", step_id="active-session-id", exposed=sessions[:8],
+                          reason="no single exposed route is the pinned thread; trying the selection")
+        if not self.standing:
             raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
+        if not self.selected_exact_session():
+            raise RuntimeError("the active FreeBuff document did not expose the exact pinned thread")
+        pinned = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
+        if pinned and pinned != self.thread and not pinned.startswith(self.thread):
+            raise RuntimeError("the selected lane is not the pinned thread")
         self.require_foreground()
-        self.audit.append("verification", step_id="active-session-id", exact_id=sessions[0])
+        self.audit.append("verification", step_id="active-session-id",
+                          route_fallback="exact-scoped-selection", thread=self.thread,
+                          project=self.project, pinned_uuid=pinned)
 
     def read_app_structure(self, *options):
         hwnd = self.require_foreground()
