@@ -334,6 +334,18 @@ def walking_dispatch(pages, advances):
 
 
 class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
+    def test_an_empty_sidebar_never_settles_into_a_roster(self):
+        """R17: three empty reads are a re-render, not a census."""
+        with tempfile.TemporaryDirectory() as tmp:
+            dispatch = object.__new__(Dispatch)
+            dispatch.output = Path(tmp)
+            dispatch.audit = Mock()
+            dispatch.frame = Mock(side_effect=[Mock() for _ in range(6)])
+            dispatch.read_roster = Mock(return_value=[])
+            with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+                with self.assertRaisesRegex(RuntimeError, "did not settle"):
+                    dispatch.settled_roster("probe", SIDEBAR, attempts=3)
+
     def test_a_scroll_step_that_does_not_move_the_census_is_retried(self):
         """R16: one unchanged page is not the end of the list."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -352,6 +364,18 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
         self.assertTrue(moved)
         self.assertEqual(dispatch.scroll_by.call_count, 2)
         self.assertEqual(dispatch.scroll_by.call_args.args[3], -900)
+
+    def test_the_composer_text_decides_the_route_before_any_model(self):
+        """R18: a staged mission preamble is not the 'stop' Jev saw at 0.67."""
+        dispatch = object.__new__(Dispatch)
+        dispatch.text = "continue in full"
+        placeholder = "Ask Freebuff... Use / for commands, @ for files"
+        assert dispatch.composer_written_route([], placeholder) is None
+        assert dispatch.composer_written_route([placeholder], placeholder) is None
+        assert dispatch.composer_written_route(["continue in full"], placeholder) == "staged"
+        assert dispatch.composer_written_route(
+            ["MISSION START", "SCMESSENGER LANE - FRESH SESSION CARRIER"],
+            placeholder) == "foreign"
 
     def test_a_repeated_page_does_not_end_the_session_list_walk(self):
         dispatch = walking_dispatch(

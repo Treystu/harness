@@ -118,6 +118,9 @@ PROJECT_OF = {
 PROJECT_HEADINGS = ("GitHub", "harness CLOUD", "Harness", "SCMessenger",
                     "Kalshi-Trader", "BigEnergyCo", "agensi-skills")
 COMPOSER = (630, 918, 1550, 1110)
+# The editor's own text band only: the toolbar below it carries labels
+# (Build/Plan/Mission/Skills) that are not a draft.
+COMPOSER_TEXT = (650, 930, 1520, 1050)
 LANE_NAV = (80, 590, 390, 750)
 SEND_CONTROL = (1480, 1043, 1535, 1100)
 QUEUE_PLACEHOLDER = "Type a message — added to the queue"
@@ -546,8 +549,11 @@ class Dispatch:
             # A live lane reorders the list while it renders (measured: the
             # SCM walk never settled in five censuses while other lanes moved).
             # The same rows in a different order is a usable census as long as
-            # every click re-proves its own row in a fresh frame.
-            if (attempt >= 3 and previous_identity is not None
+            # every click re-proves its own row in a fresh frame. An empty read
+            # is never a census: the app re-renders with an empty sidebar for a
+            # while (measured R17: three empty censuses "settled" during a
+            # reload and the selection probe then refused a correct click).
+            if (attempt >= 3 and rows and previous_identity is not None
                     and identity == previous_identity and len(rows) == len(previous_rows)):
                 self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
                                   censuses=attempt, settled_by="identity",
@@ -797,9 +803,14 @@ class Dispatch:
             try:
                 frame, rows = self.settled_roster("selected-exact-probe", SIDEBAR, attempts=5)
             except RuntimeError as error:
+                # A census that could not settle is not a verdict on the click:
+                # the app can be re-rendering. Retry until the wait is spent.
                 self.audit.append("escalation", step_id="selected-exact-probe",
                                   reason=str(error))
-                return False
+                if time.monotonic() >= deadline:
+                    return False
+                time.sleep(1.2)
+                continue
             row = self.highlighted_row(frame, rows)
             # A project heading and one chat can share a name (SCMessenger); the
             # chat is always the lower of the two rows, so the selection must be
@@ -822,8 +833,13 @@ class Dispatch:
             try:
                 frame, rows = self.settled_roster("selected-row-probe", SIDEBAR, attempts=5)
             except RuntimeError as error:
+                # Same rule as the exact probe: an unsettled census is not the
+                # app saying the click failed.
                 self.audit.append("escalation", step_id="selected-row-probe", reason=str(error))
-                return False
+                if time.monotonic() >= deadline:
+                    return False
+                time.sleep(1.2)
+                continue
             row = self.highlighted_row(frame, rows)
             if row and self.row_matches(row["text"], self.label):
                 project = self.project_of_row(rows, row)
@@ -2104,6 +2120,21 @@ class Dispatch:
             time.sleep(0.7)
             frame = self.frame(f"{step}-settle")
 
+    def composer_written_route(self, written, placeholder):
+        """What the composer's own text says, before any model opinion.
+
+        Measured R18: the SCM lane's composer held a staged mission preamble
+        while Jev answered "stop" at 0.67, so typing would have appended to a
+        foreign order. The text is not an opinion, and a draft that is not
+        this lane's continuation is refused by name.
+        """
+        reading = self._norm(" ".join(written))
+        if not reading or self._norm(placeholder) in reading:
+            return None
+        if self._norm(self.text) and self._norm(self.text) in reading:
+            return "staged"
+        return "foreign"
+
     def prepare_draft(self):
         if not getattr(self, "recovering", False):
             self.reestablish_if_reloaded("prepare")
@@ -2124,7 +2155,15 @@ class Dispatch:
             self.audit.append("verification", step_id="composer-placeholder-ocr",
                               source="exact OCR, not a model choice")
         except RuntimeError:
-            route = self.choose("composer-route", frame,
+            written = self.read_lines("composer-written", frame, COMPOSER_TEXT)
+            route = self.composer_written_route(written, placeholder)
+            if route == "foreign":
+                raise RuntimeError(
+                    "composer-route: the composer holds a foreign draft, not "
+                    f"{self.text!r}; not typing over it "
+                    f"({self._norm(' '.join(written))[:120]!r})") from None
+            if route is None:
+                route = self.choose("composer-route", frame,
                                 "Read the controls in this composer screenshot. Which is visible?", {
                                 "staged": "Solid lowercase text 'continue in full' with"
                                           " an up-arrow send button.",
