@@ -43,15 +43,30 @@ def test_selection_waits_for_two_identical_rosters(tmp_path, monkeypatch):
     assert not censuses
 
 
-def test_a_roster_that_never_settles_refuses_by_name(tmp_path, monkeypatch):
+def test_a_roster_whose_rows_keep_changing_refuses_by_name(tmp_path, monkeypatch):
+    """Geometry churn with the same rows settles; identity churn still refuses."""
     dispatch = shim(tmp_path, [Mock() for _ in range(8)])
-    positions = iter([740, 752, 764, 726, 738, 750])
+    names = iter(["Kalshi Paper Burndown", "Kalshi Paper Rotation", "BigEnergyCo",
+                  "Disk Audit", "Lane 2", "Sergeant"])
     dispatch.read_roster = Mock(side_effect=lambda step, frame, region: [
-        {"text": "Kalshi Paper Burndown", "x": 133, "y": next(positions), "x1": 200}])
+        {"text": next(names), "x": 133, "y": 740, "x1": 200}])
     monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
 
     with pytest.raises(RuntimeError, match="did not settle"):
         dispatch.settled_roster("probe", SIDEBAR, attempts=3)
+
+
+def test_a_reordering_roster_settles_on_identity(tmp_path, monkeypatch):
+    dispatch = shim(tmp_path, [Mock() for _ in range(8)])
+    order = iter([[("B Harness", 120), ("Lane 1", 150)],
+                  [("Lane 1", 120), ("B Harness", 150)],
+                  [("Lane 1", 132), ("B Harness", 162)]])
+    dispatch.read_roster = Mock(side_effect=lambda step, frame, region: [
+        {"text": text, "x": 72, "y": y, "x1": 330} for text, y in next(order)])
+    monkeypatch.setattr("scripts.windows_freebuff_dispatch.time.sleep", Mock())
+
+    _, rows = dispatch.settled_roster("probe", SIDEBAR, attempts=4)
+    assert [row["text"] for row in rows] == ["Lane 1", "B Harness"]
 
 
 def test_a_short_label_matches_its_own_row_through_the_icon_glyph():
@@ -188,6 +203,35 @@ def test_a_project_heading_is_never_the_session_it_names():
     found, heading = Dispatch.session_candidates(rows, "SCMessenger", "SCMessenger")
     assert [row["text"] for row in found] == ["SCMessenger"]
     assert heading["text"] == "B SCMessenger"
+
+
+def test_an_exact_title_wins_over_prefix_rivals():
+    rows = [{"text": "Projects", "x": 60, "y": 80, "x1": 300},
+            {"text": "B SCMessenger", "x": 60, "y": 120, "x1": 300},
+            {"text": "SCMessenger", "x": 72, "y": 150, "x1": 330},
+            {"text": "SCMessenger Audit Lar", "x": 72, "y": 180, "x1": 330},
+            {"text": "SCMessenger Fresh Re", "x": 72, "y": 210, "x1": 330},
+            {"text": "SCMessenger Bumdown Tc", "x": 72, "y": 240, "x1": 330},
+            {"text": "Ra SCMessenger Fast Mode Pc", "x": 72, "y": 270, "x1": 330}]
+    found, _ = Dispatch.session_candidates(rows, "SCMessenger", "SCMessenger")
+    assert [row["text"] for row in found] == ["SCMessenger"]
+
+
+def test_two_equally_exact_titles_are_still_refused():
+    rows = [{"text": "B Harness", "x": 60, "y": 120, "x1": 300},
+            {"text": "Lane 1", "x": 72, "y": 150, "x1": 330},
+            {"text": "Lane 1", "x": 72, "y": 180, "x1": 330}]
+    found, _ = Dispatch.session_candidates(rows, "Lane 1", "Harness")
+    assert len(found) == 2
+
+
+def test_roster_identity_ignores_reordering():
+    first = [{"text": "B Harness", "x": 60, "y": 120, "x1": 300},
+             {"text": "Lane 1", "x": 72, "y": 150, "x1": 330}]
+    moved = [{"text": "Lane 1", "x": 72, "y": 120, "x1": 330},
+             {"text": "B Harness", "x": 60, "y": 150, "x1": 300}]
+    assert Dispatch.identity_of(first) == Dispatch.identity_of(moved)
+    assert Dispatch.identity_of(first) != Dispatch.identity_of(first[:1])
 
 
 def test_a_collapsed_project_yields_its_heading_only():

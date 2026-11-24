@@ -459,9 +459,21 @@ class Dispatch:
                           texts=[row["text"] for row in rows][:16])
         return rows
 
+    @classmethod
+    def identity_of(cls, rows):
+        """The roster's rows as an order-free identity set.
+
+        Lanes start and finish while the list is open, so the same rows move;
+        identity is what the census must agree on, geometry is what a click
+        must re-prove immediately before it lands.
+        """
+        return tuple(sorted(cls._norm(row["text"]) for row in rows))
+
     def settled_roster(self, step, region, attempts=6):
         """A roster two consecutive censuses agree on, or a refusal naming both."""
         previous = None
+        previous_identity = None
+        previous_rows = []
         rows = []
         frame = self.frame(f"{step}-0")
         for attempt in range(1, attempts + 1):
@@ -471,12 +483,25 @@ class Dispatch:
             # Paper Bumd" vs "Kalshi Paper Burndc V" on one unchanged row), so
             # comparing text can never settle and comparing geometry can.
             current = tuple(round(row["y"] / 2) for row in rows)
+            identity = self.identity_of(rows)
             if rows and previous is not None and same_rows(previous, current):
                 self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
-                                  censuses=attempt,
+                                  censuses=attempt, settled_by="geometry",
                                   texts=[row["text"] for row in rows][:16])
                 return frame, rows
             previous = current
+            # A live lane reorders the list while it renders (measured: the
+            # SCM walk never settled in five censuses while other lanes moved).
+            # The same rows in a different order is a usable census as long as
+            # every click re-proves its own row in a fresh frame.
+            if (attempt >= 3 and previous_identity is not None
+                    and identity == previous_identity and len(rows) == len(previous_rows)):
+                self.audit.append("verification", step_id=f"{step}-settled", rows=len(rows),
+                                  censuses=attempt, settled_by="identity",
+                                  texts=[row["text"] for row in rows][:16])
+                return frame, rows
+            previous_identity = identity
+            previous_rows = rows
             time.sleep(0.7)
             frame = self.frame(f"{step}-resettle-{attempt}")
         raise RuntimeError(f"{step}: the roster did not settle in {attempts} censuses; "
@@ -583,6 +608,17 @@ class Dispatch:
                 heading = row
                 continue
             found.append(row)
+        if len(found) > 1:
+            # Prefix rivals are distinct chats, not clipped copies of this one
+            # (measured: the SCMessenger project holds "SCMessenger", "SCMessenger
+            # Audit Lar", "SCMessenger Fresh Re", "SCMessenger Bumdown Tc", "Ra
+            # SCMessenger Fast Mode Pc"). The row whose title IS the label wins;
+            # any other tie is still refused.
+            exact = [row for row in found
+                     if row["text"].strip() == label.strip()
+                     or cls._norm(row["text"].partition(" ")[2] or "") == cls._norm(label)]
+            if len(exact) == 1:
+                found = exact
         return found, heading
 
     @classmethod
@@ -609,6 +645,24 @@ class Dispatch:
         if not self.user.PostMessageW(hit, 0x020A, (params["delta"] & 0xFFFF) << 16, packed):
             raise RuntimeError("the renderer rejected scrolling")
 
+    def relocated_click(self, step, label):
+        """Click a row that moved after its census: re-census, then click where it is."""
+        frame, rows = self.settled_roster(f"{step}-relocate", SIDEBAR, attempts=4)
+        found, _ = self.session_candidates(rows, label, self.project)
+        if not found:
+            found = [row for row in rows if row["text"].strip() == label.strip()]
+        if len(found) != 1:
+            raise RuntimeError(f"{step}: the row moved and was not uniquely relocatable "
+                               f"({len(found)} matches, label {label!r})")
+        row = found[0]
+        point = [round((row["x"] + row["x1"]) / 2), round(row["y"] + 8)]
+        self.act(f"{step}-relocated", CLICK,
+                 {"control": f"session row {label}", "point": point,
+                  "size": list(frame.size)})
+        self.audit.append("action", step_id=f"{step}-relocated", row=row["text"],
+                          reason="the census row moved; re-located by text")
+        return row
+
     def click_exact_row(self, step, frame, row):
         """Click one row already chose from a settled census."""
         point = [round((row["x"] + row["x1"]) / 2), round(row["y"] + 8)]
@@ -616,7 +670,7 @@ class Dispatch:
                  round(row["x1"] + 6), round(row["y"] + 20))
         fresh = self.frame(f"{step}-readback")
         if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
-            raise RuntimeError(f"{step}: the settled row moved before the click")
+            return self.relocated_click(step, row["text"])
         self.act(step, CLICK, {"control": f"session row {row['text']}", "point": point,
                                "size": list(frame.size)})
         return row
@@ -642,7 +696,7 @@ class Dispatch:
                  round(row["x1"] + 6), round(row["y"] + 20))
         fresh = self.frame(f"{step}-readback")
         if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
-            raise RuntimeError(f"{step}: the settled row moved before the click")
+            return self.relocated_click(step, row["text"])
         self.act(step, CLICK, {"control": f"session row {row['text']}", "point": point,
                                "size": list(frame.size)})
         return row
