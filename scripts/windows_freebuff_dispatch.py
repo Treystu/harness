@@ -1982,8 +1982,20 @@ class Dispatch:
         self.verify_lane(frame)
         if self.scoped_input and self.turn_running(frame):
             raise RuntimeError("the requested session is already running; no restart input")
-        route = self.choose("composer-route", frame,
-                            "Read the controls in this composer screenshot. Which is visible?", {
+        # Primary-source cues before the model: a live stop control means the
+        # lane is mid-turn (no restart input), and the placeholder's own glyphs
+        # mean an empty editor. Jev decides only what these cannot (measured:
+        # a 0.53 'stop' guess on a composer the OCR could read outright).
+        placeholder = "Ask Freebuff... Use / for commands, @ for files"
+        try:
+            point = self.locate_exact_text("locate-empty-placeholder", frame, placeholder,
+                                           (646, 950, 1260, 1014))
+            route = "placeholder"
+            self.audit.append("verification", step_id="composer-placeholder-ocr",
+                              source="exact OCR, not a model choice")
+        except RuntimeError:
+            route = self.choose("composer-route", frame,
+                                "Read the controls in this composer screenshot. Which is visible?", {
                                 "staged": "Solid lowercase text 'continue in full' with"
                                           " an up-arrow send button.",
                                 "empty": "Dim suggestion text with a small visible Tab badge"
@@ -1991,16 +2003,12 @@ class Dispatch:
                                 "placeholder": "Ask Freebuff... Use / for commands, @ for files"
                                                " is the only text in the editor, with a waveform button.",
                                 "resume": "A button labeled Resume mission.",
-                                "stop": "A stop square, an unrelated draft, or no recognizable state.",
-                            }, region=COMPOSER)
+                                    "stop": "A stop square, an unrelated draft, or no recognizable state.",
+                                }, region=COMPOSER)
         if route == "staged":
             self.verify_draft(frame)
             return
-        if route == "placeholder":
-            placeholder = "Ask Freebuff... Use / for commands, @ for files"
-            point = self.locate_exact_text("locate-empty-placeholder", frame, placeholder,
-                                           (646, 950, 1260, 1014))
-        elif route == "empty":
+        if route == "empty":
             self.yes("verify-empty-editor", frame,
                      "Is there a small button or badge labeled Tab below the gray text?",
                      region=(642, 937, 1195, 1048))
