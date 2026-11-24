@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "9ed5f723028919c0d6a30513e99399e74207d53c0f5caec76ba8472c03645539"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.07,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": ".filing-344-plan-body.md",
+    "site": "issue-344-plan-body"
+  }
+}

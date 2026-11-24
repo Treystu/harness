@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "41339cb401232bc4c1099e65d3303d3ad737607a2de7bc0aba92a809327af918"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.05,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/344-resume-reuse-landing.md",
+    "site": "344-landing-resume-reuse"
+  }
+}

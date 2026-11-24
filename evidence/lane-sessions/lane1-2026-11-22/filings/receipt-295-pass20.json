@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "13787f4cb3ed3e208c86a85f3a70908a7c769e67cdf025b140fa289141d4b8ab"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.08,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": ".filing-295-pass20.md",
+    "site": "295-pass20-checkin"
+  }
+}

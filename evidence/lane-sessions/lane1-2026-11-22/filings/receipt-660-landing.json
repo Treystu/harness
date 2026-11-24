@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "4e69c6d49486b62bc3a1eeb6c95c9675cc46761d791d9cc9fee637dd3b8c4222"
+  },
+  "product_jev": {
+    "verdict": "escalate",
+    "disposition": "proceed",
+    "supported": 0.06,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/660-landing-record.md",
+    "site": "660-landing-record"
+  }
+}

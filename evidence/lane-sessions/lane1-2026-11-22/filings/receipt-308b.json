@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "bdf6c86e2e763c739f00444f1a7a1b5aad35e2dab41cdfd0904bc4cac1a16a61"
+  },
+  "product_jev": {
+    "verdict": "proceed",
+    "disposition": "proceed",
+    "supported": 0.05,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/308-plan-budget-owner.md",
+    "site": "308"
+  }
+}

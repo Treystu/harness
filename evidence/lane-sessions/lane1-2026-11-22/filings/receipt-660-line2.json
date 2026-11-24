@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "e42f9967f87e0e5db4aed329de1d2ce00f8f3e29bc7f7c3f761d1f92d046f2b0"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.04,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/660-line2-provenance.md",
+    "site": "660-line2-provenance"
+  }
+}
