@@ -402,7 +402,8 @@ class Dispatch:
     def frame(self, step):
         try:
             capture, elapsed, attempts = bounded_capture(
-                lambda: self.screen.capture(Target("existing FreeBuff desktop", GUI)))
+                lambda: self.screen.capture_isolated(
+                    Target("existing FreeBuff desktop", GUI), self.output / f"{step}.png"))
         except RuntimeError as error:
             raise RuntimeError(f"{step}: {error}") from error
         (self.output / f"{step}.png").write_bytes(capture.payload)

@@ -3,6 +3,7 @@
 import ctypes
 import io
 from ctypes import wintypes
+from pathlib import Path
 from threading import Event
 from time import monotonic, sleep
 
@@ -220,6 +221,39 @@ class WindowsWindowScreen:
         self.source = source
         self.last_png = None
         self.capture_seconds = None
+
+    def capture_isolated(self, target, path, *, attempts=2, timeout=25):
+        """Capture in a child process so a native capture fault is not fatal.
+
+        The backend faults inside GraphicsCapture.dll (0xc0000005), which no
+        exception handler can see: dispatch 7122154514 and its retry both died
+        that way mid-walk. A fault here kills only the worker, so it is re-taken
+        once; two dead workers are still refused by name, with the exit codes.
+        """
+        import subprocess
+        import sys
+
+        path = Path(path)
+        root = Path(__file__).resolve().parents[1]
+        codes = []
+        for _ in range(attempts):
+            hwnd = self.window.require_window()
+            path.unlink(missing_ok=True)
+            try:
+                finished = subprocess.run(
+                    [sys.executable, "-m", "scripts.windows_freebuff_capture",
+                     "--capture-once", str(hwnd), "--out", str(path)],
+                    cwd=str(root), capture_output=True, timeout=timeout, check=False)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                codes.append(f"worker failed to run: {error}")
+                continue
+            if finished.returncode == 0 and path.is_file() and path.stat().st_size:
+                payload = path.read_bytes()
+                self.last_png = payload
+                return Capture(self.source, target, payload, fingerprint=fingerprint(payload))
+            detail = (finished.stderr or finished.stdout or b"").decode("utf-8", "replace").strip()
+            codes.append(f"exit {finished.returncode}" + (f": {detail.splitlines()[-1][:160]}" if detail else ""))
+        raise RuntimeError(f"the capture worker died {attempts} times ({'; '.join(codes)})")
 
     def capture(self, target):
         from PIL import Image

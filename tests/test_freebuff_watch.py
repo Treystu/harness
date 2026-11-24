@@ -34,6 +34,49 @@ from scripts import windows_freebuff_watch as watch
 from scripts.windows_freebuff_dispatch import Dispatch
 
 
+class IsolatedCaptureTests(unittest.TestCase):
+    """The capture backend faults natively (0xc0000005 in GraphicsCapture.dll),
+    so a frame is taken in a child process and a dead worker is re-taken once."""
+
+    def _screen(self):
+        from scripts.windows_notepad_window import WindowsWindowScreen
+        window = Mock()
+        window.require_window.return_value = 4242
+        return WindowsWindowScreen(window, source="windows-freebuff")
+
+    def test_a_crashed_worker_is_replaced_by_one_more(self):
+        from driver_core.observation import GUI, Target
+        screen = self._screen()
+        calls = []
+
+        def run(command, **_kwargs):
+            calls.append(command)
+            if len(calls) == 1:
+                return Mock(returncode=-1073741819, stdout=b"", stderr=b"")
+            Path(command[command.index("--out") + 1]).write_bytes(b"frame-bytes")
+            return Mock(returncode=0, stdout=b"ok", stderr=b"")
+
+        with tempfile.TemporaryDirectory() as tmp, patch("subprocess.run", side_effect=run):
+            capture = screen.capture_isolated(Target("existing FreeBuff desktop", GUI),
+                                              Path(tmp) / "f.png")
+        self.assertEqual(capture.payload, b"frame-bytes")
+        self.assertEqual(len(calls), 2)
+        self.assertIn("--capture-once", calls[0])
+        self.assertEqual(calls[0][calls[0].index("--capture-once") + 1], "4242")
+
+    def test_two_dead_workers_are_refused_by_name(self):
+        from driver_core.observation import GUI, Target
+        screen = self._screen()
+        dead = Mock(returncode=-1073741819, stdout=b"", stderr=b"")
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch("subprocess.run", return_value=dead):
+            with self.assertRaises(RuntimeError) as caught:
+                screen.capture_isolated(Target("existing FreeBuff desktop", GUI),
+                                        Path(tmp) / "f.png")
+        self.assertIn("the capture worker died 2 times", str(caught.exception))
+        self.assertIn("exit -1073741819", str(caught.exception))
+
+
 class CaptureBudgetTests(unittest.TestCase):
     def test_one_slow_frame_is_retaken_instead_of_escalated(self):
         """Dispatch 7122154514 escalated at `sidebar-top-3-after: capture exceeded

@@ -4,7 +4,9 @@ import argparse
 import csv
 import ctypes
 import hashlib
+import io
 import time
+from threading import Event
 from ctypes import wintypes
 from pathlib import Path
 from time import monotonic
@@ -115,10 +117,74 @@ class FreeBuffWindow:
         return self.handle
 
 
+def capture_window_png(hwnd, out_path, *, budget=2.0):
+    """Capture one window handle to a PNG in a throw-away process.
+
+    The capture backend faults natively: dispatch 7122154514 and its retry both
+    died with 0xc0000005 inside GraphicsCapture.dll (Windows Application Error
+    1000, 04:38:57Z and 04:43:05Z), which no Python handler can catch. Running
+    the capture here means such a fault kills only this process, and the caller
+    can tell it apart from a refusal and retry.
+    """
+    from PIL import Image
+    from windows_capture import WindowsCapture
+
+    started = monotonic()
+    capture = WindowsCapture(window_hwnd=hwnd, cursor_capture=False, secondary_window=False)
+    ready = Event()
+    images = []
+
+    @capture.event
+    def on_frame_arrived(frame, control):
+        try:
+            images.append(Image.frombytes(
+                "RGB", (frame.width, frame.height), frame.frame_buffer.tobytes(),
+                "raw", "BGRX"))
+        finally:
+            control.stop()
+            ready.set()
+
+    @capture.event
+    def on_closed():
+        ready.set()
+
+    session = capture.start_free_threaded()
+    if not ready.wait(1.5):
+        session.stop()
+        raise RuntimeError("window compositor capture did not return a frame")
+    session.wait()
+    if not images:
+        raise RuntimeError("the window capture closed without a frame")
+    frame = images[0]
+    if all(low == high for low, high in frame.getextrema()):
+        raise RuntimeError("window-scoped capture returned uniform pixels")
+    png = io.BytesIO()
+    frame.save(png, format="PNG", compress_level=1)
+    out_path.write_bytes(png.getvalue())
+    return {"hwnd": hwnd, "sha256": hashlib.sha256(png.getvalue()).hexdigest(),
+            "width": frame.width, "height": frame.height,
+            "seconds": round(monotonic() - started, 3), "budget": budget}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--evidence", type=Path, required=True)
+    parser.add_argument("--capture-once", type=int, default=None,
+                        help="capture this window handle to --out and exit")
+    parser.add_argument("--out", type=Path, default=None)
+    parser.add_argument("--evidence", type=Path, required=False)
     args = parser.parse_args()
+    if args.capture_once is not None:
+        if args.out is None:
+            parser.error("--capture-once requires --out")
+        try:
+            summary = capture_window_png(args.capture_once, args.out)
+        except (OSError, RuntimeError) as error:
+            print(f"capture worker refused: {error}")
+            return 1
+        print(f"capture worker ok {summary}")
+        return 0
+    if args.evidence is None:
+        parser.error("--evidence is required unless --capture-once is used")
     args.evidence.mkdir()
     audit = AuditLog(args.evidence / "driver.jsonl")
     try:
