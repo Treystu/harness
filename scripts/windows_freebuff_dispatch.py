@@ -54,6 +54,10 @@ PINNED_UUIDS = {
     SCM_THREAD: "2ae32937-c991-4c33-87d4-68b8c956ba98",
     VISION_THREAD: "6d39cf4f-2469-4f47-8cf0-3948309f5f2b",
     "0319b9f6": "0319b9f6-d5da-4327-9632-296f7ab42adf",
+    # Measured 2026-11-24 23:38 HST by the read-only local lookup (the same call
+    # that pinned Lane 1 and Disk Audit), after the corrected fleet order found
+    # CivicScope had no addressable identity at all.
+    "46472fcc": "46472fcc-ca7e-469b-806a-1e05e5bb8d00",
 }
 
 
@@ -85,6 +89,7 @@ BURN_SESSIONS = {
     "9ecc3453": "Lane 2",
     "918dad1a": "Harness Audit Lane",
     "0319b9f6": "SCMessenger Audit Lane",
+    "46472fcc": "CivicScope",
 }
 # What a lane's own transcript must contain for the app to identify it when its
 # row name cannot (BigEnergyCo has five sessions that all open with its name).
@@ -114,9 +119,10 @@ PROJECT_OF = {
     "918dad1a": "Harness",
     "0d7e2f37": "BigEnergyCo",
     "7d4a9b14": "Kalshi-Trader",
+    "46472fcc": "civicscope(cloud)",
 }
 PROJECT_HEADINGS = ("GitHub", "harness CLOUD", "Harness", "SCMessenger",
-                    "Kalshi-Trader", "BigEnergyCo", "agensi-skills")
+                    "Kalshi-Trader", "BigEnergyCo", "agensi-skills", "civicscope(cloud)")
 COMPOSER = (630, 918, 1550, 1110)
 # The editor's own text band only: the toolbar below it carries labels
 # (Build/Plan/Mission/Skills) that are not a draft.
