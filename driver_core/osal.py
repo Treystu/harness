@@ -1910,6 +1910,36 @@ def _bind_input_events(*, ctypes_module=None):
     return ctypes, user32, POINT
 
 
+VK_RETURN = 0x0D
+
+
+def type_units(text):
+    """Split literal text into Unicode characters and explicit key presses.
+
+    Pure so the rule is testable on any host: a newline becomes a Return press, a
+    CRLF pair is one Return, and any other C0 control is refused by name rather
+    than typed as a character the editor will not act on.
+    """
+    if not isinstance(text, str) or not text:
+        raise OsalError(f"typing needs a non-empty string, got {text!r}")
+    units = []
+    for character in text.replace("\r\n", "\n"):
+        if character == "\n":
+            units.append(("key", (VK_RETURN,)))
+            continue
+        unit = ord(character)
+        if unit < 0x20 or unit == 0x7F:
+            raise OsalError(
+                f"control character {character!r} is refused rather than typed; "
+                "only a newline is interpreted")
+        if unit > 0xFFFF:
+            raise OsalError(
+                f"character {character!r} is outside the BMP; it is "
+                "refused rather than sent as half a surrogate pair")
+        units.append(("unicode", unit))
+    return units
+
+
 class _WindowsInputApi:
     """The input half of the native backend: geometry and synthetic events.
 
@@ -1955,22 +1985,25 @@ class _WindowsInputApi:
         self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
     def type_text(self, text):
-        """Type one literal string as Unicode key events."""
+        """Type one literal string as Unicode key events.
+
+        A newline is emitted as an actual Return key press, not as Unicode U+000A:
+        the launch mission of record is 2972 bytes of prose whose paragraphs only
+        survive if the composer receives line breaks, and a Unicode control
+        character reaches Chromium as text the editor never breaks on. Every
+        other C0 control is refused before the first event, so a mission cannot be
+        half-typed by a character the keyboard cannot express.
+        """
         if not isinstance(text, str) or not text:
             raise OsalError(f"typing needs a non-empty string, got {text!r}")
-        # Validate the whole string before the first event. Refusing halfway
-        # would leave half the text typed and report a failure, which is the
-        # one outcome a caller cannot reason about.
-        for character in text:
-            if ord(character) > 0xFFFF:
-                raise OsalError(
-                    f"character {character!r} is outside the BMP; it is "
-                    "refused rather than sent as half a surrogate pair")
-        for character in text:
-            unit = ord(character)
-            self._user32.keybd_event(0, unit, KEYEVENTF_UNICODE, 0)
+        units = type_units(text)
+        for kind, value in units:
+            if kind == "key":
+                self.key(value)
+                continue
+            self._user32.keybd_event(0, value, KEYEVENTF_UNICODE, 0)
             self._user32.keybd_event(
-                0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0)
+                0, value, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0)
 
     def key(self, codes):
         """Press the codes in order and release them in reverse."""

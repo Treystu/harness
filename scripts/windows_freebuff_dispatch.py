@@ -221,6 +221,87 @@ def create_project(surface, name):
         f"project-creation adapter: no session row reads {name!r} after {create_region}")
 
 
+LAUNCH_PLACEHOLDER = "Ask Freebuff... Use / for commands, @ for files"
+LAUNCH_MARKER = "harness-freebuff-launch-{name}.json"
+
+
+def launch_project_session(surface, name, mission, carrier, *, observation=25):
+    """Launch one session carrying a mission of record, or refuse by name.
+
+    The launch type is composed from the pieces that are already proven: the R10
+    project adapter creates the project and hands its row back, the composer is
+    only typed into after its own empty placeholder is read by exact OCR, the
+    carrier line is read back off the field, and the send is one click on the
+    arrow whose outline is measured in the same frame. A project that already has
+    a session is refused instead of duplicated, and a one-send marker keyed by the
+    project name bounds it to a single launch even though a brand-new chat has no
+    session UUID yet.
+    """
+    frame, rows = surface.settled_roster("launch-roster", SIDEBAR, attempts=5)
+    if any(surface._norm(row["text"]) == surface._norm(name) for row in rows):
+        raise RuntimeError(
+            f"launch: the roster already holds {name!r}; launching would duplicate a session")
+    row = create_project(surface, name)
+    surface.audit.append("verification", step_id="launch-project-created",
+                         row=row["text"], name=name)
+    time.sleep(1.5)
+    frame = surface.settle_view("launch-after-create")
+    try:
+        point = surface.locate_exact_text("launch-composer-empty", frame, LAUNCH_PLACEHOLDER,
+                                          (640, 925, 1540, 1060))
+    except RuntimeError:
+        # The new project may open its chat only when its row is opened.
+        surface.act("launch-open-project", CLICK,
+                    {"control": f"{name} project row",
+                     "point": [int(row["x"]) + 20, int(row["y"]) + 8],
+                     "size": list(frame.size)})
+        time.sleep(1.5)
+        frame = surface.settle_view("launch-after-open")
+        point = surface.locate_exact_text("launch-composer-empty", frame, LAUNCH_PLACEHOLDER,
+                                          (640, 925, 1540, 1060))
+    surface.yes("launch-composer-confirm", frame,
+                "Is this an empty composer showing the Ask Freebuff placeholder?",
+                region=(640, 925, 1540, 1060))
+    surface.text = mission
+    surface.act("launch-focus-composer", CLICK,
+                {"control": f"{name} composer", "point": point, "size": list(frame.size)})
+    surface.act("launch-type-mission", TYPE, {"text": mission})
+    time.sleep(1.5)
+    frame = surface.frame("launch-mission-typed")
+    reading = surface._norm(" ".join(surface.read_lines(
+        "launch-carrier-readback", frame, (640, 900, 1540, 1080))))
+    if surface._norm(carrier) not in reading:
+        raise RuntimeError(
+            f"launch: the carrier line {carrier!r} was not read back off the composer")
+    surface.audit.append("verification", step_id="launch-carrier", carrier=carrier)
+    region = SEND_CONTROL
+    surface.yes("launch-send-arrow", frame,
+                "Does this image show a white button containing a black upward arrow?",
+                region=region)
+    left, top, _, _ = region
+    box = frame.crop(region).convert("L").point(
+        lambda level: 255 if level >= 205 else 0).getbbox()
+    if box is None or not (26 <= box[2] - box[0] <= 47 and 26 <= box[3] - box[1] <= 47):
+        raise RuntimeError("launch: the send arrow outline was not located")
+    send_point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
+    marker = surface.output / LAUNCH_MARKER.format(name=name)
+    if marker.exists():
+        raise RuntimeError("launch: the one-send marker already exists; inspect the prior outcome")
+    with marker.open("x", encoding="utf-8") as handle:
+        json.dump({"project": name, "carrier": carrier, "step": "launch-send"}, handle)
+    surface.act("launch-send-once", SEND,
+                {"thread": name, "text": mission, "control": f"{name} Send (up arrow)",
+                 "point": send_point, "size": list(frame.size)})
+    for attempt in range(1, 4):
+        time.sleep(observation // 3)
+        current = surface.frame(f"launch-response-{attempt}")
+        if surface.stop_visible(current):
+            surface.audit.append("verification", step_id="launch-running", stop_cue=True,
+                                 observation_seconds=observation // 3 * attempt)
+            return attempt
+    raise RuntimeError("launch: the mission was submitted once but no running Stop cue appeared")
+
+
 EXPIRED_BANNER_REGION = (630, 560, 1550, 860)
 RESUME_CONTROL_REGION = (630, 590, 1550, 960)
 START_CONTROL_REGION = (500, 180, 1600, 1100)
@@ -492,14 +573,20 @@ class Dispatch:
             raise RuntimeError("the text differs from the approved continuation")
         hit = self.composer_renderer
         keyboard = osal._WindowsInputApi()
-        for character in self.text:
-            if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
-                raise RuntimeError("the verified composer renderer is no longer available")
-            if self.standing or self.text == DISK_POINTER or (self.scoped_input and self.thread == DISK_THREAD):
+        if self.standing or self.text == DISK_POINTER or (self.scoped_input and self.thread == DISK_THREAD):
+            for character in self.text:
+                if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
+                    raise RuntimeError("the verified composer renderer is no longer available")
                 if not self.user.PostMessageW(hit, 0x0102, ord(character), 1):
                     raise RuntimeError("the verified FreeBuff composer refused a character")
-            else:
-                keyboard.type_text(character)
+        else:
+            # One call for the whole approved text: osal.type_text() is what
+            # turns a newline into a real Return press, and typing character by
+            # character would send U+000A as text no editor breaks on. The
+            # launch mission of record depends on exactly that.
+            if not hit or self.user.GetAncestor(hit, 2) != self.require_foreground():
+                raise RuntimeError("the verified composer renderer is no longer available")
+            keyboard.type_text(self.text)
 
     def send(self, action, params):
         if params["thread"] != self.thread or params["text"] != self.text:
