@@ -5,6 +5,7 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 import subprocess
 from ctypes import wintypes
 from datetime import datetime, timedelta, timezone
@@ -12,8 +13,10 @@ from pathlib import Path
 
 from driver_core.audit import AuditLog
 
-from .windows_freebuff_dispatch import BURN_SESSIONS, SCM_THREAD, THREAD, VISION_THREAD
-from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit, api, execute
+from .windows_freebuff_dispatch import (
+    BURN_SESSIONS, CONTINUATION, DISK_THREAD, SCM_THREAD, SESSIONS, THREAD, VISION_THREAD,
+)
+from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit, api, approved, execute
 
 CUTOVER = 7093801996
 CENSUS = 7093745521
@@ -29,6 +32,8 @@ SCM_RESTART = 7097835295
 REMAINING = 7095113042
 ROBBY = 7094914841
 SINCE = "2026-11-23T06:55:00Z"
+DYNAMIC_SINCE = "2026-11-24T00:20:00Z"
+DEFAULT_CONTROL_PATH = Path.home() / ".harness" / "driver-watch" / "control.json"
 ROOT = f"{LEDGER}/contents/dispatch/laptop-driver/watch/{CUTOVER}"
 WORKTREE = Path(__file__).resolve().parents[1]
 RECEIPTS = {
@@ -106,12 +111,35 @@ def guard_approval():
         raise RuntimeError("the published driver changed during the dispatch")
 
 
+def _hidden_subprocess_kwargs():
+    if os.name == "nt" and hasattr(subprocess, "CREATE_NO_WINDOW"):
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {}
+
+
+def local_control_state():
+    raw = os.environ.get("HARNESS_DRIVER_CONTROL_FILE", "").strip()
+    path = Path(raw) if raw else DEFAULT_CONTROL_PATH
+    if not path.is_file():
+        return {"enabled": True, "paused": False, "path": str(path)}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"enabled": False, "paused": True, "path": str(path), "reason": "unreadable-control-file"}
+    return {
+        "enabled": bool(data.get("enabled", True)),
+        "paused": bool(data.get("paused", False)),
+        "path": str(path),
+    }
+
+
 def worktree_head():
     if subprocess.run(["git", "diff", "--quiet", "HEAD", "--", "scripts"],
-                      cwd=WORKTREE, timeout=5, check=False).returncode:
+                      cwd=WORKTREE, timeout=5, check=False, **_hidden_subprocess_kwargs()).returncode:
         return None
     result = subprocess.run(["git", "rev-parse", "HEAD", "@{upstream}"], cwd=WORKTREE,
-                            capture_output=True, text=True, timeout=5, check=False)
+                            capture_output=True, text=True, timeout=5, check=False,
+                            **_hidden_subprocess_kwargs())
     heads = result.stdout.splitlines()
     return heads[0] if result.returncode == 0 and len(heads) == 2 and heads[0] == heads[1] else None
 
@@ -160,11 +188,137 @@ def cure_eligible(output, reasons, allowed_actions=()):
     return True
 
 
+def _lane_thread_from_dispatch(body):
+    thread_pattern = re.compile(r"\b(" + "|".join(re.escape(tid) for tid in SESSIONS) + r")\b")
+    match = thread_pattern.search(body)
+    if match:
+        return match.group(1)
+    lane_aliases = (
+        ("scmessenger", SCM_THREAD),
+        ("lane 1", THREAD),
+        ("disk audit", DISK_THREAD),
+        ("vision driver standup", VISION_THREAD),
+    )
+    lane_line = re.search(r"^Lane:\s*(.+)$", body, re.I | re.M)
+    if lane_line:
+        text = lane_line.group(1).casefold()
+        for alias, tid in lane_aliases:
+            if alias in text:
+                return tid
+    return None
+
+
+def parse_dynamic_dispatch(comment, now=None):
+    """Validate an owner-filed VISION-DISPATCH or RESTART DISPATCH comment under cutover bounds."""
+    if not owner(comment):
+        return None
+    cid = comment.get("id")
+    if cid in RECEIPTS or cid == 7091945084:
+        return None
+    now = now or datetime.now(timezone.utc)
+    body = (comment.get("body") or "").strip()
+    if not body:
+        return None
+    try:
+        blob = approved(comment, now)
+    except RuntimeError:
+        blob = None
+    if blob is not None:
+        mission, digest = blob
+        return {
+            "kind": "vision-dispatch",
+            "comment_id": cid,
+            "thread": mission["thread"],
+            "text": mission["text"],
+            "digest": digest,
+        }
+    if not (body.startswith("RESTART DISPATCH") and "Action for the runner:" in body):
+        return None
+    if f'"{CONTINUATION}"' not in body and f"'{CONTINUATION}'" not in body:
+        return None
+    created = comment.get("created_at")
+    if created:
+        created_at = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        if now - created_at > timedelta(hours=24):
+            return None
+    if (re.search(r"^(?:Target|App):\s*antigravity\b", body, re.I | re.M)
+            or re.search(r"\brestart\s+the\s+antigravity\b", body, re.I)):
+        return {
+            "kind": "antigravity-park",
+            "comment_id": cid,
+            "thread": "antigravity",
+            "reason": "antigravity-adapter-not-calibrated",
+        }
+    thread = _lane_thread_from_dispatch(body)
+    if not thread or thread not in SESSIONS:
+        return None
+    return {
+        "kind": "restart",
+        "comment_id": cid,
+        "thread": thread,
+        "text": CONTINUATION,
+        "digest": hashlib.sha256(body.encode("utf-8")).hexdigest(),
+    }
+
+
+def poll_dynamic_dispatches(known, *, now=None):
+    """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item."""
+    now = now or datetime.now(timezone.utc)
+    comments = []
+    page = 1
+    while True:
+        batch = api(f"{ISSUE}?since={DYNAMIC_SINCE}&per_page=100&page={page}")
+        comments.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    comments.sort(key=lambda item: item.get("id", 0))
+    state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
+    for comment in comments:
+        parsed = parse_dynamic_dispatch(comment, now=now)
+        if not parsed:
+            continue
+        cid = parsed["comment_id"]
+        thread = parsed["thread"]
+        item = f"dyn-{cid}-{thread}"
+        claim = f"claim-{item}.json"
+        if claim in known:
+            continue
+        guard_approval()
+        if parsed["kind"] == "antigravity-park":
+            checkpoint(claim, {"dispatch": cid, "target": "antigravity", "kind": parsed["kind"]})
+            status = f"parked: {parsed['reason']}"
+            checkpoint(f"result-{item}.json", {"dispatch": cid, "target": "antigravity", "state": status})
+            issue_comment(f"Vision watch #{cid} / `antigravity`: {status}. FreeBuff remains active.")
+            return True
+        if not desktop_idle():
+            heartbeat(known, "waiting for owner desktop idle")
+            return True
+        checkpoint(claim, {"dispatch": cid, "thread": thread, "sha256": parsed["digest"]})
+        out = state_dir / item
+        try:
+            out.mkdir(parents=True, exist_ok=True)
+            mission = {"thread": thread, "dispatch": cid, "standing": True}
+            status = "parked" if execute(out, item, mission, parsed["digest"], ()) else "verified running"
+        except UncertainDriverExit as error:
+            checkpoint(f"interlock-{item}.json", {"dispatch": cid, "thread": thread, "state": str(error)})
+            issue_comment(f"Vision watch desktop interlock #{cid} / `{thread}`. {error}")
+            status = "parked with desktop interlock"
+        except (OSError, RuntimeError) as error:
+            status = f"parked after claim: {error}"
+            issue_comment(f"Vision watch #{cid} / `{thread}` {status}.")
+        checkpoint(f"result-{item}.json", {"dispatch": cid, "thread": thread, "state": status})
+        return True
+    return False
+
+
 def run_burn(receipts, known):
     source = receipts[BURN_QUEUE]
     end = datetime.fromisoformat(source["created_at"]) + timedelta(hours=3)
     if datetime.now(timezone.utc) >= end:
-        heartbeat(known, "burn authorization expired; no more restarts")
+        if poll_dynamic_dispatches(known):
+            return
+        heartbeat(known, "dynamic oversight dispatch active; no unclaimed dispatches")
         return
     digest = hashlib.sha256(source["body"].encode()).hexdigest()
     queue = [(CENSUS, SCM_THREAD), *((BURN_QUEUE if thread == "918dad1a" else BURNDOWN, thread)
@@ -543,6 +697,9 @@ def run_restoration(receipts, known):
 
 
 def main():
+    control = local_control_state()
+    if not control["enabled"] or control["paused"]:
+        return
     head = worktree_head()
     if head is None:
         return

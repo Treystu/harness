@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import time
 from difflib import SequenceMatcher
 from ctypes import wintypes
@@ -46,6 +47,38 @@ CONTINUATION = "continue in full"
 DISK_THREAD = "f90f01e9"
 SCM_THREAD = "2ae32937"
 VISION_THREAD = "6d39cf4f"
+# Full session UUIDs derived by read-only FreeBuff storage lookup (7118494622).
+PINNED_UUIDS = {
+    THREAD: "315608d2-1531-456b-918a-f7e97db56496",
+    DISK_THREAD: "f90f01e9-128f-497b-b64f-2662ee4051e0",
+    SCM_THREAD: "2ae32937-c991-4c33-87d4-68b8c956ba98",
+    VISION_THREAD: "6d39cf4f-2469-4f47-8cf0-3948309f5f2b",
+    "0319b9f6": "0319b9f6-d5da-4327-9632-296f7ab42adf",
+}
+
+
+def lookup_local_session_uuid(short_id, *, appdata=None):
+    """Read-only lookup of a full session UUID from local FreeBuff Partitions stores."""
+    short = str(short_id or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{8}", short):
+        return None
+    root = Path(appdata) if appdata is not None else Path(os.environ.get("APPDATA", "")) / "Freebuff" / "Partitions"
+    if not root.is_dir():
+        return None
+    pattern = re.compile(rf"\b({short}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{12}})\b", re.I)
+    for store in ("*/Local Storage/leveldb", "*/IndexedDB/https_freebuff.com_0.indexeddb.leveldb"):
+        for directory in sorted(root.glob(store)):
+            for path in sorted(directory.iterdir()):
+                if not path.is_file() or path.suffix not in (".log", ".ldb"):
+                    continue
+                try:
+                    data = path.read_bytes()
+                except OSError:
+                    continue
+                match = pattern.search(data.decode("utf-8", errors="ignore"))
+                if match:
+                    return match.group(1).lower()
+    return None
 BURN_SESSIONS = {
     "0d7e2f37": "BigEnergyCo",
     "7d4a9b14": "Kalshi Paper Burndown",
@@ -363,16 +396,19 @@ class Dispatch:
             raise RuntimeError(f"{step}: {why}")
         assets = {"frame": {"type": "image", "format": "png",
                             "data_base64": base64.b64encode(fitted).decode("ascii")}}
+        started = time.monotonic()
         response = transport.call_service(
             SYSTEM_ONE_URL, questions, headers={"Authorization": f"Bearer {self.key}"},
             timeout=10, body_extra={"state": {"goal": self.goal, "screen": "frame"},
                                     "model": "jev-1.14.0"},
             assets=assets, images_enabled=True)
+        latency_ms = round((time.monotonic() - started) * 1000, 1)
         if not response.ok:
             raise RuntimeError(f"{step}: {response.outcome}: {response.detail}")
         answers = response.payload["answers"]
+        usage = response.payload.get("usage")
         self.audit.append("decision", step_id=step, goal=self.goal, model=response.payload.get("model"),
-                          answers=answers)
+                          answers=answers, usage=usage, latency_ms=latency_ms)
         return answers
 
     def yes(self, step, frame, question, *, region):
@@ -1647,9 +1683,11 @@ class Dispatch:
             return
         if self.standing and self.thread == SCM_THREAD:
             if self.selected_exact_session():
+                derived_uuid = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
                 self.audit.append("verification", step_id="active-session-id",
                                   route_fallback="exact-scoped-selection",
-                                  thread=self.thread, project=self.project)
+                                  thread=self.thread, project=self.project,
+                                  pinned_uuid=derived_uuid)
                 return
             raise RuntimeError("the exact pinned session route is required for this standing dispatch")
         if self.selected_label_matches(wait=3):
@@ -2015,8 +2053,10 @@ class Dispatch:
             except RuntimeError:
                 continue
             self.verify_lane(frame)
+            working_seconds = self.working_banner("verify-working-seconds", frame)
             self.audit.append("verification", step_id="platform-running",
-                              target=self.thread, stop_cue=True)
+                              target=self.thread, stop_cue=True,
+                              working_seconds=working_seconds)
             print("Platform state: running")
             return
         print("Platform state: refused: Stop square and exact queue placeholder were not verified")
@@ -2130,6 +2170,24 @@ class Dispatch:
         return any(marker in reading for marker in (
             "120minutelimit", "sendamessagetocontinue", "pausedbecauseitshourended"))
 
+    def working_banner(self, step, frame):
+        """Read 'Working for Ns' from the FreeBuff status strip as a second running signal (I-1)."""
+        lines = self.read_lines(step, frame, (630, 820, 1550, 960))
+        match = re.search(r"\bworking\s+for\s+(\d+)\s*s\b", " ".join(lines), re.I)
+        if not match:
+            return None
+        seconds = int(match.group(1))
+        self.audit.append("extraction", step_id=step, working_seconds=seconds)
+        return seconds
+
+    def corroborates_running(self, frame, *, github_advanced=False):
+        """I-3: a New-chat home frame never corroborates a running lane without GitHub advancement."""
+        if github_advanced:
+            return True
+        if self.reloaded(frame):
+            return False
+        return bool(self.turn_running(frame) or self.working_banner("corroborate-working", frame) is not None)
+
     def turn_running(self, frame):
         return self.stop_visible(frame) and not self.turn_ended_banner(frame)
 
@@ -2166,9 +2224,10 @@ class Dispatch:
         if not self.stop_visible(frame):
             raise RuntimeError("the separate Lane 1 Stop square is absent")
         self.locate_exact_text("observe-running-queue", frame, QUEUE_PLACEHOLDER, QUEUE_REGION)
+        working_seconds = self.working_banner("bystander-working-seconds", frame)
         sha256 = hashlib.sha256((self.output / "observed-stop.png").read_bytes()).hexdigest()
         self.audit.append("verification", step_id="bystander-stop", stop_cue=True,
-                          thread=self.thread, sha256=sha256)
+                          thread=self.thread, working_seconds=working_seconds, sha256=sha256)
 
 
 def main():

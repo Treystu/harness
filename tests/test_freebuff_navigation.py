@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from scripts.windows_freebuff_dispatch import SIDEBAR, Dispatch, same_rows
+from scripts.windows_freebuff_dispatch import SIDEBAR, Dispatch, lookup_local_session_uuid, same_rows
 
 
 def shim(tmp_path, frames):
@@ -432,6 +432,27 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
         dispatch.verify_lane(Mock())
         dispatch.yes.assert_called_once()
         dispatch.require_cached_session.assert_called_once()
+
+    def test_lookup_local_session_uuid_reads_partitions_readonly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Path(tmp) / "freebuff-hosted" / "Local Storage" / "leveldb"
+            store.mkdir(parents=True)
+            (store / "0001.ldb").write_bytes(b'{"id":"2ae32937-c991-4c33-87d4-68b8c956ba98"}')
+            self.assertEqual(
+                lookup_local_session_uuid("2ae32937", appdata=tmp),
+                "2ae32937-c991-4c33-87d4-68b8c956ba98",
+            )
+            self.assertIsNone(lookup_local_session_uuid("not-hex", appdata=tmp))
+
+    def test_working_banner_and_corroborates_running_guard_against_home_reload(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.audit = Mock()
+        dispatch.read_lines = Mock(return_value=["Working for 14s", "Queue"])
+        self.assertEqual(dispatch.working_banner("w", Mock()), 14)
+
+        dispatch.reloaded = Mock(return_value=True)
+        self.assertFalse(dispatch.corroborates_running(Mock(), github_advanced=False))
+        self.assertTrue(dispatch.corroborates_running(Mock(), github_advanced=True))
 
 
 if __name__ == "__main__":

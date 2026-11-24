@@ -39,7 +39,8 @@ class FreebuffWatchTests(unittest.TestCase):
         receipts = {}
         write = Mock()
         run = Mock()
-        with patch.object(watch, "worktree_head", lambda: "pushed-head"), \
+        with patch.object(watch, "local_control_state", lambda: {"enabled": True, "paused": False}), \
+             patch.object(watch, "worktree_head", lambda: "pushed-head"), \
              patch.dict("os.environ", {"HARNESS_VISION_HEAD": "pushed-head"}), \
              patch.object(watch, "checkpoints", lambda: known), \
              patch.object(watch, "read_checkpoint", lambda name: {"state": "adapter-unavailable"}), \
@@ -57,7 +58,8 @@ class FreebuffWatchTests(unittest.TestCase):
     def test_owner_pause_preempts_any_admission(self):
         write = Mock()
         run = Mock()
-        with patch.object(watch, "worktree_head", lambda: "pushed-head"), \
+        with patch.object(watch, "local_control_state", lambda: {"enabled": True, "paused": False}), \
+             patch.object(watch, "worktree_head", lambda: "pushed-head"), \
              patch.object(watch, "checkpoints", lambda: {"armed.json"}), \
              patch.object(watch, "pause_requested", lambda: 123), \
              patch.object(watch, "issue_comment", Mock()), \
@@ -299,6 +301,77 @@ class FreebuffWatchTests(unittest.TestCase):
             cmd = popen_mock.call_args.args[0]
             self.assertIn("-WindowStyle", cmd)
             self.assertIn("Hidden", cmd)
+
+    def test_local_control_pause_or_stop_prevents_watch_tick(self):
+        import json
+        with tempfile.TemporaryDirectory() as tmp:
+            ctl = Path(tmp) / "control.json"
+            ctl.write_text(json.dumps({"enabled": True, "paused": True}), encoding="utf-8")
+            with patch.dict("os.environ", {"HARNESS_DRIVER_CONTROL_FILE": str(ctl)}), \
+                 patch.object(watch, "worktree_head") as head_mock:
+                watch.main()
+            head_mock.assert_not_called()
+
+    def test_parse_dynamic_dispatch_handles_freebuff_and_antigravity(self):
+        now = datetime(2026, 11, 24, 1, 0, tzinfo=timezone.utc)
+        scm_comment = {
+            "id": 990001,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T00:45:00Z",
+            "body": (
+                "RESTART DISPATCH — episode SCM-STOP-R80\n"
+                "Lane: SCMessenger\n"
+                'Action for the runner: restart the SCMessenger lane with "continue in full".'
+            ),
+        }
+        parsed = watch.parse_dynamic_dispatch(scm_comment, now=now)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], watch.SCM_THREAD)
+
+        agy_comment = {
+            "id": 990002,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T00:50:00Z",
+            "body": (
+                "RESTART DISPATCH — Antigravity\n"
+                "Target: antigravity\n"
+                'Action for the runner: restart the antigravity lane with "continue in full".'
+            ),
+        }
+        parsed_agy = watch.parse_dynamic_dispatch(agy_comment, now=now)
+        self.assertEqual(parsed_agy["kind"], "antigravity-park")
+
+    def test_poll_dynamic_dispatches_executes_unclaimed_restart_and_parks_antigravity(self):
+        now = datetime(2026, 11, 24, 1, 0, tzinfo=timezone.utc)
+        comments = [
+            {
+                "id": 990002,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-24T00:50:00Z",
+                "body": "RESTART DISPATCH\nTarget: antigravity\nAction for the runner: \"continue in full\"",
+            },
+            {
+                "id": 990003,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-24T00:52:00Z",
+                "body": "RESTART DISPATCH\nLane: SCMessenger\nAction for the runner: \"continue in full\"",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            write = Mock()
+            posted = Mock()
+            execute = Mock(return_value=0)
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=comments), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "checkpoint", write), \
+                 patch.object(watch, "issue_comment", posted), \
+                 patch.object(watch, "execute", execute):
+                self.assertTrue(watch.poll_dynamic_dispatches({"claim-dyn-990002-antigravity.json"}, now=now))
+            self.assertEqual(execute.call_args.args[2]["thread"], watch.SCM_THREAD)
+            self.assertEqual(write.call_args_list[0].args[0], "claim-dyn-990003-2ae32937.json")
+            self.assertEqual(write.call_args_list[1].args[0], "result-dyn-990003-2ae32937.json")
 
 
 if __name__ == "__main__":
