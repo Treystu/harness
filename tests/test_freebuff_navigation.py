@@ -433,6 +433,35 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
                          ["focus-verified-composer", "type-continuation"])
         self.assertEqual(dispatch.act.call_args_list[0].args[2]["point"], [780, 980])
 
+    def test_prepare_draft_refuses_expired_session_with_staged_mission(self):
+        """Expired free session + staged /mission carrier must refuse before Jev or typing."""
+        dispatch = object.__new__(Dispatch)
+        dispatch.recovering = False
+        dispatch.scoped_input = True
+        dispatch.label = "SCMessenger"
+        dispatch.text = "continue in full"
+        dispatch.audit = Mock()
+        frame = Mock(size=(1800, 1131))
+        dispatch.reestablish_if_reloaded = Mock(return_value=False)
+        dispatch.settle_view = Mock(return_value=frame)
+        dispatch.verify_lane = Mock()
+        dispatch.turn_running = Mock(return_value=False)
+        dispatch.locate_exact_text = Mock(side_effect=RuntimeError("placeholder missing"))
+        dispatch.read_lines = Mock(side_effect=[
+            ["Your free session has expired. Send your message again to start a new one.", "Retry", "Resume mission"],
+            ["/mission ---MISSION START--- SCMESSENGER LANE - FRESH SESSION CARRIER"],
+        ])
+        dispatch.choose = Mock()
+        dispatch.act = Mock()
+        with self.assertRaisesRegex(RuntimeError, "session expired with an existing staged /mission draft"):
+            dispatch.prepare_draft()
+        dispatch.choose.assert_not_called()
+        dispatch.act.assert_not_called()
+        self.assertEqual(
+            [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list],
+            ["composer-expired-staged-mission"],
+        )
+
     def test_disk_audit_verify_lane_refuses_unmatched_active_session(self):
         """Codex P1: Disk tab + cached UUID must not pass while another Disk chat is active."""
         dispatch = object.__new__(Dispatch)

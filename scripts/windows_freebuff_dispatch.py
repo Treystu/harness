@@ -2155,6 +2155,17 @@ class Dispatch:
             self.audit.append("verification", step_id="composer-placeholder-ocr",
                               source="exact OCR, not a model choice")
         except RuntimeError:
+            banner_lines = self.read_lines("composer-expired-banner", frame, (630, 560, 1550, 860))
+            staged_lines = self.read_lines("composer-staged-mission", frame, (640, 745, 1530, 1048))
+            raw_staged = " ".join(staged_lines).casefold()
+            if ("yourfreesessionhasexpired" in self._norm(" ".join(banner_lines))
+                    and ("/mission" in raw_staged or "missionstart" in self._norm(raw_staged))):
+                self.audit.append("verification", step_id="composer-expired-staged-mission",
+                                  source="exact OCR, not a model choice")
+                raise RuntimeError(
+                    "session expired with an existing staged /mission draft (Resume mission visible); "
+                    "refusing to overwrite staged mission with 'continue in full'"
+                ) from None
             written = self.read_lines("composer-written", frame, COMPOSER_TEXT)
             route = self.composer_written_route(written, placeholder)
             if route == "foreign":
