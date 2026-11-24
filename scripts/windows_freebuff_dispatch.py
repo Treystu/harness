@@ -1329,17 +1329,12 @@ class Dispatch:
             self.act("narrow-query", QUERY, {"thread": self.thread, "text": self.label,
                                              "control": "Search chats field"})
             time.sleep(1.4)
-        rows = []
-        for index in range(1, steps + 1):
-            frame, page = self.settled_roster(f"narrowed-{index}", SIDEBAR, attempts=3)
-            rows.extend(page)
-            if index >= steps or not self.scroll_by(
-                    f"narrowed-scroll-{index}", frame, [196, 850], -400):
-                break
-            time.sleep(0.9)
-            frame = self.frame(f"narrowed-{index}-after")
+        # Measured on claim 7122996519: the field filters the dialog's result
+        # panel, not the sidebar - reading the sidebar after typing returned 54
+        # unfiltered rows. The results panel is the narrowed set.
+        frame, rows = self.settled_roster("narrowed-results", SEARCH_RESULTS, attempts=3)
         self.audit.append("verification", step_id="narrowed-roster", label=self.label,
-                          rows=len(rows))
+                          rows=len(rows), source="search-results panel")
         return frame, rows
 
     def _prefix_matches(self, text, label):
