@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "5844b0b89937bc4b89f437b5eff9801709f0c21ff2e700a91a0e343f6b61d005"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.05,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/569-landing-evidence.md",
+    "site": "569-landing"
+  }
+}
