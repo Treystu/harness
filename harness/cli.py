@@ -2397,6 +2397,9 @@ def main(argv=None):
         # with no provider credentials -- waiting for work is not a keyed act.
         from .queue_bus import run_cli as _queue_cli
         return _queue_cli(args[1:])
+    if args[:1] == ["driver-watch"]:
+        from .laptop_driver_ctl import run_cli as _driver_watch_cli
+        return _driver_watch_cli(args[1:])
     ap = build_parser()
     opts = ap.parse_args(args)
     apply_output_flags(opts)
