@@ -60,6 +60,14 @@ Harness is a dependency-light Python package with three surfaces:
   the `JevPolicy` instance and never imports it at module scope, so
   dispatch, spend, settlement and ledger semantics stay in the one policy
   owner.
+- `jev_audit_dimensions.py`: the 4-dimensional self-audit evaluator family
+  (#309): the dimension-text view, the declared-legend resolver with its
+  low-confidence rule, `not_evaluated` for a dimension the run did not
+  measure (never a fabricated zero) and the `bar_95_pass` gate that fails
+  closed on any partial run. The resolver also stays importable from
+  `harness.jev_policy`, where callers import it. It receives the `JevPolicy`
+  instance and never imports it at module scope, so dispatch, spend,
+  settlement and ledger semantics stay in the one policy owner.
 - `jev_phase_completion.py`: the JEV-BAR phase-completion evaluator family
   (#309): the bounded evidence-text view, the judgment carrying declared
   axis levels and bucket ids only (an out-of-pack answer is reported,
