@@ -361,6 +361,7 @@ window.addEventListener("DOMContentLoaded", () => {
   loadHistory();
   pollSpend();
   pollRoute();
+  fetchIdentity();
   setInterval(pollSpend, 8000);
   setInterval(pollRoute, 15000);
 });
@@ -1736,6 +1737,38 @@ async function pollRoute() {
     const badge = $("#route-badge");
     if (text) text.textContent = "Route: unavailable";
     if (badge) badge.title = "Routing posture unavailable";
+  }
+}
+
+// Served-code identity (#654): fetch the served version + short commit once
+// on load and render it in the header so an operator can tell which build
+// is serving. Source is the existing /api/status payload; no new endpoint.
+async function fetchIdentity() {
+  const el = $("#server-identity");
+  if (!el) return;
+  try {
+    const data = await api("/api/status");
+    const version = data && data.version ? String(data.version) : "";
+    const commit = data && data.commit ? String(data.commit) : "";
+    if (!version && !commit) return;
+    // `git describe --always --dirty` appends "-dirty" on a tree with
+    // uncommitted changes; slicing it blindly gave "32f8f843-dir". Strip
+    // the flag for the badge, keep the full value in the tooltip.
+    const dirty = commit.endsWith("-dirty");
+    const base = dirty ? commit.slice(0, -6) : commit;
+    // A describe string already carries its tag distance
+    // ("v0.5.1-177-gcdc72fd"); the hash after "-g" is the part that
+    // identifies the commit, so badge that instead of the tag prefix.
+    const described = base.match(/-g([0-9a-f]+)$/);
+    const short = base === "unknown"
+      ? "unknown"
+      : (described ? described[1] : base).slice(0, 12);
+    const badge = short + (dirty ? "*" : "");
+    el.textContent = badge ? (version ? `v${version} · ${badge}` : badge)
+      : (version ? `v${version}` : "");
+    el.title = `Serving harness v${version || "?"} at commit ${base || "?"}${dirty ? " (dirty: uncommitted changes)" : ""}`;
+  } catch (_e) {
+    el.title = "Serving version unavailable";
   }
 }
 
