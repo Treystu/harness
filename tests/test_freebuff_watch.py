@@ -34,6 +34,131 @@ from scripts import windows_freebuff_watch as watch
 from scripts.windows_freebuff_dispatch import Dispatch
 
 
+class _Surface:
+    """Records the primitives a driver surface offers, so a sequence can be read."""
+
+    def __init__(self, *, stops, labels, rows=(), missing=None, reading=None):
+        self.stops = list(stops)
+        self.labels = labels
+        self.rows = list(rows)
+        self.missing = missing
+        self.reading = reading
+        self.acts = []
+        self.typed = []
+        self.audit = Mock()
+        self.size = (1800, 1131)
+
+    class _Frame:
+        def __init__(self, size):
+            self.size = size
+
+    def frame(self, step):
+        return self._Frame(self.size)
+
+    def settle_view(self, step):
+        return self._Frame(self.size)
+
+    def locate_exact_text(self, step, frame, label, region, **_kwargs):
+        if self.missing and label == self.missing:
+            raise RuntimeError(f"{step}: exact OCR label {label!r} was not verified")
+        return list(self.labels[label])
+
+    def yes(self, step, frame, question, *, region):
+        return True
+
+    def act(self, step, action, params):
+        self.acts.append(params["control"])
+
+    def stop_visible(self, frame):
+        return self.stops.pop(0) if self.stops else False
+
+    def type_literal(self, text):
+        self.typed.append(text)
+
+    def read_lines(self, step, frame, region):
+        return [self.reading if self.reading is not None else "My Project"]
+
+    def settled_roster(self, step, region, attempts=6):
+        return self.frame(step), self.rows
+
+    @staticmethod
+    def _norm(text):
+        return " ".join(text.casefold().split())
+
+
+class ResumeStartCureTests(unittest.TestCase):
+    """R7: an expired session holding a staged /mission is resumed, not refused."""
+
+    def test_the_expired_staged_state_is_read_from_exact_ocr(self):
+        self.assertTrue(dispatch.expired_with_staged_mission(
+            ["Your free session has expired"], ["/mission", "Mission start"]))
+        self.assertFalse(dispatch.expired_with_staged_mission(
+            ["Your free session has expired"], ["continue in full"]))
+        self.assertFalse(dispatch.expired_with_staged_mission(
+            ["Ask Freebuff..."], ["/mission"]))
+
+    def test_resume_then_start_leaves_the_lane_starting(self):
+        surface = _Surface(stops=[False, False, True],
+                           labels={"Resume mission": (900, 700), "Start mission": (900, 600)})
+        with patch.object(dispatch.time, "sleep"):
+            outcome = dispatch.resume_staged_session(surface, surface.frame("f"))
+        self.assertEqual(outcome, "started")
+        self.assertEqual(surface.acts, ["Resume mission", "Start mission"])
+
+    def test_a_resume_that_already_runs_sends_nothing_more(self):
+        surface = _Surface(stops=[True],
+                           labels={"Resume mission": (900, 700), "Start mission": (900, 600)})
+        with patch.object(dispatch.time, "sleep"):
+            outcome = dispatch.resume_staged_session(surface, surface.frame("f"))
+        self.assertEqual(outcome, "resumed")
+        self.assertEqual(surface.acts, ["Resume mission"])
+
+    def test_no_running_cue_is_refused_by_name(self):
+        surface = _Surface(stops=[False],
+                           labels={"Resume mission": (900, 700), "Start mission": (900, 600)})
+        with patch.object(dispatch.time, "sleep"):
+            with self.assertRaises(RuntimeError) as caught:
+                dispatch.resume_staged_session(surface, surface.frame("f"))
+        self.assertIn("no running Stop cue appeared", str(caught.exception))
+
+
+class ProjectCreationCureTests(unittest.TestCase):
+    """R10: a dispatch can create a project and hand its row on."""
+
+    def test_create_names_the_project_and_hands_back_its_row(self):
+        surface = _Surface(stops=[], rows=[{"text": "My Project"}],
+                           labels={"New project": (120, 130), "Project name": (700, 400),
+                                   "Create project": (900, 900)})
+        with patch.object(dispatch.time, "sleep"):
+            row = dispatch.create_project(surface, "My Project")
+        self.assertEqual(row["text"], "My Project")
+        self.assertEqual(surface.typed, ["My Project"])
+        self.assertEqual(surface.acts,
+                         ["New project", "Project name field", "Create project"])
+
+    def test_a_missing_control_refuses_by_name_and_creates_nothing(self):
+        surface = _Surface(stops=[], rows=[{"text": "My Project"}],
+                           labels={"New project": (120, 130), "Project name": (700, 400),
+                                   "Create project": (900, 900)},
+                           missing="Create project")
+        with patch.object(dispatch.time, "sleep"):
+            with self.assertRaises(RuntimeError) as caught:
+                dispatch.create_project(surface, "My Project")
+        self.assertIn("the create control 'Create project' was not visible", str(caught.exception))
+        self.assertEqual(surface.acts, ["New project"])
+        self.assertEqual(surface.typed, [])
+
+    def test_a_name_that_does_not_read_back_is_refused(self):
+        surface = _Surface(stops=[], rows=[{"text": "My Project"}], reading="My Proj",
+                           labels={"New project": (120, 130), "Project name": (700, 400),
+                                   "Create project": (900, 900)})
+        with patch.object(dispatch.time, "sleep"):
+            with self.assertRaises(RuntimeError) as caught:
+                dispatch.create_project(surface, "My Project")
+        self.assertIn("the name field reads", str(caught.exception))
+        self.assertEqual(surface.acts, ["New project", "Project name field"])
+
+
 class IsolatedCaptureTests(unittest.TestCase):
     """The capture backend faults natively (0xc0000005 in GraphicsCapture.dll),
     so a frame is taken in a child process and a dead worker is re-taken once."""

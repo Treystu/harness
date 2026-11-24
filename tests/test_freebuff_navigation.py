@@ -434,8 +434,13 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
                          ["focus-verified-composer", "type-continuation"])
         self.assertEqual(dispatch.act.call_args_list[0].args[2]["point"], [780, 980])
 
-    def test_prepare_draft_refuses_expired_session_with_staged_mission(self):
-        """Expired free session + staged /mission carrier must refuse before Jev or typing."""
+    def test_prepare_draft_resumes_expired_session_with_staged_mission(self):
+        """R7: expired free session + staged /mission is resumed, not refused.
+
+        The old refusal protected the owner's staged mission but left the lane
+        down, so the register's cure is Resume -> Start with no continuation sent
+        after it. The staged mission is never overwritten and no typing happens.
+        """
         dispatch = object.__new__(Dispatch)
         dispatch.recovering = False
         dispatch.scoped_input = True
@@ -453,15 +458,19 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
             ["/mission ---MISSION START--- SCMESSENGER LANE - FRESH SESSION CARRIER"],
         ])
         dispatch.choose = Mock()
+        dispatch.type_literal = Mock()
+        dispatch.frame = Mock(return_value=frame)
+        dispatch.stop_visible = Mock(return_value=True)
         dispatch.act = Mock()
-        with self.assertRaisesRegex(RuntimeError, "session expired with an existing staged /mission draft"):
+        with patch("scripts.windows_freebuff_dispatch.resume_staged_session",
+                   return_value="resumed") as resume:
             dispatch.prepare_draft()
+        resume.assert_called_once()
+        self.assertEqual(dispatch.resume_outcome, "resumed")
         dispatch.choose.assert_not_called()
-        dispatch.act.assert_not_called()
-        self.assertEqual(
-            [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list],
-            ["composer-expired-staged-mission"],
-        )
+        dispatch.type_literal.assert_not_called()
+        self.assertIn("composer-expired-staged-mission",
+                      [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list])
 
     def test_disk_audit_verify_lane_refuses_unmatched_active_session(self):
         """Codex P1: Disk tab + cached UUID must not pass while another Disk chat is active."""

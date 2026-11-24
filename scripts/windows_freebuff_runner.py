@@ -234,6 +234,14 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
         if refused:
             audit.append("escalation", step_id=phase, target=thread, state=refused[-1])
             raise RuntimeError(f"{phase}: {refused[-1]}")
+        resumed = [line for line in platform_states if "resumed-and-running" in line]
+        if resumed and not process.returncode:
+            # R7: the expired session's own staged mission was resumed and
+            # started, so the continuation must NOT be sent over it.
+            audit.append("verification", step_id="resumed-without-send", target=thread,
+                         state=resumed[-1])
+            time.sleep(2)
+            return True
         if process.returncode:
             detail = stdout.strip().splitlines()
             if phase == "prepare" and detail and "already running; no restart input" in detail[-1]:

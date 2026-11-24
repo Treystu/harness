@@ -138,6 +138,130 @@ COUNTS = (6, 16, 26, 36, 46)
 CAPTURE_BUDGETS = (2.0, 5.0)
 
 
+# R10: the New-project dialog as exact OCR anchors. Each entry is the control's
+# printed label and the region it must appear in; a missing anchor is a refusal,
+# never a guessed click. The register closes this adapter on Stage 3 evidence.
+PROJECT_DIALOG = {
+    "new": ("New project", (60, 60, 340, 200)),
+    "name": ("Project name", (480, 280, 1520, 760)),
+    "create": ("Create project", (480, 700, 1520, 1120)),
+}
+JSON_ACT = 0
+
+
+def project_anchor(surface, step, frame, key):
+    """Locate one dialog control by its exact label, or refuse by name."""
+    label, region = PROJECT_DIALOG[key]
+    try:
+        return surface.locate_exact_text(step, frame, label, region), region
+    except RuntimeError:
+        raise RuntimeError(
+            f"project-creation adapter: the {key} control {label!r} was not visible; "
+            "not clicking a guess") from None
+
+
+def create_project(surface, name):
+    """R10: create a project from a dispatch and hand its session row back.
+
+    Opens the New project dialog, names the project, creates it, and proves the
+    new row exists before handing off: the returned row is the handoff, so the
+    caller can target the new session. Every step is exact-OCR anchored and Jev
+    confirmed, the name is read back off the field before creation, and a dialog
+    that differs in any control refuses by name rather than creating something
+    unnamed.
+    """
+    frame = surface.frame("project-before-new")
+    point, region = project_anchor(surface, "project-new-ocr", frame, "new")
+    surface.yes("project-new-confirm", frame, "Is the button labeled New project?",
+                region=region)
+    surface.act("project-new", CLICK,
+                {"control": "New project", "point": point, "size": list(frame.size)})
+    time.sleep(1)
+    frame = surface.frame("project-dialog-open")
+    name_point, name_region = project_anchor(surface, "project-name-ocr", frame, "name")
+    create_point, create_region = project_anchor(surface, "project-create-ocr", frame, "create")
+    surface.yes("project-dialog-confirm", frame,
+                "Does this show a project name field and a create button?",
+                region=(480, 240, 1520, 1120))
+    surface.act("project-name-focus", CLICK,
+                {"control": "Project name field", "point": name_point,
+                 "size": list(frame.size)})
+    surface.type_literal(name)
+    frame = surface.frame("project-name-readback")
+    reading = " ".join(surface.read_lines("project-name-read", frame, name_region))
+    if surface._norm(reading) != surface._norm(name):
+        raise RuntimeError(
+            f"project-creation adapter: the name field reads {reading!r}, not {name!r}")
+    surface.act("project-create", CLICK,
+                {"control": "Create project", "point": create_point,
+                 "size": list(frame.size)})
+    frame, rows = surface.settled_roster("project-created", SIDEBAR, attempts=6)
+    for row in rows:
+        if surface._norm(row["text"]) == surface._norm(name):
+            surface.audit.append("verification", step_id="project-created",
+                                 row=row["text"], name=name)
+            return row
+    raise RuntimeError(
+        f"project-creation adapter: no session row reads {name!r} after {create_region}")
+
+
+EXPIRED_BANNER_REGION = (630, 560, 1550, 860)
+RESUME_CONTROL_REGION = (630, 590, 1550, 960)
+START_CONTROL_REGION = (500, 180, 1600, 1100)
+RESUMED_WITHOUT_SEND = "resumed-and-running"
+
+
+def expired_with_staged_mission(banner_lines, staged_lines):
+    """R7: is this composer an expired session holding a staged /mission?
+
+    Exact OCR of both halves, never a model opinion: the banner must say the
+    free session expired and the editor must hold a /mission draft. This is the
+    state the restart path used to refuse outright.
+    """
+    banner = "".join(banner_lines).casefold().replace(" ", "")
+    staged = " ".join(staged_lines).casefold().replace(" ", "")
+    return "yourfreesessionhasexpired" in banner and ("/mission" in staged or "missionstart" in staged)
+
+
+def resume_staged_session(surface, frame, *, attempts=6):
+    """R7: click Resume mission, then Start mission, and leave the lane starting.
+
+    The staged /mission is the owner's own work, so it is resumed rather than
+    overwritten with the continuation. Each click is exact-OCR located, Jev
+    confirmed, and re-read before input; a running Stop cue is the proof. The
+    returned outcome tells the caller a send already happened, so the phase list
+    stops instead of sending 'continue in full' over a running mission.
+    """
+    point = surface.locate_exact_text("resume-staged-ocr", frame, "Resume mission",
+                                      RESUME_CONTROL_REGION)
+    surface.yes("resume-staged-confirm", frame, "Does the button say Resume mission?",
+                region=RESUME_CONTROL_REGION)
+    surface.frame("resume-staged-readback")
+    surface.act("resume-staged", CLICK,
+                {"control": "Resume mission", "point": point, "size": list(frame.size)})
+    time.sleep(2)
+    frame = surface.settle_view("resume-staged-response")
+    if surface.stop_visible(frame):
+        surface.audit.append("verification", step_id="resume-staged-running", stop_cue=True)
+        return "resumed"
+    point = surface.locate_exact_text("start-staged-ocr", frame, "Start mission",
+                                      START_CONTROL_REGION)
+    surface.yes("start-staged-confirm", frame, "Does the button say Start mission?",
+                region=START_CONTROL_REGION)
+    surface.frame("start-staged-readback")
+    surface.act("start-staged", CLICK,
+                {"control": "Start mission", "point": point, "size": list(frame.size)})
+    for attempt in range(1, attempts + 1):
+        time.sleep(3)
+        frame = surface.frame(f"start-staged-response-{attempt}")
+        if surface.stop_visible(frame):
+            surface.audit.append("verification", step_id="start-staged-running",
+                                 stop_cue=True, attempts=attempt)
+            return "started"
+    raise RuntimeError(
+        "Resume mission and Start mission were clicked but no running Stop cue appeared")
+
+
 def bounded_capture(capture, *, budgets=CAPTURE_BUDGETS, clock=time.monotonic):
     """Capture the window, tolerating one slow frame before escalating.
 
@@ -2013,6 +2137,21 @@ class Dispatch:
                 return "FreeBuff is not the foreground window" in row.get("detail", "")
         return False
 
+    def type_literal(self, text):
+        """Type a project name into a field this adapter already focused."""
+        self.require_foreground()
+        keyboard = osal._WindowsInputApi()
+        for character in text:
+            keyboard.type_text(character)
+        self.audit.append("verification", step_id="project-name-typed", text=text)
+
+    def create_project(self, name):
+        """R10: create the project and hand back the row that now names it."""
+        row = create_project(self, name)
+        self.label = name
+        self.handoff = row
+        return row
+
     def send_draft(self):
         pointer = self.text == DISK_POINTER
         operation = "steer" if pointer else "send"
@@ -2182,17 +2321,19 @@ class Dispatch:
             self.audit.append("verification", step_id="composer-placeholder-ocr",
                               source="exact OCR, not a model choice")
         except RuntimeError:
-            banner_lines = self.read_lines("composer-expired-banner", frame, (630, 560, 1550, 860))
+            banner_lines = self.read_lines("composer-expired-banner", frame, EXPIRED_BANNER_REGION)
             staged_lines = self.read_lines("composer-staged-mission", frame, (640, 745, 1530, 1048))
-            raw_staged = " ".join(staged_lines).casefold()
-            if ("yourfreesessionhasexpired" in self._norm(" ".join(banner_lines))
-                    and ("/mission" in raw_staged or "missionstart" in self._norm(raw_staged))):
+            if expired_with_staged_mission(banner_lines, staged_lines):
                 self.audit.append("verification", step_id="composer-expired-staged-mission",
                                   source="exact OCR, not a model choice")
-                raise RuntimeError(
-                    "session expired with an existing staged /mission draft (Resume mission visible); "
-                    "refusing to overwrite staged mission with 'continue in full'"
-                ) from None
+                # R7: resolve the expired state instead of refusing it. The
+                # staged mission is the owner's work, so Resume then Start is
+                # the only path that does not overwrite it with the continuation
+                # - and no continuation is sent afterwards.
+                self.resume_outcome = resume_staged_session(self, frame)
+                self.audit.append("verification", step_id="restart-path-resumed",
+                                  state=self.resume_outcome)
+                return
             written = self.read_lines("composer-written", frame, COMPOSER_TEXT)
             route = self.composer_written_route(written, placeholder)
             if route == "foreign":
@@ -2364,6 +2505,10 @@ def main():
             # that guard was standing in for (measured: Lane 1, Lane 2 and
             # Harness Audit all send through this same composer path).
             dispatch.prepare_draft()
+            if getattr(dispatch, "resume_outcome", None):
+                # The staged mission is already running: stop the phase list
+                # here so the runner never sends the continuation over it.
+                print(f"Platform state: {RESUMED_WITHOUT_SEND} via {dispatch.resume_outcome}")
         else:
             dispatch.send_draft()
     except (OSError, RuntimeError, KeyError, TypeError, ValueError) as error:
