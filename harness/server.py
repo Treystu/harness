@@ -124,7 +124,19 @@ def _default_backend_probe():
 RANKINGS_REPORT_DIR = "rankings"
 RANKINGS_REPORT_RE = re.compile(r"^rankings-\d{4}-\d{2}-\d{2}.*\.json$")
 RUN_ID_RE = re.compile(r"^/api/runs/([A-Za-z0-9_-]{1,64})$")
-_TOKEN_IN_LOG_RE = re.compile(r"(token=)[^&\s\"]+", re.IGNORECASE)
+#: #653: a credential can arrive under any of the usual parameter names, so the
+#: log scrubber covers the family rather than ``token=`` alone. The name is kept
+#: (it tells an operator which credential was in the URL) and only the value is
+#: replaced, before the line reaches either sink. Word boundaries keep
+#: ``monkey=``/``keys=`` out; the value stops at ``&``, whitespace or a quote.
+_CREDENTIAL_PARAM_NAMES = (
+    r"access[_-]?token|refresh[_-]?token|api[_-]?key|apikey|client[_-]?secret|"
+    r"password|passwd|secret|token|key|auth|session[_-]?id"
+)
+_CREDENTIAL_IN_LOG_RE = re.compile(
+    r"(?P<name>\b(?:" + _CREDENTIAL_PARAM_NAMES + r")=)[^&\s\"]+",
+    re.IGNORECASE,
+)
 RUN_SUB_RE = re.compile(r"^/api/runs/([A-Za-z0-9_-]{1,64})/(result|events|cancel)$")
 # DF-UI-2: mission id grammar mirrors mission_record._MISSION_ID_RE (the one
 # owner for what a valid pack directory name is); an id this fails to match
@@ -1588,9 +1600,10 @@ class UiRequestHandler(BaseHTTPRequestHandler):
 
     # -- plumbing ----------------------------------------------------------
     def log_message(self, format, *args):  # route through the harness voice
-        # Never let a credential reach the log: redact any token= value that
-        # a client put in a URL, whatever the server does with it.
-        line = _TOKEN_IN_LOG_RE.sub(r"\1REDACTED", format % args)
+        # Never let a credential reach the log: redact the value of any
+        # credential parameter a client put in a URL, whatever the server does
+        # with it (#653 widened this from token= to the parameter family).
+        line = _CREDENTIAL_IN_LOG_RE.sub(r"\g<name>REDACTED", format % args)
         sys.stderr.write(f"[ui] {line}\n")
         # #574: the process owns its request log, so a probe that gets a 200
         # always leaves a matching record on disk. The redacted line is the
