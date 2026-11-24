@@ -1023,6 +1023,16 @@ class Dispatch:
                 continue
             time.sleep(0.9)
             frame = self.frame(f"prefix-{page}-after")
+        if len(found) > 1:
+            # Chats that merely OPEN with this name are rivals, not copies of it
+            # (measured: five chats open with "SCMessenger", one IS SCMessenger).
+            exact = [(page, name) for page, name in found
+                     if name.strip() == self.label.strip()
+                     or self._norm(name.partition(" ")[2] or "") == self._norm(self.label)]
+            if len(exact) == 1:
+                self.audit.append("verification", step_id="prefix-exact-wins",
+                                  row=exact[0][1], rivals=len(found))
+                found = exact
         if len(found) != 1:
             self.audit.append("escalation", step_id="prefix-census", label=self.label,
                               candidates=[name for _, name in found][:8], count=len(found),
@@ -1035,7 +1045,7 @@ class Dispatch:
         # Page boundaries drift between walks (measured: the candidate was one
         # page past where the first walk found it), so the re-walk looks for the
         # row from the top through one page beyond the recorded one.
-        for index in range(1, min(page + 2, 9)):
+        for index in range(1, min(page + 2, pages + 1)):
             try:
                 frame, rows = self.settled_roster(f"prefix-pick-{index}", SIDEBAR, attempts=6)
             except RuntimeError as error:
