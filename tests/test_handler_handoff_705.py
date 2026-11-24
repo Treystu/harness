@@ -118,6 +118,33 @@ class DeferLoopTerminationTests(unittest.TestCase):
         self.assertIn("scope too broad", res["response"])
 
 
+class SuppressedHandoffTests(unittest.TestCase):
+    def test_spent_budget_answers_in_lane_instead_of_escalating(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = _agent(tmp)
+            agent._handler_handoff_depth_value = agent._HANDLER_HANDOFF_LIMIT
+            try:
+                with patch("harness.conversation_lifecycle.chat_routed",
+                           return_value=(200, _DEFER)), \
+                     patch("harness.conversation_lifecycle.governor_for",
+                           return_value=(None, MagicMock())), \
+                     patch("harness.conversation_lifecycle.ledger_for",
+                           return_value=MagicMock()), \
+                     patch.object(AutonomousAgent, "_auto_escalation_armed",
+                                  return_value=True), \
+                     patch.object(agent, "_handle_edit") as edit:
+                    res = agent.run_prompt("refactor the whole engine",
+                                           session_id="spent-1",
+                                           auto_apply=False,
+                                           force_conversation=True)
+            finally:
+                del agent._handler_handoff_depth_value
+
+        edit.assert_not_called()
+        self.assertEqual(res["status"], "deferred")
+        self.assertIn("multi-step repo refactor", res["response"])
+
+
 class HandoffBudgetTests(unittest.TestCase):
     def test_budget_is_per_request_and_restores_its_depth(self):
         with tempfile.TemporaryDirectory() as tmp:

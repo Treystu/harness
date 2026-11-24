@@ -436,10 +436,7 @@ class ExecutionStageMixin:
         # bounds the pair: past it the refusal renders without a chat answer
         # instead of re-entering forever.
         answer_text = ""
-        if not self._handler_handoff_allowed():
-            emit("handler_handoff_suppressed", target="conversation",
-                 depth=self._handler_handoff_depth(), reason=reason)
-        else:
+        if not self._handoff_suppressed("conversation", reason):
             try:
                 with self._handler_handoff():
                     conv = self._handle_conversation(

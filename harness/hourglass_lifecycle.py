@@ -1481,13 +1481,11 @@ class HourglassLifecycleMixin:
             },
         }
         marker_defer = CAPABILITY_MARKER in answer
-        escalate = self._escalation_authorized(prompt, marker_defer, status)
-        if escalate and not self._handler_handoff_allowed():
-            # #705: the plan lane has already refused and re-entered this lane;
-            # escalating again is the recursion, not a new attempt.
-            emit("handler_handoff_suppressed", target="plan_lane",
-                 depth=self._handler_handoff_depth())
-            escalate = False
+        # #705: the plan lane may have already refused and re-entered this
+        # lane; past the handoff budget, escalating again is the recursion,
+        # not a new attempt.
+        escalate = (self._escalation_authorized(prompt, marker_defer, status)
+                    and not self._handoff_suppressed("plan_lane"))
         if escalate:
             defer_reason = None
             if marker_defer:

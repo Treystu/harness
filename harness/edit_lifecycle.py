@@ -190,12 +190,8 @@ class AutoEditLifecycleMixin:
             if generated.get("status") in ("ok", "deferred"):
                 return generated
             # #705: the chat lane can defer straight back into this lane, so
-            # the fallback is one bounded handoff: past the budget the
-            # generation lane's own answer stands instead of re-entering.
-            if not self._handler_handoff_allowed():
-                emit("handler_handoff_suppressed", target="conversation",
-                     depth=self._handler_handoff_depth())
-                return generated
+            # the fallback spends the shared handoff budget; past it the chat
+            # lane refuses to escalate, which is what ends the pair.
             with self._handler_handoff():
                 return self._handle_conversation(
                     prompt, session_id, cancel_check)

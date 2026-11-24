@@ -86,6 +86,15 @@ class ConversationLifecycleMixin:
     def _handler_handoff_allowed(self) -> bool:
         return self._handler_handoff_depth() < self._HANDLER_HANDOFF_LIMIT
 
+    def _handoff_suppressed(self, target: str,
+                            reason: Optional[str] = None) -> bool:
+        """True when the budget is spent; records the skipped handoff."""
+        if self._handler_handoff_allowed():
+            return False
+        emit("handler_handoff_suppressed", target=target,
+             depth=self._handler_handoff_depth(), reason=reason)
+        return True
+
     @contextmanager
     def _handler_handoff(self):
         """Count one handler-to-handler handoff; restore the depth on exit."""
@@ -457,29 +466,27 @@ class ConversationLifecycleMixin:
             # paid escalation rungs). Truncation defers keep their "continue"
             # resume instead: the content already exists, it needs more room.
             if (not truncation_defer and allow_escalation
-                    and self._auto_escalation_armed()):
-                if not self._handler_handoff_allowed():
-                    # #705: the plan lane already came back to this one; the
-                    # defer text below is the honest answer for this turn.
-                    emit("handler_handoff_suppressed", target="plan_lane",
-                         depth=self._handler_handoff_depth(), reason=defer_reason)
-                else:
-                    emit("chat_escalated", reason=defer_reason, target="plan_lane")
-                    try:
-                        with self._handler_handoff():
-                            return self._handle_edit(
-                                prompt,
-                                session_id,
-                                auto_apply=True,
-                                cancel_check=cancel_check,
-                                escalation_note=defer_reason,
-                            )
-                    except HarnessError as e:
-                        # The handoff failed (no routable target files, plan
-                        # refusal, ...): the honest defer stands with the
-                        # failure recorded -- never a silent swallow.
-                        response_text += (
-                            f"\n\n[auto-escalation to the plan lane failed: {e}]")
+                    and self._auto_escalation_armed()
+                    # #705: when the budget is spent the plan lane has already
+                    # come back to this one; the defer text below is the
+                    # honest answer for this turn.
+                    and not self._handoff_suppressed("plan_lane", defer_reason)):
+                emit("chat_escalated", reason=defer_reason, target="plan_lane")
+                try:
+                    with self._handler_handoff():
+                        return self._handle_edit(
+                            prompt,
+                            session_id,
+                            auto_apply=True,
+                            cancel_check=cancel_check,
+                            escalation_note=defer_reason,
+                        )
+                except HarnessError as e:
+                    # The handoff failed (no routable target files, plan
+                    # refusal, ...): the honest defer stands with the
+                    # failure recorded -- never a silent swallow.
+                    response_text += (
+                        f"\n\n[auto-escalation to the plan lane failed: {e}]")
 
         result = {
             "status": "deferred" if defer_reason else "ok",
