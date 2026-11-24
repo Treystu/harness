@@ -1481,7 +1481,14 @@ class HourglassLifecycleMixin:
             },
         }
         marker_defer = CAPABILITY_MARKER in answer
-        if self._escalation_authorized(prompt, marker_defer, status):
+        escalate = self._escalation_authorized(prompt, marker_defer, status)
+        if escalate and not self._handler_handoff_allowed():
+            # #705: the plan lane has already refused and re-entered this lane;
+            # escalating again is the recursion, not a new attempt.
+            emit("handler_handoff_suppressed", target="plan_lane",
+                 depth=self._handler_handoff_depth())
+            escalate = False
+        if escalate:
             defer_reason = None
             if marker_defer:
                 head, _, tail = answer.partition(CAPABILITY_MARKER)
@@ -1490,19 +1497,20 @@ class HourglassLifecycleMixin:
                 defer_reason = "execution request routed to plan & execute lane"
             emit("chat_escalated", reason=defer_reason, target="plan_lane")
             try:
-                escalated = self._handle_edit(
-                    prompt, sid, auto_apply=True,
-                    cancel_check=cancel_check,
-                    escalation_note=defer_reason,
-                    use_jev_completion=True)
-                if isinstance(escalated, dict):
-                    escalated.setdefault("hourglass", {
-                        "stages": ["context_intake", "planning_waist", "execution",
-                                   "completion_jev"],
-                        "source": "hourglass_auto_escalation",
-                    })
-                    save_chat_turn(sid, escalated, self.history_dir)
-                    return escalated
+                with self._handler_handoff():
+                    escalated = self._handle_edit(
+                        prompt, sid, auto_apply=True,
+                        cancel_check=cancel_check,
+                        escalation_note=defer_reason,
+                        use_jev_completion=True)
+                    if isinstance(escalated, dict):
+                        escalated.setdefault("hourglass", {
+                            "stages": ["context_intake", "planning_waist", "execution",
+                                       "completion_jev"],
+                            "source": "hourglass_auto_escalation",
+                        })
+                        save_chat_turn(sid, escalated, self.history_dir)
+                        return escalated
             except ToolCancelled:
                 raise
             except Exception:

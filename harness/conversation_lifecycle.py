@@ -1,6 +1,7 @@
 """Conversational fallback generation and web evidence handling."""
 
 import re
+from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Optional
 from uuid import uuid4
 
@@ -69,6 +70,37 @@ class ConversationLifecycleMixin:
     # answer. Stated as a constant so the tradeoff is visible and testable
     # rather than buried in a regex.
     _REFUSAL_SUBSTANCE_WORDS = 40
+
+    # #705: the chat lane and the plan lane may hand a request back and forth
+    # (a defer escalates, a refusal is explained conversationally), and every
+    # such handoff is a fresh entry into a handler that can hand off again.
+    # Worth keeping: one escalation plus the refusal's answer. Not worth
+    # keeping: the same pair re-entering forever, which is what looped a live
+    # GUI session until the operator cancelled it. The budget is per request:
+    # the request's own entry is depth 0.
+    _HANDLER_HANDOFF_LIMIT = 3
+
+    def _handler_handoff_depth(self) -> int:
+        return int(getattr(self, "_handler_handoff_depth_value", 0) or 0)
+
+    def _handler_handoff_allowed(self) -> bool:
+        return self._handler_handoff_depth() < self._HANDLER_HANDOFF_LIMIT
+
+    @contextmanager
+    def _handler_handoff(self):
+        """Count one handler-to-handler handoff; restore the depth on exit."""
+        depth = self._handler_handoff_depth()
+        self._handler_handoff_depth_value = depth + 1
+        try:
+            yield
+        finally:
+            if depth:
+                self._handler_handoff_depth_value = depth
+            else:
+                try:
+                    del self._handler_handoff_depth_value
+                except AttributeError:
+                    pass
 
     def _handle_conversation(
         self,
@@ -426,20 +458,28 @@ class ConversationLifecycleMixin:
             # resume instead: the content already exists, it needs more room.
             if (not truncation_defer and allow_escalation
                     and self._auto_escalation_armed()):
-                emit("chat_escalated", reason=defer_reason, target="plan_lane")
-                try:
-                    return self._handle_edit(
-                        prompt,
-                        session_id,
-                        auto_apply=True,
-                        cancel_check=cancel_check,
-                        escalation_note=defer_reason,
-                    )
-                except HarnessError as e:
-                    # The handoff failed (no routable target files, plan
-                    # refusal, ...): the honest defer stands with the failure
-                    # recorded -- never a silent swallow.
-                    response_text += f"\n\n[auto-escalation to the plan lane failed: {e}]"
+                if not self._handler_handoff_allowed():
+                    # #705: the plan lane already came back to this one; the
+                    # defer text below is the honest answer for this turn.
+                    emit("handler_handoff_suppressed", target="plan_lane",
+                         depth=self._handler_handoff_depth(), reason=defer_reason)
+                else:
+                    emit("chat_escalated", reason=defer_reason, target="plan_lane")
+                    try:
+                        with self._handler_handoff():
+                            return self._handle_edit(
+                                prompt,
+                                session_id,
+                                auto_apply=True,
+                                cancel_check=cancel_check,
+                                escalation_note=defer_reason,
+                            )
+                    except HarnessError as e:
+                        # The handoff failed (no routable target files, plan
+                        # refusal, ...): the honest defer stands with the
+                        # failure recorded -- never a silent swallow.
+                        response_text += (
+                            f"\n\n[auto-escalation to the plan lane failed: {e}]")
 
         result = {
             "status": "deferred" if defer_reason else "ok",
