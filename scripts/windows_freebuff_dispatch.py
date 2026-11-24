@@ -906,15 +906,48 @@ class Dispatch:
             frame = self.frame(f"sidebar-top-{attempt}-after")
         return frame
 
-    def walk_session_list(self, pages=16):
-        """Walk the project session list page by page, each page settled before a pick.
+    def advance_sidebar(self, step, frame, deltas=(-240, -900)):
+        """Scroll the sidebar down one page, proving the census actually moved.
 
-        Sixteen pages is the measured depth of the laptop's list: the
-        SCMessenger section sits below page eight, so an eight-page walk
-        reported a present project as absent (measured, 1545).
+        Measured (R16): a single -240 wheel step can land on a viewport whose
+        rows read identically to the one before it (the app's clipped column
+        and the wheel's rounding both absorb small steps), and the walk's
+        "same page twice" test then concluded the list had ENDED with the
+        SCMessenger section still below it - twice (runs 1620 and 1740). One
+        census is evidence of a viewport, never of the list's depth, so the
+        step is retried with a larger delta before the end is believed.
+        """
+        before = self.identity_of(self.read_roster(f"{step}-before", frame, SIDEBAR))
+        for index, delta in enumerate(deltas, 1):
+            if not self.scroll_by(f"{step}-scroll-{index}", frame, [196, 850], delta):
+                frame = self.frame(f"{step}-recapture-{index}")
+                continue
+            time.sleep(0.9)
+            frame = self.frame(f"{step}-after-{index}")
+            after = self.identity_of(self.read_roster(f"{step}-after-{index}", frame, SIDEBAR))
+            if after and after != before:
+                self.audit.append("verification", step_id=f"{step}-advanced",
+                                  delta=delta, rows=len(after))
+                return frame, True
+        self.audit.append("verification", step_id=f"{step}-end",
+                          reason="the census stopped changing; this is the end of the list")
+        return frame, False
+
+    def walk_session_list(self, pages=20):
+        """Walk the project session list page by page until the LIST itself ends.
+
+        Twenty pages is a bound, not the plan: the walk stops when a further
+        scroll stops changing the census (R16), so a longer list is censused
+        in full and the end is never inferred from one repeated page.
+
+        A page that holds only chats which OPEN with the configured name
+        cannot decide which chat a lane is (measured: the SCMessenger project
+        holds "SCMessenger", "SCMessenger Audit Lar", "SCMessenger Fresh Re",
+        "SCMessenger Bumdown Tc", "Ra SCMessenger Fast Mode Pc"), so a clipped
+        candidate is held back and only an exact title is picked on sight.
         """
         frame = self.scroll_sidebar_to_top()
-        seen = []
+        seen, rivals = [], []
         for page in range(1, pages + 1):
             try:
                 frame, rows = self.settled_roster(f"session-list-{page}", SIDEBAR, attempts=5)
@@ -923,12 +956,16 @@ class Dispatch:
                 # census) must not end the walk; the next page may settle.
                 self.audit.append("escalation", step_id=f"walk-session-list-{page}",
                                   reason=str(error))
-                self.scroll_by(f"walk-session-list-{page}-advance", frame, [196, 850], -400)
-                time.sleep(0.8)
+                frame, moved = self.advance_sidebar(f"walk-session-list-{page}", frame)
+                if not moved:
+                    break
                 continue
             texts = [row["text"] for row in rows]
             if texts in seen:
-                return False
+                frame, moved = self.advance_sidebar(f"walk-session-list-{page}", frame)
+                if not moved:
+                    break
+                continue
             seen.append(texts)
             matches = [row for row in rows if self.row_matches(row["text"], self.label)]
             unrelated = [row["text"] for row in matches
@@ -951,31 +988,40 @@ class Dispatch:
                 except RuntimeError as error:
                     self.audit.append("escalation", step_id=f"session-list-open-project-{page}",
                                       reason=str(error))
-            if len(scoped) == 1:
+            exact = [row for row in scoped
+                     if self.exact_session_title(row["text"], self.label)]
+            if len(exact) == 1:
                 # Click the scoped row itself: the title-only matcher would see
                 # the same-titled row in the other project and refuse.
-                self.click_exact_row(f"session-list-pick-{page}", frame, scoped[0])
+                self.click_exact_row(f"session-list-pick-{page}", frame, exact[0])
                 self.audit.append("verification", step_id=f"session-list-pick-{page}",
-                                  row=scoped[0]["text"], project=self.project)
+                                  row=exact[0]["text"], project=self.project)
                 return True
-            if len(scoped) > 1:
+            for row in (() if exact else scoped):
+                if self._norm(row["text"]) in {self._norm(item["text"]) for item in rivals}:
+                    continue
+                rivals.append(row)
+            if len(scoped) > 1 and not exact:
                 self.audit.append("escalation", step_id=f"session-list-ambiguous-{page}",
                                   rows=[row["text"] for row in scoped])
-                return False
             expand = next((row for row in rows
                            if row["text"].strip() in {"Show more", "More chats"}), None)
             if expand:
                 self.click_roster_row(f"session-list-expand-{page}", frame, rows, expand["text"])
                 time.sleep(1.0)
                 continue
-            band = frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes()
-            if not self.scroll_by(f"session-list-scroll-{page}", frame, [196, 850], -240):
-                frame = self.frame(f"session-list-scrolled-{page}-recapture")
-                continue
-            time.sleep(0.9)
-            frame = self.frame(f"session-list-scrolled-{page}")
-            if frame.crop((SIDEBAR[0], SIDEBAR[1], SIDEBAR[2], SIDEBAR[3] - 10)).tobytes() == band:
-                return False
+            frame, moved = self.advance_sidebar(f"session-list-{page}", frame)
+            if not moved:
+                break
+        if len(rivals) == 1:
+            # The whole list was censused and exactly one chat opens with this
+            # name: the app clipped that one title, and it is the pick.
+            self.audit.append("verification", step_id="session-list-clipped-unique",
+                              row=rivals[0]["text"], label=self.label)
+            return self.click_row_by_text(rivals[0]["text"], pages=pages)
+        self.audit.append("escalation", step_id="session-list-census", label=self.label,
+                          candidates=[row["text"] for row in rivals][:8],
+                          reason="no exact session row in the whole list; not guessing")
         return False
 
     def routes(self):
