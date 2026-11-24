@@ -144,7 +144,7 @@ CAPTURE_BUDGETS = (2.0, 5.0)
 PROJECT_DIALOG = {
     "new": ("New project", (60, 60, 340, 200)),
     "name": ("Project name", (480, 280, 1520, 760)),
-    "create": ("Create project", (480, 700, 1520, 1120)),
+    "create": ("Create project", (480, 620, 1520, 1120)),
 }
 JSON_ACT = 0
 
@@ -176,6 +176,57 @@ def project_anchor(surface, step, frame, key):
             "not clicking a guess") from None
 
 
+PROJECT_NAME_FIELD = (648, 545, 1160, 605)
+
+
+def project_name_reads(reading, name):
+    """Does the field hold this name, allowing the slips the OCR engine makes?
+
+    Measured 2026-11-24 on the launch cold run: the field held
+    'robby-battery-helper' and the reader returned 'robby-battery-helped'. The
+    adapter had also been reading a region wider than the field, so it compared
+    the whole dialog and the surrounding chat against the name. The read is now
+    the field's own box, and one misread glyph is tolerated the way every other
+    exact read in this driver tolerates it; a different name is still refused.
+    """
+    got = "".join(str(reading).casefold().split())
+    want = "".join(str(name).casefold().split())
+    if not want or not got:
+        return False
+    return got == want or SequenceMatcher(None, want, got).ratio() >= 0.9
+
+
+def project_dialog_anchors(surface, key, *, attempts=6, delay=0.7):
+    """Read the opened dialog until its controls exist, or refuse by name.
+
+    Measured 2026-11-24 on the launch cold run: the adapter captured once, one
+    second after clicking New project, and refused with "the name control 'Project
+    name' was not visible" while the dialog was still animating in. The same frame
+    one settle later resolves every anchor, so a single fixed sleep is the defect,
+    not the dialog. The read is retried inside a bounded window and the measured
+    Create button (y 698 in the live dialog) is inside its region.
+    """
+    last = None
+    for attempt in range(1, attempts + 1):
+        frame = surface.frame(f"project-dialog-open-{attempt}")
+        try:
+            name_point, name_region = project_anchor(surface, f"project-name-ocr-{attempt}",
+                                                     frame, "name")
+            create_point, create_region = project_anchor(
+                surface, f"project-create-ocr-{attempt}", frame, "create")
+        except RuntimeError as error:
+            last = error
+            if attempt < attempts:
+                time.sleep(delay)
+            continue
+        if attempt > 1:
+            surface.audit.append("verification", step_id="project-dialog-settled",
+                                 attempt=attempt)
+        return frame, name_point, name_region, create_point, create_region
+    raise last if last is not None else RuntimeError(
+        "project-creation adapter: the dialog could not be read")
+
+
 def create_project(surface, name):
     """R10: create a project from a dispatch and hand its session row back.
 
@@ -192,10 +243,8 @@ def create_project(surface, name):
                 region=region)
     surface.act("project-new", CLICK,
                 {"control": "New project", "point": point, "size": list(frame.size)})
-    time.sleep(1)
-    frame = surface.frame("project-dialog-open")
-    name_point, name_region = project_anchor(surface, "project-name-ocr", frame, "name")
-    create_point, create_region = project_anchor(surface, "project-create-ocr", frame, "create")
+    frame, name_point, name_region, create_point, create_region = project_dialog_anchors(
+        surface, "project-dialog")
     surface.yes("project-dialog-confirm", frame,
                 "Does this show a project name field and a create button?",
                 region=(480, 240, 1520, 1120))
@@ -204,8 +253,8 @@ def create_project(surface, name):
                  "size": list(frame.size)})
     surface.type_literal(name)
     frame = surface.frame("project-name-readback")
-    reading = " ".join(surface.read_lines("project-name-read", frame, name_region))
-    if surface._norm(reading) != surface._norm(name):
+    reading = " ".join(surface.read_lines("project-name-read", frame, PROJECT_NAME_FIELD))
+    if not project_name_reads(reading, name):
         raise RuntimeError(
             f"project-creation adapter: the name field reads {reading!r}, not {name!r}")
     surface.act("project-create", CLICK,
@@ -213,7 +262,11 @@ def create_project(surface, name):
                  "size": list(frame.size)})
     frame, rows = surface.settled_roster("project-created", SIDEBAR, attempts=6)
     for row in rows:
-        if surface._norm(row["text"]) == surface._norm(name):
+        # Measured 2026-11-24: a created project's row reads 'B robby-battery-helper',
+        # where the leading glyph is the folder icon the OCR cannot resolve. An exact
+        # equality over the whole row therefore loses the project it just created; the
+        # title rule this codebase already uses for session rows reads it correctly.
+        if Dispatch.exact_session_title(row["text"], name):
             surface.audit.append("verification", step_id="project-created",
                                  row=row["text"], name=name)
             return row
@@ -225,25 +278,19 @@ LAUNCH_PLACEHOLDER = "Ask Freebuff... Use / for commands, @ for files"
 LAUNCH_MARKER = "harness-freebuff-launch-{name}.json"
 
 
-def launch_project_session(surface, name, mission, carrier, *, observation=25):
+def launch_after_project(surface, row, name, mission, carrier, *, observation=25):
     """Launch one session carrying a mission of record, or refuse by name.
 
-    The launch type is composed from the pieces that are already proven: the R10
-    project adapter creates the project and hands its row back, the composer is
-    only typed into after its own empty placeholder is read by exact OCR, the
-    carrier line is read back off the field, and the send is one click on the
-    arrow whose outline is measured in the same frame. A project that already has
-    a session is refused instead of duplicated, and a one-send marker keyed by the
-    project name bounds it to a single launch even though a brand-new chat has no
-    session UUID yet.
+    Composed from the pieces that are already proven: the caller hands the row of
+    the project it owns, the composer is typed into only after its own empty
+    placeholder is read by exact OCR, the carrier line is read back off the field
+    before anything is sent, and the send is one click on the arrow whose outline
+    is measured in the same frame. A one-send marker keyed by the project name
+    bounds the launch even though a brand-new chat has no session UUID yet.
+
+    Split from the creation step so an interrupted launch resumes on the project it
+    already created instead of making a second one.
     """
-    frame, rows = surface.settled_roster("launch-roster", SIDEBAR, attempts=5)
-    if any(surface._norm(row["text"]) == surface._norm(name) for row in rows):
-        raise RuntimeError(
-            f"launch: the roster already holds {name!r}; launching would duplicate a session")
-    row = create_project(surface, name)
-    surface.audit.append("verification", step_id="launch-project-created",
-                         row=row["text"], name=name)
     time.sleep(1.5)
     frame = surface.settle_view("launch-after-create")
     try:
@@ -300,6 +347,18 @@ def launch_project_session(surface, name, mission, carrier, *, observation=25):
                                  observation_seconds=observation // 3 * attempt)
             return attempt
     raise RuntimeError("launch: the mission was submitted once but no running Stop cue appeared")
+
+
+def launch_project_session(surface, name, mission, carrier, *, observation=25):
+    """Create the owner-ordered project, then launch one session carrying it."""
+    frame, rows = surface.settled_roster("launch-roster", SIDEBAR, attempts=5)
+    if any(surface._norm(candidate["text"]) == surface._norm(name) for candidate in rows):
+        raise RuntimeError(
+            f"launch: the roster already holds {name!r}; launching would duplicate a session")
+    row = create_project(surface, name)
+    surface.audit.append("verification", step_id="launch-project-created",
+                         row=row["text"], name=name)
+    return launch_after_project(surface, row, name, mission, carrier, observation=observation)
 
 
 EXPIRED_BANNER_REGION = (630, 560, 1550, 860)
