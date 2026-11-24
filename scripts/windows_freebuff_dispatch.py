@@ -462,6 +462,16 @@ def same_rows(previous, current):
     return len(large) - len(small) == 1 and set(small) <= set(large)
 
 
+class ForegroundLost(RuntimeError):
+    """The desktop moved off FreeBuff, so no input in this run landed anywhere.
+
+    Distinct from every other runtime refusal on purpose: a census that cannot
+    scroll is not evidence about which sessions the list holds, and reporting it
+    as one sends the next reader to the wrong place (measured 2026-11-24, Kalshi
+    7127830177, held by a 'Windows Security' prompt on pid 12304).
+    """
+
+
 class Dispatch:
     def __init__(self, output, key, *, thread=THREAD, scoped_input=False, standing=False):
         from PIL import Image, ImageOps
@@ -1298,12 +1308,23 @@ class Dispatch:
         return True
 
     def scroll_by(self, step, frame, point, delta):
-        """A scroll step; a compositor change between capture and input is retried."""
+        """A scroll step; a compositor change between capture and input is retried.
+
+        A lost foreground is NOT a scroll that failed: it means no input landed at
+        all, so every later census reads the same viewport. Measured 2026-11-24 on
+        Kalshi (7127830177): every scroll in the run returned "FreeBuff is not the
+        foreground window; held by hwnd 1049510 pid 12304 title 'Windows Security'",
+        the walk then found identical rosters page after page, and it reported "the
+        project session list does not hold 'Kalshi Paper Burndown'" - a misleading
+        cause that sends the next reader to the lane instead of to the desktop.
+        """
         try:
             self.act(step, SCROLL, {"point": point, "size": list(frame.size), "delta": delta})
             return True
         except RuntimeError as error:
             self.audit.append("escalation", step_id=step, reason=str(error))
+            if "not the foreground window" in str(error):
+                raise ForegroundLost(str(error)) from error
             return False
 
     def scroll_sidebar_to_top(self, steps=8):
@@ -1956,6 +1977,9 @@ class Dispatch:
                                   reason=f"{self.label!r} is not in the project session list "
                                          "within the bounded walk")
                 return False
+        except ForegroundLost:
+            # Do not convert a lost desktop into a statement about the lane.
+            raise
         except RuntimeError as error:
             self.audit.append("escalation", step_id="navigate-session-list", reason=str(error))
             return False
