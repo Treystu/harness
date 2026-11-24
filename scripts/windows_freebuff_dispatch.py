@@ -1421,11 +1421,12 @@ class Dispatch:
             if len(scoped) > 1 and not exact:
                 self.audit.append("escalation", step_id=f"session-list-ambiguous-{page}",
                                   rows=[row["text"] for row in scoped])
-            expand = next((row for row in rows
-                           if row["text"].strip() in {"Show more", "More chats"}), None)
-            if expand:
-                self.click_roster_row(f"session-list-expand-{page}", frame, rows, expand["text"])
-                time.sleep(1.0)
+            # Several sections can be collapsed at once, and a single-row click
+            # cannot choose between them (measured: 7127392246 aborted the whole
+            # walk here on page one). Expand what is visible, then keep walking.
+            frame, rows, expanded_sections = self.expand_sections(
+                page, frame, rows, "session-list")
+            if expanded_sections:
                 continue
             frame, moved = self.advance_sidebar(f"session-list-{page}", frame)
             if not moved:
@@ -1470,6 +1471,46 @@ class Dispatch:
             return []
         return [str(item.get("route") or item.get("url") or item)
                 if isinstance(item, dict) else str(item) for item in items]
+
+    def expand_sections(self, page, frame, rows, step, limit=4):
+        """Expand every visible section control, the target's own section first.
+
+        Measured 2026-11-24 on dispatch 7127392246 (Kalshi Paper Burndown): the
+        sidebar carries one "Show more" per project section, so the first page
+        held two, the single-row click refused with "'Show more' matched 2 settled
+        rows", and that refusal aborted the ENTIRE session-list walk on page one -
+        above the Kalshi-Trader heading the lane lives under. A later page in the
+        same run censused "B Kalshi-Trader, Kalshi Paper Burndown" without ever
+        getting there through this walk.
+
+        So: every control is expanded in turn (the target project's section first
+        when its heading is on the page), each click is coordinate-bound to the row
+        already censused, and a control that cannot be clicked is skipped rather
+        than ending the walk. Expansion is visibility only - the pick still has to
+        prove the lane afterwards.
+        """
+        controls = [row for row in rows
+                    if row["text"].strip() in {"Show more", "More chats"}]
+        if not controls:
+            return frame, rows, 0
+        ordered = sorted(controls,
+                         key=lambda row: self.project_of_row(rows, row) != self.project)
+        expanded = 0
+        for index, control in enumerate(ordered[:limit], start=1):
+            try:
+                self.click_exact_row(f"{step}-expand-{page}-{index}", frame, control)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id=f"{step}-expand-{page}-{index}",
+                                  reason=str(error))
+                continue
+            expanded += 1
+            time.sleep(1.0)
+            frame = self.frame(f"{step}-{page}-expanded-{index}")
+            rows = self.read_roster(f"{step}-{page}-expanded-{index}", frame, SIDEBAR)
+        if expanded:
+            self.audit.append("verification", step_id=f"{step}-expanded-{page}",
+                              controls=len(controls), expanded=expanded)
+        return frame, rows, expanded
 
     def expand_project(self, page, frame, rows, step):
         """Open a collapsed project before censusing its sessions.
@@ -1531,9 +1572,19 @@ class Dispatch:
                                                    frame, SEARCH_PLACEHOLDER))
             except RuntimeError:
                 reading = ""
-            if wanted and wanted in self._norm(reading):
+            seen = self._norm(reading)
+            if wanted and (wanted in seen
+                           or SequenceMatcher(None, wanted, seen).ratio() >= 0.9):
+                # A one-glyph OCR slip is not foreign text: measured 2026-11-24, the
+                # field read 'Kalshi Paper Burndow' for the query this run typed, and
+                # the exact test then parked the lane as if someone else had written
+                # in the box. The readback keeps its job - it proves the query landed
+                # and that this run did not type over another lane's text - while
+                # tolerating the same single-glyph error every other exact read here
+                # tolerates.
                 self.audit.append("verification", step_id="narrow-query-landed",
-                                  attempt=attempt, reading=reading[:60])
+                                  attempt=attempt, reading=reading[:60],
+                                  exact=wanted in seen)
                 return frame
             self.audit.append("escalation", step_id=f"narrow-query-{attempt}",
                               reason="the field did not show the query after typing",
@@ -1822,11 +1873,14 @@ class Dispatch:
                 if wanted and wanted not in seen_text and not self.row_matches(
                         row["text"], self.label):
                     continue
-                if seen_text == wanted:
-                    # A bare label is also how the app names project headings
-                    # and duplicate sessions; this path exists for the rows the
-                    # exact matcher could not settle, so those are not clicked
-                    # blind here.
+                if seen_text == wanted and self.project_of_row(rows, row) != self.project:
+                    # A bare label is also how the app names project headings and
+                    # duplicate sessions in OTHER projects; those are still never
+                    # clicked blind. But when the exact title sits under this lane's
+                    # own project heading it IS the lane: measured 2026-11-24, this
+                    # walk censused "B Kalshi-Trader, Kalshi Paper Burndown" and then
+                    # skipped its own exact row, so the fleet refused a lane that
+                    # was on screen and scoped.
                     continue
                 if limit <= 0:
                     return False
@@ -1838,6 +1892,16 @@ class Dispatch:
                                       reason=str(error))
                     frame = self.frame(f"identify-{page}-{index}-after")
                     continue
+                if seen_text == wanted:
+                    # The exact title, under this lane's own project heading, is the
+                    # pick: measured 2026-11-24, this walk censused exactly that row
+                    # for Kalshi and then read an empty route table, which on this
+                    # app is the usual answer (dead accessibility tree). Exact title
+                    # plus project scope is the same proof the session-list pick uses,
+                    # and prepare still re-proves the lane before any input.
+                    self.audit.append("verification", step_id="identify-exact-scoped",
+                                      row=row["text"], project=self.project, page=page)
+                    return True
                 frame = self.frame(f"identify-{page}-{index}-opened")
                 routes = self.routes()
                 hit = [route for route in routes if self.thread in route]
