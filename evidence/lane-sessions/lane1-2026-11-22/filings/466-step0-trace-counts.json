@@ -1,0 +1,66 @@
+{
+  "live_brief_run": {
+    "performed": false,
+    "why": "no model provider key resolves on this machine; only the Jev key is set, so a brief or plan run cannot reach a model. The order's live brief run is NOT claimed.",
+    "keys_resolved": {
+      "jev_api_key": true,
+      "api_key": false,
+      "openrouter_api_key": false,
+      "typesafe_api_key": false
+    }
+  },
+  "part_a_live_gate": {
+    "kind": "live decision-gate call (real Jev model call)",
+    "site": "w466-step0",
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.08,
+    "in_memory_writer_calls": 0,
+    "reader_rows": 0,
+    "raw_file_scan_rows": 0,
+    "finding": "the gate persists nothing itself; persistence belongs to its callers (apply_policy, escalation, jev_assessment)"
+  },
+  "part_b_persistence": {
+    "kind": "harness assess --trace-ledger, run twice (product persist seam)",
+    "exit": [
+      0,
+      0
+    ],
+    "verdict": "both runs wrote",
+    "counts": {
+      "writer_answer": 2,
+      "reader_rows": 2,
+      "raw_file_scan_rows": 2,
+      "all_three_agree": true,
+      "event_ids_agree": true
+    },
+    "kinds": [
+      "assessment.disposition"
+    ],
+    "seq": [
+      1,
+      2
+    ],
+    "prev_hash_linked": true,
+    "chain_verified": true,
+    "rows": [
+      {
+        "kind": "assessment.disposition",
+        "seq": 1,
+        "event_id": "9f3c3f6b813d437894fa54e3fba81247",
+        "hash": "2b840c8e8d0a561a65417d366abcd08c0b19c87a830a4c86c2f5eb230b71bf94",
+        "prev_hash": null,
+        "subject_id": "w466-step0-persist-1"
+      },
+      {
+        "kind": "assessment.disposition",
+        "seq": 2,
+        "event_id": "b8e4140dbb964350925ef9f7e9792838",
+        "hash": "d778a2376bc1fa2a00dcc57b5e9b0332cd83ab1309cc9c7db527239769c72230",
+        "prev_hash": "2b840c8e8d0a561a65417d366abcd08c0b19c87a830a4c86c2f5eb230b71bf94",
+        "subject_id": "w466-step0-persist-2"
+      }
+    ]
+  },
+  "verdict": "persistence counts agree on the product seam"
+}
