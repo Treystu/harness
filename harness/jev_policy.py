@@ -58,8 +58,6 @@ from .jev_packs import (
     VisionCategoryAssessment,
     answer_question_pack,
     simple_strategy_question_pack,
-    claim_support_question_pack,
-    claims_from_payload,
     escalation_decision_pack,
     completion_question_pack,
     file_relevance_question_pack,
@@ -115,6 +113,9 @@ from .jev_audit_dimensions import (
     audit_dimension_text,
     evaluate_audit_dimensions as _evaluate_audit_dimensions,
     resolve_audit_dimension,
+)
+from .jev_claims import (
+    evaluate_claim_support as _evaluate_claim_support,
 )
 
 # One input budget per judgment. It was 1024 tokens, and the answer field was
@@ -2251,97 +2252,20 @@ class JevPolicy:
                                site: str = "claims",
                                task_id: Optional[str] = None,
                                max_input_tokens: int = JEV_MAX_INPUT_TOKENS):
-        """JEV-P3-claims: optional lean support checks before panel judge.
+        """JEV-P3-claims: optional lean support checks before panel judge --
+        delegated.
 
-        Default off (``enabled=False``). Does not own claims lint — that stays
-        in :mod:`harness.claims`. This only adds advisory typed flags.
+        Default off (``enabled=False``). Does not own claims lint -- that stays
+        in :mod:`harness.claims`. This only adds advisory typed flags. The
+        0-hallucination rules and the fail-closed envelope live in
+        :func:`harness.jev_claims.evaluate_claim_support`; the policy instance
+        is passed in, so dispatch, spend, settlement and ledger semantics stay
+        in this one owner.
         """
-        normalized = claims_from_payload(claims)
-        if not enabled or not normalized:
-            skipped = JevEvaluationResult(
-                "pass", 0.0, 1.0,
-                {"enabled": bool(enabled), "claims": [], "skipped": True},
-                ["claim-support checks disabled or empty"],
-                is_fallback=True, model=self.evaluator.model,
-                fallback_reason="claims_skipped")
-            structural = self._structural(skipped, site)
-            structural["claim_flags"] = []
-            structural["skipped"] = True
-            return skipped, structural
-        reservation = None
-        try:
-            reservation = self._preflight(
-                site=site, max_input_tokens=max_input_tokens)
-            result = self.evaluator.evaluate(
-                {
-                    "claims": [{"id": c["id"], "text": c["text"]}
-                               for c in normalized],
-                    "evidence": (source_context or "")[:4000],
-                },
-                claim_support_question_pack(len(normalized)))
-            flags = []
-            if result.is_fallback:
-                # Unkeyed: no support claim either way — advisory unknown.
-                flags = [{"id": c["id"], "supported": None, "fallback": True}
-                         for c in normalized]
-                result = JevEvaluationResult(
-                    "pass", 0.0, 1.0,
-                    {"claim_flags": flags, "skipped": False},
-                    result.reasons, cost=result.cost,
-                    input_tokens=result.input_tokens,
-                    output_tokens=result.output_tokens,
-                    is_fallback=True, model=result.model,
-                    discarded=result.discarded,
-                    fallback_reason=self._fallback_reason_of(
-                        result, "claims_unanswered"))
-            else:
-                for index, claim in enumerate(normalized):
-                    key = f"claim_{index}_supported"
-                    answer = (result.answers or {}).get(key)
-                    prob = None
-                    if isinstance(answer, dict):
-                        prob = answer.get("noul")
-                    elif isinstance(answer, (int, float)):
-                        prob = answer
-                    supported = None
-                    if isinstance(prob, (int, float)):
-                        supported = float(prob) >= 0.5
-                    flags.append({"id": claim["id"], "supported": supported,
-                                  "noul": prob, "fallback": False})
-                result = JevEvaluationResult(
-                    result.verdict, result.confidence, result.supported,
-                    {"claim_flags": flags, "skipped": False}, result.reasons,
-                    cost=result.cost, input_tokens=result.input_tokens,
-                    output_tokens=result.output_tokens,
-                    is_fallback=False, model=result.model,
-                    cache_hit=result.cache_hit)
-            structural = self._account(
-                result, site=site, task_id=task_id, reservation=reservation)
-            structural["claim_flags"] = flags
-            structural["skipped"] = False
-            return result, structural
-        except ProviderUsageUnknown as exc:
-            self._settle_cancelled(reservation, exc)
-            raise
-        except ToolCancelled as exc:
-            self._settle_cancelled(reservation, exc)
-            raise
-        except ProviderSpendLimitError as exc:
-            self._release_after_provider_limit(reservation, exc, task_id=task_id)
-            raise
-        except HarnessError as exc:
-            self._release(reservation)
-            flags = [{"id": c["id"], "supported": None, "fallback": True}
-                     for c in normalized]
-            fallback = JevEvaluationResult(
-                "pass", 0.0, 1.0,
-                {"claim_flags": flags, "skipped": False}, [str(exc)],
-                is_fallback=True, model=self.evaluator.model,
-                fallback_reason=_refusal_reason(exc))
-            structural = self._account(fallback, site=site, task_id=task_id)
-            structural["claim_flags"] = flags
-            structural["skipped"] = False
-            return fallback, structural
+        return _evaluate_claim_support(
+            self, claims, source_context, enabled=enabled, site=site,
+            task_id=task_id, max_input_tokens=max_input_tokens,
+            refusal_reason=_refusal_reason)
 
     def evaluate_completion_nouls(self, goal: str, state_summary: str,
                                   named_artifacts=None, root_dir=None, *,

@@ -60,6 +60,13 @@ Harness is a dependency-light Python package with three surfaces:
   the `JevPolicy` instance and never imports it at module scope, so
   dispatch, spend, settlement and ledger semantics stay in the one policy
   owner.
+- `jev_claims.py`: the JEV-P3 claim-support evaluator family (#309): the
+  optional lean support flags a caller may ask for before a panel judge,
+  advisory only, with an unusable live answer reported as unknown rather
+  than invented, and the `claims_skipped` path when the check is off or the
+  payload is empty. Claims lint stays in `harness.claims`. It receives the
+  `JevPolicy` instance and never imports it at module scope, so dispatch,
+  spend, settlement and ledger semantics stay in the one policy owner.
 - `jev_audit_dimensions.py`: the 4-dimensional self-audit evaluator family
   (#309): the dimension-text view, the declared-legend resolver with its
   low-confidence rule, `not_evaluated` for a dimension the run did not
