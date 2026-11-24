@@ -52,6 +52,7 @@ from .prompts import CAPABILITY_MARKER
 from .request_intent import no_tools_requested
 from .provider_errors import ProviderSpendLimitError
 from .research_plan import (
+    ResearchPlan,
     decide_research_plan,
     plan_authorizes_url,
     saved_plan_approval,
@@ -648,6 +649,25 @@ class HourglassLifecycleMixin:
             return False, "plan-approval-mismatch"
         return True, "reusable"
 
+    @staticmethod
+    def _recorded_plan(checkpoint: ChatResumePayload) -> Optional[ResearchPlan]:
+        """Rebuild the plan body a checkpoint recorded, or ``None``.
+
+        #344: the checkpoint stores the accepted plan's canonical payload
+        beside its hash. A resume that supplies no plan used to fail the route
+        binding with ``plan-unknown`` and pay for a second route review even
+        though the checkpoint held the plan that review judged. A body that no
+        longer hashes to the recorded value, or that does not parse, returns
+        ``None`` so the route is decided again rather than inherited.
+        """
+        saved = str(checkpoint.get("approved_plan_hash") or "")
+        if not saved:
+            return None
+        plan = ResearchPlan.from_payload(checkpoint.get("research_plan_body"))
+        if plan is None or plan.hash() != saved:
+            return None
+        return plan
+
     def _hourglass_context_matches(self, checkpoint: ChatResumePayload) -> bool:
         expected_root = str(checkpoint.get("workspace_root") or "")
         actual_root = str(self.root_dir or "")
@@ -863,10 +883,14 @@ class HourglassLifecycleMixin:
         route_preflight = request_preflight
         if not route_preflight and resuming:
             # A saved routing receipt belongs to the request it judged; only a
-            # continuation of that same request may adopt it.
+            # continuation of that same request may adopt it. A caller that
+            # supplies no plan still has the plan the checkpoint recorded, so
+            # the binding compares the plan the route actually judged (#344).
+            judged_plan = (research_plan if research_plan is not None
+                           else self._recorded_plan(checkpoint))
             route_reusable, route_reuse_reason = (
                 self._saved_route_decision_reusable(
-                    checkpoint, prompt, plan=research_plan,
+                    checkpoint, prompt, plan=judged_plan,
                     approval=plan_approval))
             route_preflight = (checkpoint.get("route_preflight")
                                if route_reusable else None)
@@ -1027,6 +1051,11 @@ class HourglassLifecycleMixin:
             hasher = getattr(research_plan, "hash", None)
             checkpoint["approved_plan_hash"] = (
                 str(hasher() or "") if callable(hasher) else "")
+            # #344: record the plan body too, so a resume that supplies no plan
+            # can bind its saved route decision to the plan it was made under.
+            body = getattr(research_plan, "payload", None)
+            if callable(body):
+                checkpoint["research_plan_body"] = dict(body())
             # The whole receipt is recorded, not a subset: a later resume can
             # only adopt it if the per-query verdicts and expiry come with it.
             payload = getattr(plan_approval, "payload", None)

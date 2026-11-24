@@ -24,6 +24,7 @@ from harness.hourglass_lifecycle import (
     _request_identity,
 )
 from harness.research_plan import (
+    SCHEMA_VERSION,
     PlanApproval,
     PlanQuery,
     ResearchPlan,
@@ -503,13 +504,12 @@ class SavedPlanReceiptReuseTests(unittest.TestCase):
 
 
 class ResumeReusesTheRecordedPlanTests(unittest.TestCase):
-    """The resumed hourglass request pays no second plan review.
+    """The resumed hourglass request pays neither a route nor a plan review.
 
-    The checkpoint records the accepted plan's hash and receipt, not its body,
-    so a caller that re-supplies no plan still re-routes (`plan-unknown`) and
-    re-proposes -- a free local draft. What it no longer does is pay for a
-    second native plan judgment when that draft is byte-identical to the plan
-    already accepted.
+    The checkpoint records the accepted plan's canonical payload beside its
+    hash and receipt, so a resume that supplies no plan rebuilds the plan the
+    saved route decision judged and reuses both the route and the acceptance.
+    A body that no longer hashes to the record is not reused.
     """
 
     def test_a_resumed_request_with_the_recorded_plan_is_not_reviewed_again(
@@ -533,6 +533,7 @@ class ResumeReusesTheRecordedPlanTests(unittest.TestCase):
                                      identity=prompt)
             checkpoint["approved_plan_hash"] = plan.hash()
             checkpoint["plan_approval"] = dict(approval.payload())
+            checkpoint["research_plan_body"] = plan.payload()
             policy = _policy()
             policy.evaluate_request_workflow.return_value = (
                 SimpleNamespace(
@@ -564,13 +565,168 @@ class ResumeReusesTheRecordedPlanTests(unittest.TestCase):
                     prompt, session_id=session_id, max_rounds=1,
                     resume_state=checkpoint)
             self.assertEqual(result["status"], "ok")
-            policy.evaluate_request_workflow.assert_called_once()
+            # The recorded body binds the saved route decision, so no second
+            # route review is paid either.
+            policy.evaluate_request_workflow.assert_not_called()
             self.assertEqual(webs, [True])
             saved = agent.lifecycle.load(session_id)["data"]
             self.assertEqual(saved["approved_plan_hash"], plan.hash())
             self.assertTrue(saved["research_plan_gate"]["reused"])
             self.assertEqual(saved["research_plan_gate"]["state"], "accepted")
             self.assertEqual(saved["research_plan_gate"]["cost"], 0.0)
+
+
+class RecordedPlanBodyTests(unittest.TestCase):
+    """#344: the accepted plan body is recorded and bound on resume.
+
+    The named remainder: the checkpoint stored only the accepted plan's hash
+    and receipt, so a resume that supplied no plan could not compare its saved
+    route decision with the plan that decision judged -- it re-routed with
+    ``plan-unknown`` and paid for a second route review.
+    """
+
+    prompt = "What changed in the Rust 1.84 release?"
+
+    def test_the_payload_round_trips_to_the_same_plan(self):
+        plan = _plan()
+        rebuilt = ResearchPlan.from_payload(plan.payload())
+        self.assertIsNotNone(rebuilt)
+        self.assertEqual(rebuilt.hash(), plan.hash())
+        self.assertEqual(rebuilt.queries[0].query, plan.queries[0].query)
+        self.assertEqual(rebuilt.capabilities, plan.capabilities)
+
+    def test_unreadable_payloads_are_refused(self):
+        payload = _plan().payload()
+        cases = [
+            None,
+            "not-a-plan",
+            {},
+            dict(payload, schema_version=SCHEMA_VERSION + 1),
+            {key: value for key, value in payload.items() if key != "queries"},
+            dict(payload, queries=[{"query_id": "q1"}]),
+            dict(payload, queries="q1"),
+            dict(payload, max_results="many"),
+        ]
+        for case in cases:
+            self.assertIsNone(ResearchPlan.from_payload(case), msg=case)
+
+    def _checkpoint_with_plan(self, *, body=True, plan=None):
+        plan = plan or _plan()
+        checkpoint = _checkpoint(prompt=self.prompt, route=dict(_WEB_ROUTE),
+                                 identity=self.prompt)
+        checkpoint["approved_plan_hash"] = plan.hash()
+        checkpoint["plan_approval"] = _receipt(plan)
+        if body is not None:
+            checkpoint["research_plan_body"] = (
+                plan.payload() if body is True else body)
+        return checkpoint, plan
+
+    def test_the_recorded_body_rebuilds_the_plan_it_hashed(self):
+        checkpoint, plan = self._checkpoint_with_plan()
+        rebuilt = _Holder()._recorded_plan(checkpoint)
+        self.assertIsNotNone(rebuilt)
+        self.assertEqual(rebuilt.hash(), plan.hash())
+
+    def test_no_recorded_hash_or_an_unreadable_body_rebuilds_nothing(self):
+        self.assertIsNone(
+            _Holder()._recorded_plan(_checkpoint(prompt=self.prompt)))
+        for body in (None, {}, "not-a-plan"):
+            checkpoint, _unused = self._checkpoint_with_plan(body=body)
+            self.assertIsNone(_Holder()._recorded_plan(checkpoint), msg=body)
+
+    def test_a_tampered_body_is_not_bound_to_the_record(self):
+        other = _plan("Rust 1.85 release notes")
+        checkpoint, _unused = self._checkpoint_with_plan(body=other.payload())
+        self.assertIsNone(_Holder()._recorded_plan(checkpoint))
+        self.assertEqual(
+            _Holder()._saved_route_decision_reusable(
+                checkpoint, self.prompt, plan=None),
+            (False, "plan-unknown"))
+
+    def _run_resume(self, body, session_id):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = AutonomousAgent(settings=_settings(),
+                                    history_dir=Path(tmp))
+            state = agent.lifecycle.begin(
+                "chat", session_id, self.prompt, stage="route",
+                max_review_rounds=1, data={"route": "hourglass"})
+            request_id = state["request_id"]
+            plan, why = propose_plan(self.prompt, request_id=request_id)
+            self.assertEqual(why, "")
+            approval = approval_from_judgment(
+                plan, {"decision": "accept", "native": True,
+                       "confidence": 0.9,
+                       "query_verdicts": [True] * len(plan.queries)})
+            checkpoint = _checkpoint(prompt=self.prompt, route=dict(_WEB_ROUTE),
+                                     identity=self.prompt)
+            checkpoint["approved_plan_hash"] = plan.hash()
+            checkpoint["plan_approval"] = dict(approval.payload())
+            if body == "recorded":
+                checkpoint["research_plan_body"] = plan.payload()
+            elif body == "tampered":
+                other, other_why = propose_plan(
+                    self.prompt, request_id="req-other")
+                self.assertEqual(other_why, "")
+                self.assertNotEqual(other.hash(), plan.hash())
+                checkpoint["research_plan_body"] = other.payload()
+            policy = _policy()
+            policy.evaluate_request_workflow.return_value = (
+                SimpleNamespace(
+                    answers={"workflow_tier": {"choice": "web-research"}},
+                    is_fallback=False),
+                {"cost": 0.0},
+            )
+            policy.evaluate_research_plan.side_effect = AssertionError(
+                "the accepted plan was reviewed twice")
+            webs = []
+            with patch("harness.hourglass_lifecycle.governor_for",
+                       return_value=("key", MagicMock())), \
+                 patch("harness.hourglass_lifecycle.ledger_for",
+                       return_value=MagicMock()), \
+                 patch("harness.hourglass_lifecycle.policy_for",
+                       return_value=policy), \
+                 patch.object(
+                     agent, "_hourglass_request_context",
+                     side_effect=AssertionError("saved context was lost")), \
+                 patch.object(
+                     agent, "_hourglass_answer_once",
+                     side_effect=lambda *a, **k: (
+                         webs.append(k.get("web")) or {
+                             "answer": "the changelog says so",
+                             "model": "cheap", "cost": 0.002})), \
+                 patch.object(agent, "_jev_answer_envelope",
+                              return_value=_envelope()):
+                result = agent.run_hourglass_request(
+                    self.prompt, session_id=session_id, max_rounds=1,
+                    resume_state=checkpoint)
+            return (result, policy, webs, plan,
+                    agent.lifecycle.load(session_id)["data"])
+
+    def test_a_recorded_body_reuses_the_route_without_a_second_review(self):
+        result, policy, webs, plan, saved = self._run_resume(
+            "recorded", "recorded-body-reuse")
+        self.assertEqual(result["status"], "ok")
+        policy.evaluate_request_workflow.assert_not_called()
+        self.assertEqual(webs, [True])
+        self.assertTrue(saved["research_plan_gate"]["reused"])
+        self.assertEqual(saved["approved_plan_hash"], plan.hash())
+        self.assertEqual(saved["research_plan_body"], plan.payload())
+
+    def test_a_missing_body_still_routes_and_binds_again(self):
+        result, policy, webs, _plan_used, saved = self._run_resume(
+            "missing", "missing-body-route")
+        self.assertEqual(result["status"], "ok")
+        policy.evaluate_request_workflow.assert_called_once()
+        self.assertEqual(webs, [True])
+        self.assertTrue(saved["research_plan_gate"]["reused"])
+
+    def test_a_tampered_body_routes_again_on_resume(self):
+        result, policy, webs, _plan_used, saved = self._run_resume(
+            "tampered", "tampered-body-route")
+        self.assertEqual(result["status"], "ok")
+        policy.evaluate_request_workflow.assert_called_once()
+        self.assertEqual(webs, [True])
+        self.assertEqual(saved["research_plan_gate"]["state"], "accepted")
 
 
 if __name__ == "__main__":
