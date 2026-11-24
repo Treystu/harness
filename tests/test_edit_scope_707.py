@@ -103,6 +103,9 @@ class EditScopeOrderTests(unittest.TestCase):
             "/home/me/infographic.py")
         self.assertIsNone(pasted_absolute_path(
             "see https://example.com/docs/read.py for context"))
+        # A server-style path matches the shape but is refused by the guard:
+        # it is not a local file, so it must never become the edit target.
+        self.assertIsNone(pasted_absolute_path("open //fileserver/share/x.py"))
         self.assertIsNone(pasted_absolute_path("execute the plan"))
 
     def test_scope_is_triaged_from_the_current_prompt_itself(self):
