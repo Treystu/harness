@@ -1,0 +1,93 @@
+{
+  "observed_at": "2026-11-24",
+  "note": "Live native Jev research-plan receipts through the CLI and MCP ask surfaces; no fixture or evaluator-only output.",
+  "receipts": [
+    {
+      "surface": "harness ask --web (cli)",
+      "requested": "accepted",
+      "status": "ok",
+      "model": "deepseek/deepseek-v4-flash",
+      "web_used": true,
+      "plan_state": "accepted",
+      "native": true,
+      "decision": "accept",
+      "plan_hash": "63e66ddfadffb1d1ea2658b3b82dc69434ef0eb1b5d0a0a3cb2dfa4e90d34e73",
+      "request_hash": "0aba4da4e3f92eed974bf06e6ca0b7a4394933ee2f28fdc9cf98009d3ff5529b",
+      "plan_reason": "",
+      "plan_cost": 3.3642e-05,
+      "turn_cost": 0.002601,
+      "search_calls": null,
+      "fetch_calls": null,
+      "sources": [
+        {
+          "kind": "browser",
+          "ok": true,
+          "url": "https://example.com/"
+        }
+      ]
+    },
+    {
+      "surface": "harness ask --web (cli)",
+      "requested": "declined",
+      "status": "plan_required",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "web_used": false,
+      "plan_state": "declined",
+      "native": true,
+      "decision": "revise",
+      "plan_hash": "cd34c5616371edf755214390efc63fbc6cb945bb6a9ad8b54c3aa16aac639ea1",
+      "request_hash": "84e8ef9fa582aaba1798afd170a935432fb296e485e42836cfdb85d09a1f3ef1",
+      "plan_reason": "approval_declined: the native decision was revise",
+      "plan_cost": 3.444e-05,
+      "turn_cost": 0.005983,
+      "search_calls": 0,
+      "fetch_calls": 0,
+      "sources": []
+    },
+    {
+      "surface": "MCP tools/call ask {web:true}",
+      "requested": "accepted",
+      "status": "ok",
+      "model": "deepseek/deepseek-v4-flash",
+      "web_used": true,
+      "plan_state": "accepted",
+      "native": true,
+      "decision": "accept",
+      "plan_hash": "1316bb49ac1aec523a357fa78dfef039dcc2b371f57dae21678bec4da691a98b",
+      "request_hash": "100bc564752543d5ce2ddfcb7f51b845e16dda260b5d351b4f7d550a7ddf9e33",
+      "plan_reason": "",
+      "plan_cost": 3.3684000000000005e-05,
+      "turn_cost": 0.003074,
+      "sources": [
+        {
+          "kind": "web",
+          "ok": false,
+          "url": null
+        },
+        {
+          "kind": "browser",
+          "ok": true,
+          "url": "https://example.com/"
+        }
+      ],
+      "note": "the accepted MCP turn reported one failed web-kind source and one successful browser fetch of the accepted URL"
+    },
+    {
+      "surface": "MCP tools/call ask {web:true}",
+      "requested": "declined",
+      "status": "plan_required",
+      "model": "deepseek/deepseek-v4-flash",
+      "web_used": false,
+      "plan_state": "declined",
+      "native": true,
+      "decision": "revise",
+      "plan_hash": "a06050bd2bc837d65eeddb138a3b821796c4142d68e87af29e65855e58eb98b3",
+      "request_hash": "d81b5fbe3604d0ae7c1072cd91ba781c6f2beb74723bfd861d11f3a88c46c4bd",
+      "plan_reason": "approval_declined: the native decision was revise",
+      "plan_cost": 3.4692e-05,
+      "turn_cost": 0.003073,
+      "sources": []
+    }
+  ],
+  "native_judge": "harness.jev_policy.evaluate_research_plan (keyed policy, settings jev_model=jev-latest)"
+}

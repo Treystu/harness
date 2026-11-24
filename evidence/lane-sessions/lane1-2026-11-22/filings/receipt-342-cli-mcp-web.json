@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "b45918957855f1031091c0c5d52676915e7e550b0f06fa3c7774b54d1b578869"
+  },
+  "product_jev": {
+    "verdict": "escalate",
+    "disposition": "proceed",
+    "supported": 0.07,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": ".filing-342-cli-mcp.md",
+    "site": "342-cli-mcp-web"
+  }
+}
