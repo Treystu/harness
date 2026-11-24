@@ -341,6 +341,67 @@ class FreebuffWatchTests(unittest.TestCase):
         parsed_agy = watch.parse_dynamic_dispatch(agy_comment, now=now)
         self.assertEqual(parsed_agy["kind"], "antigravity-park")
 
+    def test_parse_dynamic_dispatch_accepts_the_oversight_action_requested_wording(self):
+        """The L1-STOP dispatch 7119751841 says "Action requested", not
+        "Action for the runner:"; refusing it made the reserved test launch
+        unclaimable while the watch kept heartbeating "no unclaimed dispatches"."""
+        now = datetime(2026, 11, 24, 4, 20, tzinfo=timezone.utc)
+        comment = {
+            "id": 7119751841,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T02:05:55Z",
+            "body": (
+                "RESTART DISPATCH — episode L1-STOP-939 (from harness oversight tick 939)\n"
+                "\n"
+                "Lane: Lane 1 (combined prepare+gate+land lane, DeepSeek V4.1 Flash Slow, "
+                "thread 315608d2).\n"
+                "\n"
+                "Action requested (runner alone, per the 2026-11-22 cutover): in-place "
+                'restart only — exactly "continue in full".'
+            ),
+        }
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], watch.THREAD)
+        self.assertEqual(parsed["text"], watch.CONTINUATION)
+
+        prose = dict(comment, body=(
+            "RESTART DISPATCH — not an instruction\n"
+            "Lane: Lane 1\n"
+            'The owner already said action requested "continue in full" elsewhere.'))
+        self.assertIsNone(watch.parse_dynamic_dispatch(prose, now=now))
+
+    def test_filed_on_issue_skips_a_dispatch_another_channel_already_executed(self):
+        comments = [
+            {"id": 7117989632, "body": "RESTART DISPATCH — SCMessenger"},
+            {"id": 7119856718,
+             "body": "Vision restart ack #7117989632: `2ae32937`, receipt dyn-7117989632-2ae32937."},
+        ]
+        self.assertTrue(watch.filed_on_issue(comments, 7117989632))
+        self.assertFalse(watch.filed_on_issue(comments, 7119751841))
+
+    def test_poll_dynamic_dispatches_skips_an_already_acked_restart(self):
+        now = datetime(2026, 11, 24, 4, 20, tzinfo=timezone.utc)
+        comments = [
+            {"id": 990010, "user": {"id": watch.OWNER_ID},
+             "created_at": "2026-11-24T02:00:00Z",
+             "body": "RESTART DISPATCH\nLane: SCMessenger\nAction requested: \"continue in full\""},
+            {"id": 990011, "user": {"id": watch.OWNER_ID},
+             "created_at": "2026-11-24T02:10:00Z",
+             "body": "Vision restart ack #990010: `2ae32937`, receipt dyn-990010-2ae32937."},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            execute = Mock(return_value=0)
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=comments), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "checkpoint", Mock()), \
+                 patch.object(watch, "issue_comment", Mock()), \
+                 patch.object(watch, "execute", execute):
+                self.assertFalse(watch.poll_dynamic_dispatches(set(), now=now))
+            execute.assert_not_called()
+
     def test_poll_dynamic_dispatches_executes_unclaimed_restart_and_parks_antigravity(self):
         now = datetime(2026, 11, 24, 1, 0, tzinfo=timezone.utc)
         comments = [

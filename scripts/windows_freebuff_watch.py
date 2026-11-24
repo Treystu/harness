@@ -208,6 +208,26 @@ def _lane_thread_from_dispatch(body):
     return None
 
 
+RUNNER_ACTION = re.compile(r"^Action\s+(?:for\s+the\s+runner|requested)\b", re.I | re.M)
+
+
+def filed_on_issue(comments, dispatch_id):
+    """Has this dispatch already been acked or resulted on the issue?
+
+    Dispatches are executed by more than one channel (the runner alone under the
+    cutover, and the web seat inside its own turn boundary). A restart that was
+    already executed therefore has no local claim checkpoint, so the durable
+    GitHub receipt is the only evidence that the at-most-once rule is intact.
+    Widening the accepted wording without this check would re-run an older,
+    already-executed restart - measured on #684: the SCMessenger restart
+    7117989632 was acked at 7119856718 and its leg was later ruled closed.
+    """
+    pattern = re.compile(
+        rf"Vision (?:restart )?(?:ack|result) #{dispatch_id}\b|#{dispatch_id}\b[^\n]*ack",
+        re.I)
+    return any(pattern.search(comment.get("body") or "") for comment in comments)
+
+
 def parse_dynamic_dispatch(comment, now=None):
     """Validate an owner-filed VISION-DISPATCH or RESTART DISPATCH comment under cutover bounds."""
     if not owner(comment):
@@ -232,7 +252,11 @@ def parse_dynamic_dispatch(comment, now=None):
             "text": mission["text"],
             "digest": digest,
         }
-    if not (body.startswith("RESTART DISPATCH") and "Action for the runner:" in body):
+    # The oversight files the instruction line as either "Action for the runner:"
+    # (early dispatches) or "Action requested (runner alone, ...)" (the L1-STOP
+    # episode and later). Both are the same bounded restart; anything else is not
+    # an instruction and is never claimed.
+    if not (body.startswith("RESTART DISPATCH") and RUNNER_ACTION.search(body)):
         return None
     if f'"{CONTINUATION}"' not in body and f"'{CONTINUATION}'" not in body:
         return None
@@ -283,6 +307,10 @@ def poll_dynamic_dispatches(known, *, now=None):
         item = f"dyn-{cid}-{thread}"
         claim = f"claim-{item}.json"
         if claim in known:
+            continue
+        if parsed["kind"] == "restart" and filed_on_issue(comments, cid):
+            # Already executed through another channel: claim nothing, send
+            # nothing, and file no duplicate verdict.
             continue
         guard_approval()
         if parsed["kind"] == "antigravity-park":
