@@ -256,7 +256,25 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
     return True
 
 
+BYSTANDER_IDLE = "no live turn"
+
+
+def bystander_needs_pair(value):
+    """Only a live observation is paired; an idle or failed one is not."""
+    return value is True
+
+
 def observe_bystander(output, audit, phase):
+    """Observe the separate lane, telling an idle lane apart from a failed read.
+
+    Measured 2026-11-24 on dispatch 7125497229 (an SCMessenger boundary restart):
+    the precheck demanded Lane 1's Stop square and refused with "the separate
+    Lane 1 Stop square is absent" thirteen times running, so the dispatch never
+    reached its own phases. Lane 1 was idle, which is why the square could not be
+    there - and an idle lane has no live turn for this dispatch to disturb, so
+    the observation it guards is not applicable rather than failed. Any other
+    failure still parks: a lane that will not render is not evidence of safety.
+    """
     folder = output / f"t5-{phase}"
     folder.mkdir()
     try:
@@ -265,6 +283,10 @@ def observe_bystander(output, audit, phase):
     except UncertainDriverExit:
         raise
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+        if "Stop square is absent" in str(error):
+            audit.append("verification", step_id=f"t5-{phase}-idle", target=THREAD,
+                         state=BYSTANDER_IDLE, detail=str(error))
+            return BYSTANDER_IDLE
         audit.append("escalation", step_id=f"t5-{phase}", reason=str(error), target=THREAD)
         return False
 
@@ -308,7 +330,7 @@ def execute(output, number, mission, digest, bystanders):
                 folder.mkdir()
                 if not run_phases(folder, fallback, audit):
                     raise RuntimeError("both authorized sessions are already running")
-        if t5_before:
+        if bystander_needs_pair(t5_before):
             paired = observe_bystander(output, audit, "after")
             audit.append("verification", step_id="t5-pair", target=THREAD, passed=paired)
     except UncertainDriverExit as error:

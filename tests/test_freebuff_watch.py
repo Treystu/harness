@@ -141,6 +141,41 @@ class _SingleUseSurface(_Surface):
         return super().locate_exact_text(step, frame, label, region, **_kwargs)
 
 
+def _bystander_dir():
+    """A real folder for observe_bystander, which makes its own phase subfolder."""
+    return Path(tempfile.mkdtemp(prefix="t5-"))
+
+
+class BystanderIdleTests(unittest.TestCase):
+    """Dispatch 7125497229: an idle bystander lane was read as a failed one."""
+
+    def _audit(self):
+        audit = Mock()
+        audit.append = Mock()
+        return audit
+
+    def test_an_idle_lane_is_idle_not_a_failure(self):
+        audit = self._audit()
+        error = RuntimeError("observe-running: the separate Lane 1 Stop square is absent")
+        with patch.object(runner, "run_phases", side_effect=error), \
+                patch.object(runner.Path, "mkdir"):
+            outcome = runner.observe_bystander(_bystander_dir(), audit, "before")
+        self.assertEqual(outcome, runner.BYSTANDER_IDLE)
+        steps = [c.kwargs.get("step_id") for c in audit.append.call_args_list]
+        self.assertIn("t5-before-idle", steps)
+
+    def test_any_other_failure_still_parks(self):
+        audit = self._audit()
+        with patch.object(runner, "run_phases", side_effect=RuntimeError("capture failed")), \
+                patch.object(runner.Path, "mkdir"):
+            self.assertFalse(runner.observe_bystander(_bystander_dir(), audit, "before"))
+
+    def test_only_a_live_observation_is_paired(self):
+        self.assertTrue(runner.bystander_needs_pair(True))
+        self.assertFalse(runner.bystander_needs_pair(runner.BYSTANDER_IDLE))
+        self.assertFalse(runner.bystander_needs_pair(False))
+
+
 class ResumeStartCompositionTests(unittest.TestCase):
     """R7: Resume staging then Start firing is ONE bounded driver action.
 
