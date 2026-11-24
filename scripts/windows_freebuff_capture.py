@@ -11,6 +11,7 @@ from time import monotonic
 
 from driver_core import osal
 from driver_core.audit import AuditLog
+from driver_core.errors import OsalError
 from driver_core.observation import GUI, Target
 
 from .windows_notepad_window import WindowsWindowScreen
@@ -61,7 +62,15 @@ class FreeBuffWindow:
         matches = []
         for hwnd in self._visible():
             if self.pid(hwnd) in pids:
-                title = self.api.title_of(hwnd)
+                try:
+                    title = self.api.title_of(hwnd)
+                except OsalError:
+                    # The application recycles its top-level handles, so a
+                    # window can close between the visibility check and the
+                    # title read (measured: Win32 1400 mid-enumeration). A
+                    # vanished handle is not a FreeBuff window; the settle
+                    # loop re-enumerates.
+                    continue
                 if title and title.startswith(OWNER_NAME):
                     matches.append((hwnd, title))
         return matches
@@ -96,7 +105,8 @@ class FreeBuffWindow:
 
     def require_window(self):
         """Re-resolve the window and refuse if ownership or visibility changed."""
-        if self.pid(self.handle) != self.process:
+        if (not self.api._user32.IsWindow(self.handle)
+                or self.pid(self.handle) != self.process):
             self.handle, self.title = self.discover()
             self.process = self.pid(self.handle)
         elif not self.api._user32.IsWindowVisible(self.handle):
