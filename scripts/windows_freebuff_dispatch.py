@@ -927,20 +927,66 @@ class Dispatch:
                                "size": list(frame.size)})
         return row
 
+    def selection_band(self, gray, x, y, *, above=40, below=30, run=8, floor=38, contrast=12):
+        """Does a selection band cover this row, read from the band's own fill?
+
+        Measured 2026-11-24 on claim 7124952240: the app paints a uniform
+        brighter fill (47 against a 24 background) across the selected row, and
+        the old probe compared one pixel eight rows below the OCR baseline with
+        one twenty-six above it. The band sat a few pixels off that assumption,
+        so a visibly selected Lane 1 (archived frame, 47/47/47 across the band)
+        read as no selection at all and prepare parked on identity.
+
+        The band is read where only the fill exists - the row's left padding,
+        left of the first glyph - as a vertical run of bright pixels. Glyph
+        strokes cannot produce the run, so an unselected row stays dark there.
+        """
+        if x < 0 or x >= gray.width:
+            return False
+        column = [(row, gray.getpixel((x, row))) for row in range(max(0, y - above),
+                                                                 min(gray.height, y + below))]
+        if not column:
+            return None
+        values = [value for _, value in column]
+        if max(values) < floor or max(values) - min(values) < contrast:
+            return None
+        longest = current = 0
+        start = best_start = None
+        for row, value in column:
+            if value >= floor:
+                current += 1
+                if start is None:
+                    start = row
+                if current > longest:
+                    longest, best_start = current, start
+            else:
+                current, start = 0, None
+        if longest < run or best_start is None:
+            return None
+        return best_start + longest / 2
+
     def highlighted_row(self, frame, rows):
+        """The row whose own text the selection band is centred on.
+
+        The band's centre is measured, not assumed: OCR row geometry can be a
+        text top, a baseline or a centre, and the earlier fixed-offset probe
+        read a visibly selected row as unselected for exactly that reason. Two of
+        three sample columns must agree, and the band has to sit within about
+        half a row of the row's own baseline.
+        """
         gray = frame.convert("L")
         best = None
         for row in rows:
             x0, y0 = round(row["x"]), round(row["y"])
-            scores = 0
-            for offset in COUNTS:
-                x, y = x0 + offset, y0 + 8
-                if x >= gray.width or y - 26 < 0:
-                    continue
-                if gray.getpixel((x, y)) - gray.getpixel((x, y - 26)) >= 8:
-                    scores += 1
-            if scores >= 3 and (best is None or scores > best[0]):
-                best = (scores, row)
+            centres = [centre for centre in
+                       (self.selection_band(gray, x0 - gap, y0) for gap in (6, 10, 14))
+                       if centre is not None]
+            close = [centre for centre in centres if abs(centre - y0) <= 18]
+            if len(close) < 2:
+                continue
+            distance = min(abs(centre - y0) for centre in close)
+            if best is None or distance < best[0]:
+                best = (distance, row)
         return best[1] if best else None
 
     @classmethod

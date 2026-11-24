@@ -460,6 +460,47 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         self.assertIn("narrow-walk", steps)
 
 
+class _BandFrame:
+    """A frame with a selection band painted over one row (measured 47 vs 24)."""
+
+    def __init__(self, band=None):
+        self.band = band
+        self.width = 1800
+        self.height = 1131
+
+    def convert(self, _mode):
+        return self
+
+    def getpixel(self, point):
+        x, y = point
+        if self.band and self.band[0] <= y <= self.band[1] and 88 <= x <= 390:
+            return 47
+        return 24
+
+
+class SelectionBandTests(unittest.TestCase):
+    """Claim 7124952240: the band was on screen at 47/24 and read as no selection,
+    because the old probe compared two pixels at a fixed offset from the OCR box."""
+
+    def test_the_band_over_a_row_is_found(self):
+        dispatch = object.__new__(Dispatch)
+        frame = _BandFrame(band=(480, 512))
+        row = dispatch.highlighted_row(frame, [{"text": "Lane 1", "x": 118, "y": 495, "x1": 300}])
+        self.assertEqual(row["text"], "Lane 1")
+
+    def test_a_row_outside_the_band_is_not_selected(self):
+        dispatch = object.__new__(Dispatch)
+        frame = _BandFrame(band=(480, 512))
+        self.assertIsNone(
+            dispatch.highlighted_row(frame, [{"text": "Lane 1", "x": 118, "y": 620, "x1": 300}]))
+
+    def test_no_band_means_no_selected_row(self):
+        dispatch = object.__new__(Dispatch)
+        frame = _BandFrame(band=None)
+        self.assertIsNone(
+            dispatch.highlighted_row(frame, [{"text": "Lane 1", "x": 118, "y": 495, "x1": 300}]))
+
+
 class RevealLaneRowTests(unittest.TestCase):
     """Claim 7124457637 opened the lane, then prepare refused identity because
     the walk had left the list scrolled away from the row."""
