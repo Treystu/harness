@@ -130,7 +130,16 @@ class AutoEditLifecycleMixin:
             auto_apply = True
 
         prior_plan = None
-        if past_turns and is_exec_directive:
+        # #707: the CURRENT prompt's scope is triaged first. This used to run
+        # only after a past turn's target_files had already been adopted, so an
+        # operator who pasted a new path in an execution directive kept editing
+        # the previous plan's file on every iteration of the edit loop. A past
+        # plan is a fallback for a directive that names no target of its own,
+        # never an override of a path the operator just supplied.
+        if not target_files:
+            target_files = self._triage_scope(prompt)
+
+        if past_turns and is_exec_directive and not target_files:
             for turn in reversed(past_turns):
                 if isinstance(turn, dict):
                     if turn.get("dag") and turn.get("target_files"):
@@ -141,9 +150,6 @@ class AutoEditLifecycleMixin:
                         prior_plan = turn
                         target_files = list(turn["target_files"])
                         break
-
-        if not target_files:
-            target_files = self._triage_scope(prompt)
 
         if past_turns and not target_files:
             for turn in reversed(past_turns):
