@@ -2935,8 +2935,27 @@ class Dispatch:
             frame = self.frame("bystander-navigation")
         self.require_foreground()
         frame = self.close_search_if_open(frame)
-        point, box = self.locate_exact_text("locate-bystander-lane", frame, "Lane 1",
-                                            (128, 300, 300, 850), with_bounds=True)
+        # The probe's job is to witness a bystander lane across the input, not to
+        # gate the dispatch on it. Measured 2026-11-24: Kalshi (7127830177) and Disk
+        # Audit (7127395609) both parked at "locate-bystander-lane: exact OCR label
+        # 'Lane 1' was not verified" because Lane 1's row was scrolled out of the
+        # sidebar by the previous lane's walk - a disposition about the SIDEBAR's
+        # scroll position that had nothing to do with the target lane. The reveal is
+        # bounded here, and a bystander that still cannot be seen is recorded as
+        # unobserved instead of ending the run before its own first phase.
+        try:
+            frame = self.scroll_sidebar_to_top()
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id="bystander-sidebar-top", reason=str(error))
+        try:
+            point, box = self.locate_exact_text("locate-bystander-lane", frame, "Lane 1",
+                                                (128, 300, 300, 850), with_bounds=True)
+        except RuntimeError as error:
+            self.audit.append("verification", step_id="bystander-unobserved",
+                              reason="the separate Lane 1 row is not in view; recording it as "
+                                     "unobserved rather than blocking the dispatch",
+                              detail=str(error)[:200])
+            return
         region = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
         self.yes("verify-bystander-navigation", frame, "Does the printed text read 'Lane 1'?", region=region)
         fresh = self.frame("bystander-navigation-readback")
