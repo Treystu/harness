@@ -808,6 +808,45 @@ class FreebuffWatchTests(unittest.TestCase):
         self.assertEqual(parsed["kind"], "restart")
         self.assertEqual(parsed["thread"], watch.THREAD)
 
+    def test_parse_dynamic_dispatch_accepts_a_burn_window_inline_action(self):
+        """All six 08:51Z burn rows wrote Action: mid-paragraph.
+
+        Measured 2026-11-25: the banner matched and the lane resolved for each,
+        and only the line-start rule refused the instruction; every scan listed
+        them as not claimable until the 09:29Z restart set superseded them.
+        """
+        now = datetime(2026, 11, 25, 9, 40, tzinfo=timezone.utc)
+        comment = {
+            "id": 7157548700,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T08:50:59Z",
+            "body": (
+                "BURN WINDOW DISPATCH - BigEnergyCo launch. Owner order (Lucas).\n"
+                "Lane: BigEnergyCo (LOCAL project - session titled 'BigEnergyCo Full Burndown').\n"
+                "State: staged since 12:03 HST with its /mission carrier. Action: re-read "
+                "session state before acting; restart in place (Resume -> Start on "
+                "the staged carrier).\n"
+            ),
+        }
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["mode"], "staged-resume")
+        self.assertEqual(parsed["thread"], "0d7e2f37")
+
+    def test_inline_action_is_refused_outside_a_burn_window_banner(self):
+        now = datetime(2026, 11, 25, 9, 40, tzinfo=timezone.utc)
+        comment = {
+            "id": 7157548701,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T08:50:59Z",
+            "body": (
+                "RESTART DISPATCH - BigEnergyCo.\n"
+                "Lane: BigEnergyCo\n"
+                "State: staged. Action: restart in place (Resume -> Start on the staged carrier).\n"
+            ),
+        }
+        self.assertIsNone(watch.parse_dynamic_dispatch(comment, now=now))
+
     def test_a_lane_cancelled_at_the_control_surface_is_never_claimed(self):
         """Measured 2026-11-25 01:28Z: the control file carried
         cancelled_lanes=[\"315608d2\"] while Lane 1 restarts stayed claimable."""

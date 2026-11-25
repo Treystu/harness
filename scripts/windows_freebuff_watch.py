@@ -711,6 +711,18 @@ DISPATCH_BANNER = re.compile(
 )
 
 
+# Burn-window dispatches write the instruction mid-paragraph ("... State: staged
+# since 12:03 HST with its /mission carrier ... Action: re-read session state
+# <=60s before acting; restart in place (Resume -> Start on the staged carrier)").
+# Measured 2026-11-25: all six 08:51Z burn rows matched the banner and resolved
+# to a lane, and failed only this line-start rule, so they sat in every
+# heartbeat's "not claimable" list for three hours while oversight read the
+# 2-minute tick cadence as the delay. The widening is burn-window only: a
+# mid-paragraph "Action:" in any other banner is still not an instruction.
+BURN_WINDOW_BANNER = re.compile("^" + _MD_PREFIX + r"BURN\s+WINDOW\s+DISPATCH\b", re.I)
+BURN_INLINE_ACTION = re.compile(r"(?:^|\s)Action\*{0,2}:\s*\S", re.I)
+
+
 def restart_dispatch(body):
     """Is this comment a restart dispatch, whatever banner the oversight used?
 
@@ -810,7 +822,10 @@ def parse_dynamic_dispatch(comment, now=None):
     # episode), or "Runner action requested:" (episode L1-STOP-1014 and the
     # SCMessenger restart). All three are the same bounded restart; anything
     # else is not an instruction and is never claimed.
-    if not (restart_dispatch(body) and RUNNER_ACTION.search(body)):
+    instruction = RUNNER_ACTION.search(body)
+    if not instruction and BURN_WINDOW_BANNER.match(body):
+        instruction = BURN_INLINE_ACTION.search(body)
+    if not (restart_dispatch(body) and instruction):
         return None
     # The instruction may be wrapped mid-quote: 7122154514 writes
     # '"continue in\nfull"'. Compare the flattened text so the required words
