@@ -30,6 +30,31 @@ from .validation import finite_number
 
 CONFIG_DIR = get_config_dir()
 
+#: #655: the harness UI service owns exactly one loopback port, and this is the
+#: one place that number lives. ``harness serve``, ``harness desktop`` (the same
+#: server behind a native window) and ``doctor --gui-port`` all read
+#: :func:`ui_port`, so the surfaces cannot drift apart again. The media service
+#: keeps its own independent default (``127.0.0.1:8765``, ``MEDIA_BASE_URL``)
+#: on purpose: `#566` separated the two so UI and media can run together.
+DEFAULT_UI_PORT = 8767
+
+
+def ui_port():
+    """Return the loopback port the harness UI service binds.
+
+    ``HARNESS_UI_PORT`` configures it once for every entrypoint. A malformed or
+    out-of-range value falls back to :data:`DEFAULT_UI_PORT` rather than binding
+    a port the operator did not ask for.
+    """
+    raw = os.environ.get("HARNESS_UI_PORT")
+    if not raw:
+        return DEFAULT_UI_PORT
+    try:
+        port = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_UI_PORT
+    return port if 0 < port < 65536 else DEFAULT_UI_PORT
+
 # OpenRouter endpoints
 OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key"

@@ -45,7 +45,7 @@ from .request_intent import classify_prompt_intent
 import harness.history as _history
 from .batch import BatchOptions
 from .config import (HARD_MAX_COST, HARD_TASK_MAX_COST, load_settings,
-                     resolve_api_key, update_config)
+                     resolve_api_key, ui_port, update_config)
 from .errors import HarnessError, ToolCancelled
 from .jev_policy import flush_all_fallbacks
 from . import osal
@@ -2702,7 +2702,7 @@ _DEFAULT_AUTH_TOKEN = object()
 _DEFAULT_OWNER_TOKEN = object()
 
 
-def make_server(host="127.0.0.1", port=8767,
+def make_server(host="127.0.0.1", port=None,
                 auth_token=_DEFAULT_AUTH_TOKEN,
                 owner_token=_DEFAULT_OWNER_TOKEN, log_path=None,
                 history_dir=None, backend_probe=None,
@@ -2721,6 +2721,9 @@ def make_server(host="127.0.0.1", port=8767,
         auth_token = secrets.token_urlsafe(24)
     if owner_token is _DEFAULT_OWNER_TOKEN:
         owner_token = auth_token
+    # #655: one default, owned by harness.config.ui_port.
+    if port is None:
+        port = ui_port()
     ui = UiState(auth_token=auth_token, owner_token=owner_token,
                  history_dir=history_dir)
     # #419: the backend question is asked through a probe seam -- injected by
@@ -2749,7 +2752,9 @@ def main(argv=None):
         description="Local web UI + JSON API over the harness core (loopback).")
     ap.add_argument("--host", default="127.0.0.1",
                     help="bind address (default and recommended: 127.0.0.1)")
-    ap.add_argument("--port", type=int, default=8767)
+    ap.add_argument("--port", type=int, default=ui_port(),
+                    help="loopback UI port (default: %(default)s; "
+                         "HARNESS_UI_PORT sets it for every entrypoint)")
     ap.add_argument("--auth-token", default=os.environ.get("HARNESS_UI_AUTH_TOKEN"),
                     help="add a session token; the persistent owner shortcut remains valid")
     ap.add_argument("--open", action="store_true",
