@@ -123,6 +123,9 @@ cli.py / mcp.py          interfaces (arg parsing, JSON-RPC; boundary
     `harness/laptop_driver_ctl.py` laptop-resident Driver Watch control,
                                 status inspection, and start/stop/pause/resume
                                 boundary (delegates process calls to osal.py)
+    `harness/loopback.py`       loopback port contract and env-override
+                                validation (`serve_port=8767`, `media_port=8765`;
+                                shared by server, ui, cli_parser, doctor, media_client)
 ```
 
 - **One owner per concern.** Cost policy lives only in `spend.py`; model
@@ -357,6 +360,7 @@ cheap; losing either is not.
 | `harness/mcp_log.py` | file-only JSON-lines MCP tool-call log: one object per call, credential families scrubbed before serialization, and no write at all when no path is configured (the stdio transport owns stdout/stderr) |
 | `harness/queue_bus.py` | the per-repo work queue and the laptop watcher that drains it: the one owner of the item state machine `queued -> claimed -> running -> checkpointed -> done\|blocked\|parked`, an append-only event per move, ownership binding every move after the claim, a finished item that is never replayed, and supervised launches that refuse to claim without per-run authorization. Local state only -- `harness queue` intercepts before settings load, so a watcher runs with no provider key |
 | `harness/doctor.py` | `harness doctor`: bounded environment checks for interpreter, provider readiness, local services, ledger and MCP stdio; reports safe metadata and one-line fixes |
+| `harness/loopback.py` | #655 single loopback-port owner: `serve_port()` (`8767`, `HARNESS_PORT`) and `media_port()` (`8765`, `HARNESS_MEDIA_PORT`) with range validation, keeping UI/API and sovereign-media off the same default port |
 | `harness/server.py` | `harness serve`: localhost web UI + JSON API -- the third face; dispatch calls the same engine entry points, no new policy |
 | `harness/serve_log.py` | the one owner of the serve request log on disk: process-opened path, a startup marker naming pid/port/path before any request line (so a stale file cannot pass for the live process), UTC-stamped already-redacted lines, and a flush per line; `make_server` stays file-free without a path |
 | `harness/render.py` | the ONE human-facing pretty-printer: TTY tables of result envelopes on stderr; read-only, machine JSON stays the stdout contract |
