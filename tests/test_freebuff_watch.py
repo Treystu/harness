@@ -1,6 +1,7 @@
 """Tests for the FreeBuff watch, runner, and SCM project census."""
 
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -353,7 +354,7 @@ class FreebuffWatchTests(unittest.TestCase):
             watch.main()
 
         self.assertEqual(write.call_args.args[0], f"parked-{watch.CENSUS}.json")
-        run.assert_called_once_with(receipts, known)
+        run.assert_called_once_with(receipts, known, ())
 
     def test_owner_pause_preempts_any_admission(self):
         write = Mock()
@@ -779,6 +780,33 @@ class FreebuffWatchTests(unittest.TestCase):
         parsed = watch.parse_dynamic_dispatch(comment, now=now)
         self.assertEqual(parsed["kind"], "restart")
         self.assertEqual(parsed["thread"], watch.THREAD)
+
+    def test_a_lane_cancelled_at_the_control_surface_is_never_claimed(self):
+        """Measured 2026-11-25 01:28Z: the control file carried
+        cancelled_lanes=[\"315608d2\"] while Lane 1 restarts stayed claimable."""
+        now = datetime(2026, 11, 25, 1, 30, tzinfo=timezone.utc)
+        comment = {
+            "id": 7145072019, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T21:32:47Z",
+            "body": ("RESTART DISPATCH — Lane 1, episode L1-STOP-1014\n"
+                     'Runner action requested: restart with "continue in full".\n'),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            execute = Mock()
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=[comment]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "execute", execute):
+                self.assertFalse(watch.poll_dynamic_dispatches(
+                    set(), now=now, cancelled=(watch.THREAD,)))
+            execute.assert_not_called()
+        # The control surface is where the operator writes that list, and the
+        # watch reads it once per tick rather than inside the claim scan.
+        path = Path(tempfile.mkdtemp()) / "control.json"
+        path.write_text(json.dumps({"paused": False,
+                                    "cancelled_lanes": [watch.THREAD]}), encoding="utf-8")
+        with patch.dict("os.environ", {"HARNESS_DRIVER_CONTROL_FILE": str(path)}):
+            self.assertEqual(watch.local_control_state()["cancelled_lanes"], (watch.THREAD,))
 
     def test_a_cancelled_episode_is_closed_and_never_claimed(self):
         """The dispatch's own bound is "execute only while episode X is OPEN";

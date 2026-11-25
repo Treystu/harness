@@ -122,14 +122,19 @@ def local_control_state():
     raw = os.environ.get("HARNESS_DRIVER_CONTROL_FILE", "").strip()
     path = Path(raw) if raw else DEFAULT_CONTROL_PATH
     if not path.is_file():
-        return {"enabled": True, "paused": False, "path": str(path)}
+        return {"enabled": True, "paused": False, "cancelled_lanes": (), "path": str(path)}
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
-        return {"enabled": False, "paused": True, "path": str(path), "reason": "unreadable-control-file"}
+        return {"enabled": False, "paused": True, "cancelled_lanes": (), "path": str(path),
+                "reason": "unreadable-control-file"}
+    lanes = data.get("cancelled_lanes") or ()
+    if not isinstance(lanes, (list, tuple)):
+        lanes = ()
     return {
         "enabled": bool(data.get("enabled", True)),
         "paused": bool(data.get("paused", False)),
+        "cancelled_lanes": tuple(str(lane) for lane in lanes),
         "path": str(path),
     }
 
@@ -390,7 +395,7 @@ def parse_dynamic_dispatch(comment, now=None):
     }
 
 
-def poll_dynamic_dispatches(known, *, now=None, unclaimed=None):
+def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
     """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item.
 
     ``unclaimed`` is an optional sink: a dispatch-shaped owner comment that the
@@ -435,6 +440,12 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None):
             continue
         if parsed["kind"] == "restart" and episode_closed(comments, comment, parsed):
             # The oversight cancelled this episode by name: no input for it.
+            continue
+        if parsed["kind"] == "restart" and parsed["thread"] in cancelled:
+            # The operator cancelled this lane at the control surface; a restart
+            # for it is closed until that entry is removed. Measured 2026-11-25:
+            # control.json carried cancelled_lanes=["315608d2"] while the watch
+            # still treated Lane 1 restarts as claimable.
             continue
         thread = parsed["thread"]
         item = f"dyn-{cid}-{thread}"
@@ -483,12 +494,12 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None):
     return False
 
 
-def run_burn(receipts, known):
+def run_burn(receipts, known, cancelled=()):
     source = receipts[BURN_QUEUE]
     end = datetime.fromisoformat(source["created_at"]) + timedelta(hours=3)
     if datetime.now(timezone.utc) >= end:
         unclaimed = []
-        if poll_dynamic_dispatches(known, unclaimed=unclaimed):
+        if poll_dynamic_dispatches(known, unclaimed=unclaimed, cancelled=cancelled):
             return
         if unclaimed:
             heartbeat(known, "dynamic oversight dispatch active; dispatch(es) present but "
@@ -911,7 +922,7 @@ def main():
     os.environ["HARNESS_VISION_HEAD"] = head
     if run_restoration(receipts, known):
         return
-    run_burn(receipts, known)
+    run_burn(receipts, known, control.get("cancelled_lanes", ()))
 
 
 if __name__ == "__main__":
