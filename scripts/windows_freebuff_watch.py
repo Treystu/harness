@@ -377,6 +377,18 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None):
             break
         page += 1
     comments.sort(key=lambda item: item.get("id", 0))
+    # Episode supersession: only the newest parsed restart per lane is claimable.
+    # Measured 2026-11-25 01:06Z, after the wording cure went live: the scan takes
+    # the oldest unclaimed id first, so it claimed 7129310215 (episode L1-STOP-974,
+    # filed 10:50Z, superseded fourteen hours later) instead of the pending
+    # L1-STOP-1014. Every dispatch says "execute only while this episode is still
+    # OPEN"; this is that condition in code, from GitHub evidence alone.
+    newest_restart = {}
+    for comment in comments:
+        parsed = parse_dynamic_dispatch(comment, now=now)
+        if parsed and parsed["kind"] == "restart":
+            lane = parsed["thread"]
+            newest_restart[lane] = max(newest_restart.get(lane, 0), parsed["comment_id"])
     state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
     for comment in comments:
         parsed = parse_dynamic_dispatch(comment, now=now)
@@ -386,6 +398,10 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None):
                 unclaimed.append(comment.get("id"))
             continue
         cid = parsed["comment_id"]
+        if parsed["kind"] == "restart" and newest_restart.get(parsed["thread"]) != cid:
+            # A later restart for this lane exists: this episode is closed and
+            # nothing is sent for it. The later dispatch is the one that speaks.
+            continue
         thread = parsed["thread"]
         item = f"dyn-{cid}-{thread}"
         claim = f"claim-{item}.json"

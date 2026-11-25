@@ -761,6 +761,36 @@ class FreebuffWatchTests(unittest.TestCase):
         }
         self.assertIsNone(watch.parse_dynamic_dispatch(comment, now=now))
 
+    def test_a_superseded_restart_is_never_claimed_after_a_newer_one(self):
+        """Measured 2026-11-25 01:06Z: with the wording cure live, the oldest
+        unclaimed id won and the watch executed 7129310215 (L1-STOP-974, filed
+        10:50Z) although episode L1-STOP-1014 was the open one. Supersession is
+        the episode check the dispatches themselves state."""
+        now = datetime(2026, 11, 24, 23, 0, tzinfo=timezone.utc)
+        older = {
+            "id": 7129310215, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T10:50:17Z",
+            "body": ("RESTART DISPATCH — Lane 1, episode L1-STOP-974\n"
+                     'Action for the runner: restart with "continue in full".\n'),
+        }
+        newer = dict(older, id=7145072019, created_at="2026-11-24T21:32:47Z",
+                     body=("RESTART DISPATCH — Lane 1, episode L1-STOP-1014\n"
+                           'Runner action requested: restart with "continue in full".\n'))
+        with tempfile.TemporaryDirectory() as tmp:
+            write = Mock()
+            execute = Mock(return_value=0)
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=[older, newer]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "checkpoint", write), \
+                 patch.object(watch, "issue_comment", Mock()), \
+                 patch.object(watch, "execute", execute):
+                self.assertTrue(watch.poll_dynamic_dispatches(set(), now=now))
+            self.assertEqual(write.call_args_list[0].args[0],
+                             "claim-dyn-7145072019-315608d2.json")
+            self.assertEqual(execute.call_args.args[2]["dispatch"], 7145072019)
+
     def test_poll_reports_a_dispatch_it_cannot_parse_instead_of_nothing_to_claim(self):
         now = datetime(2026, 11, 24, 23, 0, tzinfo=timezone.utc)
         comments = [{
