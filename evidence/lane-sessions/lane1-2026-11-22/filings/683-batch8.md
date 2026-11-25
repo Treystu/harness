@@ -89,5 +89,7 @@ acceptance a fix must meet.
 
 ## Next for this issue
 
-Sub-issues for rows 86, 88 and 89, gated like #749-#785. Then the reviewed-PR
-queue (#649, #650, #651, #652, then #703) and the O1 efficiency package.
+Sub-issues for rows 86, 88 and 89, gated like #749-#785: #786 (row 86), #787
+(row 88), #788 (row 89). Rows 85 and 87 are covered by #783. Next: the
+reviewed-PR queue (#649, #650, #651, #652, then #703) and the O1 efficiency
+package.
