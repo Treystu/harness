@@ -73,12 +73,16 @@ def validate_receipts():
     return receipts
 
 
+def _comment_body(comment):
+    return (comment.get("body") or "").lstrip("\ufeff")
+
+
 def pause_requested():
     page = 1
     while True:
         comments = api(f"{ISSUE}?since={SINCE}&per_page=100&page={page}")
         for comment in comments:
-            lines = comment["body"].strip().splitlines()
+            lines = _comment_body(comment).strip().splitlines()
             if owner(comment) and lines and lines[0].strip() in {"PAUSE", "VISION-DISPATCH PAUSE"}:
                 return comment["id"]
         if len(comments) < 100:
@@ -419,7 +423,7 @@ def _lane_thread_from_dispatch(body):
         text = lane_line.group(1).casefold()
     else:
         banner = next(
-            (re.sub(r"^[#>*\-\s]+|\*{2}", "", line).strip()
+            (re.sub(r"^[\ufeff#>*\-\s]+|\*{2}", "", line).strip()
              for line in body.splitlines() if line.strip()),
             "",
         )
@@ -430,7 +434,7 @@ def _lane_thread_from_dispatch(body):
     return None
 
 
-_MD_PREFIX = r"(?:[ \t]+|[#*>-]+[ \t]+)*\*{0,2}"
+_MD_PREFIX = r"\ufeff?(?:[ \t]+|[#*>-]+[ \t]+)*\*{0,2}"
 # Measured 2026-11-25T04:30Z: dispatch 7151203687 (Lane 1, L1-STOP-1035) writes
 # its instruction as "Runner: in-place restart only - exactly \"continue in
 # full\"", which none of the Action forms matched, so the dispatch that the
@@ -475,7 +479,7 @@ def restart_dispatch(body):
     if not DISPATCH_BANNER.match(body):
         return False
     first = next(
-        (re.sub(r"^[#>*\-\s]+|\*{2}", "", line).strip()
+        (re.sub(r"^[\ufeff#>*\-\s]+|\*{2}", "", line).strip()
          for line in body.splitlines() if line.strip()),
         "",
     )
@@ -496,13 +500,13 @@ def episode_closed(comments, comment, parsed):
     names only the lane does not: 7144433519 cancelled L1-STOP-1010 by name, not
     every later Lane 1 episode.
     """
-    body = comment.get("body") or ""
+    body = _comment_body(comment)
     match = EPISODE.search(body)
     episode = match.group(1).casefold() if match else None
     for other in comments:
         if other.get("id", 0) <= parsed["comment_id"] or not owner(other):
             continue
-        text = other.get("body") or ""
+        text = _comment_body(other)
         if not CANCELLATION.search(text):
             continue
         if str(parsed["comment_id"]) in text:
@@ -537,7 +541,7 @@ def parse_dynamic_dispatch(comment, now=None):
     if cid in RECEIPTS or cid == 7091945084:
         return None
     now = now or datetime.now(timezone.utc)
-    body = (comment.get("body") or "").strip()
+    body = _comment_body(comment).strip()
     if not body:
         return None
     try:
@@ -620,10 +624,10 @@ def scan_dispatch_comments(now=None, known=()):
     # noise instead of a signal.
     unparsed = [comment.get("id") for comment in comments
                 if owner(comment) and comment.get("id") not in parsed
-                and DISPATCH_BANNER.match(comment.get("body") or "")
-                and (RUNNER_ACTION.search(comment.get("body") or "")
-                     or STEER_TEXT.search(comment.get("body") or "")
-                     or EPISODE.search(comment.get("body") or ""))]
+                and DISPATCH_BANNER.match(body := _comment_body(comment))
+                and (RUNNER_ACTION.search(body)
+                     or STEER_TEXT.search(body)
+                     or EPISODE.search(body))]
     evidence = {
         "scanned": len(comments),
         "owner": sum(1 for comment in comments if owner(comment)),
@@ -685,7 +689,7 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
     for comment in comments:
         parsed = parse_dynamic_dispatch(comment, now=now)
         if not parsed:
-            body = comment.get("body") or ""
+            body = _comment_body(comment)
             if unclaimed is not None and owner(comment) and DISPATCH_BANNER.match(body):
                 unclaimed.append(comment.get("id"))
             continue

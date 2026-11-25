@@ -1422,6 +1422,44 @@ class SelfRelianceAndComposerCureTests(unittest.TestCase):
         d.send(dispatch.SEND, {"thread": dispatch.SCM_THREAD, "text": dispatch.CONTINUATION})
         d.click.assert_called_once()
 
+    def test_utf8_bom_prefixed_dispatch_cancellation_and_pause_are_parsed(self):
+        now = datetime(2026, 11, 25, 7, 0, tzinfo=timezone.utc)
+        comment = {
+            "id": 7155240387,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T06:52:00Z",
+            "body": (
+                "\ufeff## RESTART DISPATCH — SCMessenger — Episode SCM-STOP-1912 — Clause 7(c) FIRST RE-ROUTE\n\n"
+                "**Lane:** SCMessenger (`2ae32937`).\n"
+                "**Episode:** SCM-STOP-1912 (RE-ROUTE 1).\n"
+                '**Action requested:** in-place restart only — exactly "continue in full".\n'
+            ),
+        }
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], dispatch.SCM_THREAD)
+        self.assertEqual(parsed["text"], dispatch.CONTINUATION)
+
+        cancel_bom = {
+            "id": 7155240999,
+            "user": {"id": watch.OWNER_ID},
+            "body": "\ufeffOVERSIGHT CANCELLATION — episode SCM-STOP-1912 cancelled.",
+        }
+        self.assertTrue(watch.episode_closed([comment, cancel_bom], comment, parsed))
+
+        with patch.object(watch, "api", return_value=[{"id": 7155999000, "user": {"id": watch.OWNER_ID}, "body": "\ufeffPAUSE"}]):
+            self.assertEqual(watch.pause_requested(), 7155999000)
+
+        with patch.object(runner, "api", side_effect=RuntimeError("unexpected blob read")):
+            self.assertIsNone(runner.approved({"id": 1, "user": {"id": watch.OWNER_ID}, "body": "\ufeffother"}, now))
+            with self.assertRaisesRegex(RuntimeError, "unexpected blob read"):
+                runner.approved({
+                    "id": 2,
+                    "user": {"id": watch.OWNER_ID},
+                    "body": "\ufeffVISION-DISPATCH dispatch/laptop-driver/inbox/a.json " + ("a" * 40),
+                }, now)
+
 
 if __name__ == "__main__":
     unittest.main()

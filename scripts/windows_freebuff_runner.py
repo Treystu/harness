@@ -59,7 +59,7 @@ def api(endpoint, *, method="GET", body=None):
 
 
 def approved(comment, now):
-    match = TRIGGER.fullmatch((comment.get("body") or "").strip())
+    match = TRIGGER.fullmatch((comment.get("body") or "").lstrip("\ufeff").strip())
     if comment.get("user", {}).get("id") != OWNER_ID or not match:
         return None
     path, digest = match.groups()
