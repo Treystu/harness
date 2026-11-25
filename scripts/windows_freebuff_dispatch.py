@@ -84,7 +84,7 @@ def lookup_local_session_uuid(short_id, *, appdata=None):
                     return match.group(1).lower()
     return None
 BURN_SESSIONS = {
-    "0d7e2f37": "BigEnergyCo",
+    "0d7e2f37": "BigEnergyCo Full Burndown",
     "7d4a9b14": "Kalshi Paper Burndown",
     "9ecc3453": "Lane 2",
     "918dad1a": "Harness Audit Lane",
@@ -971,6 +971,14 @@ class Dispatch:
         return "".join(character for character in text.casefold() if character.isalnum())
 
     @classmethod
+    def _row_norm_forms(cls, text):
+        forms = {cls._norm(text)}
+        head, _, tail = text.strip().partition(" ")
+        if len(head) <= 3 and tail:
+            forms.add(cls._norm(tail))
+        return {item for item in forms if item}
+
+    @classmethod
     def row_matches(cls, text, label):
         """Exact title, or the same row read through OCR slips and sidebar clipping.
 
@@ -985,10 +993,8 @@ class Dispatch:
         # "Ra Kalshi Paper Burndown"), so the leading one-to-three character
         # token is not part of the name - without this, a short label like
         # "Lane 1" could never match its own row at all (measured, l5).
-        candidates = {cls._norm(text)}
-        head, _, tail = text.strip().partition(" ")
-        if len(head) <= 3 and tail:
-            candidates.add(cls._norm(tail))
+        candidates = cls._row_norm_forms(text)
+        _, _, tail = text.strip().partition(" ")
         if not wanted or not any(candidates):
             return False
         if wanted in candidates:
@@ -1398,7 +1404,7 @@ class Dispatch:
                 raise ForegroundLost(str(error)) from error
             return False
 
-    def scroll_sidebar_to_top(self, steps=8):
+    def scroll_sidebar_to_top(self, steps=25):
         """Reach the top of the project list, proven by two identical rosters."""
         previous = None
         frame = self.frame("sidebar-top-0")
@@ -1507,7 +1513,8 @@ class Dispatch:
                                   row=exact[0]["text"], project=self.project)
                 return True
             for row in (() if exact else scoped):
-                if self._norm(row["text"]) in {self._norm(item["text"]) for item in rivals}:
+                forms = self._row_norm_forms(row["text"])
+                if any(forms & self._row_norm_forms(item["text"]) for item in rivals):
                     continue
                 rivals.append(row)
             if len(scoped) > 1 and not exact:
@@ -1665,8 +1672,11 @@ class Dispatch:
             except RuntimeError:
                 reading = ""
             seen = self._norm(reading)
-            if wanted and (wanted in seen
-                           or SequenceMatcher(None, wanted, seen).ratio() >= 0.9):
+            if wanted and (
+                    wanted in seen
+                    or SequenceMatcher(None, wanted, seen).ratio() >= 0.9
+                    or (len(seen) >= 12 and len(wanted) > len(seen)
+                        and SequenceMatcher(None, wanted[:len(seen)], seen).ratio() >= 0.88)):
                 # A one-glyph OCR slip is not foreign text: measured 2026-11-24, the
                 # field read 'Kalshi Paper Burndow' for the query this run typed, and
                 # the exact test then parked the lane as if someone else had written
@@ -1779,19 +1789,26 @@ class Dispatch:
             narrow = narrowing_enabled()
         found = []
         if narrow:
+            def _close_narrow_modal():
+                if hasattr(self, "window") and hasattr(self, "ensure_search_closed"):
+                    self.ensure_search_closed(self.frame("narrow-cleanup"))
+
             try:
                 frame, rows = self.narrow_session_list()
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="narrow-walk", reason=str(error))
+                _close_narrow_modal()
                 return False
             found = self.candidates_in(rows, 1, found)
             picked = self.resolve_unique(found)
             if picked is None:
+                _close_narrow_modal()
                 return False
             try:
                 self.click_roster_row("narrow-pick", frame, rows, picked[1])
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="narrow-pick", reason=str(error))
+                _close_narrow_modal()
                 return False
             time.sleep(1.2)
             return True
@@ -1908,9 +1925,11 @@ class Dispatch:
         self.audit.append("verification", step_id="content-unique", label=self.label, row=hits[0])
         return self.click_row_by_text(hits[0])
 
-    def click_row_by_text(self, name, pages=8):
+    def click_row_by_text(self, name, pages=20):
         """Re-open one row by its own text, wherever the list now has it."""
         frame = self.scroll_sidebar_to_top()
+        target_forms = self._row_norm_forms(name)
+        proj = getattr(self, "project", None)
         for page in range(1, pages + 1):
             try:
                 frame, rows = self.settled_roster(f"pick-{page}", SIDEBAR, attempts=6)
@@ -1918,7 +1937,12 @@ class Dispatch:
                 self.audit.append("escalation", step_id="pick-walk", reason=str(error))
                 frame = self.frame(f"pick-{page}-single")
                 rows = self.read_roster(f"pick-{page}-single", frame, SIDEBAR)
-            row = next((row for row in rows if self._norm(row["text"]) == self._norm(name)), None)
+            row = next(
+                (item for item in rows
+                 if (self._row_norm_forms(item["text"]) & target_forms)
+                 and (not proj or "y" not in item or self.project_of_row(rows, item) in {None, proj})),
+                None,
+            )
             if row is not None:
                 self.click_exact_row("pick-row", frame, row)
                 time.sleep(1.2)
@@ -1944,8 +1968,8 @@ class Dispatch:
         # Opening a candidate types nothing, so this stays available in the
         # select phase; the callers (search and select) are the ones that run
         # before a draft exists, and send never calls it.
+        frame = self.ensure_search_closed(self.frame("identify-before-close"))
         frame = self.scroll_sidebar_to_top()
-        frame = self.ensure_search_closed(frame)  # a live dialog covers the list
         seen = []
         for page in range(1, 9):
             try:

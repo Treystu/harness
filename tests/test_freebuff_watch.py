@@ -1808,5 +1808,81 @@ class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
             self.assertEqual(rows[1]["text"], "BigEnergyCo Full Burne")
 
 
+class LiveNavigationCureTests(unittest.TestCase):
+    """Step 2.5 cures for BigEnergyCo/Agensi sidebar navigation, glyph dedup, modal order, and clipped query readback."""
+
+    def test_bigenergyco_full_title_disambiguates_six_sidebar_rows(self):
+        self.assertEqual(dispatch.SESSIONS["0d7e2f37"][0], "BigEnergyCo Full Burndown")
+        rows = [
+            {"text": "B BigEnergyCo", "y": 100},
+            {"text": "BigEnergyCo Full BU", "y": 130},
+            {"text": "BigEnergyCo Audit Lant V", "y": 160},
+            {"text": "BigEnergyCo Overnight BU", "y": 190},
+            {"text": "BigEnergyCo Laptop Workt", "y": 220},
+            {"text": "BigEnergyCo Github Bloat", "y": 250},
+            {"text": "BigEnergyCo Burndown Str", "y": 280},
+        ]
+        scoped, heading = Dispatch.session_candidates(rows, dispatch.SESSIONS["0d7e2f37"][0], "BigEnergyCo")
+        self.assertEqual([r["text"] for r in scoped], ["BigEnergyCo Full BU"])
+        self.assertEqual(heading["text"], "B BigEnergyCo")
+
+    def test_walk_session_list_deduplicates_icon_glyph_rivals_and_click_row_matches(self):
+        d = object.__new__(Dispatch)
+        d.thread = "26646448"
+        d.label = "Agensi Lane Queue Executi"
+        d.project = "Agensi Skills Local"
+        d.audit = Mock()
+        d.scroll_sidebar_to_top = Mock(return_value=_ArrowFrame())
+        page9 = [{"text": "B Agensi Skills Local", "y": 100}, {"text": "Ra Agensi Lane Queue E", "y": 130}]
+        page10 = [{"text": "B Agensi Skills Local", "y": 100}, {"text": "Agensi Lane Queue E", "y": 130}]
+        d.settled_roster = Mock(side_effect=[
+            (_ArrowFrame(), page9),
+            (_ArrowFrame(), page10),
+            (_ArrowFrame(), page9),
+        ])
+        d.expand_sections = Mock(side_effect=lambda _p, frame, rows, _prefix: (frame, rows, False))
+        d.advance_sidebar = Mock(side_effect=[(_ArrowFrame(), True), (_ArrowFrame(), False)])
+        d.click_exact_row = Mock()
+        with patch.object(dispatch.time, "sleep"):
+            ok = d.walk_session_list(pages=5)
+        self.assertTrue(ok)
+        d.click_exact_row.assert_called_once()
+        self.assertEqual(d.click_exact_row.call_args.args[2]["text"], "Ra Agensi Lane Queue E")
+
+    def test_identify_by_route_closes_search_before_scrolling_to_top(self):
+        order = []
+        d = object.__new__(Dispatch)
+        d.thread = "26646448"
+        d.label = "Agensi Lane Queue Executi"
+        d.project = "Agensi Skills Local"
+        d.audit = Mock()
+        d.frame = lambda step: _ArrowFrame()
+        d.ensure_search_closed = lambda frame: order.append("close") or frame
+        d.scroll_sidebar_to_top = lambda steps=25: order.append(("top", steps)) or _ArrowFrame()
+        d.settled_roster = Mock(return_value=(_ArrowFrame(), []))
+        d.scroll_by = Mock(return_value=False)
+        self.assertFalse(d.identify_by_route())
+        self.assertEqual(order[0], "close")
+        self.assertEqual(order[1], ("top", 25))
+
+    def test_query_search_field_accepts_clipped_agensi_readback_but_rejects_foreign(self):
+        d = object.__new__(Dispatch)
+        d.thread = "26646448"
+        d.label = "Agensi Lane Queue Executi"
+        d.audit = Mock()
+        d.locate_exact_text = Mock(return_value=[700, 200])
+        d.act = Mock()
+        d.frame = lambda _step: _ArrowFrame()
+        d.read_lines = Mock(return_value=["Agensi Lane Queue E)"])
+        with patch.object(dispatch.time, "sleep"):
+            res = d.query_search_field(_ArrowFrame())
+        self.assertIsNotNone(res)
+
+        d.read_lines = Mock(return_value=["Continue the SCMessenger queue please"])
+        with patch.object(dispatch.time, "sleep"):
+            with self.assertRaisesRegex(RuntimeError, "not typing over it"):
+                d.query_search_field(_ArrowFrame(), attempts=1)
+
+
 if __name__ == "__main__":
     unittest.main()
