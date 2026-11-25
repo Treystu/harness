@@ -258,7 +258,10 @@ def _lane_thread_from_dispatch(body):
     return None
 
 
-RUNNER_ACTION = re.compile(r"^(?:Runner\s+)?Action\s+(?:for\s+the\s+runner|requested)\b", re.I | re.M)
+RUNNER_ACTION = re.compile(
+    r"^(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner|requested))?\s*[:(]", re.I | re.M)
+CANCELLATION = re.compile(r"^\s*CANCELLATION\b", re.I | re.M)
+EPISODE = re.compile(r"episode\s+([A-Za-z0-9][A-Za-z0-9-]{3,})", re.I)
 DISPATCH_BANNER = re.compile(r"^(?:VISION\s+DRIVER\s+)?(?:RESTART\s+)?DISPATCH\b", re.I)
 
 
@@ -278,6 +281,34 @@ def restart_dispatch(body):
     if body.upper().startswith("RESTART DISPATCH"):
         return True
     return "RESTART" in body[:600].upper()
+
+
+def episode_closed(comments, comment, parsed):
+    """Has the oversight cancelled this dispatch's own episode?
+
+    Every restart dispatch states its own bound: "execute only while episode X is
+    still OPEN". Until 2026-11-25 no code read an episode's state at all; the
+    claim scan relied on the claim file and the 24-hour TTL, so a dispatch filed
+    against a long-closed episode (7129310215, L1-STOP-974) still executed.
+    Charts supersession (a newer restart for the lane) and an owner CANCELLATION
+    that names this dispatch or its episode both close it. A cancellation that
+    names only the lane does not: 7144433519 cancelled L1-STOP-1010 by name, not
+    every later Lane 1 episode.
+    """
+    body = comment.get("body") or ""
+    match = EPISODE.search(body)
+    episode = match.group(1).casefold() if match else None
+    for other in comments:
+        if other.get("id", 0) <= parsed["comment_id"] or not owner(other):
+            continue
+        text = other.get("body") or ""
+        if not CANCELLATION.search(text):
+            continue
+        if str(parsed["comment_id"]) in text:
+            return True
+        if episode and episode in text.casefold():
+            return True
+    return False
 
 
 def filed_on_issue(comments, dispatch_id):
@@ -401,6 +432,9 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None):
         if parsed["kind"] == "restart" and newest_restart.get(parsed["thread"]) != cid:
             # A later restart for this lane exists: this episode is closed and
             # nothing is sent for it. The later dispatch is the one that speaks.
+            continue
+        if parsed["kind"] == "restart" and episode_closed(comments, comment, parsed):
+            # The oversight cancelled this episode by name: no input for it.
             continue
         thread = parsed["thread"]
         item = f"dyn-{cid}-{thread}"

@@ -761,6 +761,76 @@ class FreebuffWatchTests(unittest.TestCase):
         }
         self.assertIsNone(watch.parse_dynamic_dispatch(comment, now=now))
 
+    def test_parse_dynamic_dispatch_accepts_a_bare_action_line(self):
+        """Episodes L1-STOP-980/991/999/1003 file the instruction as "ACTION
+        (runner only, ...)" or "Action: ..."; refusing that wording left four
+        owner restarts unclaimable while the watch reported nothing to claim."""
+        now = datetime(2026, 11, 24, 19, 0, tzinfo=timezone.utc)
+        comment = {
+            "id": 7140150416,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T18:05:47Z",
+            "body": (
+                "RESTART DISPATCH — harness-codex-lane-oversight tick 1003, episode L1-STOP-1003\n"
+                "Lane: Lane 1 (combined prepare+gate+land lane)\n"
+                'Action: in-place restart only — exactly "continue in full"; never a duplicate session.\n'
+            ),
+        }
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], watch.THREAD)
+
+    def test_a_cancelled_episode_is_closed_and_never_claimed(self):
+        """The dispatch's own bound is "execute only while episode X is OPEN";
+        a later owner CANCELLATION that names X closes it."""
+        now = datetime(2026, 11, 24, 21, 50, tzinfo=timezone.utc)
+        dispatch = {
+            "id": 7143702385, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T21:10:00Z",
+            "body": ("RESTART DISPATCH — Lane 1, episode L1-STOP-1010\n"
+                     'Action for the runner: restart with "continue in full".\n'),
+        }
+        cancellation = {
+            "id": 7144433519, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T21:04:10Z",
+            "body": ("CANCELLATION — Lane 1 restart dispatch 7143702385, episode L1-STOP-1010\n"
+                     "Do NOT execute the restart against the recovered lane.\n"),
+        }
+        self.assertTrue(watch.parse_dynamic_dispatch(dispatch, now=now))
+        self.assertTrue(watch.episode_closed([dispatch, cancellation], dispatch,
+                                             watch.parse_dynamic_dispatch(dispatch, now=now)))
+        with tempfile.TemporaryDirectory() as tmp:
+            execute = Mock()
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=[dispatch, cancellation]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "execute", execute):
+                self.assertFalse(watch.poll_dynamic_dispatches(set(), now=now))
+            execute.assert_not_called()
+
+    def test_a_cancellation_of_another_episode_does_not_close_this_one(self):
+        now = datetime(2026, 11, 24, 22, 0, tzinfo=timezone.utc)
+        dispatch = {
+            "id": 7145072019, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T21:32:47Z",
+            "body": ("RESTART DISPATCH — Lane 1, episode L1-STOP-1014\n"
+                     'Runner action requested: restart with "continue in full".\n'),
+        }
+        other = {
+            "id": 7143702385, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T21:10:00Z",
+            "body": ("RESTART DISPATCH — Lane 1, episode L1-STOP-1010\n"
+                     'Action for the runner: restart with "continue in full".\n'),
+        }
+        cancellation = {
+            "id": 7144433519, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T21:04:10Z",
+            "body": ("CANCELLATION — Lane 1 restart dispatch 7143702385, episode L1-STOP-1010\n"
+                     "Do NOT execute the restart.\n"),
+        }
+        parsed = watch.parse_dynamic_dispatch(dispatch, now=now)
+        self.assertFalse(watch.episode_closed([other, cancellation, dispatch], dispatch, parsed))
+
     def test_a_superseded_restart_is_never_claimed_after_a_newer_one(self):
         """Measured 2026-11-25 01:06Z: with the wording cure live, the oldest
         unclaimed id won and the watch executed 7129310215 (L1-STOP-974, filed
