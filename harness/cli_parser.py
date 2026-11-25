@@ -159,6 +159,8 @@ def build_parser():
     # settings load, so no provider key is needed to inspect or drain a queue.
     sub.add_parser("queue", help="Per-repo work queue and supervised laptop "
                                   "watcher (status|enqueue|watch; no key)")
+    sub.add_parser("driver-watch", help="Laptop-resident oversight driver watch "
+                                         "control (status|start|stop|pause|resume|run-once|install)")
 
     # The v1 assessment gate (harness/jev_assessment.py; parses its own
     # subarguments). It is a lane-workflow disposition, not the audit bar: the

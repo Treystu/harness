@@ -1776,6 +1776,13 @@ class _WindowsWindowApi:
                 if (self._user32.IsWindowVisible(hwnd)
                         and self._title_of(hwnd) == title):
                     found.append(int(hwnd))
+            except OsalError as exc:
+                # Top-level handles can close between IsWindowVisible and _title_of;
+                # Win32 error 1400 is ERROR_INVALID_WINDOW_HANDLE and is safe to skip.
+                if "(Win32 error 1400)" in str(exc):
+                    return True
+                callback_error.append(exc)
+                return False
             except Exception as exc:
                 callback_error.append(exc)
                 return False

@@ -120,6 +120,9 @@ cli.py / mcp.py          interfaces (arg parsing, JSON-RPC; boundary
                                 caller-produced Lucas Gate v2 scorecards
     `harness/source_audit.py`   opt-in resumable full-source Jev audit with
                                 Git-backed inventory and receipt aggregation
+    `harness/laptop_driver_ctl.py` laptop-resident Driver Watch control,
+                                status inspection, and start/stop/pause/resume
+                                boundary (delegates process calls to osal.py)
 ```
 
 - **One owner per concern.** Cost policy lives only in `spend.py`; model

@@ -275,6 +275,15 @@ header {
   border-color: var(--cyan);
 }
 
+/* Served-code identity (#654): quiet, persistent version + short commit so
+   an operator can tell which build is serving without opening devtools. */
+.server-identity {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
 /* Price-cap popover (anchored under the header controls row, aligned to
    the spend meter which sits first in that row). */
 .cap-popover {
