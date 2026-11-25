@@ -184,6 +184,52 @@ def desktop_idle():
     return elapsed >= 60_000
 
 
+def foreground_blocker():
+    """Return (hwnd, pid, title) when a non-FreeBuff window holds foreground and blocks focus.
+
+    Mode (d) cure: returning before writing claim-dyn-...json keeps one-shot
+    claims unspent during an external foreground lock (e.g. Windows Security).
+    """
+    if os.name != "nt":
+        return None
+    from driver_core import osal
+    from .windows_freebuff_capture import FreeBuffWindow
+    from .windows_focus import activate_exact
+
+    pids = FreeBuffWindow.processes()
+    api_win = osal._WindowsWindowApi()
+    hwnd = int(api_win.foreground() or 0)
+    user = ctypes.WinDLL("user32", use_last_error=True)
+    user.GetWindowThreadProcessId.argtypes = (
+        wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
+    user.GetWindowThreadProcessId.restype = wintypes.DWORD
+
+    def _pid_of(handle):
+        pid = wintypes.DWORD()
+        user.GetWindowThreadProcessId(wintypes.HWND(handle), ctypes.byref(pid))
+        return int(pid.value)
+
+    if hwnd and _pid_of(hwnd) in pids:
+        return None
+    if not pids:
+        title = api_win.title_of(hwnd) or "" if hwnd else "no FreeBuff process"
+        return (hwnd, _pid_of(hwnd) if hwnd else 0, title or "no FreeBuff window")
+    win = object.__new__(FreeBuffWindow)
+    win.api = api_win
+    win.user = user
+    candidates = win.candidates(pids=pids)
+    if not candidates:
+        title = api_win.title_of(hwnd) or "" if hwnd else "no visible FreeBuff window"
+        return (hwnd, _pid_of(hwnd) if hwnd else 0, title or "no visible FreeBuff window")
+    target_hwnd, _ = candidates[0]
+    if activate_exact(target_hwnd, api_win.foreground):
+        return None
+    holder = int(api_win.foreground() or 0)
+    holder_pid = _pid_of(holder) if holder else 0
+    holder_title = api_win.title_of(holder) or "" if holder else "unknown foreground window"
+    return (holder, holder_pid, holder_title)
+
+
 LAST_SCAN = {}
 
 
@@ -237,6 +283,41 @@ def canary(evidence):
     if not evidence.get("scanned_through"):
         problems.append("the scan advanced no cursor")
     return problems
+
+
+def report_claim_fault(known, error):
+    """Alert #684 once per hour per distinct claim-loop failure signature (Mode (c)/R20)."""
+    now = datetime.now(timezone.utc)
+    detail = f"{type(error).__name__}: {error}"
+    digest = hashlib.sha256(detail.encode("utf-8")).hexdigest()[:8]
+    name = "canary-fault-" + now.strftime("%Y%m%d-%H") + f"-{digest}.json"
+    if name in known:
+        return False
+    known.add(name)
+    checkpoint(name, {"state": "claim-loop-fault", "error": detail})
+    issue_comment(f"Vision watch {CUTOVER} canary FAILED: claim-loop fault ({detail}).")
+    return True
+
+
+def report_foreground_blocked(known, cid, thread, blocker):
+    """Alert #684 once per hour per blocked dispatch/holder while keeping claim unspent."""
+    hwnd, pid, title = blocker
+    now = datetime.now(timezone.utc)
+    sig = f"{cid}:{pid}:{title}"
+    digest = hashlib.sha256(sig.encode("utf-8")).hexdigest()[:8]
+    name = "foreground-blocked-" + now.strftime("%Y%m%d-%H") + f"-{digest}.json"
+    if name in known:
+        return False
+    known.add(name)
+    checkpoint(name, {
+        "dispatch": cid, "thread": thread, "state": "foreground-blocked",
+        "hwnd": hwnd, "pid": pid, "title": title,
+    })
+    issue_comment(
+        f"Vision watch {CUTOVER} foreground BLOCKED before claim on #{cid} / `{thread}`: "
+        f"hwnd {hwnd} pid {pid} title {title!r}; claim kept unspent for retry."
+    )
+    return True
 
 
 CURSOR = re.compile(r"^cursor-(\d+)\.json$")
@@ -333,11 +414,15 @@ def _lane_thread_from_dispatch(body):
     match = thread_pattern.search(body)
     if match:
         return match.group(1)
-    lane_line = re.search(r"^Lane:\s*(.+)$", body, re.I | re.M)
+    lane_line = re.search("^" + _MD_PREFIX + r"Lane\*{0,2}:\s*(.+)$", body, re.I | re.M)
     if lane_line:
         text = lane_line.group(1).casefold()
     else:
-        banner = next((line for line in body.splitlines() if line.strip()), "")
+        banner = next(
+            (re.sub(r"^[#>*\-\s]+|\*{2}", "", line).strip()
+             for line in body.splitlines() if line.strip()),
+            "",
+        )
         text = banner.casefold()
     for alias, tid in LANE_ALIASES:
         if alias in text:
@@ -345,30 +430,33 @@ def _lane_thread_from_dispatch(body):
     return None
 
 
+_MD_PREFIX = r"(?:[ \t]+|[#*>-]+[ \t]+)*\*{0,2}"
 # Measured 2026-11-25T04:30Z: dispatch 7151203687 (Lane 1, L1-STOP-1035) writes
 # its instruction as "Runner: in-place restart only - exactly \"continue in
 # full\"", which none of the Action forms matched, so the dispatch that the
 # oversight filed to bring this lane back was unreadable by the watch that was
-# supposed to execute it.
+# supposed to execute it. Also tolerate Markdown bold/heading prefixes (7154645137).
 RUNNER_ACTION = re.compile(
-    r"^(?:(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner|requested))?|Runner)\s*[:(]",
+    "^" + _MD_PREFIX
+    + r"(?:(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner|requested))?|Runner)\*{0,2}\s*[:(]",
     re.I | re.M)
 # A STEER hands the runner text to deliver rather than a bounded restart; it is
 # never claimed, but 7149636711 carried the owner's whole sequencing order and
 # must be named rather than dropped into an empty queue.
-STEER_TEXT = re.compile(r"^\s*Text\s+for\s+the\s+runner\b", re.I | re.M)
-CANCELLATION = re.compile(r"^\s*CANCELLATION\b", re.I | re.M)
-EPISODE = re.compile(r"episode\s+([A-Za-z0-9][A-Za-z0-9-]{3,})", re.I)
+STEER_TEXT = re.compile("^" + _MD_PREFIX + r"Text\s+for\s+the\s+runner\b", re.I | re.M)
+CANCELLATION = re.compile("^" + _MD_PREFIX + r"(?:OVERSIGHT\s+)?CANCELLATION\b", re.I | re.M)
+EPISODE = re.compile(r"episode\*{0,2}:?\s+([A-Za-z0-9][A-Za-z0-9-]{3,})", re.I)
 # The oversight's own banners are not one shape: measured on #684, dispatches
-# arrived as "RESTART DISPATCH", "VISION DRIVER DISPATCH", "OVERSIGHT RESTART
-# DISPATCH" (7143702385) and "LANE CONTINUATION WATCH" (7124370203,
-# 7124855073), and the steer 7149636711 as "STEER DISPATCH". The narrow pattern
-# is why the census could claim "zero unclaimed dispatches" while four of those
-# sat unread; a banner that matches here still has to carry an instruction line
-# and the exact continuation before anything is claimed.
+# arrived as "RESTART DISPATCH", "## RESTART DISPATCH", "VISION DRIVER DISPATCH",
+# "OVERSIGHT RESTART DISPATCH" (7143702385) and "LANE CONTINUATION WATCH"
+# (7124370203, 7124855073), and the steer 7149636711 as "STEER DISPATCH". The
+# narrow pattern is why the census could claim "zero unclaimed dispatches" while
+# four of those sat unread; a banner that matches here still has to carry an
+# instruction line and the exact continuation before anything is claimed.
 DISPATCH_BANNER = re.compile(
-    r"^(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?(?:RESTART\s+|STEER\s+)?DISPATCH\b"
-    r"|^LANE\s+CONTINUATION\s+WATCH\b",
+    "^" + _MD_PREFIX
+    + r"(?:(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?(?:RESTART\s+|STEER\s+)?DISPATCH\b"
+    r"|LANE\s+CONTINUATION\s+WATCH\b)",
     re.I,
 )
 
@@ -386,7 +474,12 @@ def restart_dispatch(body):
     """
     if not DISPATCH_BANNER.match(body):
         return False
-    if re.match(r"^(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?RESTART\s+DISPATCH\b", body, re.I):
+    first = next(
+        (re.sub(r"^[#>*\-\s]+|\*{2}", "", line).strip()
+         for line in body.splitlines() if line.strip()),
+        "",
+    )
+    if re.match(r"^(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?RESTART\s+DISPATCH\b", first, re.I):
         return True
     return "RESTART" in body[:600].upper()
 
@@ -639,6 +732,10 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         if not desktop_idle():
             heartbeat(known, "waiting for owner desktop idle", current_evidence())
             return True
+        blocker = foreground_blocker()
+        if blocker is not None:
+            report_foreground_blocked(known, cid, thread, blocker)
+            return True
         checkpoint(claim, {"dispatch": cid, "thread": thread, "sha256": parsed["digest"]})
         out = state_dir / item
         try:
@@ -667,7 +764,12 @@ def run_burn(receipts, known, cancelled=()):
     end = datetime.fromisoformat(source["created_at"]) + timedelta(hours=3)
     if datetime.now(timezone.utc) >= end:
         unclaimed = []
-        if poll_dynamic_dispatches(known, unclaimed=unclaimed, cancelled=cancelled):
+        try:
+            claimed = poll_dynamic_dispatches(known, unclaimed=unclaimed, cancelled=cancelled)
+        except Exception as error:
+            report_claim_fault(known, error)
+            return
+        if claimed:
             return
         evidence = current_evidence()
         problems = canary(evidence or {})

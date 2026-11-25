@@ -400,6 +400,7 @@ class FreebuffWatchTests(unittest.TestCase):
             with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=None), \
                  patch.object(watch, "checkpoint", write), \
                  runtime_present(), \
                  patch.object(watch, "execute", execute):
@@ -911,6 +912,7 @@ class FreebuffWatchTests(unittest.TestCase):
                  patch.object(watch, "api", return_value=[older, newer]), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=None), \
                  patch.object(watch, "checkpoint", write), \
                  patch.object(watch, "issue_comment", Mock()), \
                  patch.object(watch, "advance_cursor", Mock()), \
@@ -998,6 +1000,7 @@ class FreebuffWatchTests(unittest.TestCase):
                  patch.object(watch, "api", return_value=comments), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=None), \
                  patch.object(watch, "checkpoint", write), \
                  patch.object(watch, "issue_comment", posted), \
                  patch.object(watch, "advance_cursor", Mock()), \
@@ -1184,6 +1187,240 @@ class FreebuffWatchTests(unittest.TestCase):
                 state = watch.local_control_state()
             self.assertTrue(state["enabled"])
             self.assertFalse(state["paused"])
+
+
+class SelfRelianceAndComposerCureTests(unittest.TestCase):
+    """#684 7151843755 + 7153690483 + 7154645137 cures."""
+
+    @staticmethod
+    def _rgb_crop(rects, width=920, height=192):
+        buf = bytearray(width * height * 3)
+        for x0, y0, x1, y1, val in rects:
+            for y in range(y0, y1):
+                row = y * width * 3
+                for x in range(x0, x1):
+                    off = row + x * 3
+                    buf[off] = val
+                    buf[off + 1] = val
+                    buf[off + 2] = val
+        return bytes(buf)
+
+    def test_composer_unchanged_tolerates_only_1x25_caret_not_glyphs_or_toolbar(self):
+        base = self._rgb_crop([])
+        caret_1x25 = self._rgb_crop([(157, 55, 158, 80, 240)])
+        caret_2x25 = self._rgb_crop([(157, 55, 159, 80, 240)])
+        glyph_16px = self._rgb_crop([(157, 59, 159, 75, 240)])  # 'l'/'i' 16px height
+        dot_3x3 = self._rgb_crop([(157, 70, 160, 73, 240)])
+        suggestion_wide = self._rgb_crop([(157, 55, 240, 80, 140)])
+        toolbar_delta = self._rgb_crop([(157, 150, 158, 175, 240)])
+        self.assertTrue(dispatch.composer_unchanged(base, base))
+        self.assertTrue(dispatch.composer_unchanged(base, caret_1x25))
+        self.assertTrue(dispatch.composer_unchanged(caret_1x25, base))
+        self.assertTrue(dispatch.composer_unchanged(base, caret_2x25))
+        self.assertFalse(dispatch.composer_unchanged(base, glyph_16px))
+        self.assertFalse(dispatch.composer_unchanged(base, dot_3x3))
+        self.assertFalse(dispatch.composer_unchanged(base, suggestion_wide))
+        self.assertFalse(dispatch.composer_unchanged(base, toolbar_delta))
+
+    def test_prior_send_refused_before_input_releases_pre_click_refusals_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = object.__new__(Dispatch)
+            d.output = Path(tmp)
+            trace = d.output / "driver.jsonl"
+            trace.write_text(
+                json.dumps({"kind": "action", "step_id": "send-once", "ok": False,
+                            "detail": "send-once: executor failed: the standing composer changed after approval"})
+                + "\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(d.prior_send_refused_before_input())
+            trace.write_text(
+                json.dumps({"kind": "action", "step_id": "send-once", "ok": True, "detail": "ok"}) + "\n",
+                encoding="utf-8",
+            )
+            self.assertFalse(d.prior_send_refused_before_input())
+
+    def test_parse_dynamic_dispatch_handles_7154645137_markdown_reroute(self):
+        now = datetime(2026, 11, 25, 6, 30, tzinfo=timezone.utc)
+        body = (
+            "## RESTART DISPATCH — Lane 1 — Episode L1-STOP-1045 — Clause 7(c) FIRST RE-ROUTE\n\n"
+            "**From:** harness-codex-lane-oversight tick 1049\n"
+            "**Lane:** Lane 1 (combined prepare+gate+land lane).\n"
+            "**Episode:** L1-STOP-1045 (OPEN).\n"
+            '**Action requested:** in-place restart only — exactly "continue in full".\n'
+        )
+        comment = {"id": 7154645137, "user": {"id": watch.OWNER_ID},
+                   "created_at": "2026-11-25T06:17:50Z", "body": body}
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], watch.THREAD)
+        self.assertTrue(watch.episode_closed(
+            [comment, {"id": 7154699999, "user": {"id": watch.OWNER_ID},
+                        "body": "CANCELLATION — episode L1-STOP-1045"}],
+            comment, parsed,
+        ))
+        self.assertTrue(watch.episode_closed(
+            [comment, {
+                "id": 7154907371,
+                "user": {"id": watch.OWNER_ID},
+                "body": (
+                    "OVERSIGHT CANCELLATION — episode L1-STOP-1045, "
+                    "Lane 1 restart dispatch 7154645137 (re-route 1, routed tick 1049) "
+                    "is CANCELLED before any runner verdict."
+                ),
+            }],
+            comment, parsed,
+        ))
+
+    def test_mode_e_reopens_scm_session_in_prepare_but_never_in_send(self):
+        d = object.__new__(Dispatch)
+        d.standing = True
+        d.thread = dispatch.SCM_THREAD
+        d.project = "SCMessenger"
+        d.label = "SCMessenger"
+        d.allow_navigation = True
+        d.routes = Mock(return_value=[])
+        d.selected_exact_session = Mock(side_effect=[False, True])
+        d.navigate_by_session_list = Mock(return_value=True)
+        d.identity_by_continuation = Mock(return_value=False)
+        d.audit = Mock()
+        d.phase = "prepare"
+        d.verify_session_identity()
+        d.navigate_by_session_list.assert_called_once()
+
+        d2 = object.__new__(Dispatch)
+        d2.standing = True
+        d2.thread = dispatch.SCM_THREAD
+        d2.project = "SCMessenger"
+        d2.label = "SCMessenger"
+        d2.allow_navigation = True
+        d2.routes = Mock(return_value=[])
+        d2.selected_exact_session = Mock(return_value=False)
+        d2.navigate_by_session_list = Mock(return_value=True)
+        d2.identity_by_continuation = Mock(return_value=False)
+        d2.audit = Mock()
+        d2.phase = "send"
+        with self.assertRaisesRegex(RuntimeError, "exact pinned session route"):
+            d2.verify_session_identity()
+        d2.navigate_by_session_list.assert_not_called()
+
+        d3 = object.__new__(Dispatch)
+        d3.text = "continue in full"
+        d3.phase = "prepare"
+        d3.recovering = False
+        d3.saw_text = Mock(return_value=False)
+        d3.frame = Mock(side_effect=["retry_frame", "recovered_frame"])
+        d3.verify_lane = Mock()
+        d3.reloaded = Mock(return_value=True)
+        d3.reestablish_if_reloaded = Mock(return_value=True)
+        self.assertEqual(d3.verify_draft("initial_frame"), "recovered_frame")
+        d3.reestablish_if_reloaded.assert_called_once_with("draft-verify")
+
+    def test_mode_c_and_r20_claim_fault_leaves_cursor_unadvanced_and_alerts_once(self):
+        receipts = {watch.BURN_QUEUE: {"created_at": "2026-11-24T00:00:00+00:00", "body": "b"}}
+        posted = Mock()
+        write = Mock()
+        known = {"cursor-100.json"}
+
+        def flaky_api(url, **_kwargs):
+            if "page=2" in url:
+                raise RuntimeError("HTTP 403 rate limit exceeded")
+            return [{"id": 200 + i, "user": {"id": watch.OWNER_ID}, "body": "ok"} for i in range(100)]
+
+        with patch.object(watch, "api", side_effect=flaky_api), \
+             patch.object(watch, "checkpoint", write), \
+             patch.object(watch, "issue_comment", posted):
+            watch.run_burn(receipts, known)
+        written_names = [call.args[0] for call in write.call_args_list]
+        self.assertFalse(any(name.startswith("cursor-") for name in written_names))
+        self.assertEqual(len(written_names), 1)
+        self.assertTrue(written_names[0].startswith("canary-fault-"))
+        self.assertIn("canary FAILED: claim-loop fault", posted.call_args.args[0])
+        # Rate-limited: a second failure with the same signature in the same hour does not repost.
+        with patch.object(watch, "api", side_effect=flaky_api), \
+             patch.object(watch, "checkpoint", Mock()), \
+             patch.object(watch, "issue_comment", posted):
+            watch.run_burn(receipts, known)
+        self.assertEqual(posted.call_count, 1)
+
+    def test_mode_d_foreground_blocker_keeps_claim_unspent_and_retries_when_clear(self):
+        now = datetime(2026, 11, 25, 6, 30, tzinfo=timezone.utc)
+        comment = {
+            "id": 995501,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T06:20:00Z",
+            "body": "RESTART DISPATCH\nLane: Lane 1\nAction for the runner: \"continue in full\"",
+        }
+        known = set()
+        write = Mock(side_effect=lambda name, _data: known.add(name))
+        posted = Mock()
+        execute = Mock(return_value=0)
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=[comment]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=(1049510, 12304, "Windows Security")), \
+                 patch.object(watch, "checkpoint", write), \
+                 patch.object(watch, "issue_comment", posted), \
+                 patch.object(watch, "advance_cursor", Mock()), \
+                 runtime_present(), \
+                 patch.object(watch, "execute", execute):
+                self.assertTrue(watch.poll_dynamic_dispatches(known, now=now))
+            execute.assert_not_called()
+            self.assertFalse(any(n.startswith("claim-dyn-") for n in known))
+            self.assertTrue(any(n.startswith("foreground-blocked-") for n in known))
+            self.assertIn("Windows Security", posted.call_args.args[0])
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=[comment]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=None), \
+                 patch.object(watch, "checkpoint", write), \
+                 patch.object(watch, "issue_comment", posted), \
+                 patch.object(watch, "advance_cursor", Mock()), \
+                 runtime_present(), \
+                 patch.object(watch, "execute", execute):
+                self.assertTrue(watch.poll_dynamic_dispatches(known, now=now))
+            execute.assert_called_once()
+            self.assertIn("claim-dyn-995501-315608d2.json", known)
+
+    def test_foreground_blocker_and_edge_paths_hermetic(self):
+        self.assertTrue(dispatch.composer_unchanged(None, None))
+        self.assertFalse(dispatch.composer_unchanged(b"short", b"other"))
+        with patch.object(watch.os, "name", "posix"):
+            self.assertIsNone(watch.foreground_blocker())
+        known = set()
+        with patch.object(watch, "checkpoint", Mock()) as cp, patch.object(watch, "issue_comment", Mock()) as ic:
+            self.assertTrue(watch.report_foreground_blocked(known, 1, "t", (10, 20, "Windows Security")))
+            self.assertFalse(watch.report_foreground_blocked(known, 1, "t", (10, 20, "Windows Security")))
+            self.assertEqual(cp.call_count, 1)
+            self.assertEqual(ic.call_count, 1)
+
+        # Also prove real SendExecutor.send() + send_draft()-style caret-only frame change succeeds on object.__new__(Dispatch)
+        base_img = Image.new("RGB", (920, 192))
+        if hasattr(base_img, "paste") and hasattr(base_img, "resize"):
+            # PIL present (Py3.14): verify Image objects directly as well
+            caret_img = base_img.copy()
+            for y in range(55, 80):
+                caret_img.putpixel((157, y), (240, 240, 240))
+            self.assertTrue(dispatch.composer_unchanged(base_img, caret_img))
+
+        d = object.__new__(dispatch.Dispatch)
+        d.standing = True
+        d.thread = dispatch.SCM_THREAD
+        d.text = dispatch.CONTINUATION
+        d.send_deadline = float("inf")
+        d.send_composer = self._rgb_crop([])
+        d.verify_active_session = Mock()
+        d.turn_running = Mock(return_value=False)
+        d.click = Mock()
+        caret_frame = Mock()
+        caret_frame.crop = Mock(return_value=self._rgb_crop([(157, 55, 158, 80, 240)]))
+        d.frame = Mock(return_value=caret_frame)
+        d.send(dispatch.SEND, {"thread": dispatch.SCM_THREAD, "text": dispatch.CONTINUATION})
+        d.click.assert_called_once()
 
 
 if __name__ == "__main__":

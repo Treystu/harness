@@ -142,6 +142,73 @@ COUNTS = (6, 16, 26, 36, 46)
 
 
 CAPTURE_BUDGETS = (2.0, 5.0)
+_COMPOSER_SIZE = (COMPOSER[2] - COMPOSER[0], COMPOSER[3] - COMPOSER[1])
+
+
+def _crop_rgb_bytes(crop):
+    if crop is None:
+        return b"", None
+    if isinstance(crop, (bytes, bytearray, memoryview)):
+        return bytes(crop), None
+    return crop.tobytes(), getattr(crop, "size", None)
+
+
+def composer_unchanged(before_crop, after_crop, *, size=_COMPOSER_SIZE,
+                       diff_threshold=12):
+    """Compare COMPOSER crops while tolerating only Electron's 1x25px blinking caret.
+
+    Measured 2026-11-25 across dyn-7149910847, dyn-7153590244, and dyn-7153647643
+    (#684 7153690483): glyphs in 'continue in full' span 16px vertically while the
+    focused insertion caret spans 1px x 25px (lit_pixels=25, density=1.00, well
+    above the toolbar). Raw .tobytes() equality trips whenever the caret blinks
+    between captures. Only a 1-2px wide, 21-30px tall solid vertical bar inside the
+    text editor interior is tolerated; any glyph, punctuation, suggestion, banner,
+    or toolbar change returns False.
+    """
+    before_bytes, b_size = _crop_rgb_bytes(before_crop)
+    after_bytes, a_size = _crop_rgb_bytes(after_crop)
+    if before_bytes == after_bytes:
+        return True
+    width, height = b_size or a_size or size
+    expected_len = width * height * 3
+    if len(before_bytes) != expected_len or len(after_bytes) != expected_len:
+        return False
+    row_bytes = width * 3
+    min_x, max_x = width, -1
+    min_y, max_y = height, -1
+    lit_pixels = 0
+    inner_right = width - 30
+    inner_bottom = min(height, 115)
+    for y in range(height):
+        row_start = y * row_bytes
+        row_end = row_start + row_bytes
+        if before_bytes[row_start:row_end] == after_bytes[row_start:row_end]:
+            continue
+        if y < 15 or y >= inner_bottom:
+            return False
+        for x in range(width):
+            off = row_start + x * 3
+            if (abs(before_bytes[off] - after_bytes[off]) > diff_threshold
+                    or abs(before_bytes[off + 1] - after_bytes[off + 1]) > diff_threshold
+                    or abs(before_bytes[off + 2] - after_bytes[off + 2]) > diff_threshold):
+                if x < 10 or x >= inner_right:
+                    return False
+                if x < min_x:
+                    min_x = x
+                if x > max_x:
+                    max_x = x
+                if y < min_y:
+                    min_y = y
+                if y > max_y:
+                    max_y = y
+                lit_pixels += 1
+    if max_x < min_x or max_y < min_y:
+        return True
+    box_w = max_x - min_x + 1
+    box_h = max_y - min_y + 1
+    if not (1 <= box_w <= 2 and 21 <= box_h <= 30):
+        return False
+    return lit_pixels >= int(box_w * box_h * 0.85)
 
 
 # R10: the New-project dialog as exact OCR anchors. Each entry is the control's
@@ -672,7 +739,8 @@ class Dispatch:
             else:
                 self.verify_active_session()
             fresh = self.frame("send-executor-fresh")
-            if (fresh.crop(COMPOSER).tobytes() != self.send_composer or self.turn_running(fresh)):
+            if (not composer_unchanged(self.send_composer, fresh.crop(COMPOSER))
+                    or self.turn_running(fresh)):
                 raise RuntimeError("the standing composer changed after approval")
         if self.send_deadline is None or time.monotonic() > self.send_deadline:
             raise RuntimeError("the verified send window expired before input")
@@ -2324,6 +2392,17 @@ class Dispatch:
                                   thread=self.thread, project=self.project,
                                   pinned_uuid=derived_uuid)
                 return
+            if (getattr(self, "phase", None) != "send"
+                    and getattr(self, "allow_navigation", False)
+                    and (getattr(self, "window", None) is not None
+                         or "navigate_by_session_list" in getattr(self, "__dict__", {}))
+                    and self.navigate_by_session_list()
+                    and self.selected_exact_session()):
+                self.audit.append("verification", step_id="active-session-id",
+                                  route_fallback="reopened-exact-scoped-selection",
+                                  thread=self.thread, project=self.project,
+                                  pinned_uuid=derived_uuid)
+                return
             if self.identity_by_continuation():
                 return
             raise RuntimeError("the exact pinned session route is required for this standing dispatch")
@@ -2452,7 +2531,7 @@ class Dispatch:
             raise RuntimeError("the staged mission's arrow outline was not located")
         point = [left + (outline[0] + outline[2]) // 2, top + (outline[1] + outline[3]) // 2]
         fresh = self.frame("vision-staged-before-click")
-        if fresh.crop(COMPOSER).tobytes() != frame.crop(COMPOSER).tobytes():
+        if not composer_unchanged(frame.crop(COMPOSER), fresh.crop(COMPOSER)):
             raise RuntimeError("the staged mission changed before the start action")
         self.verify_session_identity()
         if time.monotonic() - started > 60:
@@ -2631,6 +2710,12 @@ class Dispatch:
             frame = self.frame("draft-ocr-retry")
             self.verify_lane(frame)
             if not self.saw_text("read-exact-draft-retry", frame, region, self.text):
+                if (getattr(self, "phase", None) != "send"
+                        and not getattr(self, "recovering", False)
+                        and hasattr(self, "reloaded")
+                        and self.reloaded(frame)
+                        and self.reestablish_if_reloaded("draft-verify")):
+                    return self.frame("draft-verify-recovered")
                 raise RuntimeError(f"the draft was not read back as {self.text!r}")
         self.yes("verify-staged-text", frame,
                  ("Is this user-entered text a D-007 mission pointer?" if pointer else
@@ -2655,19 +2740,30 @@ class Dispatch:
         time.sleep(3)
         self.verify_draft(self.frame("disk-pointer-staged"))
 
+    _PRE_CLICK_REFUSALS = (
+        "FreeBuff is not the foreground window",
+        "the standing composer changed after approval",
+        "owner desktop activity resumed before input",
+        "the verified send window expired before input",
+    )
+
     def prior_send_refused_before_input(self):
-        """Did the prior marker's send-once fail before the renderer click?"""
+        """Did the prior marker's send-once fail before any renderer click?"""
         trace = self.output / "driver.jsonl"
         if not trace.is_file():
             return False
+        rows = []
         for line in trace.read_text(encoding="utf-8").splitlines():
             try:
-                row = json.loads(line)
+                rows.append(json.loads(line))
             except ValueError:
                 continue
-            if (row.get("kind") == "action" and row.get("step_id") == "send-once"
-                    and not row.get("ok")):
-                return "FreeBuff is not the foreground window" in row.get("detail", "")
+        for row in reversed(rows):
+            if row.get("kind") == "action" and row.get("step_id") == "send-once" and not row.get("ok"):
+                detail = row.get("detail", "")
+                return any(reason in detail for reason in self._PRE_CLICK_REFUSALS)
+            if row.get("kind") == "action" and row.get("step_id") == "send-once" and row.get("ok"):
+                return False
         return False
 
     def type_literal(self, text):
@@ -2729,7 +2825,7 @@ class Dispatch:
             self.verify_session_identity()
         if self.standing:
             fresh = self.frame("pre-send-readback")
-            if (frame.crop(COMPOSER).tobytes() != fresh.crop(COMPOSER).tobytes()
+            if (not composer_unchanged(frame.crop(COMPOSER), fresh.crop(COMPOSER))
                     or (not pointer and self.turn_running(fresh))):
                 raise RuntimeError("composer changed between verification and send")
         age = time.monotonic() - observed_at
