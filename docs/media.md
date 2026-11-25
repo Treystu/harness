@@ -34,9 +34,11 @@ media auth login google-key  # free AI Studio key ($0, image gen included)
 media serve                  # REST on http://127.0.0.1:8765 (see the port map below)
 ```
 
-> **Port map (#566):** `media serve` owns `127.0.0.1:8765`. `harness serve`
-> defaults to `127.0.0.1:8767` and `harness desktop` to `127.0.0.1:8766`, so all
-> three can run at once. An older or explicitly configured Harness UI still on
+> **Port map (#566, #655):** one base port owns the family
+> (`harness/loopback.py`): `HARNESS_BASE_PORT` (default `8765`) with media at
+> `base + 0` (`127.0.0.1:8765`) and `harness serve`/`harness desktop` at
+> `base + 2` (`127.0.0.1:8767`); the old `8766` desktop default is retired. An
+> older or explicitly configured Harness UI still on
 > `8765` is detected by `harness/media_client.py` before a media operation or
 > token is sent (it raises `MediaEndpointMismatch`); move that UI with
 > `harness serve --port 8767`.

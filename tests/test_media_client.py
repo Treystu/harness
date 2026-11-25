@@ -569,10 +569,12 @@ class MediaEndpointIdentityTests(unittest.TestCase):
 
     def test_the_defaults_keep_the_ui_off_the_media_port(self):
         import inspect
-        from harness import server as server_module
+        from harness import loopback, server as server_module
         self.assertEqual(
             inspect.signature(server_module.make_server)
             .parameters["port"].default, 8767)
+        self.assertEqual(loopback.serve_port(), 8767)
+        self.assertEqual(loopback.media_port(), 8765)
         self.assertIn("8765", DEFAULT_BASE)
 
 if __name__ == "__main__":

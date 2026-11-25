@@ -155,7 +155,7 @@ class SitePageServingTests(ServerHarness):
 
     def test_site_local_mode_never_guesses_serve_port(self):
         """Regression: app.js once gated local mode on port 8787 -- a port
-        `harness serve` never serves (README default 8765, desktop 8766) --
+        `harness serve` never serves (serve/desktop default 8767, media 8765) --
         so under the documented local entrypoint the site never tried
         /api/snapshot and rendered 'No snapshot available yet' forever.
         Mode is now an explicit ?mode=public opt-out, never a port guess."""

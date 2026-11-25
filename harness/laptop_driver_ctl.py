@@ -20,6 +20,7 @@ from . import osal
 from .errors import HarnessError
 
 WATCH_TASK_NAME = "HarnessLaptopDriverWatch"
+SUPERVISOR_TASK_NAME = "HarnessLaptopDriverSupervisor"
 LEGACY_POPUP_TASK_NAME = "HarnessVisionWatch-7093801996"
 VALID_ACTIONS = ("status", "start", "stop", "pause", "resume", "run-once")
 DEFAULT_DRIVER_ROOT = r"C:\Users\SCM\Documents\GitHub\Harness-laptop-vision-20261122"
@@ -30,6 +31,77 @@ _WATCH_HIDDEN_VBS = """' Launch the Harness Laptop Driver Watch silently with no
 ' Scheduled as: wscript.exe //B //Nologo "{watch_dir}\\watch-hidden.vbs"
 Set sh = CreateObject("WScript.Shell")
 sh.Run "\"\"\"{pythonw}\"\" \"\"{watch_dir}\\run-watch.py\"\"\"", 0, False
+"""
+
+_WATCH_SUPERVISOR_VBS = """' Launch the Harness Laptop Driver Watch supervisor silently.
+' Scheduled as: wscript.exe //B //Nologo "{watch_dir}\\watch-supervisor-hidden.vbs"
+Set sh = CreateObject("WScript.Shell")
+sh.Run "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"\"{watch_dir}\\watch-supervisor.ps1\"\"", 0, False
+"""
+
+_WATCH_SUPERVISOR_PS1 = """# Harness Laptop Driver Watch supervisor.
+$ErrorActionPreference = "Continue"
+$watchDir = "{watch_dir}"
+$statusPath = Join-Path $watchDir "status.json"
+$logPath = Join-Path (Join-Path $env:USERPROFILE ".harness\\logs") "driver-watch-supervisor.log"
+$taskName = "HarnessLaptopDriverWatch"
+$staleMinutes = 10
+
+function Write-SupervisorLog([string]$message) {{
+    $parent = Split-Path -Parent $logPath
+    if (-not (Test-Path $parent)) {{ New-Item -ItemType Directory -Force -Path $parent | Out-Null }}
+    $line = "[{{0}}] {{1}}" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ"), $message
+    Add-Content -Path $logPath -Value $line -Encoding utf8
+}}
+
+if (-not (Test-Path $watchDir)) {{
+    Write-SupervisorLog "ERROR watch directory missing: $watchDir"
+    exit 0
+}}
+
+$task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+if ($null -eq $task) {{
+    Write-SupervisorLog "ERROR scheduled task $taskName is not registered"
+}} else {{
+    if ($task.State -eq "Disabled") {{
+        Enable-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue | Out-Null
+        Write-SupervisorLog "REPAIRED task $taskName was Disabled; re-enabled"
+    }}
+    $info = Get-ScheduledTaskInfo -TaskName $taskName
+    if ($info.LastTaskResult -ne 0) {{
+        Write-SupervisorLog ("ALARM last tick result was {{0}}" -f $info.LastTaskResult)
+    }}
+}}
+
+if (-not (Test-Path $statusPath)) {{
+    Write-SupervisorLog "ALARM status.json is missing; starting a tick"
+    & wscript.exe //B //Nologo (Join-Path $watchDir "watch-hidden.vbs")
+    exit 0
+}}
+
+$status = Get-Content -Path $statusPath -Raw | ConvertFrom-Json
+$lastRunRaw = $status.last_run
+$stale = $true
+if ($lastRunRaw) {{
+    try {{
+        $lastRun = [datetime]::Parse($lastRunRaw, $null, [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal)
+        $age = ((Get-Date).ToUniversalTime() - $lastRun).TotalMinutes
+        $stale = $age -gt $staleMinutes
+        if ($stale) {{
+            Write-SupervisorLog ("ALARM no tick for {{0:N1}} minutes (last_run {{1}}); starting one" -f $age, $lastRunRaw)
+        }}
+    }} catch {{
+        Write-SupervisorLog ("ALARM last_run is unreadable: {{0}}" -f $lastRunRaw)
+    }}
+}}
+if ($stale) {{
+    & wscript.exe //B //Nologo (Join-Path $watchDir "watch-hidden.vbs")
+}}
+
+if ($status.state -eq "error" -or $status.last_error) {{
+    Write-SupervisorLog ("ALARM last tick state={{0}} error={{1}}" -f $status.state, $status.last_error)
+}}
+Write-SupervisorLog ("tick check ok state={{0}} paused={{1}}" -f $status.state, $status.paused)
 """
 
 _DRIVER_CTL_CMD = """@echo off
@@ -237,6 +309,19 @@ def run_tick(*, force: bool = False, echo: bool = False) -> int:
                 return 0
 
             if not force and paused:
+                escalated = False
+                escalation_error = ""
+                try:
+                    os.environ["HARNESS_DRIVER_CONTROL_FILE"] = str(CONTROL_PATH)
+                    if Path(driver_root).is_dir() and driver_root not in sys.path:
+                        sys.path.insert(0, driver_root)
+                    from scripts import windows_freebuff_watch
+                    escalated = windows_freebuff_watch.report_paused(
+                        windows_freebuff_watch.local_control_state())
+                    _append_log(f"[{now}] paused tick: escalated={escalated}")
+                except Exception as exc:
+                    escalation_error = f"{type(exc).__name__}: {exc}"
+                    _append_log(f"[{now}] paused tick: escalation failed: {escalation_error}")
                 _atomic_write_json(STATUS_PATH, {
                     "state": "paused",
                     "enabled": True,
@@ -246,7 +331,8 @@ def run_tick(*, force: bool = False, echo: bool = False) -> int:
                     "pid": os.getpid(),
                     "last_run": now,
                     "exit_code": 0,
-                    "last_error": "",
+                    "last_error": escalation_error,
+                    "paused_escalated": escalated,
                     "consecutive_failures": 0,
                     "alerted_failure": False,
                 })
@@ -481,18 +567,38 @@ def _register_watch_task(vbs_path: Path) -> bool:
         f"$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '//B //Nologo \"{ps_vbs}\"'; "
         f"$tLogon = New-ScheduledTaskTrigger -AtLogOn; "
         f"$tRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) "
-        f"-RepetitionInterval (New-TimeSpan -Minutes 2) -RepetitionDuration (New-TimeSpan -Days 3650); "
+        f"-RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650); "
         f"$settings = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries "
         f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -StartWhenAvailable "
-        f"-ExecutionTimeLimit (New-TimeSpan -Minutes 5); "
+        f"-ExecutionTimeLimit (New-TimeSpan -Minutes 30); "
         f"Register-ScheduledTask -TaskName '{WATCH_TASK_NAME}' -Action $action "
         f"-Trigger @($tLogon, $tRepeat) -Settings $settings "
-        f"-Description 'Harness laptop driver watch (hidden, logon + 2-minute ticks)' -Force | Out-Null; "
+        f"-Description 'Harness laptop driver watch (hidden, logon + 1-minute ticks)' -Force | Out-Null; "
         f"if (Get-ScheduledTask -TaskName '{LEGACY_POPUP_TASK_NAME}' -ErrorAction SilentlyContinue) "
         f"{{ Disable-ScheduledTask -TaskName '{LEGACY_POPUP_TASK_NAME}' | Out-Null }}"
     )
     _run_ps(script)
     _ = vbs_arg
+    return True
+
+
+def _register_supervisor_task(supervisor_vbs_path: Path) -> bool:
+    if not _scheduler_enabled():
+        return False
+    ps_vbs = str(supervisor_vbs_path).replace("'", "''")
+    script = (
+        f"$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '//B //Nologo \"{ps_vbs}\"'; "
+        f"$tLogon = New-ScheduledTaskTrigger -AtLogOn; "
+        f"$tRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) "
+        f"-RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration (New-TimeSpan -Days 3650); "
+        f"$settings = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries "
+        f"-DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -StartWhenAvailable "
+        f"-ExecutionTimeLimit (New-TimeSpan -Minutes 5); "
+        f"Register-ScheduledTask -TaskName '{SUPERVISOR_TASK_NAME}' -Action $action "
+        f"-Trigger @($tLogon, $tRepeat) -Settings $settings "
+        f"-Description 'Harness laptop driver watch supervisor (hidden, logon + 15-minute health check)' -Force | Out-Null"
+    )
+    _run_ps(script)
     return True
 
 
@@ -503,12 +609,16 @@ def _set_task_state(action: str) -> None:
         _run_ps(
             f"if (Get-ScheduledTask -TaskName '{LEGACY_POPUP_TASK_NAME}' -ErrorAction SilentlyContinue) "
             f"{{ Disable-ScheduledTask -TaskName '{LEGACY_POPUP_TASK_NAME}' | Out-Null }}; "
+            f"if (Get-ScheduledTask -TaskName '{SUPERVISOR_TASK_NAME}' -ErrorAction SilentlyContinue) "
+            f"{{ Enable-ScheduledTask -TaskName '{SUPERVISOR_TASK_NAME}' | Out-Null }}; "
             f"if (Get-ScheduledTask -TaskName '{WATCH_TASK_NAME}' -ErrorAction SilentlyContinue) "
             f"{{ Enable-ScheduledTask -TaskName '{WATCH_TASK_NAME}' | Out-Null; "
             f"Start-ScheduledTask -TaskName '{WATCH_TASK_NAME}' }}"
         )
     elif action == "stop":
         _run_ps(
+            f"if (Get-ScheduledTask -TaskName '{SUPERVISOR_TASK_NAME}' -ErrorAction SilentlyContinue) "
+            f"{{ Disable-ScheduledTask -TaskName '{SUPERVISOR_TASK_NAME}' | Out-Null }}; "
             f"if (Get-ScheduledTask -TaskName '{WATCH_TASK_NAME}' -ErrorAction SilentlyContinue) "
             f"{{ Disable-ScheduledTask -TaskName '{WATCH_TASK_NAME}' | Out-Null }}"
         )
@@ -535,7 +645,7 @@ def driver_watch_status() -> dict:
         "driver_root": DEFAULT_DRIVER_ROOT,
         "repo": "Treystu/harness",
         "dispatch_issue": 684,
-        "interval_minutes": 2,
+        "interval_minutes": 1,
     }
     ctl = _read_json(control_path(), default_ctl)
     tick = _read_json(status_path(), {})
@@ -549,6 +659,8 @@ def driver_watch_status() -> dict:
         "driver_root": ctl.get("driver_root", DEFAULT_DRIVER_ROOT),
         "task_name": WATCH_TASK_NAME,
         "task_state": _task_state(WATCH_TASK_NAME),
+        "supervisor_task_name": SUPERVISOR_TASK_NAME,
+        "supervisor_task_state": _task_state(SUPERVISOR_TASK_NAME),
         "legacy_popup_task": LEGACY_POPUP_TASK_NAME,
         "legacy_popup_state": _task_state(LEGACY_POPUP_TASK_NAME),
         "last_run": tick.get("last_run"),
@@ -576,7 +688,7 @@ def driver_watch_control(action: str, *, driver_root: str | None = None, by: str
         "driver_root": driver_root or DEFAULT_DRIVER_ROOT,
         "repo": "Treystu/harness",
         "dispatch_issue": 684,
-        "interval_minutes": 2,
+        "interval_minutes": 1,
     })
     if driver_root:
         ctl["driver_root"] = driver_root
@@ -606,6 +718,10 @@ def install_laptop_watch(
     runner.write_text(_RUN_WATCH_PY, encoding="utf-8")
     vbs = wdir / "watch-hidden.vbs"
     vbs.write_text(_WATCH_HIDDEN_VBS.format(watch_dir=wdir, pythonw=pythonw), encoding="utf-8")
+    supervisor_ps1 = wdir / "watch-supervisor.ps1"
+    supervisor_ps1.write_text(_WATCH_SUPERVISOR_PS1.format(watch_dir=wdir), encoding="utf-8")
+    supervisor_vbs = wdir / "watch-supervisor-hidden.vbs"
+    supervisor_vbs.write_text(_WATCH_SUPERVISOR_VBS.format(watch_dir=wdir), encoding="utf-8")
     ps1 = hdir / "driver-ctl.ps1"
     ps1.write_text(_DRIVER_CTL_PS1.replace("__PYTHON__", python_exe), encoding="utf-8")
     cmd = hdir / "driver-ctl.cmd"
@@ -617,25 +733,31 @@ def install_laptop_watch(
         "driver_root": driver_root or DEFAULT_DRIVER_ROOT,
         "repo": "Treystu/harness",
         "dispatch_issue": 684,
-        "interval_minutes": 2,
+        "interval_minutes": 1,
         "updated_at": _utc_now(),
         "updated_by": "install",
     })
+    ctl["interval_minutes"] = 1
     if driver_root:
         ctl["driver_root"] = driver_root
         ctl["updated_at"] = _utc_now()
         ctl["updated_by"] = "install"
     _atomic_write_json(control_path(), ctl)
     task_registered = _register_watch_task(vbs)
+    supervisor_registered = _register_supervisor_task(supervisor_vbs)
     return {
         "watch_dir": str(wdir),
         "runner": str(runner),
         "vbs": str(vbs),
+        "supervisor_ps1": str(supervisor_ps1),
+        "supervisor_vbs": str(supervisor_vbs),
         "ps1": str(ps1),
         "cmd": str(cmd),
         "control": str(control_path()),
         "task_registered": task_registered,
         "task_state": _task_state(WATCH_TASK_NAME),
+        "supervisor_task_registered": supervisor_registered,
+        "supervisor_task_state": _task_state(SUPERVISOR_TASK_NAME),
     }
 
 

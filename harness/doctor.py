@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 from . import config, osal, tools
 from .errors import HarnessError
+from .loopback import serve_port
 
 
 OPENROUTER_KEY_URL = config.OPENROUTER_KEY_URL
@@ -453,7 +454,9 @@ def _minimal_settings():
         jev_disabled=os.environ.get("HARNESS_JEV_DISABLE") == "1")
 
 
-def run_doctor(settings, *, gui_port=8767, config_error=False):
+def run_doctor(settings, *, gui_port=None, config_error=False):
+    if gui_port is None:
+        gui_port = serve_port()
     dns = check_dns(settings)
     checks = [
         check_python(),

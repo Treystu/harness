@@ -124,20 +124,38 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
             res = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp)
             self.assertTrue(res["task_registered"])
             self.assertEqual(res["task_state"], "Ready")
+            self.assertTrue(res["supervisor_task_registered"])
+            self.assertEqual(res["supervisor_task_state"], "Ready")
             res2 = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp + "_next")
             self.assertTrue(res2["task_registered"])
         scripts_called = "\n".join(c.args[0][-1] for c in run_mock.call_args_list)
         self.assertIn("-AtLogOn", scripts_called)
         self.assertIn("-RepetitionInterval", scripts_called)
+        self.assertIn("-Minutes 1", scripts_called)
         self.assertIn("Register-ScheduledTask", scripts_called)
+        self.assertIn("HarnessLaptopDriverSupervisor", scripts_called)
         self.assertIn("Disable-ScheduledTask", scripts_called)
         ctl = json.loads((self.watch_dir / "control.json").read_text(encoding="utf-8-sig"))
         self.assertEqual(ctl["driver_root"], self.tmp + "_next")
+        self.assertEqual(ctl["interval_minutes"], 1)
         self.assertEqual(laptop_driver_ctl.driver_watch_status()["consecutive_failures"], 0)
+        self.assertEqual(laptop_driver_ctl.driver_watch_status()["supervisor_task_name"], "HarnessLaptopDriverSupervisor")
 
     def test_materialized_run_watch_py_covers_states_rotation_lock_and_alerts(self):
         res = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp)
         runner_path = Path(res["runner"])
+        sup_ps1_path = Path(res["supervisor_ps1"])
+        self.assertTrue(sup_ps1_path.is_file())
+        self.assertTrue(Path(res["supervisor_vbs"]).is_file())
+        sup_text = sup_ps1_path.read_text(encoding="utf-8")
+        self.assertNotIn("{watch_dir}", sup_text)
+        self.assertNotIn("{{", sup_text)
+        if laptop_driver_ctl.osal.IS_WINDOWS:
+            chk = laptop_driver_ctl.osal.run([
+                "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                f"$e=$null; $t=$null; [void][System.Management.Automation.Language.Parser]::ParseFile('{sup_ps1_path}', [ref]$t, [ref]$e); if ($e.Count -gt 0) {{ throw ($e | Out-String) }}"
+            ], timeout=15)
+            self.assertEqual(chk.returncode, 0, chk.stderr or chk.stdout)
         import importlib.util
 
         spec = importlib.util.spec_from_file_location("test_run_watch_mod", str(runner_path))
@@ -148,13 +166,32 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
             "HARNESS_DRIVER_WATCH_NO_ALERT": "",
         }):
             spec.loader.exec_module(mod)
-            # 1. Paused control
+            # 1. Paused control (escalation error fallback + real report_paused=True path)
             (self.watch_dir / "control.json").write_text(
                 json.dumps({"enabled": True, "paused": True, "driver_root": self.tmp}),
                 encoding="utf-8",
             )
             self.assertEqual(mod.run_tick(), 0)
-            self.assertEqual(json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))["state"], "paused")
+            paused_st = json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual(paused_st["state"], "paused")
+            self.assertFalse(paused_st["paused_escalated"])
+
+            scripts_dir = Path(self.tmp) / "scripts"
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+            (scripts_dir / "__init__.py").write_text("", encoding="utf-8")
+            (scripts_dir / "windows_freebuff_watch.py").write_text(
+                "def local_control_state(): return {'paused': True}\n"
+                "def report_paused(ctl): return True\n",
+                encoding="utf-8",
+            )
+            with patch.dict(sys.modules, {k: v for k, v in sys.modules.items() if not k.startswith("scripts")}):
+                for key in list(sys.modules):
+                    if key == "scripts" or key.startswith("scripts."):
+                        del sys.modules[key]
+                self.assertEqual(mod.run_tick(), 0)
+            paused_ok = json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual(paused_ok["state"], "paused")
+            self.assertTrue(paused_ok["paused_escalated"])
 
             # 2. Stopped control
             (self.watch_dir / "control.json").write_text(

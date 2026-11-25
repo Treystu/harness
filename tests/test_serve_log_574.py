@@ -238,6 +238,8 @@ class CommandWiringTests(unittest.TestCase):
         self.assertIn("[OK] request log:", stream.getvalue())
 
     def test_desktop_command_opens_its_own_log(self):
+        from harness.ui import make_server as _orig_make_server
+
         class _Thread:
             def __init__(self, *a, **k):
                 pass
@@ -248,8 +250,20 @@ class CommandWiringTests(unittest.TestCase):
             def join(self, *a, **k):
                 return None
 
+            def is_alive(self):
+                return False
+
+        def _tracked_make_server(*a, **k):
+            httpd = _orig_make_server(*a, **k)
+            self.addCleanup(httpd.server_close)
+            serve_log = getattr(httpd, "serve_log", None)
+            if serve_log is not None:
+                self.addCleanup(serve_log.close)
+            return httpd
+
         with mock.patch("harness.ui.load_or_create_ui_token", return_value="tok"), \
                 mock.patch("harness.ui.write_ui_handoff", return_value="/tmp/handoff"), \
+                mock.patch("harness.ui.make_server", side_effect=_tracked_make_server), \
                 mock.patch("harness.ui.threading.Thread", _Thread), \
                 mock.patch("harness.ui.osal.open_url"), \
                 mock.patch("sys.stderr", new=io.StringIO()):

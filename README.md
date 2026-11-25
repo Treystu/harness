@@ -559,7 +559,7 @@ DNS-rebinding guard), token-protected API routes (`/api/status` and all other
 `/api/*` routes return `401` unauthenticated and `200` with `X-Harness-Auth` /
 Bearer auth), and secrets shown as presence-only in the settings view.
 `harness serve` defaults to `127.0.0.1:8767` (`--port` to override);
-`harness-desktop` / `harness desktop` defaults to `127.0.0.1:8766` and reuses
+`harness-desktop` / `harness desktop` defaults to the same `127.0.0.1:8767` and reuses
 the persisted owner token via the URL fragment. The media service
 (`media serve`) keeps `127.0.0.1:8765`; `harness serve` moved off that port in
 `#566` so the UI, the desktop window and the media service can run together

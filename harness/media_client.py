@@ -35,6 +35,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .loopback import media_base_url
 from .paths import get_config_dir
 
 # No provider/service brand strings are hardcoded here: the endpoint the
@@ -42,9 +43,10 @@ from .paths import get_config_dir
 # order: explicit constructor args > config file > env vars > loopback
 # default. The default is a *local* fallback (not a brand), matching the
 # `media serve` quickstart in docs/media.md.
-#: The media service's own loopback default. It stays on 8765 while the
-#: harness UI moved to 8767 (#566): the two services can then run together.
-DEFAULT_BASE = os.environ.get("MEDIA_BASE_URL", "http://127.0.0.1:8765")
+#: The media service's loopback default: base + 0 of the harness-owned port
+#: family (#655, one rule in harness/loopback.py). Media stays on 8765 while
+#: the harness UI is base + 2 (8767, #566), so the two can run together.
+DEFAULT_BASE = os.environ.get("MEDIA_BASE_URL", media_base_url())
 CONFIG_PATH = os.environ.get(
     "MEDIA_CONFIG_PATH",
     os.path.join(get_config_dir(), "media.json"),
