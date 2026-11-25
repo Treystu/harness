@@ -132,7 +132,9 @@ verified. The tracker is not closeable on this subset.
 
 ## Next for this issue
 
-Sub-issues for the eleven distinct still-present rows in this batch (73, 74, 75,
-76, 77, 78, 79 with 83, 80, 81, 82, 84), each gated like #749-#774. Then rows
-85-89, which complete the census, and the reviewed-PR queue (#649, #650, #651,
-#652, then #703).
+Sub-issues for the eleven distinct still-present rows in this batch, each gated
+like #749-#774: #775 (row 73), #776 (row 74), #777 (row 75), #778 (row 76), #779
+(row 77), #780 (row 78), #781 (row 79 and the plan half of 83), #782 (row 80),
+#783 (row 81), #784 (row 82), #785 (row 84). Next verification batch: rows 85-89,
+which complete the census, then the reviewed-PR queue (#649, #650, #651, #652,
+then #703).
