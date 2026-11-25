@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, replace
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
-from .errors import ToolCancelled
+from .errors import ProviderUsageUnknown, ToolCancelled
 from .events import emit
 
 from .errors import HarnessError
@@ -689,6 +689,8 @@ def decide_research_plan(
             request_hash=proposal.request_hash,
             revision=proposal.revision, task_id=task_id)
     except ToolCancelled:
+        raise
+    except ProviderUsageUnknown:
         raise
     except Exception as exc:  # a reviewer outage never authorizes retrieval
         record.update(state="unavailable",
