@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "37afda840c9c86de79f1d73ae83fe7399920ddb2f6becd1f0dda5d0e2a6ef557"
+  },
+  "product_jev": {
+    "verdict": "investigate",
+    "disposition": "proceed",
+    "supported": 0.11,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/683-row25-issue.md",
+    "site": "683"
+  }
+}

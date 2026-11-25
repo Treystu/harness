@@ -1,0 +1,122 @@
+[
+ {
+  "pr": 590,
+  "pr_title": "fix(audit): R13 stops parking on a captured pipe the suite does not own (#583)",
+  "priority": "P1",
+  "file": "audits/self/audit.py",
+  "title": "Update the suite-runner test double for file-based output",
+  "url": "https://github.com/Treystu/harness/pull/590#discussion_r4596881755",
+  "discussion": "4596881755",
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Update the suite-runner test double for file-based output**\n\nThe existing `test_r_suite_runner_passes_the_scrubbed_env_to_the_child` in `tests/test_audit_env_isolation.py` mocks `subprocess.run` by returning a result containing `stdout`, without writing to the supplied log file. Now that this result is ignored, the test reads an empty log and receives a score of `0.0` instead of `1.0`. Confirmed with `python -m unittest tests.test_audit_env_isolation -q`. This also makes the full suite invoked by R13 fail, and the CircleCI suite in `.circleci/config.yml` includes this test. Update the mock to write its synthetic summary to `kwargs[\"stdout\"]` alongside this runner change.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 591,
+  "pr_title": "fix(gui): panes render once, show pending state, never park on auth (#586)",
+  "priority": "P2",
+  "file": "harness/ui/panes.js",
+  "title": "Keep the retry render attached to the visible pane",
+  "url": "https://github.com/Treystu/harness/pull/591#discussion_r4596882813",
+  "discussion": "4596882813",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Keep the retry render attached to the visible pane**\n\nWhen an unpaired browser opens Proof and then successfully uses **Connect browser**, the pane continues showing the disconnected notice instead of its evidence. `showSubtool()` moves the staged node's children into `subtoolBody`, but this handler retains the now-empty, detached `stage` as `root`; consequently, `retry(root)` renders the authenticated result off-screen. I reproduced this with the commit's `renderPane()` and `renderProof()`: the visible notice remained unchanged while the detached stage received the successful result. Mount the stage itself or route retries through the pane shell so they update the visible container.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 600,
+  "pr_title": "fix(gui): Proof reads the ledger once and paints as its data lands (#599)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Include retained ledger segments in the cache fingerprint",
+  "url": "https://github.com/Treystu/harness/pull/600#discussion_r4598781974",
+  "discussion": "4598781974",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include retained ledger segments in the cache fingerprint**\n\nFor a rotated ledger, `AutonomyLedger._ledger_paths()` reads the retained segments as well as the active file, but this fingerprint covers only the active file. Changing or corrupting a retained segment therefore leaves the cache key unchanged, so `/api/snapshot` continues serving previously verified evidence until the TTL expires instead of refusing the broken chain. I reproduced this by modifying a rotated segment: a fresh ledger verification returned `(False, 1)` while the snapshot still returned the cached payload. Fingerprint all files that contribute to the verified ledger.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 600,
+  "pr_title": "fix(gui): Proof reads the ledger once and paints as its data lands (#599)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Evict superseded snapshot cache entries",
+  "url": "https://github.com/Treystu/harness/pull/600#discussion_r4598781981",
+  "discussion": "4598781981",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Evict superseded snapshot cache entries**\n\nWhen the ledger changes between snapshot requests, each fingerprint creates a new entry in `UiState._api_cache`. That cache only checks expiration when the same key is requested again; it never deletes expired entries. Consequently, a long-running server retains every historical snapshot payload indefinitely, causing memory usage to grow with ledger activity and Proof visits. Use a bounded snapshot cache or explicitly remove superseded fingerprints rather than inserting each version into the existing non-evicting cache.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 601,
+  "pr_title": "fix(guard): a held write names what is held and what it would change (#569)",
+  "priority": "P2",
+  "file": "harness/lifecycle_guards.py",
+  "title": "Scope the no-writes assurance to the refused round",
+  "url": "https://github.com/Treystu/harness/pull/601#discussion_r4599767674",
+  "discussion": "4599767674",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Scope the no-writes assurance to the refused round**\n\nWhen a later orchestration round is refused after an earlier round executed edits, this message incorrectly tells the operator that no file was written and nothing ran. In `harness/orchestrator.py`, `drive()` calls `execute_plan(plan)` for earlier rounds and then invokes the `refused` callback if a subsequent `plan_round()` refuses; `harness/edit_lifecycle.py` wires that callback to `_refused_edit()`, which renders this block without rolling back earlier changes. Qualify the assurance as applying only to the refused plan or pass prior execution state into the renderer, so users are not told their worktree is unchanged when edits remain.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 603,
+  "pr_title": "fix(serve): the UI server owns its request log on disk (#574)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Isolate request handling from log-file write failures",
+  "url": "https://github.com/Treystu/harness/pull/603#discussion_r4601407904",
+  "discussion": "4601407904",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Isolate request handling from log-file write failures**\n\nIf the log filesystem fills up or a write/flush otherwise raises `OSError` after startup, this call propagates the exception into request handling. `BaseHTTPRequestHandler.send_response()` invokes logging before sending headers, so even `GET /` then closes the connection without a response; the error-response path also uses the same failing logger. I reproduced `RemoteDisconnected` by making the attached log raise `OSError(28, 'No space left on device')`. Since both CLI entry points now attach this sink by default, a logging failure can make the entire UI unavailable. Catch file-write failures at the logging boundary and report them through stderr without aborting the HTTP response.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 607,
+  "pr_title": "gui: serve the version and commit on every response (#587)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Verify the package belongs to the repository being identified",
+  "url": "https://github.com/Treystu/harness/pull/607#discussion_r4610143500",
+  "discussion": "4610143500",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Verify the package belongs to the repository being identified**\n\nWhen Harness is installed as a wheel into a `.venv` inside another project's Git checkout, this root is `site-packages`, and `_git_describe(root)` resolves the enclosing project's repository rather than Harness's source. I reproduced this layout: `serve_identity()` reported the unrelated application's commit instead of `unknown`. Consequently, every response and the startup message confidently identify code that is not being served, undermining the diagnostic this change adds. Verify that the resolved repository actually contains the loaded Harness source checkout before accepting its commit; otherwise retain the package version and report `unknown`.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 609,
+  "pr_title": "driver: execute the BR6 bridge battery, with the live probe blocked until superv",
+  "priority": "P1",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Isolate synthetic probes from the shared bridge ledger",
+  "url": "https://github.com/Treystu/harness/pull/609#discussion_r4611150287",
+  "discussion": "4611150287",
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Isolate synthetic probes from the shared bridge ledger**\n\nWhen `root` points to the shared hand/driver ledger, as the API documents, these synthetic workers can consume real pending requests: `CaptureHand.poll_once()` selects the first unanswered request from the entire ledger, not necessarily the request just posted by the probe. I reproduced this by posting `aaa-real-driver-request` before running the battery; `probe_locked` permanently answered that real request with its simulated locked-session refusal. The fixed probe IDs also make subsequent runs against the same root fail because their existing results exclude them from `pending_requests()`. Give the hermetic probes a fresh, isolated ledger per run rather than allowing them to poll and write the operational queue.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 610,
+  "pr_title": "driver: native Windows backend for click/type/key/scroll/submit (#481)",
+  "priority": "P1",
+  "file": "driver_core/osal.py",
+  "title": "Use a Unicode-capable input API for literal text",
+  "url": "https://github.com/Treystu/harness/pull/610#discussion_r4611148233",
+  "discussion": "4611148233",
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Use a Unicode-capable input API for literal text**\n\nWith the full Windows backend, `type_text` passes Unicode code points to `keybd_event`, whose `bScan` parameter is a one-byte hardware scan code and whose documented flags do not include `KEYEVENTF_UNICODE`. That flag belongs to the `KEYBDINPUT` mechanism used by `SendInput`. Consequently these calls do not implement literal Unicode typing; BMP characters above U+00FF are also truncated by the declared `c_ubyte` binding (for example, `中` becomes 0x2D), yet the backend reports successful typing. Use `SendInput` with Unicode `KEYBDINPUT` records or another supported literal-text mechanism, and test the real ABI rather than only the mock call arguments. See Microsoft's [keybd_event contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-keybd_event) and [Unicode KEYBDINPUT contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-keybdinput).\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 610,
+  "pr_title": "driver: native Windows backend for click/type/key/scroll/submit (#481)",
+  "priority": "P2",
+  "file": "driver_core/osal.py",
+  "title": "Restrict key shorthand to ASCII letters and digits",
+  "url": "https://github.com/Treystu/harness/pull/610#discussion_r4611148267",
+  "discussion": "4611148267",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Restrict key shorthand to ASCII letters and digits**\n\nWhen a caller supplies a non-ASCII letter or digit, `isalpha()` and `isdigit()` accept it, but its Unicode ordinal is not a Windows virtual-key code. The native binding then truncates it to a byte, potentially executing a different shortcut: `parse_key_combo('ctrl+ł')` produces `(17, 321)`, which reaches Windows as `(17, 65)`, i.e. Ctrl+A. This violates the closed-key vocabulary and can modify the wrong content instead of refusing an unsupported key. Restrict the shorthand to ASCII A–Z and 0–9, and reject other characters before sending events; Microsoft's [keybd_event contract](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-keybd_event) requires a virtual-key code rather than a Unicode ordinal.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 611,
+  "pr_title": "serve/media: one loopback port per service, and refuse the wrong service (#566)",
+  "priority": "P2",
+  "file": "harness/media_client.py",
+  "title": "Require service-specific evidence before accepting JSON errors",
+  "url": "https://github.com/Treystu/harness/pull/611#discussion_r4612690947",
+  "discussion": "4612690947",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Require service-specific evidence before accepting JSON errors**\n\nWhen an unrelated loopback service answers `/v1/balance` with a generic JSON error such as HTTP 404 `{\"detail\":\"Not Found\"}`, this branch positively identifies it as media. `_ensure_identified()` then allows the media operation and sends `X-Media-Token` to that unidentified service, defeating the new guard's credential-withholding contract. I reproduced this with a local HTTP server: the credential-free probe was followed by a token-bearing `POST /v1/jobs`. Require a media-specific identity marker or recognizable service-specific challenge rather than accepting any `error` or `detail` field.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 612,
+  "pr_title": "driver: mission executor with claim lease, read-back and scoped inbox (#483)",
+  "priority": "P1",
+  "file": "driver_core/mission_executor.py",
+  "title": "Renew the claim lease while executing an action",
+  "url": "https://github.com/Treystu/harness/pull/612#discussion_r4611145874",
+  "discussion": "4611145874",
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Renew the claim lease while executing an action**\n\nIf the supplied action tier takes longer than the lease (60 seconds by default), the single pre-execution heartbeat expires while `self.execute()` is still running. Another executor sharing the inbox can then take over the claim and execute the same mission concurrently. A reproduction with two executors and an advancing clock executed the mission under both owners; the original executor only detected the lost claim after its action completed. Maintain the lease throughout execution, or otherwise prevent takeover while the original action can still produce effects.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+ }
+]

@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import osal, provision as pv
+from harness import provision_approval as ppa
 from tests.test_provision import FakeRunner, fake_which, step
 from tests.test_provision_hardening import FailingLedger, HardeningCase
 
@@ -62,7 +63,7 @@ class InRootProgramsNeedApprovalTests(HardeningCase):
             "verify", "d", (planted, "--version"), pv.MUTATING, "e", "nothing")],
             self.root, "x", "x", True)
         runner = FakeRunner()
-        report = pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        report = pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                  ledger=self.ledger, runner=runner,
                                  dry_run=False, which=fake_which)
         self.assertEqual(report.outcome, pv.AWAITING_APPROVAL)
@@ -267,7 +268,7 @@ class ApprovalStoreFailureTests(HardeningCase):
         s3 = pv.Step("mk2", "d", ("mkdir", self.work("y")), pv.MUTATING, "e",
                      "undo y")
         plan = pv.Plan("g", [s1, s2, s3], self.root, "r", "s", False)
-        gate = pv.ApprovalGate(ask=lambda p, s: (pv.APPROVE, "ok"))
+        gate = ppa.ApprovalGate(ask=lambda p, s: (pv.APPROVE, "ok"))
         gate.approve_step(plan, "mk", "tester")
         gate.ledger = FailingLedger(self.tmp, "provision_approval")
         report = pv.execute_plan(plan, gate, policy=self.policy,
@@ -286,7 +287,7 @@ class ApprovalStoreFailureTests(HardeningCase):
             pv.Step("a", "d", ("mkdir", self.work("a")), pv.MUTATING, "e", "u"),
             pv.Step("b", "d", ("mkdir", self.work("b")), pv.MUTATING, "e", "u")],
             self.root, "r", "s", False)
-        gate = pv.ApprovalGate(FailingLedger(self.tmp, "provision_approval"),
+        gate = ppa.ApprovalGate(FailingLedger(self.tmp, "provision_approval"),
                                ask=lambda p, s: (pv.APPROVE, "ok"))
         report = pv.execute_plan(plan, gate, policy=self.policy,
                                  ledger=self.ledger, runner=FakeRunner(),
@@ -415,7 +416,7 @@ class LeftoverAndStaleDirectoryTests(HardeningCase):
             return osal.CommandResult(0, "ok", "")
 
         report = pv.execute_plan(
-            pv.Plan("g", [step()], self.root, "x", "x", True), pv.ApprovalGate(),
+            pv.Plan("g", [step()], self.root, "x", "x", True), ppa.ApprovalGate(),
             policy=self.policy, ledger=self.ledger, runner=runner,
             dry_run=False, which=fake_which)
         self.assertEqual(report.results[0].leftovers, ("a.txt", "b.txt"))
@@ -426,7 +427,7 @@ class LeftoverAndStaleDirectoryTests(HardeningCase):
 
     def test_clean_runs_report_no_leftovers(self):
         report = pv.execute_plan(
-            pv.Plan("g", [step()], self.root, "x", "x", True), pv.ApprovalGate(),
+            pv.Plan("g", [step()], self.root, "x", "x", True), ppa.ApprovalGate(),
             policy=self.policy, ledger=self.ledger, runner=FakeRunner(),
             dry_run=False, which=fake_which)
         self.assertEqual(report.results[0].leftovers, ())
@@ -440,7 +441,7 @@ class LeftoverAndStaleDirectoryTests(HardeningCase):
         with open(os.path.join(full, "evidence.txt"), "w", encoding="utf-8") as h:
             h.write("x")
         pv.execute_plan(pv.Plan("g", [step()], self.root, "x", "x", True),
-                        pv.ApprovalGate(), policy=self.policy,
+                        ppa.ApprovalGate(), policy=self.policy,
                         ledger=self.ledger, runner=FakeRunner(), dry_run=False,
                         which=fake_which)
         self.assertFalse(os.path.exists(empty))
@@ -458,7 +459,7 @@ class DoneEvidenceTests(HardeningCase):
     def test_a_forged_done_list_is_refused_and_nothing_is_skipped(self):
         plan = self.plan()
         with self.assertRaises(pv.ProvisionError) as ctx:
-            pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+            pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                             ledger=self.ledger, runner=FakeRunner(),
                             dry_run=False, which=fake_which, done=["mk"])
         self.assertIn("no completed ledger entry", str(ctx.exception))
@@ -466,12 +467,12 @@ class DoneEvidenceTests(HardeningCase):
 
     def test_done_without_a_ledger_is_refused_even_for_a_preview(self):
         with self.assertRaises(pv.ProvisionError):
-            pv.execute_plan(self.plan(), pv.ApprovalGate(), policy=self.policy,
+            pv.execute_plan(self.plan(), ppa.ApprovalGate(), policy=self.policy,
                             runner=FakeRunner(), done=["mk"])
 
     def test_done_is_honoured_only_for_steps_proven_for_this_plan_digest(self):
         plan = self.plan()
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "me")
         pv.execute_plan(plan, gate, policy=self.policy, ledger=self.ledger,
                         runner=FakeRunner(), dry_run=False, which=fake_which)
@@ -490,10 +491,10 @@ class DoneEvidenceTests(HardeningCase):
 
     def test_a_dry_run_entry_is_not_evidence_of_completion(self):
         plan = self.plan()
-        pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                         ledger=self.ledger, runner=FakeRunner())
         with self.assertRaises(pv.ProvisionError):
-            pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+            pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                             ledger=self.ledger, runner=FakeRunner(), done=["mk"])
 
 

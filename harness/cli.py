@@ -35,6 +35,7 @@ from .jev_assessment import (AssessmentError, parse_payload_json,
                              record_disposition, verdict_for_payload)
 from .ledger import AutonomyLedger
 from . import provision as _pv
+from .provision_approval import ApprovalGate as _ApprovalGate
 from .provision_plan import plan_from_dict as _plan_from_dict
 from .provision_plan import render_plan as _render_plan
 from . import refine as _refine
@@ -1968,7 +1969,7 @@ def _cmd_provision(opts, settings):
         policy = _pv.policy_for_probe(probe, [plan.root])
         _pv.validate_plan(plan, policy)
         dry_run = bool(getattr(opts, "dry_run", True))
-        gate = _pv.ApprovalGate()
+        gate = _ApprovalGate()
         if getattr(opts, "approve_all", False):
             gate.record(
                 plan,

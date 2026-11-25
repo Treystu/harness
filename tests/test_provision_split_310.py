@@ -20,14 +20,21 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import provision as pv
+from harness import provision_approval as ppa
 from harness import provision_plan as pp
 
 _PLAN_MODULE = os.path.join(os.path.dirname(pp.__file__), "provision_plan.py")
+_APPROVAL_MODULE = os.path.join(os.path.dirname(pp.__file__), "provision_approval.py")
+_CORE_MODULE = os.path.join(os.path.dirname(pp.__file__), "provision.py")
+
+
+def _read_module(path: str) -> str:
+    with open(path, encoding="utf-8") as handle:
+        return handle.read()
 
 
 def _read_plan_module() -> str:
-    with open(_PLAN_MODULE, encoding="utf-8") as handle:
-        return handle.read()
+    return _read_module(_PLAN_MODULE)
 
 
 class SeamDirectionTests(unittest.TestCase):
@@ -93,13 +100,31 @@ class OwnerImportTests(unittest.TestCase):
 
     def test_vocabulary_is_single_sourced(self):
         for name in ("READ", "MUTATING", "IRREVERSIBLE", "CLASSES", "APPROVE",
-                     "DECLINE", "DEFER", "DECISIONS", "COMPLETED", "FAILED",
+                     "DECLINE", "DEFER", "COMPLETED", "FAILED",
                      "DRY_RUN", "DECLINED", "DEFERRED", "AWAITING_APPROVAL",
                      "SKIPPED", "AUDIT_FAILED", "ALREADY_DONE",
                      "DEFAULT_STEP_TIMEOUT_S",
                      "DEFAULT_MAX_STEPS", "RECIPE_VENV_PIP", "RECIPE_NPM_PREFIX",
                      "RECIPE_SYSTEM_PM", "RECIPE_INVENTORY"):
             self.assertEqual(getattr(pv, name), getattr(pp, name), name)
+
+
+class SliceTwoSeamTests(unittest.TestCase):
+    """The S5 approval gate is owned by ``provision_approval``, not the executor."""
+
+    def test_provision_approval_does_not_import_provision(self):
+        source = _read_module(_APPROVAL_MODULE)
+        for forbidden in ("from .provision import", "from harness.provision import",
+                          "import harness.provision\n"):
+            self.assertNotIn(forbidden, source)
+
+    def test_the_executor_no_longer_defines_the_gate(self):
+        source = _read_module(_CORE_MODULE)
+        self.assertNotIn("class ApprovalGate", source)
+        self.assertNotIn("class ApprovalRecord", source)
+
+    def test_the_gate_owner_type_is_single_sourced(self):
+        self.assertIs(pv.ApprovalGate, ppa.ApprovalGate)
 
 
 class PlanBehaviorTests(unittest.TestCase):
