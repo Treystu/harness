@@ -90,6 +90,7 @@ BURN_SESSIONS = {
     "918dad1a": "Harness Audit Lane",
     "0319b9f6": "SCMessenger Audit Lane",
     "46472fcc": "CivicScope",
+    "26646448": "Agensi Lane Queue Executi",
 }
 # What a lane's own transcript must contain for the app to identify it when its
 # row name cannot (BigEnergyCo has five sessions that all open with its name).
@@ -120,9 +121,11 @@ PROJECT_OF = {
     "0d7e2f37": "BigEnergyCo",
     "7d4a9b14": "Kalshi-Trader",
     "46472fcc": "civicscope(cloud)",
+    "26646448": "Agensi Skills Local",
 }
 PROJECT_HEADINGS = ("GitHub", "harness CLOUD", "Harness", "SCMessenger",
-                    "Kalshi-Trader", "BigEnergyCo", "agensi-skills", "civicscope(cloud)")
+                    "Kalshi-Trader", "BigEnergyCo CLOUD", "BigEnergyCo",
+                    "Agensi Skills Local", "agensi-skills", "civicscope(cloud)")
 COMPOSER = (630, 918, 1550, 1110)
 # The editor's own text band only: the toolbar below it carries labels
 # (Build/Plan/Mission/Skills) that are not a draft.
@@ -2350,7 +2353,9 @@ class Dispatch:
             except RuntimeError as error:
                 self.audit.append("escalation", step_id=f"{step}-{page}", reason=str(error))
                 continue
-            if any(self.exact_session_title(row["text"], self.label) for row in rows):
+            if (any(self.exact_session_title(row["text"], self.label) for row in rows)
+                    or (self.thread != SCM_THREAD and any("y" in row for row in rows)
+                        and bool(self.session_candidates(rows, self.label, self.project)[0]))):
                 self.audit.append("verification", step_id=f"{step}-visible",
                                   page=page, label=self.label)
                 return frame, rows
@@ -2392,6 +2397,16 @@ class Dispatch:
                                   thread=self.thread, project=self.project,
                                   pinned_uuid=derived_uuid)
                 return
+            if (getattr(self, "post_send", False)
+                    and (getattr(self, "window", None) is not None
+                         or "reveal_lane_row" in getattr(self, "__dict__", {}))):
+                self.reveal_lane_row(step="post-send-reveal-lane")
+                if self.selected_exact_session():
+                    self.audit.append("verification", step_id="active-session-id",
+                                      route_fallback="post-send-revealed-exact-selection",
+                                      thread=self.thread, project=self.project,
+                                      pinned_uuid=derived_uuid)
+                    return
             if (getattr(self, "phase", None) != "send"
                     and getattr(self, "allow_navigation", False)
                     and (getattr(self, "window", None) is not None
@@ -2406,10 +2421,12 @@ class Dispatch:
             if self.identity_by_continuation():
                 return
             raise RuntimeError("the exact pinned session route is required for this standing dispatch")
-        if not sessions and self.phase != "send" and getattr(self, "allow_navigation", True):
+        if not sessions and (getattr(self, "post_send", False)
+                             or (self.phase != "send" and getattr(self, "allow_navigation", True))):
             # The walk that opened the lane can leave the list scrolled past its
             # row; the selection is still the proof, it just has to be in view.
-            self.reveal_lane_row()
+            step_name = "post-send-reveal-lane" if getattr(self, "post_send", False) else "reveal-lane"
+            self.reveal_lane_row(step=step_name)
         if self.selected_label_matches(wait=3):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               source="settled sidebar selection")
@@ -2461,43 +2478,95 @@ class Dispatch:
             time.sleep(2)
         raise RuntimeError("the vision-seat selected view did not expose the expected last work")
 
+    def _submit_staged_carrier_arrow(self, frame, started):
+        """Submit an already-staged /mission carrier via the verified white up-arrow button."""
+        region = SEND_CONTROL
+        self.yes("vision-staged-start-arrow", frame,
+                 "Does this crop show a white button containing a black upward arrow?", region=region)
+        left, top, _, _ = region
+        outline = frame.crop(region).convert("L").point(lambda level: 255 if level >= 205 else 0).getbbox()
+        if outline is None or not (26 <= outline[2] - outline[0] <= 47 and 26 <= outline[3] - outline[1] <= 47):
+            raise RuntimeError("the staged mission's arrow outline was not located")
+        point = [left + (outline[0] + outline[2]) // 2, top + (outline[1] + outline[3]) // 2]
+        fresh = self.frame("vision-staged-before-click")
+        if not composer_unchanged(frame.crop(COMPOSER), fresh.crop(COMPOSER)):
+            raise RuntimeError("the staged mission changed before the start action")
+        self.verify_session_identity()
+        if time.monotonic() - started > 60:
+            raise RuntimeError("the staged mission verification expired before start")
+        marker = (self.output.parent
+                  / f"harness-freebuff-{self.thread}-staged-start-20261122.json")
+        with marker.open("x", encoding="utf-8") as handle:
+            json.dump({"thread": self.thread, "step": "vision-submit-staged-mission",
+                       "evidence": self.output.name}, handle)
+        self.act("vision-submit-staged-mission", CLICK,
+                 {"control": f"{self.label} staged mission start arrow",
+                  "point": point, "size": list(frame.size)})
+        self.post_send = True
+        for attempt, delay in enumerate((2.0, 4.0, 6.0, 8.0), start=1):
+            time.sleep(delay)
+            current = self.frame(f"vision-staged-response-{attempt}")
+            if not self.stop_visible(current):
+                continue
+            if attempt == 1:
+                time.sleep(2.0)
+                current = self.frame("vision-staged-response-1-confirm")
+                if not self.stop_visible(current):
+                    continue
+            self.verify_session_identity()
+            self.audit.append("verification", step_id="vision-running-after-staged-arrow", stop_cue=True)
+            return
+        raise RuntimeError("the staged mission was submitted once but a sustained Stop cue was not verified")
+
     def resume_vision_mission(self):
         frame = self.settle_view("vision-before-resume")
         self.verify_session_identity()
         if self.stop_visible(frame):
             raise RuntimeError("the requested session is already running; no restart input")
+        started = time.monotonic()
         options = {"resume": "A visible button labeled Resume mission.",
                    "other": "No button labeled Resume mission is visible."}
         route = self.choose("vision-resume-route", frame, "Which button is visible?", options,
                             region=(630, 590, 1550, 960))
-        if route == "other":
-            self.prepare_draft()
-            self.send_draft()
-            return
-        region = (630, 590, 1550, 960)
-        point, box = self.locate_exact_text("vision-resume-ocr", frame, "Resume mission", region, with_bounds=True)
-        scope = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
-        self.yes("vision-resume-confirm", frame, "Does the button say Resume mission?", region=scope)
-        fresh = self.frame("vision-resume-readback")
-        if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
-            raise RuntimeError("the Resume mission control changed before input")
-        self.act("vision-resume", CLICK,
-                 {"control": "Vision Driver Resume mission", "point": point, "size": list(frame.size)})
-        time.sleep(2)
-        frame = self.frame("vision-resume-response")
-        self.verify_session_identity()
-        if self.stop_visible(frame):
-            self.audit.append("verification", step_id="vision-running-after-resume", stop_cue=True)
-            return
+        if route == "resume":
+            region = (630, 590, 1550, 960)
+            point, box = self.locate_exact_text("vision-resume-ocr", frame, "Resume mission", region, with_bounds=True)
+            scope = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
+            self.yes("vision-resume-confirm", frame, "Does the button say Resume mission?", region=scope)
+            fresh = self.frame("vision-resume-readback")
+            if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
+                raise RuntimeError("the Resume mission control changed before input")
+            self.act("vision-resume", CLICK,
+                     {"control": f"{self.label} Resume mission", "point": point, "size": list(frame.size)})
+            time.sleep(2)
+            frame = self.frame("vision-resume-response")
+            self.verify_session_identity()
+            if self.stop_visible(frame):
+                self.audit.append("verification", step_id="vision-running-after-resume", stop_cue=True)
+                return
         region = (500, 180, 1600, 1100)
-        point, box = self.locate_exact_text("vision-start-ocr", frame, "Start mission", region, with_bounds=True)
+        try:
+            point, box = self.locate_exact_text("vision-start-ocr", frame, "Start mission", region, with_bounds=True)
+        except RuntimeError:
+            staged_lines = self.read_lines("vision-staged-carrier", frame, (640, 745, 1530, 1048))
+            if "/mission" in " ".join(staged_lines).casefold():
+                self._submit_staged_carrier_arrow(frame, started)
+                return
+            if route == "other":
+                self.prepare_draft()
+                self.send_draft()
+                return
+            raise RuntimeError(
+                "Resume mission was clicked but neither Start mission nor a staged /mission start arrow was verified"
+            ) from None
         scope = (box[0] - 6, box[1] - 5, box[2] + 6, box[3] + 5)
         self.yes("vision-start-confirm", frame, "Does the button say Start mission?", region=scope)
         fresh = self.frame("vision-start-readback")
         if fresh.crop(scope).tobytes() != frame.crop(scope).tobytes():
             raise RuntimeError("the Start mission control changed before input")
         self.act("vision-start", CLICK,
-                 {"control": "Vision Driver Start mission", "point": point, "size": list(frame.size)})
+                 {"control": f"{self.label} Start mission", "point": point, "size": list(frame.size)})
+        self.post_send = True
         time.sleep(3)
         frame = self.frame("vision-start-response")
         self.verify_session_identity()
@@ -2838,6 +2907,7 @@ class Dispatch:
             json.dump({"thread": self.thread, "step": f"{operation}-once", "text": self.text,
                        "evidence": self.output.name}, handle)
         self.act(f"{operation}-once", SEND, params)
+        self.post_send = True
         if pointer:
             time.sleep(2)
             response_frame = self.frame("disk-steering-response")
@@ -3120,7 +3190,7 @@ def main():
     args.evidence.mkdir()
     dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input,
                         standing=args.standing)
-    dispatch.allow_navigation = args.phase in {"prepare", "send"}
+    dispatch.allow_navigation = args.phase in {"prepare", "send", "vision-resume"}
     dispatch.phase = args.phase
     try:
         if args.phase == "open":
@@ -3130,8 +3200,8 @@ def main():
         elif args.phase == "observe-running":
             dispatch.observe_running()
         elif args.phase == "vision-resume":
-            if args.thread != VISION_THREAD or not args.standing:
-                raise RuntimeError("vision resume requires the standing pinned vision seat")
+            if not args.standing or args.thread not in SESSIONS:
+                raise RuntimeError("vision resume requires a standing pinned session")
             dispatch.resume_vision_mission()
         elif args.phase in {"vision-start-staged", "vision-start-focus-cure"}:
             if args.thread != VISION_THREAD or not args.standing:

@@ -1461,5 +1461,352 @@ class SelfRelianceAndComposerCureTests(unittest.TestCase):
                 }, now)
 
 
+class _ArrowCrop:
+    def __init__(self, size, pixels_bytes=b"same"):
+        self.size = size
+        self._bytes = pixels_bytes
+
+    def convert(self, _mode):
+        return self
+
+    def point(self, _fn):
+        return self
+
+    def getbbox(self):
+        return (10, 10, 42, 42)
+
+    def tobytes(self):
+        return self._bytes
+
+
+class _ArrowFrame:
+    def __init__(self, size=(1800, 1131)):
+        self.size = size
+
+    def crop(self, _region):
+        return _ArrowCrop(self.size)
+
+
+class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
+    """Ask 2 incremental ETag 304 polling, back-to-back drain, 3-timestamp SLA, and staged carriers."""
+
+    def test_sync_issue_comments_uses_since_watermark_and_etag_304_zero_quota(self):
+        comments_payload = [
+            {
+                "id": 7158410813,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-25T09:29:53Z",
+                "updated_at": "2026-11-25T09:29:53Z",
+                "body": "later",
+            },
+            {
+                "id": 7158410915,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-25T09:29:53Z",
+                "updated_at": "2026-11-25T09:29:53Z",
+                "body": "PAUSE",
+            },
+        ]
+        seen = []
+
+        def fake_conditional(endpoint, etag=None):
+            seen.append((endpoint, etag))
+            if len(seen) == 1:
+                return comments_payload, None
+            if len(seen) == 2:
+                return comments_payload, '"etag-1"'
+            return watch._NOT_MODIFIED, etag
+
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "monitor.json"
+            old_stats = dict(watch._POLL_STATS)
+            watch._POLL_STATS["requests"] = 0
+            watch._POLL_STATS["conditional_304s"] = 0
+            try:
+                with patch.dict("os.environ", {"HARNESS_DRIVER_MONITOR_STATE": str(state_path)}), \
+                        patch.object(watch, "_http_get_conditional", side_effect=fake_conditional):
+                    first = watch._sync_issue_comments(since_floor="2026-11-24T00:20:00Z")
+                    self.assertEqual([item["id"] for item in first], [7158410813, 7158410915])
+                    # Same-second watermark keeps 09:29:53Z and sets ETag on the next poll.
+                    second = watch._sync_issue_comments(since_floor="2026-11-24T00:20:00Z")
+                    self.assertEqual(len(second), 2)
+                    self.assertIn("since=2026-11-25T09:29:53Z", seen[1][0])
+                    # Third poll hits HTTP 304 Not Modified without changing cache.
+                    third = watch._sync_issue_comments(since_floor="2026-11-24T00:20:00Z")
+                    self.assertEqual(len(third), 2)
+                    self.assertEqual(seen[2][1], '"etag-1"')
+                    self.assertEqual(watch._POLL_STATS["requests"], 3)
+                    self.assertEqual(watch._POLL_STATS["conditional_304s"], 1)
+                    # pause_requested reuses the 304 cache without issuing non-conditional calls.
+                    self.assertEqual(watch.pause_requested(), 7158410915)
+                    self.assertEqual(watch._POLL_STATS["conditional_304s"], 2)
+                    with patch.object(watch, "api", return_value={"id": 999}):
+                        watch.issue_comment("test invalidates etag")
+                    saved = json.loads(state_path.read_text(encoding="utf-8"))
+                    self.assertIsNone(saved["comments_etag"])
+                    self.assertEqual(saved["comments_watermark"], "2026-11-25T09:29:53Z")
+            finally:
+                watch._POLL_STATS.clear()
+                watch._POLL_STATS.update(old_stats)
+
+    def test_validate_receipts_uses_monitor_state_cache_after_cold_start(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "monitor.json"
+            api_calls = []
+
+            def fake_api(endpoint):
+                api_calls.append(endpoint)
+                num = int(endpoint.rsplit("/", 1)[1])
+                return {
+                    "id": num,
+                    "user": {"id": watch.OWNER_ID},
+                    "created_at": "2026-11-23T06:55:00Z",
+                    "body": watch.RECEIPTS[num],
+                    "issue_url": "https://api.github.com/repos/Treystu/harness/issues/684",
+                }
+
+            with patch.dict("os.environ", {"HARNESS_DRIVER_MONITOR_STATE": str(state_path)}), \
+                    patch.object(watch, "api", side_effect=fake_api):
+                first = watch.validate_receipts()
+                self.assertEqual(len(first), len(watch.RECEIPTS))
+                self.assertEqual(len(api_calls), len(watch.RECEIPTS))
+                second = watch.validate_receipts()
+                self.assertEqual(set(second), set(watch.RECEIPTS))
+                self.assertEqual(len(api_calls), len(watch.RECEIPTS))
+
+    def test_parse_live_dispatches_bigenergyco_agensi_lane1_and_burn_window(self):
+        now = datetime(2026, 11, 25, 11, 30, tzinfo=timezone.utc)
+        bec = {
+            "id": 7158410813,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T09:29:53Z",
+            "body": (
+                "## RESTART DISPATCH \u2014 BigEnergyCo, episode BURN-20261124-BEC\n\n"
+                "Runner action requested: in-place restart of BigEnergyCo only. "
+                "The lane sits staged with its /mission carrier + Start showing after turn 15. "
+                "Resume -> Start on the staged carrier.\n"
+            ),
+        }
+        agensi = {
+            "id": 7158410915,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T09:29:53Z",
+            "body": (
+                "## RESTART DISPATCH \u2014 Agensi, episode BURN-20261124-AGENSI\n\n"
+                "Runner action requested: in-place restart of Agensi only "
+                "(Agensi Skills Local, session 26646448, 'Agensi Lane Queue Executi'). "
+                "Resume -> Start on the staged carrier.\n"
+            ),
+        }
+        lane1 = {
+            "id": 7159142905,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T10:02:32Z",
+            "body": (
+                "OVERSIGHT RESTART DISPATCH \u2014 Lane 1 \u2014 Episode L1-STOP-1064\n\n"
+                "Action for the runner alone: in-place restart only \u2014 "
+                'exactly "continue in full"; never a duplicate session.\n'
+            ),
+        }
+        burn = {
+            "id": 7159999001,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T10:15:00Z",
+            "body": (
+                "BURN WINDOW DISPATCH \u2014 SCMessenger Audit\n"
+                'Action for the runner: "continue in full"\n'
+            ),
+        }
+        p_bec = watch.parse_dynamic_dispatch(bec, now=now)
+        p_ag = watch.parse_dynamic_dispatch(agensi, now=now)
+        p_l1 = watch.parse_dynamic_dispatch(lane1, now=now)
+        p_burn = watch.parse_dynamic_dispatch(burn, now=now)
+        self.assertEqual((p_bec["thread"], p_bec["mode"]), ("0d7e2f37", "staged-resume"))
+        self.assertEqual((p_ag["thread"], p_ag["mode"]), ("26646448", "staged-resume"))
+        self.assertEqual((p_l1["thread"], p_l1["mode"]), (watch.THREAD, "continuation"))
+        self.assertEqual((p_burn["thread"], p_burn["mode"]), ("0319b9f6", "continuation"))
+
+    def test_run_burn_drains_multiple_dispatches_back_to_back_without_idle_gap(self):
+        comments = [
+            {
+                "id": 7158410813,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-25T09:29:53Z",
+                "body": "## RESTART DISPATCH \u2014 BigEnergyCo\nRunner action requested: Resume -> Start on the staged carrier.",
+            },
+            {
+                "id": 7159142905,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-25T10:02:32Z",
+                "body": 'OVERSIGHT RESTART DISPATCH \u2014 Lane 1\nAction for the runner alone: "continue in full"',
+            },
+        ]
+        executed = []
+
+        def fake_execute(out, item, mission, digest, bystanders):
+            executed.append((item, mission["thread"], mission.get("phases"), mission["phase_timeout"], mission["filed_at"]))
+            return 0
+
+        receipts = {watch.BURN_QUEUE: {"created_at": "2026-11-24T00:00:00+00:00", "body": "queue"}}
+        known = set()
+        posted = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                    patch.object(watch, "api", return_value=comments), \
+                    patch.object(watch, "guard_approval", Mock()), \
+                    patch.object(watch, "desktop_idle", lambda: True), \
+                    patch.object(watch, "foreground_blocker", return_value=None), \
+                    patch.object(watch, "checkpoint", Mock()), \
+                    patch.object(watch, "issue_comment", side_effect=posted.append), \
+                    patch.object(watch, "advance_cursor", Mock()), \
+                    runtime_present(), \
+                    patch.object(watch, "execute", side_effect=fake_execute):
+                watch.run_burn(receipts, known)
+        self.assertEqual(len(executed), 2)
+        self.assertEqual(executed[0][1], "0d7e2f37")
+        self.assertEqual(executed[0][2], ("search", "query", "select", "vision-resume"))
+        self.assertEqual(executed[0][3], 480)
+        self.assertEqual(executed[1][1], watch.THREAD)
+        self.assertIsNone(executed[1][2])
+        self.assertEqual(posted, [])
+
+    def test_claimable_excludes_claimed_and_alerts_stale_pickup_over_300s(self):
+        now = datetime(2026, 11, 25, 11, 30, tzinfo=timezone.utc)
+        comments = [
+            {
+                "id": 7158000001,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-25T09:00:00Z",
+                "body": 'RESTART DISPATCH - SCMessenger\nAction for the runner: "continue in full"',
+            },
+            {
+                "id": 7159142905,
+                "user": {"id": watch.OWNER_ID},
+                "created_at": "2026-11-25T10:02:32Z",
+                "body": 'OVERSIGHT RESTART DISPATCH \u2014 Lane 1\nAction for the runner alone: "continue in full"',
+            },
+        ]
+        known = {"claim-dyn-7158000001-2ae32937.json"}
+        posted = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                    patch.object(watch, "api", return_value=comments), \
+                    patch.object(watch, "guard_approval", Mock()), \
+                    patch.object(watch, "desktop_idle", lambda: False), \
+                    patch.object(watch, "checkpoint", Mock()), \
+                    patch.object(watch, "issue_comment", side_effect=posted.append), \
+                    patch.object(watch, "advance_cursor", Mock()), \
+                    runtime_present():
+                result = watch.poll_dynamic_dispatches(known, now=now)
+                self.assertEqual(result, "deferred")
+                self.assertEqual(watch.LAST_SCAN["claimable"], 1)
+                self.assertTrue(any("pickup SLA ALERT on #7159142905" in msg for msg in posted))
+                before_count = sum(1 for msg in posted if "pickup SLA ALERT" in msg)
+                watch.report_stale_pickup(known, 7159142905, watch.THREAD, 600, "waiting for owner desktop idle")
+                after_count = sum(1 for msg in posted if "pickup SLA ALERT" in msg)
+                self.assertEqual(before_count, after_count)
+
+    def test_runner_execute_posts_three_timestamps_and_pickup_latency(self):
+        comments_posted = []
+
+        def fake_api(_endpoint, method="GET", body=None):
+            if method == "POST":
+                comments_posted.append(body["body"])
+                return {"id": len(comments_posted), "html_url": "https://example.test/c"}
+            return {"id": 7158410813, "user": {"id": runner.OWNER_ID}, "body": "## RESTART DISPATCH"}
+
+        fake_win = Mock()
+        fake_win.handle = 123
+        fake_win.api.foreground.return_value = 999
+        fake_win.api.title_of.return_value = "Editor"
+        fake_win.pid.return_value = 456
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "dyn-7158410813-0d7e2f37"
+            out.mkdir()
+            with patch.object(runner, "api", side_effect=fake_api), \
+                    patch.object(runner, "FreeBuffWindow", return_value=fake_win), \
+                    patch.object(runner, "capture_set", return_value={}), \
+                    patch.object(runner, "observe_bystander", return_value=runner.BYSTANDER_IDLE), \
+                    patch.object(runner, "run_phases", return_value=True), \
+                    patch.object(runner, "activate_exact", return_value=True), \
+                    patch.object(runner, "publish", return_value=["https://example.test/e"]):
+                rc = runner.execute(out, "dyn-7158410813-0d7e2f37", {
+                    "thread": "0d7e2f37",
+                    "dispatch": 7158410813,
+                    "standing": True,
+                    "filed_at": "2026-11-25T09:29:53Z",
+                }, "abc", ())
+        self.assertEqual(rc, 0)
+        self.assertIn("filed 2026-11-25T09:29:53Z, claimed ", comments_posted[0])
+        self.assertIn("Timestamps: filed 2026-11-25T09:29:53Z, claimed ", comments_posted[1])
+        self.assertIn(", completed ", comments_posted[1])
+        self.assertIn("pickup ", comments_posted[1])
+
+    def test_resume_vision_mission_staged_arrow_and_post_send_reveal_cure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            phase_dir = Path(tmp) / "vision-resume"
+            phase_dir.mkdir()
+            surface = _Surface(
+                stops=[False, False, True, True],
+                labels={"Resume mission": (900, 700)},
+                missing="Start mission",
+                reading="/mission Burn Queue",
+            )
+            surface.output = phase_dir
+            surface.thread = "0d7e2f37"
+            surface.label = "BigEnergyCo"
+            surface.allow_navigation = True
+            surface.post_send = False
+            surface.frame = lambda _step: _ArrowFrame()
+            surface.settle_view = lambda _step: _ArrowFrame()
+            surface.choose = lambda *_args, **_kwargs: "resume"
+            def _locate(step, _frame, label, _region, **kwargs):
+                if label == "Start mission":
+                    raise RuntimeError(f"{step}: exact OCR label {label!r} was not verified")
+                pt = [900, 700]
+                return (pt, (840, 685, 960, 715)) if kwargs.get("with_bounds") else pt
+            surface.locate_exact_text = _locate
+            surface._submit_staged_carrier_arrow = lambda f, s: Dispatch._submit_staged_carrier_arrow(surface, f, s)
+            identity_calls = []
+            surface.verify_session_identity = lambda: identity_calls.append(surface.post_send)
+            with patch.object(dispatch.time, "sleep"), \
+                    patch.object(dispatch, "composer_unchanged", return_value=True):
+                Dispatch.resume_vision_mission(surface)
+            self.assertEqual(surface.acts, ["BigEnergyCo Resume mission", "BigEnergyCo staged mission start arrow"])
+            self.assertEqual(identity_calls, [False, False, False, True])
+            self.assertTrue((phase_dir.parent / "harness-freebuff-0d7e2f37-staged-start-20261122.json").is_file())
+
+            # Post-send SCM_THREAD identity check runs scroll-only reveal_lane_row(step="post-send-reveal-lane").
+            scm = object.__new__(Dispatch)
+            scm.thread = dispatch.SCM_THREAD
+            scm.project = "SCMessenger"
+            scm.label = "SCMessenger"
+            scm.standing = True
+            scm.phase = "send"
+            scm.post_send = True
+            scm.routes = lambda: []
+            scm.audit = Mock()
+            scm.reveal_lane_row = Mock()
+            scm.selected_exact_session = Mock(side_effect=[False, True])
+            with patch.dict(dispatch.PINNED_UUIDS, {dispatch.SCM_THREAD: "2ae32937-uuid"}):
+                scm.verify_session_identity()
+            scm.reveal_lane_row.assert_called_once_with(step="post-send-reveal-lane")
+            self.assertEqual(scm.selected_exact_session.call_count, 2)
+
+            # Non-SCM reveal_lane_row accepts session_candidates under project heading (BigEnergyCo).
+            bec = object.__new__(Dispatch)
+            bec.thread = "0d7e2f37"
+            bec.label = "BigEnergyCo"
+            bec.project = "BigEnergyCo"
+            bec.audit = Mock()
+            bec.scroll_sidebar_to_top = lambda: _ArrowFrame()
+            bec.settled_roster = Mock(return_value=(
+                _ArrowFrame(),
+                [{"text": "B BigEnergyCo", "y": 200}, {"text": "BigEnergyCo Full Burne", "y": 230}],
+            ))
+            _, rows = bec.reveal_lane_row()
+            self.assertEqual(rows[1]["text"], "BigEnergyCo Full Burne")
+
+
 if __name__ == "__main__":
     unittest.main()

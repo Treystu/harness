@@ -8,6 +8,8 @@ import json
 import os
 import re
 import subprocess
+import urllib.error
+import urllib.request
 from ctypes import wintypes
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -17,7 +19,13 @@ from driver_core.audit import AuditLog
 from .windows_freebuff_dispatch import (
     BURN_SESSIONS, CONTINUATION, DISK_THREAD, SCM_THREAD, SESSIONS, THREAD, VISION_THREAD,
 )
-from .windows_freebuff_runner import BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit, api, approved, execute
+from .windows_freebuff_runner import (
+    BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit,
+    _hidden_subprocess_kwargs as _runner_hidden_kwargs,
+    api as _DEFAULT_RUNNER_API,
+    approved, execute,
+)
+api = _DEFAULT_RUNNER_API
 
 CUTOVER = 7093801996
 CENSUS = 7093745521
@@ -37,6 +45,9 @@ DYNAMIC_SINCE = "2026-11-24T00:20:00Z"
 DEFAULT_CONTROL_PATH = Path.home() / ".harness" / "driver-watch" / "control.json"
 ROOT = f"{LEDGER}/contents/dispatch/laptop-driver/watch/{CUTOVER}"
 WORKTREE = Path(__file__).resolve().parents[1]
+_NOT_MODIFIED = object()
+_POLL_STATS = {"requests": 0, "conditional_304s": 0}
+_GH_TOKEN_CACHE = {"token": None}
 RECEIPTS = {
     CUTOVER: "OVERSIGHT CUTOVER - RUNNER IS THE STANDING DISPATCH CHANNEL",
     CENSUS: "OVERSIGHT FOLLOW-UP DISPATCH - T4 ENUMERATION + T5 COMPLETION",
@@ -54,8 +65,105 @@ RECEIPTS = {
 }
 
 
+def monitor_state_path():
+    raw = os.environ.get("HARNESS_DRIVER_MONITOR_STATE", "").strip()
+    if raw:
+        return Path(raw)
+    wdir = os.environ.get("HARNESS_DRIVER_WATCH_DIR", "").strip()
+    if wdir:
+        return Path(wdir) / "dispatch-monitor-state.json"
+    return DEFAULT_CONTROL_PATH.parent / "dispatch-monitor-state.json"
+
+
+def _monitor_enabled():
+    if os.environ.get("HARNESS_DRIVER_MONITOR_STATE", "").strip():
+        return True
+    if os.environ.get("HARNESS_DRIVER_WATCH_DIR", "").strip():
+        return True
+    return api is _DEFAULT_RUNNER_API
+
+
+def _load_monitor_state():
+    path = monitor_state_path()
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_monitor_state(state):
+    path = monitor_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
+    tmp.write_text(json.dumps(state, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def _gh_auth_token():
+    if _GH_TOKEN_CACHE["token"]:
+        return _GH_TOKEN_CACHE["token"]
+    try:
+        res = subprocess.run(
+            ["gh", "auth", "token"],
+            capture_output=True, text=True, timeout=10, check=False,
+            **_runner_hidden_kwargs(),
+        )
+        tok = (res.stdout or "").strip() if res.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        tok = ""
+    if tok:
+        _GH_TOKEN_CACHE["token"] = tok
+    return tok
+
+
+def _http_get_conditional(endpoint, etag=None):
+    token = _gh_auth_token()
+    if not token:
+        return api(endpoint), None
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "harness-driver-watch",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Authorization": f"Bearer {token}",
+    }
+    if etag:
+        headers["If-None-Match"] = etag
+    req = urllib.request.Request(f"https://api.github.com/{endpoint}", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read().decode("utf-8")
+            return json.loads(raw), resp.headers.get("ETag")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 304:
+            return _NOT_MODIFIED, etag
+        body = exc.read().decode("utf-8", errors="replace")[:220]
+        raise RuntimeError(f"GitHub GET HTTP {exc.code} for {endpoint}: {body}") from exc
+
+
+def _default_http_get_conditional_ref():
+    return _http_get_conditional
+
+
+def api_conditional(endpoint, *, etag=None):
+    _POLL_STATS["requests"] += 1
+    if api is not _DEFAULT_RUNNER_API and _http_get_conditional is _ORIG_HTTP_CONDITIONAL:
+        return api(endpoint), None
+    data, new_etag = _http_get_conditional(endpoint, etag=etag)
+    if data is _NOT_MODIFIED:
+        _POLL_STATS["conditional_304s"] += 1
+    return data, new_etag
+
+
+_ORIG_HTTP_CONDITIONAL = _http_get_conditional
+
+
 def issue_comment(message):
-    return api(ISSUE, method="POST", body={"body": message})
+    response = api(ISSUE, method="POST", body={"body": message})
+    _clear_comments_etag()
+    return response
 
 
 def owner(comment):
@@ -63,13 +171,26 @@ def owner(comment):
 
 
 def validate_receipts():
+    if _monitor_enabled():
+        state = _load_monitor_state()
+        cached = state.get("validated_receipts")
+        if isinstance(cached, dict) and all(str(num) in cached for num in RECEIPTS):
+            return {int(k): v for k, v in cached.items()}
     receipts = {}
     for number, heading in RECEIPTS.items():
+        _POLL_STATS["requests"] += 1
         receipt = api(f"repos/Treystu/harness/issues/comments/{number}")
         if (not owner(receipt) or not receipt["body"].startswith(heading)
                 or not receipt["issue_url"].casefold().endswith("/treystu/harness/issues/684")):
             raise RuntimeError(f"oversight receipt {number} did not match")
         receipts[number] = receipt
+    if _monitor_enabled():
+        state = _load_monitor_state()
+        state["validated_receipts"] = {
+            str(k): {"id": v.get("id"), "created_at": v.get("created_at"), "body": v.get("body", "")}
+            for k, v in receipts.items()
+        }
+        _save_monitor_state(state)
     return receipts
 
 
@@ -77,21 +198,103 @@ def _comment_body(comment):
     return (comment.get("body") or "").lstrip("\ufeff")
 
 
-def pause_requested():
+def _parse_iso(ts):
+    return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+
+
+def _compact_comment(comment):
+    user = comment.get("user") or {}
+    return {
+        "id": comment.get("id"),
+        "user": {"id": user.get("id")},
+        "created_at": comment.get("created_at"),
+        "updated_at": comment.get("updated_at") or comment.get("created_at"),
+        "body": comment.get("body") or "",
+    }
+
+
+def _sync_issue_comments(since_floor=DYNAMIC_SINCE):
+    """Fetch #684 comments incrementally with ?since=<watermark> + ETag 304 caching."""
+    if not _monitor_enabled():
+        comments = []
+        page = 1
+        while True:
+            _POLL_STATS["requests"] += 1
+            batch = api(f"{ISSUE}?since={since_floor}&per_page=100&page={page}")
+            comments.extend(batch)
+            if len(batch) < 100:
+                break
+            page += 1
+        return comments
+
+    state = _load_monitor_state()
+    cache = state.get("comments_by_id") if isinstance(state.get("comments_by_id"), dict) else {}
+    watermark = state.get("comments_watermark") or min(SINCE, DYNAMIC_SINCE)
+    etag = state.get("comments_etag") if cache else None
+
+    first, first_etag = api_conditional(f"{ISSUE}?since={watermark}&per_page=100&page=1", etag=etag)
+    if first is _NOT_MODIFIED:
+        floor_dt = _parse_iso(since_floor)
+        return [
+            item for item in cache.values()
+            if not item.get("created_at") or _parse_iso(item["created_at"]) >= floor_dt
+        ]
+
+    batches = [first]
     page = 1
-    while True:
-        comments = api(f"{ISSUE}?since={SINCE}&per_page=100&page={page}")
-        for comment in comments:
-            lines = _comment_body(comment).strip().splitlines()
-            if owner(comment) and lines and lines[0].strip() in {"PAUSE", "VISION-DISPATCH PAUSE"}:
-                return comment["id"]
-        if len(comments) < 100:
-            return None
+    while len(batches[-1]) >= 100:
         page += 1
+        more, _ = api_conditional(f"{ISSUE}?since={watermark}&per_page=100&page={page}")
+        batches.append(more)
+
+    new_watermark = watermark
+    changed_watermark = False
+    for batch in batches:
+        for item in batch:
+            cid = item.get("id")
+            if cid is None:
+                continue
+            compact = _compact_comment(item)
+            cache[str(cid)] = compact
+            ts = compact.get("updated_at") or compact.get("created_at") or ""
+            if ts and ts > new_watermark:
+                new_watermark = ts
+                changed_watermark = True
+
+    state["comments_by_id"] = cache
+    state["comments_watermark"] = new_watermark
+    state["comments_etag"] = None if (changed_watermark or len(batches) > 1) else first_etag
+    _save_monitor_state(state)
+    floor_dt = _parse_iso(since_floor)
+    return [
+        item for item in cache.values()
+        if not item.get("created_at") or _parse_iso(item["created_at"]) >= floor_dt
+    ]
+
+
+def pause_requested():
+    for comment in sorted(_sync_issue_comments(since_floor=SINCE), key=lambda item: item.get("id", 0)):
+        lines = _comment_body(comment).strip().splitlines()
+        if owner(comment) and lines and lines[0].strip() in {"PAUSE", "VISION-DISPATCH PAUSE"}:
+            return comment["id"]
+    return None
 
 
 def checkpoints():
-    return {entry["name"] for entry in api(f"{ROOT}?ref={BRANCH}")}
+    if not _monitor_enabled():
+        _POLL_STATS["requests"] += 1
+        return {entry["name"] for entry in api(f"{ROOT}?ref={BRANCH}")}
+    state = _load_monitor_state()
+    etag = state.get("checkpoints_etag")
+    cached = state.get("known_checkpoints")
+    data, new_etag = api_conditional(f"{ROOT}?ref={BRANCH}", etag=etag)
+    if data is _NOT_MODIFIED and isinstance(cached, list):
+        return set(cached)
+    names = [entry["name"] for entry in data]
+    state["known_checkpoints"] = names
+    state["checkpoints_etag"] = new_etag
+    _save_monitor_state(state)
+    return set(names)
 
 
 def checkpoint(name, event):
@@ -100,6 +303,14 @@ def checkpoint(name, event):
     api(f"{ROOT}/{name}", method="PUT", body={
         "branch": BRANCH, "message": f"Checkpoint vision watch {name}", "content": content,
     })
+    if _monitor_enabled():
+        state = _load_monitor_state()
+        known_list = list(state.get("known_checkpoints") or [])
+        if name not in known_list:
+            known_list.append(name)
+            state["known_checkpoints"] = known_list
+            state["checkpoints_etag"] = None
+            _save_monitor_state(state)
 
 
 def read_checkpoint(name):
@@ -259,6 +470,8 @@ def describe_scan(evidence):
     unparsed = sorted(evidence.get("unparsed") or ())
     if unparsed:
         text += "; not claimable: " + ", ".join(f"#{cid}" for cid in unparsed)
+    if "polls" in evidence:
+        text += f"; polls={evidence.get('polls', 0)} (304={evidence.get('conditional_304s', 0)})"
     return text
 
 
@@ -320,6 +533,27 @@ def report_foreground_blocked(known, cid, thread, blocker):
     issue_comment(
         f"Vision watch {CUTOVER} foreground BLOCKED before claim on #{cid} / `{thread}`: "
         f"hwnd {hwnd} pid {pid} title {title!r}; claim kept unspent for retry."
+    )
+    return True
+
+
+def report_stale_pickup(known, cid, thread, age_seconds, reason):
+    """Alert #684 at most once per 15m bucket when an unclaimed dispatch exceeds 300s."""
+    now = datetime.now(timezone.utc)
+    bucket = now.strftime("%Y%m%d-%H") + f"-{now.minute // 15}"
+    digest = hashlib.sha256(f"{cid}:{reason}".encode("utf-8")).hexdigest()[:8]
+    name = f"stale-pickup-{bucket}-{digest}.json"
+    if name in known:
+        return False
+    if isinstance(known, set):
+        known.add(name)
+    checkpoint(name, {
+        "dispatch": cid, "thread": thread, "state": "stale-pickup",
+        "age_seconds": round(age_seconds, 1), "reason": reason,
+    })
+    issue_comment(
+        f"Vision watch {CUTOVER} pickup SLA ALERT on #{cid} / `{thread}`: "
+        f"unclaimed after {int(age_seconds)}s (>300s) while {reason}."
     )
     return True
 
@@ -394,10 +628,17 @@ def dynamic_phase_timeout(item):
 
 
 LANE_ALIASES = (
+    ("scmessenger audit", "0319b9f6"),
     ("scmessenger", SCM_THREAD),
     ("lane 1", THREAD),
+    ("lane 2", "9ecc3453"),
     ("disk audit", DISK_THREAD),
     ("vision driver standup", VISION_THREAD),
+    ("bigenergyco", "0d7e2f37"),
+    ("harness audit", "918dad1a"),
+    ("kalshi", "7d4a9b14"),
+    ("civicscope", "46472fcc"),
+    ("agensi", "26646448"),
 )
 
 
@@ -442,7 +683,7 @@ _MD_PREFIX = r"\ufeff?(?:[ \t]+|[#*>-]+[ \t]+)*\*{0,2}"
 # supposed to execute it. Also tolerate Markdown bold/heading prefixes (7154645137).
 RUNNER_ACTION = re.compile(
     "^" + _MD_PREFIX
-    + r"(?:(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner|requested))?|Runner)\*{0,2}\s*[:(]",
+    + r"(?:(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner(?:\s+alone)?|requested))?|Runner)\*{0,2}\s*[:(]",
     re.I | re.M)
 # A STEER hands the runner text to deliver rather than a bounded restart; it is
 # never claimed, but 7149636711 carried the owner's whole sequencing order and
@@ -450,6 +691,11 @@ RUNNER_ACTION = re.compile(
 STEER_TEXT = re.compile("^" + _MD_PREFIX + r"Text\s+for\s+the\s+runner\b", re.I | re.M)
 CANCELLATION = re.compile("^" + _MD_PREFIX + r"(?:OVERSIGHT\s+)?CANCELLATION\b", re.I | re.M)
 EPISODE = re.compile(r"episode\*{0,2}:?\s+([A-Za-z0-9][A-Za-z0-9-]{3,})", re.I)
+STAGED_CARRIER_RESUME = re.compile(
+    r"\bResume\s*(?:->|\u2192|then)\s*Start\b[^\n]{0,80}\bstaged\b"
+    r"|\bResume\s+mission\b[^\n]{0,80}\bStart(?:\s+mission)?\b",
+    re.I,
+)
 # The oversight's own banners are not one shape: measured on #684, dispatches
 # arrived as "RESTART DISPATCH", "## RESTART DISPATCH", "VISION DRIVER DISPATCH",
 # "OVERSIGHT RESTART DISPATCH" (7143702385) and "LANE CONTINUATION WATCH"
@@ -459,7 +705,7 @@ EPISODE = re.compile(r"episode\*{0,2}:?\s+([A-Za-z0-9][A-Za-z0-9-]{3,})", re.I)
 # instruction line and the exact continuation before anything is claimed.
 DISPATCH_BANNER = re.compile(
     "^" + _MD_PREFIX
-    + r"(?:(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?(?:RESTART\s+|STEER\s+)?DISPATCH\b"
+    + r"(?:(?:OVERSIGHT\s+)?(?:(?:VISION\s+DRIVER\s+)?(?:RESTART\s+|STEER\s+)?|BURN\s+WINDOW\s+)DISPATCH\b"
     r"|LANE\s+CONTINUATION\s+WATCH\b)",
     re.I,
 )
@@ -483,7 +729,7 @@ def restart_dispatch(body):
          for line in body.splitlines() if line.strip()),
         "",
     )
-    if re.match(r"^(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?RESTART\s+DISPATCH\b", first, re.I):
+    if re.match(r"^(?:OVERSIGHT\s+)?(?:(?:VISION\s+DRIVER\s+)?RESTART|BURN\s+WINDOW)\s+DISPATCH\b", first, re.I):
         return True
     return "RESTART" in body[:600].upper()
 
@@ -544,6 +790,7 @@ def parse_dynamic_dispatch(comment, now=None):
     body = _comment_body(comment).strip()
     if not body:
         return None
+    filed_at = comment.get("created_at") or ""
     try:
         blob = approved(comment, now)
     except RuntimeError:
@@ -555,6 +802,7 @@ def parse_dynamic_dispatch(comment, now=None):
             "comment_id": cid,
             "thread": mission["thread"],
             "text": mission["text"],
+            "filed_at": filed_at,
             "digest": digest,
         }
     # The oversight files the instruction line as "Action for the runner:"
@@ -568,7 +816,12 @@ def parse_dynamic_dispatch(comment, now=None):
     # '"continue in\nfull"'. Compare the flattened text so the required words
     # survive a line break, while the digest stays over the comment as filed.
     flat = re.sub(r"\s+", " ", body)
-    if f'"{CONTINUATION}"' not in flat and f"'{CONTINUATION}'" not in flat:
+    has_continuation = (f'"{CONTINUATION}"' in flat or f"'{CONTINUATION}'" in flat)
+    if has_continuation:
+        mode = "continuation"
+    elif STAGED_CARRIER_RESUME.search(flat):
+        mode = "staged-resume"
+    else:
         return None
     created = comment.get("created_at")
     if created:
@@ -582,15 +835,18 @@ def parse_dynamic_dispatch(comment, now=None):
             "comment_id": cid,
             "thread": "antigravity",
             "reason": "antigravity-adapter-not-calibrated",
+            "filed_at": filed_at,
         }
     thread = _lane_thread_from_dispatch(body)
     if not thread or thread not in SESSIONS:
         return None
     return {
         "kind": "restart",
+        "mode": mode,
         "comment_id": cid,
         "thread": thread,
         "text": CONTINUATION,
+        "filed_at": filed_at,
         "digest": hashlib.sha256(body.encode("utf-8")).hexdigest(),
     }
 
@@ -602,14 +858,7 @@ def scan_dispatch_comments(now=None, known=()):
     claim" and "nothing I can read" can no longer print the same sentence.
     """
     now = now or datetime.now(timezone.utc)
-    comments = []
-    page = 1
-    while True:
-        batch = api(f"{ISSUE}?since={DYNAMIC_SINCE}&per_page=100&page={page}")
-        comments.extend(batch)
-        if len(batch) < 100:
-            break
-        page += 1
+    comments = _sync_issue_comments(since_floor=DYNAMIC_SINCE)
     comments.sort(key=lambda item: item.get("id", 0))
     parsed = {}
     for comment in comments:
@@ -636,9 +885,27 @@ def scan_dispatch_comments(now=None, known=()):
         "claimable": 0,
         "unparsed": unparsed,
         "parsed": parsed,
+        "polls": _POLL_STATS["requests"],
+        "conditional_304s": _POLL_STATS["conditional_304s"],
     }
     advance_cursor(evidence, known)
     return comments, evidence
+
+
+def _clear_comments_etag():
+    if not _monitor_enabled():
+        return
+    state = _load_monitor_state()
+    if state.get("comments_etag") is not None:
+        state["comments_etag"] = None
+        _save_monitor_state(state)
+
+
+def _age_seconds(parsed, now):
+    filed = parsed.get("filed_at") or ""
+    if not filed:
+        return 0.0
+    return max(0.0, (now - _parse_iso(filed)).total_seconds())
 
 
 def skipped_verdict(known, parsed, reason):
@@ -655,8 +922,18 @@ def skipped_verdict(known, parsed, reason):
     if name in known:
         return False
     known.add(name)
-    checkpoint(name, {"dispatch": cid, "thread": lane, "state": "superseded", "reason": reason})
-    issue_comment(f"Vision watch #{cid} / `{lane}`: superseded, no input sent. {reason}.")
+    filed_at = parsed.get("filed_at") or ""
+    skipped_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    checkpoint(name, {
+        "dispatch": cid,
+        "thread": lane,
+        "state": "superseded",
+        "reason": reason,
+        "filed_at": filed_at or None,
+        "skipped_at": skipped_at,
+    })
+    timing = f" (filed {filed_at}, dispositioned {skipped_at})" if filed_at else ""
+    issue_comment(f"Vision watch #{cid} / `{lane}`: superseded, no input sent. {reason}.{timing}")
     return True
 
 
@@ -710,8 +987,6 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
             # still treated Lane 1 restarts as claimable.
             skipped_verdict(known, parsed, "the operator cancelled this lane at the control surface")
             continue
-        claimable += 1
-        LAST_SCAN["claimable"] = claimable
         thread = parsed["thread"]
         item = f"dyn-{cid}-{thread}"
         claim = f"claim-{item}.json"
@@ -725,31 +1000,48 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
             # Already executed through another channel: claim nothing, send
             # nothing, and file no duplicate verdict.
             continue
+        claimable += 1
+        LAST_SCAN["claimable"] = claimable
         guard_approval()
         if parsed["kind"] == "antigravity-park":
             checkpoint(claim, {"dispatch": cid, "target": "antigravity", "kind": parsed["kind"]})
+            if isinstance(known, set):
+                known.add(claim)
             status = f"parked: {parsed['reason']}"
-            checkpoint(f"result-{item}.json", {"dispatch": cid, "target": "antigravity", "state": status})
+            result_name = f"result-{item}.json"
+            checkpoint(result_name, {"dispatch": cid, "target": "antigravity", "state": status})
+            if isinstance(known, set):
+                known.add(result_name)
             issue_comment(f"Vision watch #{cid} / `antigravity`: {status}. FreeBuff remains active.")
             return True
         require_driver_runtime()
+        age_s = _age_seconds(parsed, now)
         if not desktop_idle():
+            if age_s > 300:
+                report_stale_pickup(known, cid, thread, age_s, "waiting for owner desktop idle")
             heartbeat(known, "waiting for owner desktop idle", current_evidence())
-            return True
+            return "deferred"
         blocker = foreground_blocker()
         if blocker is not None:
             report_foreground_blocked(known, cid, thread, blocker)
-            return True
+            if age_s > 300:
+                report_stale_pickup(known, cid, thread, age_s, f"foreground blocked by {blocker[2]!r}")
+            return "deferred"
         checkpoint(claim, {"dispatch": cid, "thread": thread, "sha256": parsed["digest"]})
+        if isinstance(known, set):
+            known.add(claim)
         out = state_dir / item
         try:
             out.mkdir(parents=True, exist_ok=True)
-            mission = {"thread": thread, "dispatch": cid, "standing": True}
-            # The R9 bound applies here too: a full session-list walk routinely
-            # needs more than the 65 s default. Measured on the Lane 1 dispatch
-            # 7119751841 (2026-11-24T04:25Z): the walk was killed at the default
-            # deadline after two scroll steps, with no input sent.
-            mission["phase_timeout"] = 240
+            mission = {
+                "thread": thread,
+                "dispatch": cid,
+                "standing": True,
+                "filed_at": parsed.get("filed_at") or "",
+                "phase_timeout": dynamic_phase_timeout(item),
+            }
+            if parsed.get("mode") == "staged-resume":
+                mission["phases"] = ("search", "query", "select", "vision-resume")
             status = "parked" if execute(out, item, mission, parsed["digest"], ()) else "verified running"
         except UncertainDriverExit as error:
             checkpoint(f"interlock-{item}.json", {"dispatch": cid, "thread": thread, "state": str(error)})
@@ -758,7 +1050,12 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         except (OSError, RuntimeError) as error:
             status = f"parked after claim: {error}"
             issue_comment(f"Vision watch #{cid} / `{thread}` {status}.")
-        checkpoint(f"result-{item}.json", {"dispatch": cid, "thread": thread, "state": status})
+        finally:
+            _clear_comments_etag()
+        result_name = f"result-{item}.json"
+        checkpoint(result_name, {"dispatch": cid, "thread": thread, "state": status})
+        if isinstance(known, set):
+            known.add(result_name)
         return True
     return False
 
@@ -768,12 +1065,20 @@ def run_burn(receipts, known, cancelled=()):
     end = datetime.fromisoformat(source["created_at"]) + timedelta(hours=3)
     if datetime.now(timezone.utc) >= end:
         unclaimed = []
-        try:
-            claimed = poll_dynamic_dispatches(known, unclaimed=unclaimed, cancelled=cancelled)
-        except Exception as error:
-            report_claim_fault(known, error)
-            return
-        if claimed:
+        drained = 0
+        while drained < 20:
+            unclaimed.clear()
+            try:
+                claimed = poll_dynamic_dispatches(known, unclaimed=unclaimed, cancelled=cancelled)
+            except Exception as error:
+                report_claim_fault(known, error)
+                return
+            if not claimed:
+                break
+            drained += 1
+            if claimed == "deferred":
+                return
+        if drained:
             return
         evidence = current_evidence()
         problems = canary(evidence or {})
@@ -1210,6 +1515,8 @@ def report_paused(control):
 
 
 def main():
+    _POLL_STATS["requests"] = 0
+    _POLL_STATS["conditional_304s"] = 0
     control = local_control_state()
     if not control["enabled"]:
         return

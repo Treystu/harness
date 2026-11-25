@@ -244,7 +244,7 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
             return True
         if process.returncode:
             detail = stdout.strip().splitlines()
-            if phase == "prepare" and detail and "already running; no restart input" in detail[-1]:
+            if phase in {"prepare", "vision-resume"} and detail and "already running; no restart input" in detail[-1]:
                 audit.append("verification", step_id=phase, target=thread, state="already running")
                 return False
             errors = stderr.strip().splitlines()
@@ -295,11 +295,32 @@ def observe_bystander(output, audit, phase):
         return False
 
 
+def _utc_iso_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _pickup_latency_note(filed_at, claimed_at, completed_at):
+    filed = str(filed_at or "").strip()
+    pickup = ""
+    if filed:
+        try:
+            fdt = datetime.fromisoformat(filed.replace("Z", "+00:00"))
+            cdt = datetime.fromisoformat(claimed_at.replace("Z", "+00:00"))
+            pickup = f", pickup {max(0.0, (cdt - fdt).total_seconds()):.1f}s"
+        except ValueError:
+            pickup = ""
+    return f" Timestamps: filed {filed or 'unknown'}, claimed {claimed_at}, completed {completed_at}{pickup}."
+
+
 def execute(output, number, mission, digest, bystanders):
     audit = AuditLog(output / "runner.jsonl")
-    audit.append("decision", step_id="claim", comment=number, thread=mission["thread"], blob=digest)
+    claimed_at = _utc_iso_now()
+    filed_at = str(mission.get("filed_at") or "").strip()
+    audit.append("decision", step_id="claim", comment=number, thread=mission["thread"],
+                 blob=digest, filed_at=filed_at or None, claimed_at=claimed_at)
     dispatch_id = mission.get("dispatch", number)
-    api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}."})
+    ack_timing = f" (filed {filed_at}, claimed {claimed_at})" if filed_at else f" (claimed {claimed_at})"
+    api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}{ack_timing}."})
     state = "verified running"
     windows = []
     before = {}
@@ -378,9 +399,11 @@ def execute(output, number, mission, digest, bystanders):
             audit.append("escalation", step_id="publish", reason=str(error))
             links = []
             note = f" Evidence upload failed: {error}"
+        completed_at = _utc_iso_now()
+        latency_note = _pickup_latency_note(filed_at, claimed_at, completed_at)
         api(ISSUE, method="POST", body={"body": (
             f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}. Evidence: "
-            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note)})
+            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note + latency_note)})
     print(state)
     if uncertain:
         raise uncertain
