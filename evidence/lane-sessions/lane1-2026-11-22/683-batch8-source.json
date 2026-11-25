@@ -1,0 +1,57 @@
+[
+  {
+    "pr": 673,
+    "pr_title": "feat(hourglass): propose a research plan and gate retrieval on acceptance (#342)",
+    "priority": "P1",
+    "file": "harness/conversation_lifecycle.py",
+    "title": "Bind the fetch policy before passing the real fetch function",
+    "url": "https://github.com/Treystu/harness/pull/673#discussion_r4659547467",
+    "row": 85,
+    "discussion": 4659547467,
+    "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Bind the fetch policy before passing the real fetch function**\n\nFor an accepted plan naming an explicit URL, forwarding the plan here selects `web.gather_web_context`'s plan-execution branch, which ultimately calls `fetch_fn(url)` in `research_plan._fetch_source`. The supplied `_web.fetch_url` requires `allowed_hosts`, so every such fetch raises `TypeError: fetch_url() missing 1 required positional argument: 'allowed_hosts'` before making a request. The hourglass seam catches this and continues without the requested page's evidence. Bind the resolved allowlist and named-host policy into the fetch callable used by plan execution; the existing URL tests mock gathering and therefore miss this integration failure.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 673,
+    "pr_title": "feat(hourglass): propose a research plan and gate retrieval on acceptance (#342)",
+    "priority": "P2",
+    "file": "harness/hourglass_lifecycle.py",
+    "title": "Keep the request binding unchanged when resolving a remembered site",
+    "url": "https://github.com/Treystu/harness/pull/673#discussion_r4659547472",
+    "row": 86,
+    "discussion": 4659547472,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Keep the request binding unchanged when resolving a remembered site**\n\nFor a web-enabled follow-up such as “audit the same site as before,” `run_hourglass_request` proposes and approves a plan bound to the original `prompt`, then appends the remembered target to `web_prompt`. Passing that augmented text into the plan-aware gatherer makes `execute_plan` reject it with `request_hash`, so neither search nor fetch runs. The renderer also skips the remembered target because the original proposal contains only a search query, not that URL. Resolve the remembered target before drafting the plan while preserving the original request text for binding validation; otherwise the existing same-site follow-up path silently loses all retrieval.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 675,
+    "pr_title": "feat(chat): gate the conversation lane's retrieval on an accepted plan (#342)",
+    "priority": "P1",
+    "file": "harness/conversation_lifecycle.py",
+    "title": "Bind fetch policy arguments before executing chat plans",
+    "url": "https://github.com/Treystu/harness/pull/675#discussion_r4659935855",
+    "row": 87,
+    "discussion": 4659935855,
+    "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Bind fetch policy arguments before executing chat plans**\n\nFor an accepted chat request containing a URL, supplying `plan` switches `gather_web_context` to `execute_plan`, whose `_fetch_source` calls `fetch_fn(url)` without keyword arguments. However, `_gather_web_context` supplies the production `harness.web.fetch_url`, which requires `allowed_hosts`, so every such request raises `TypeError` before fetching anything and becomes a generic web-tools failure. The previous chat path supplied the allowlist and named-host policy. Bind those policy arguments into the fetch callable used by plan execution; the current tests hide this regression by replacing `fetch_url` with unrestricted mocks.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 675,
+    "pr_title": "feat(chat): gate the conversation lane's retrieval on an accepted plan (#342)",
+    "priority": "P2",
+    "file": "harness/research_plan.py",
+    "title": "Propagate unknown provider usage instead of treating it as an outage",
+    "url": "https://github.com/Treystu/harness/pull/675#discussion_r4659935859",
+    "row": 88,
+    "discussion": 4659935859,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Propagate unknown provider usage instead of treating it as an outage**\n\nWhen plan evaluation raises `ProviderUsageUnknown`, this new broad handler converts it into an ordinary unavailable-review record with `cost: 0.0` and lets the request continue to answer generation. `JevPolicy.evaluate_research_plan` explicitly re-raises this exception because it carries known spend and unresolved billing liability; swallowing it discards those amounts and allows the hourglass lane, which previously propagated the exception, to continue spending and potentially finish successfully despite an unknown provider charge. Re-raise `ProviderUsageUnknown` alongside `ToolCancelled` rather than handling it as a recoverable reviewer outage.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 677,
+    "pr_title": "feat(hourglass): reuse a recorded plan acceptance on resume (#344)",
+    "priority": "P2",
+    "file": "harness/research_plan.py",
+    "title": "Check receipt expiry when the caller omits now",
+    "url": "https://github.com/Treystu/harness/pull/677#discussion_r4660171273",
+    "row": 89,
+    "discussion": 4660171273,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Check receipt expiry when the caller omits now**\n\nWhen `decide_research_plan` receives `saved_plan` without an explicit `now`, it passes the default `None` into `validate_plan`, and `_approval_check` skips expiry enforcement when `now is None`. Consequently, an otherwise matching receipt with `expires_at=1` is returned as accepted with `reused=True`, without calling the reviewer. The hourglass caller supplies a timestamp, but the newly exposed helper API does not enforce this itself. Resolve the current time when `now` is omitted before validating a saved receipt so expired consent falls through to a fresh judgment.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  }
+]
