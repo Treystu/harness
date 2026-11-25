@@ -1904,6 +1904,8 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                 return self._api_driver_schemas()
             if path == "/api/driver/verify":
                 return self._api_driver_verify()
+            if path == "/api/driver/watch/status":
+                return self._api_driver_watch_status()
             if path == "/api/provision/probe":
                 from . import provision as pv
                 probe = pv.probe_host()
@@ -1996,6 +1998,8 @@ class UiRequestHandler(BaseHTTPRequestHandler):
                 return self._api_driver_start(body)
             if parsed.path == "/api/driver/drive":
                 return self._api_driver_drive(body)
+            if parsed.path == "/api/driver/watch/control":
+                return self._api_driver_watch_control(body)
             if parsed.path == "/api/provision/plan":
                 from . import provision as pv
                 goal = str(body.get("goal") or "").strip()
@@ -2558,6 +2562,15 @@ class UiRequestHandler(BaseHTTPRequestHandler):
             return self._send_json(adapter.verify())
         except Exception as e:
             return self._error(503, str(e))
+
+    def _api_driver_watch_status(self):
+        from .laptop_driver_ctl import driver_watch_status
+        return self._send_json(driver_watch_status())
+
+    def _api_driver_watch_control(self, body):
+        from .laptop_driver_ctl import driver_watch_control
+        return self._send_json(driver_watch_control(
+            body.get("action"), driver_root=body.get("driver_root"), by="gui"))
 
     def _api_driver_start(self, body):
         adapter = self._get_driver_adapter(autostart=True)
