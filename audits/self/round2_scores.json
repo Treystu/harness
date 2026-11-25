@@ -1,48 +1,54 @@
 {
   "scores": {
     "A": 10.0,
-    "R": 10.0,
+    "R": 9.29,
     "SM": 10.0,
     "SD": 10.0
   },
   "jev_scores": {
-    "A": 10.0,
-    "R": 10.0,
-    "SM": 10.0,
+    "A": 9.0,
+    "R": 9.0,
+    "SM": 9.0,
     "SD": 10.0
   },
-  "jev_gate_pass": true,
+  "jev_gate_pass": false,
   "jev_eval": {
     "dimensions": {
       "A": {
         "name": "Security",
-        "level_index": 4,
-        "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
-        "score": 10.0,
-        "bar_met": true,
-        "confidence": 1.0,
+        "level_index": 2,
+        "level": "approaching \u2014 minor non-safety gap below threshold (8.5-9.4)",
+        "score": 9.0,
+        "bar_met": false,
+        "confidence": 0.9,
         "evaluated": true,
-        "source": "live"
+        "source": "live",
+        "live_level": "approaching \u2014 minor non-safety gap below threshold (8.5-9.4)",
+        "live_level_confidence": 0.89
       },
       "R": {
         "name": "Reliability",
-        "level_index": 4,
-        "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
-        "score": 10.0,
-        "bar_met": true,
-        "confidence": 1.0,
+        "level_index": 2,
+        "level": "approaching \u2014 minor non-safety gap below threshold (8.5-9.4)",
+        "score": 9.0,
+        "bar_met": false,
+        "confidence": 0.88,
         "evaluated": true,
-        "source": "live"
+        "source": "live",
+        "live_level": "approaching \u2014 minor non-safety gap below threshold (8.5-9.4)",
+        "live_level_confidence": 0.87
       },
       "SM": {
         "name": "Structural hygiene & maintainability",
-        "level_index": 4,
-        "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
-        "score": 10.0,
-        "bar_met": true,
-        "confidence": 0.96,
+        "level_index": 2,
+        "level": "approaching \u2014 minor non-safety gap below threshold (8.5-9.4)",
+        "score": 9.0,
+        "bar_met": false,
+        "confidence": 0.82,
         "evaluated": true,
-        "source": "live"
+        "source": "live",
+        "live_level": "approaching \u2014 minor non-safety gap below threshold (8.5-9.4)",
+        "live_level_confidence": 0.82
       },
       "SD": {
         "name": "Documentation & release integrity",
@@ -50,31 +56,35 @@
         "level": "exemplary \u2014 100% defect-free across all checks (10.0)",
         "score": 10.0,
         "bar_met": true,
-        "confidence": 0.95,
+        "confidence": 0.65,
         "evaluated": true,
-        "source": "live"
+        "source": "live",
+        "live_level": "exemplary \u2014 100% defect-free across all checks (10.0)",
+        "live_level_confidence": 0.73
       }
     },
     "scores": {
-      "A": 10.0,
-      "R": 10.0,
-      "SM": 10.0,
+      "A": 9.0,
+      "R": 9.0,
+      "SM": 9.0,
       "SD": 10.0
     },
-    "bar_95_pass": true,
-    "min_score": 10.0,
+    "bar_95_pass": false,
+    "min_score": 9.0,
     "is_fallback": false,
     "reasons": [],
     "model": "jev-1.14.0",
-    "cost": 5.5566e-05,
-    "input_tokens": 1323,
+    "cost": 5.5524e-05,
+    "input_tokens": 1322,
     "output_tokens": 60
   },
   "skipped_checks": {
     "A": [],
     "R": [],
     "SM": [],
-    "SD": []
+    "SD": [
+      "D12"
+    ]
   },
   "checks": {
     "A": [
@@ -258,9 +268,9 @@
       {
         "id": "R13",
         "label": "full suite green hermetically",
-        "score": 1.0,
-        "status": "pass",
-        "evidence": "unittest: Ran 7054 tests in 464.190s\n\nOK (env clean; empty home)"
+        "score": 0.0,
+        "status": "FAIL",
+        "evidence": "Traceback (most recent call last):; Traceback (most recent call last):; ResourceWarning: unclosed <socket.socket fd=884, family=2, type=1, proto=0, laddr=('127.0.0.1', 63679)>; ERROR: test_desktop_command_opens_its_own_log (test_serve_log_574.CommandWiringTests.test_desktop_command_opens_its_own_log); Traceback (most recent call last):; FAILED (errors=1, skipped=89) || ns\": 0,\n    \"used_output_tokens\": 0,\n    \"used_reasoning_tokens\": 0,\n    \"used_cached_tokens\": 0,\n    \"token_kinds\": {\n      \"input\": 0,\n      \"output\": 0,\n      \"reasoning\": 0,\n      \"cached\": 0\n    },\n    \"estimation_markers\": {\n      \"has_estimates\": false,\n      \"has_unavailable\": false,\n      \"all_actual\": false\n    },\n    \"reserved_input_tokens\": 0,\n    \"reserved_output_tokens\": 0,\n    \"remaining_input_tokens\": 200000,\n    \"remaining_output_tokens\": 64000,\n    \"calls\": 0,\n    \"cancelled\": 0,\n    \"open_allowances\": 0,\n    \"over_input_tokens\": 0,\n    \"over_output_tokens\": 0,\n    \"usage_sources\": {\n      \"actual\": 0,\n      \"estimated\": 0,\n      \"unavailable\": 0\n    },\n    \"by_label\": {},\n    \"token_kinds_by_label\": {}\n  },\n  \"brief\": {\n    \"schema_version\": 2,\n    \"goal\": \"Refactor concurrency architecture\",\n    \"built_at\": \"2026-11-25T08:56:39Z\",\n    \"grounding\": {\n      \"rules\": \"models may use only the cited windows below; every claim a consumer emits must carry source_ids citing those windows (or the goal); uncited assertions are invalid -- drop them or list them as unknowns; truncated windows cover only the bytes shown\",\n      \"sources\": [],\n      \"claims\": [],\n      \"unknowns\": []\n    },\n    \"windows\": [],\n    \"scope\": {\n      \"included\": [],\n      \"excluded\": [\n        \"harness/sync.py\"\n      ]\n    },\n    \"coverage\": {\n      \"sources_declared\": 0,\n      \"windows_cited\": 0,\n      \"omitted\": 0,\n      \"truncated_windows\": 0,\n      \"gaps\": []\n    },\n    \"omitted\": [],\n    \"conflicts\": [],\n    \"estimated_tokens\": 168\n  }\n}\nblocked: launch failed: action 'launch_app' names executor 'launch_app', which is not registered; registered: ['no_action', 'observe', 'read_value', 'run_probe']. Actions with a side effect are not registered because DRIVER_ALLOW_WRITE is off; nothing in this build can perform them.\nclaimed: no launch requested; claimed for the lane\n[release] CHANGELOG flattened to [0.3.3] 2026-11-24\n[release] version bumped in pyproject.toml: 0.3.2 -> 0.3.3\n[release] version bumped in harness/__init__.py: 0.3.2 -> 0.3.3\n[release] editable install reports 0.3.3 (D5 satisfied)\n{\n  \"status\": \"stale\",\n  \"checked\": 1,\n  \"stale\": [\n    \"TestRepo\"\n  ],\n  \"up_to_date\": 0\n}\n[triage] python    env-broken x\n[triage]             if env-broken: a\n[triage]             if code:      b\n[triage] environment-broken: python\n[triage] python    ok         x\n[triage]             if env-broken: a\n[triage]             if code:      b\n[triage] all checks environment-clean\n"
       },
       {
         "id": "R14",
@@ -304,14 +314,14 @@
         "label": "ruff clean",
         "score": 1.0,
         "status": "pass",
-        "evidence": "ruff check harness tests: clean via shared resolver `C:\\Users\\SCM\\Documents\\GitHub\\Harness\\.venv\\Scripts\\python.exe -m ruff check harness tests`"
+        "evidence": "ruff check harness tests: clean via shared resolver `C:\\Python314\\python.exe -m ruff check harness tests`"
       },
       {
         "id": "S6",
         "label": "test tree mirrors product tree",
         "score": 1.0,
         "status": "pass",
-        "evidence": "142/142 modules imported by tests"
+        "evidence": "171/171 modules imported by tests"
       },
       {
         "id": "S7",
@@ -376,7 +386,7 @@
         "label": "docs reference only real modules",
         "score": 1.0,
         "status": "pass",
-        "evidence": "all module references across 36 docs resolve to real files"
+        "evidence": "all module references across 38 docs resolve to real files"
       },
       {
         "id": "D8",
@@ -409,9 +419,9 @@
       {
         "id": "D12",
         "label": "changed lines suite-executed (coverage)",
-        "score": 1.0,
-        "status": "pass",
-        "evidence": "no executable harness changes vs merge-base 6b6edd48d4 (origin/main)"
+        "score": null,
+        "status": "skip",
+        "evidence": "SKIP (fail-open): D12 cannot obtain current-tree coverage (traced battery exited 1: ing: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'HANDOFF/OC_FINDINGS.md', LF will be replaced by CRLF the next time Git touches it); changed-line coverage was not measured [platform gap, not a code verdict]"
       },
       {
         "id": "D13",

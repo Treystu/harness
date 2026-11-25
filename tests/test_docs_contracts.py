@@ -91,6 +91,19 @@ class LoopbackUiPortTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {"HARNESS_UI_PORT": bad}):
                 self.assertEqual(config.ui_port(), 8767)
 
+    def test_make_server_takes_the_one_owner_when_no_port_is_given(self):
+        from harness import server
+
+        with mock.patch.dict(os.environ, {"HARNESS_UI_PORT": "8897"}), \
+                mock.patch.object(server, "UiServer") as httpd, \
+                mock.patch.object(server, "UiState"), \
+                mock.patch.object(server, "BackendMonitor"), \
+                mock.patch.object(server, "serve_identity",
+                                  return_value={"version": "t", "commit": "t"}):
+            server.make_server()
+        address = httpd.call_args[0][0]
+        self.assertEqual(address[1], 8897)
+
     def test_doctor_reads_the_owner_for_its_gui_port(self):
         from harness import cli_parser
 
