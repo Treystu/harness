@@ -999,13 +999,23 @@ class HourglassLifecycleMixin:
                 "plan_hash": str(checkpoint.get("approved_plan_hash") or ""),
                 "receipt": checkpoint.get("plan_approval"),
             }
+        # Resolve the remembered target before drafting the plan so the
+        # proposal, approval and execution all bind to one request text.
+        # #786: previously web_prompt was appended after the plan was decided,
+        # causing a request_hash mismatch in execute_plan.
+        _resolved_site = sole_site(memory, session_id=sid)
+        web_prompt = prompt
+        if (_resolved_site and referential(prompt)
+                and not any(fact in prompt.lower()
+                            for fact in (_resolved_site,))):
+            web_prompt = f"{prompt}\nTarget site: https://{_resolved_site}"
         if web and research_plan is None:
             # #342: route choice only proposes retrieval. The plan is proposed
             # here, judged once by native Jev, and only acceptance keeps web
             # on; a decline, an outage or an unkeyed reviewer leaves the lane
             # at zero search, zero fetch and zero renders.
             proposed, approval, plan_record = self._research_plan_decision(
-                prompt, policy=policy,
+                web_prompt, policy=policy,
                 request_id=str(lifecycle_state["request_id"]),
                 task_id=sid, now=(time.time() if saved_plan else None),
                 saved_plan=saved_plan)
@@ -1028,7 +1038,7 @@ class HourglassLifecycleMixin:
             check = validate_plan(
                 research_plan,
                 request_id=str(lifecycle_state["request_id"]),
-                prompt=prompt, capabilities=("search", "fetch"),
+                prompt=web_prompt, capabilities=("search", "fetch"),
                 approval=plan_approval,
                 now=(time.time() if reused_receipt else None))
             checkpoint["research_plan_gate"] = {
@@ -1067,7 +1077,7 @@ class HourglassLifecycleMixin:
         checkpoint["known_cost"] = round(total_cost, 8)
         checkpoint["web_requested"] = web
         checkpoint["intent"] = intent
-        resolved_site = sole_site(memory, session_id=sid)
+        resolved_site = _resolved_site
         if (route_preflight.get("choice") == "clarify"
                 and bool(route_preflight.get("native"))
                 and resolved_site and referential(prompt)):
@@ -1123,13 +1133,9 @@ class HourglassLifecycleMixin:
             context_tokens = int(checkpoint.get("context_tokens") or 0)
             web_sources = list(checkpoint.get("web_sources") or [])
         else:
-            web_prompt = prompt
-            if resolved_site and referential(prompt) and not any(
-                    fact in prompt.lower() for fact in (resolved_site,)):
-                # A referential follow-up ("same site as before") must search
-                # and fetch the remembered target, not the pronoun.  The
-                # previous turn searched "same" and attached unrelated pages.
-                web_prompt = f"{prompt}\nTarget site: https://{resolved_site}"
+            # web_prompt already resolved above (#786); keep resolved_site
+            # in sync for the site-audit / referential checks below.
+            resolved_site = _resolved_site
             context, file_contents, brief, web_sources = \
                 self._hourglass_request_context(
                     prompt, web=web, workspace=workspace_needed,
