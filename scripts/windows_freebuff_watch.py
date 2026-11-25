@@ -359,15 +359,61 @@ def local_control_state():
     }
 
 
-def worktree_head():
+def _head_pair():
+    """``(status, head, upstream)`` for the worktree, read without touching the network."""
     if subprocess.run(["git", "diff", "--quiet", "HEAD", "--", "scripts"],
                       cwd=WORKTREE, timeout=5, check=False, **_hidden_subprocess_kwargs()).returncode:
-        return None
+        return "dirty-scripts", "", ""
     result = subprocess.run(["git", "rev-parse", "HEAD", "@{upstream}"], cwd=WORKTREE,
                             capture_output=True, text=True, timeout=5, check=False,
                             **_hidden_subprocess_kwargs())
     heads = result.stdout.splitlines()
-    return heads[0] if result.returncode == 0 and len(heads) == 2 and heads[0] == heads[1] else None
+    if result.returncode != 0 or len(heads) != 2:
+        return "unreadable-upstream", "", ""
+    return "ok", heads[0], heads[1]
+
+
+def refresh_upstream():
+    """Fetch the configured upstream branch so a stale remote-tracking ref cannot refuse a tick.
+
+    Measured 2026-11-25: ``7a7d7ca1`` was pushed, but the local
+    ``treystu/laptop-vision-20261122`` ref still named ``798148ce``. Every
+    scheduled tick therefore read HEAD != upstream and returned before its first
+    checkpoint - 13:11Z to 15:06Z, ~55 silent ticks that each looked like a
+    healthy run in ``driver-watch.log``.
+    """
+    result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+                            cwd=WORKTREE, capture_output=True, text=True, timeout=5, check=False,
+                            **_hidden_subprocess_kwargs())
+    ref = result.stdout.strip()
+    if result.returncode != 0 or "/" not in ref:
+        return False
+    remote, branch = ref.split("/", 1)
+    fetched = subprocess.run(["git", "fetch", "--quiet", "--no-tags", remote, branch],
+                             cwd=WORKTREE, capture_output=True, text=True, timeout=60, check=False,
+                             **_hidden_subprocess_kwargs())
+    return fetched.returncode == 0
+
+
+def worktree_head(*, refresh=False):
+    status, head, upstream = _head_pair()
+    if status == "ok" and head == upstream:
+        return head
+    if refresh and refresh_upstream():
+        status, head, upstream = _head_pair()
+        if status == "ok" and head == upstream:
+            return head
+    return None
+
+
+def head_refusal_detail():
+    """Name why the worktree gate refused, so the filing is actionable."""
+    status, head, upstream = _head_pair()
+    if status == "dirty-scripts":
+        return "uncommitted changes under scripts/ in the driver worktree"
+    if status == "unreadable-upstream":
+        return "the driver worktree has no readable upstream branch"
+    return f"HEAD {head[:8]} is not published at upstream {upstream[:8]}"
 
 
 RUNTIME_MODULES = ("windows_capture", "PIL", "driver_core")
@@ -1486,6 +1532,30 @@ def run_restoration(receipts, known):
     return False
 
 
+def report_refusal(reason):
+    """A tick that refuses to drive must file why, at most once per 15m bucket.
+
+    Silence is the failure mode this exists for: ``main`` has several refusing
+    returns (unpublished head, stale interlock, an owner pause in the ledger) and
+    each of them used to exit 0 with no checkpoint and no comment, which is
+    indistinguishable from a tick that did its work. Every refusal path now names
+    itself through here.
+    """
+    known = checkpoints()
+    now = datetime.now(timezone.utc)
+    bucket = now.strftime("%Y%m%d-%H") + f"-{now.minute // 15}"
+    digest = hashlib.sha256(reason.encode("utf-8")).hexdigest()[:8]
+    name = f"refusal-{bucket}-{digest}.json"
+    if name in known:
+        return False
+    known.add(name)
+    checkpoint(name, {"state": "refused", "reason": reason})
+    issue_comment(
+        f"Vision watch {CUTOVER} refused this tick: {reason}. No desktop action taken."
+    )
+    return True
+
+
 def report_paused(control):
     """A paused watch with work waiting must say so, within one tick.
 
@@ -1539,19 +1609,24 @@ def main():
         # Escalate, do not act: a pause that never speaks is the stall mode.
         report_paused(control)
         return
-    head = worktree_head()
+    head = worktree_head(refresh=True)
     if head is None:
+        report_refusal(head_refusal_detail())
         return
     known = checkpoints()
     if "owner-paused.json" in known:
+        report_refusal("an owner pause is recorded in the ledger (owner-paused.json)")
         return
     if any(name.startswith("interlock-") and not name.startswith("interlock-released-")
            and f"interlock-released-{name[len('interlock-'):]}" not in known for name in known):
+        report_refusal("an unreleased desktop interlock is recorded in the ledger")
         return
     if "desktop-interlock.json" in known:
         if "interlock-released-7111294374.json" not in known:
+            report_refusal("desktop-interlock.json is recorded with no release checkpoint")
             return
     if "paused.json" in known and read_checkpoint("paused.json")["state"] == "owner-paused":
+        report_refusal("paused.json records an owner pause")
         return
     pause = pause_requested()
     if pause:

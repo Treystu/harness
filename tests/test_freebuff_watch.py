@@ -354,7 +354,7 @@ class FreebuffWatchTests(unittest.TestCase):
         write = Mock()
         run = Mock()
         with patch.object(watch, "local_control_state", lambda: {"enabled": True, "paused": False}), \
-             patch.object(watch, "worktree_head", lambda: "pushed-head"), \
+             patch.object(watch, "worktree_head", lambda **_kw: "pushed-head"), \
              patch.dict("os.environ", {"HARNESS_VISION_HEAD": "pushed-head"}), \
              patch.object(watch, "checkpoints", lambda: known), \
              patch.object(watch, "read_checkpoint", lambda name: {"state": "adapter-unavailable"}), \
@@ -373,7 +373,7 @@ class FreebuffWatchTests(unittest.TestCase):
         write = Mock()
         run = Mock()
         with patch.object(watch, "local_control_state", lambda: {"enabled": True, "paused": False}), \
-             patch.object(watch, "worktree_head", lambda: "pushed-head"), \
+             patch.object(watch, "worktree_head", lambda **_kw: "pushed-head"), \
              patch.object(watch, "checkpoints", lambda: {"armed.json"}), \
              patch.object(watch, "pause_requested", lambda: 123), \
              patch.object(watch, "issue_comment", Mock()), \
@@ -639,6 +639,39 @@ class FreebuffWatchTests(unittest.TestCase):
                 watch.main()
             head_mock.assert_not_called()
             paused_mock.assert_not_called()
+
+    def test_a_stale_upstream_ref_is_refreshed_before_the_watch_refuses(self):
+        """Cure for the 2026-11-25 silence: a pushed head whose remote-tracking
+        ref lagged read as unpushed and every tick returned before its first
+        checkpoint. A mismatch now fetches once and re-reads instead."""
+        with patch.object(watch, "_head_pair", side_effect=[
+                ("ok", "a" * 40, "b" * 40), ("ok", "a" * 40, "a" * 40)]), \
+             patch.object(watch, "refresh_upstream", return_value=True) as fetch_mock:
+            self.assertEqual(watch.worktree_head(refresh=True), "a" * 40)
+        fetch_mock.assert_called_once()
+        with patch.object(watch, "_head_pair", return_value=("ok", "a" * 40, "b" * 40)), \
+             patch.object(watch, "refresh_upstream", return_value=False):
+            self.assertIsNone(watch.worktree_head(refresh=True))
+
+    def test_a_refused_tick_files_the_reason_instead_of_going_silent(self):
+        """13:11Z-15:06Z on 2026-11-25: ~55 ticks exited 0 writing no checkpoint
+        and no comment, which reads exactly like a tick that did its work."""
+        with patch.object(watch, "worktree_head", return_value=None), \
+             patch.object(watch, "head_refusal_detail",
+                          return_value="HEAD deadbeef is not published at upstream cafe0000"), \
+             patch.object(watch, "report_refusal") as refusal:
+            watch.main()
+        refusal.assert_called_once()
+        self.assertIn("not published", refusal.call_args.args[0])
+
+    def test_a_refusal_is_filed_once_per_bucket_per_reason(self):
+        with patch.object(watch, "checkpoints", return_value=set()), \
+             patch.object(watch, "checkpoint") as checkpoint_mock, \
+             patch.object(watch, "issue_comment") as comment_mock:
+            self.assertTrue(watch.report_refusal("HEAD deadbeef is not published at upstream cafe0000"))
+            self.assertFalse(watch.report_refusal("HEAD deadbeef is not published at upstream cafe0000"))
+        checkpoint_mock.assert_called_once()
+        comment_mock.assert_called_once()
 
     def test_parse_dynamic_dispatch_handles_freebuff_and_antigravity(self):
         now = datetime(2026, 11, 24, 1, 0, tzinfo=timezone.utc)
