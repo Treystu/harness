@@ -15,6 +15,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import osal, provision as pv
+from harness import provision_plan as pp
 from harness.config import load_settings
 from harness.errors import HarnessError
 from harness.jev import JevEvaluationResult
@@ -254,7 +255,7 @@ class StepTypeTests(unittest.TestCase):
 
     def test_step_from_dict_is_strict(self):
         good = step().to_dict()
-        self.assertEqual(pv.step_from_dict(good), step())
+        self.assertEqual(pp.step_from_dict(good), step())
         for mutate in (
             lambda d: d.update(extra=1),
             lambda d: d.pop("argv"),
@@ -267,9 +268,9 @@ class StepTypeTests(unittest.TestCase):
             data = dict(good)
             mutate(data)
             with self.assertRaises(pv.ProvisionError, msg=repr(data)):
-                pv.step_from_dict(data)
+                pp.step_from_dict(data)
         with self.assertRaises(pv.ProvisionError):
-            pv.step_from_dict(["not", "a", "dict"])
+            pp.step_from_dict(["not", "a", "dict"])
 
     def test_step_digest_tracks_content(self):
         self.assertEqual(step().digest(), step().digest())
@@ -294,10 +295,10 @@ class StepTypeTests(unittest.TestCase):
             "/r", "inventory", "deterministic", True, ("be careful",))
         data = plan.to_dict()
         self.assertEqual(data["digest"], plan.digest)
-        rebuilt = pv.plan_from_dict(data)
+        rebuilt = pp.plan_from_dict(data)
         self.assertEqual(rebuilt.digest, plan.digest)
         self.assertTrue(rebuilt.is_fallback)
-        text = pv.render_plan(plan)
+        text = pp.render_plan(plan)
         self.assertIn("[mutating] [network] s2", text)
         self.assertIn("rollback: delete it", text)
         self.assertIn("note: be careful", text)
@@ -307,8 +308,8 @@ class StepTypeTests(unittest.TestCase):
         for bad in ("x", {"steps": "no"}, {"steps": [], "goal": 1, "root": "r"},
                     {"steps": [{"id": "s"}], "goal": "g", "root": "r"}):
             with self.assertRaises(pv.ProvisionError, msg=repr(bad)):
-                pv.plan_from_dict(bad)
-        bare = pv.plan_from_dict({"steps": [], "goal": "g", "root": "r"})
+                pp.plan_from_dict(bad)
+        bare = pp.plan_from_dict({"steps": [], "goal": "g", "root": "r"})
         self.assertEqual((bare.recipe, bare.source), ("external", "external"))
 
 
@@ -1422,7 +1423,7 @@ class EndToEndTests(TempRootCase):
         self.assertEqual(argvs[0][1:4], ["-I", "-m", "venv"])
         self.assertEqual(self.ledger.verify(), (True, None))
         kinds = {e["event"] for e in self.ledger.entries()}
-        self.assertTrue(kinds <= set(pv.PROVISION_EVENTS))
+        self.assertTrue(kinds <= set(pp.PROVISION_EVENTS))
         self.assertTrue(all(e["task_id"] == "e2e" for e in self.ledger.entries()))
 
 

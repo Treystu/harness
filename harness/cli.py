@@ -35,6 +35,8 @@ from .jev_assessment import (AssessmentError, parse_payload_json,
                              record_disposition, verdict_for_payload)
 from .ledger import AutonomyLedger
 from . import provision as _pv
+from .provision_plan import plan_from_dict as _plan_from_dict
+from .provision_plan import render_plan as _render_plan
 from . import refine as _refine
 from . import repo_cards as _rc
 from . import script as _script
@@ -1943,7 +1945,7 @@ def _cmd_provision(opts, settings):
         probe = _pv.probe_host()
         policy = _pv.policy_for_probe(probe, [root])
         plan = _pv.plan_provision(opts.goal, probe, policy=policy)
-        rendered = _pv.render_plan(plan)
+        rendered = _render_plan(plan)
         res = plan.to_dict()
         res["rendered"] = rendered
         if not getattr(opts, "json", False) and not getattr(opts, "quiet", False):
@@ -1959,7 +1961,7 @@ def _cmd_provision(opts, settings):
         except Exception as exc:
             raise HarnessError(f"failed to read plan JSON: {exc}") from exc
         try:
-            plan = _pv.plan_from_dict(raw)
+            plan = _plan_from_dict(raw)
         except Exception as exc:
             raise HarnessError(f"malformed plan JSON: {exc}") from exc
         probe = _pv.probe_host()

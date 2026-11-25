@@ -15,6 +15,7 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import osal, provision as pv
+from harness import provision_plan as pp
 from harness.ledger import AutonomyLedger
 from tests.test_provision import (LINUX, FakeJev, FakeRunner, TempRootCase,
                                   fake_which, mutating_plan, step, which_of)
@@ -321,7 +322,7 @@ class PlanIdentityTests(HardeningCase):
         flagged = pv.Plan("g", steps, self.root, "x", "x", True,
                           review_required=True)
         self.assertNotEqual(plain.digest, flagged.digest)
-        rebuilt = pv.plan_from_dict(flagged.to_dict())
+        rebuilt = pp.plan_from_dict(flagged.to_dict())
         self.assertTrue(rebuilt.review_required)
         self.assertEqual(rebuilt.digest, flagged.digest)
         with self.assertRaises(pv.ProvisionError):
@@ -332,12 +333,12 @@ class PlanIdentityTests(HardeningCase):
         # a missing or malformed flag counts as flagged; only a real False clears
         stripped = flagged.to_dict()
         del stripped["review_required"]
-        self.assertTrue(pv.plan_from_dict(stripped).review_required)
-        self.assertTrue(pv.plan_from_dict(
+        self.assertTrue(pp.plan_from_dict(stripped).review_required)
+        self.assertTrue(pp.plan_from_dict(
             dict(flagged.to_dict(), review_required="no")).review_required)
-        self.assertFalse(pv.plan_from_dict(
+        self.assertFalse(pp.plan_from_dict(
             dict(plain.to_dict(), review_required=False)).review_required)
-        self.assertEqual(pv.plan_from_dict(
+        self.assertEqual(pp.plan_from_dict(
             dict(flagged.to_dict(), review={"a": 1})).review, {"a": 1})
 
     def test_gate_records_cannot_be_edited_by_callers(self):

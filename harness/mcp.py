@@ -31,6 +31,7 @@ from typing import Any, Dict, cast
 
 from . import __version__
 from . import events as _events
+from . import provision_plan as _provision_plan
 from . import script as _script
 from . import trust as trust_policy
 from .agent import AutonomousAgent
@@ -1606,7 +1607,7 @@ class McpServer:
             policy = pv.policy_for_probe(probe, [str(root)])
             plan = pv.plan_provision(goal, probe, policy=policy)
             res = plan.to_dict()
-            res["rendered"] = pv.render_plan(plan)
+            res["rendered"] = _provision_plan.render_plan(plan)
             return res
         if name == "repo_cards":
             from . import repo_cards as rc

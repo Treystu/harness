@@ -231,6 +231,17 @@ A surface (GUI card, MCP tool, agent intent) MUST keep these conditions:
    with `audit_failed=True` and the run stops. Surface `audit_failed`,
    `rollback_hints` and `leftovers` to the operator.
 
+Module layout (#310 split). The provisioning core is being separated by trust
+boundary: the vocabulary and the typed plan now live in
+`harness/provision_plan.py`, the pure, side-effect-free seam that imports
+nothing from `harness/provision.py` and never launches a process or touches a
+temporary file (`tests/test_provision_split_310.py` pins both). Callers import
+`Step`, `Plan`, `plan_from_dict` or `render_plan` from that owner directly;
+the repository forbids re-export facades, so there is exactly one import path
+per name. The approval gate, the executor, the argv allowlist and the planner
+move to their own modules in later slices. None of the conditions above change
+with the layout: a smaller module does not get a weaker gate.
+
 What the module enforces regardless: an argv allowlist (no shell, sudo,
 deletion, formatting, registry edits, local-file or URL installs); every step
 re-validated immediately before it runs; each step run in a fresh empty private
