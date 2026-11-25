@@ -58,6 +58,8 @@ verified. The tracker is not closeable on this subset.
 
 ## Next for this issue
 
-One sub-issue per still-present row in this batch (61, 62, 63, 64, 68, 70, 71),
-gated the same way as #749-#767, then rows 73-84 and 85-89.
+Sub-issues for the seven still-present rows in this batch, each gated the same
+way as #749-#767: #768 (row 61), #769 (row 62), #770 (row 63), #771 (row 64),
+#772 (row 68), #773 (row 70), #774 (row 71). Next verification batch: rows
+73-84, then 85-89.
 
