@@ -864,14 +864,29 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
     if plan is not None:
         from .research_plan import execute_plan
 
+        # #783: bind the fetch policy into the fetch callable so the default
+        # transport (fetch_url, which requires allowed_hosts) receives the
+        # allowlist, the any-public exemption and the named hosts exactly as
+        # the legacy path does. An injected one-argument callable (test double)
+        # is left alone.
+        _fetch = (fetch_url_fn if fetch_url_fn is not None else fetch_url)
+        if _fetch is fetch_url or fetch_url_fn is None:
+            _named = {h.lower() for h in (named_hosts or [])}
+            def _bound_fetch(url):
+                host = (urllib.parse.urlsplit(url).hostname or "").lower()
+                if allow_any_public or host in _named:
+                    return fetch_url(url, allowed_hosts=allowed_hosts,
+                                     allow_any_public=True)
+                return fetch_url(url, allowed_hosts=allowed_hosts)
+            _fetch = _bound_fetch
+
         execution = execute_plan(
             plan, approval, request_id=request_id, prompt=prompt,
             capabilities=(capabilities if capabilities is not None
                           else ("search", "fetch")),
             search_fn=(search_web_fn if search_web_fn is not None
                        else search_web),
-            fetch_fn=(fetch_url_fn if fetch_url_fn is not None
-                      else fetch_url),
+            fetch_fn=_fetch,
             now=now)
         emit("research_plan_executed", state=execution.state,
              search_calls=execution.search_calls,
