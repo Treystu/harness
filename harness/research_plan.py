@@ -371,6 +371,8 @@ def validate_plan(plan: Optional[ResearchPlan], *,
     Returns :class:`PlanCheck`; the first failing condition wins and its code
     names the rule. Callers execute nothing unless this accepts.
     """
+    if now is None:
+        now = time.time()
     if plan is None:
         return PlanCheck.reject("plan_missing", "no research plan was supplied")
     if int(plan.schema_version) != SCHEMA_VERSION:
@@ -425,6 +427,8 @@ def validate_plan(plan: Optional[ResearchPlan], *,
 
 def _approval_check(plan: ResearchPlan, approval: PlanApproval, *,
                     now: Optional[float]) -> PlanCheck:
+    if now is None:
+        now = time.time()
     if not approval.native:
         # An advisory or local preview is not an approval.
         return PlanCheck.reject(
@@ -446,7 +450,7 @@ def _approval_check(plan: ResearchPlan, approval: PlanApproval, *,
             approval.query_verdicts):
         return PlanCheck.reject(
             "approval_incomplete", "the approval does not accept every query")
-    if approval.expires_at and now is not None and float(now) >= float(
+    if approval.expires_at and float(now) >= float(
             approval.expires_at):
         # Consent is request-scoped and does not outlive the turn.
         return PlanCheck.reject(
@@ -614,6 +618,10 @@ def decide_research_plan(
         saved_plan: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Optional[ResearchPlan], Optional[PlanApproval], Dict[str, Any]]:
     """Propose one plan and band one native judgment on it.
+    # Resolve omitted now so consent expiry is always enforced, even when the
+    # caller (or a saved-receipt resume) omits an explicit timestamp.
+    if now is None:
+        now = time.time()
 
     Every request entrypoint that can reach the network calls this one owner
     (#342) instead of proposing and judging separately. The proposal is a
