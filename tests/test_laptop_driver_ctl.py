@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 import threading
 import unittest
@@ -115,6 +116,93 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
              patch.object(laptop_driver_ctl.osal, "run", return_value=bad_proc):
             with self.assertRaisesRegex(HarnessError, "scheduled task command failed"):
                 laptop_driver_ctl._run_ps("Get-Date")
+
+    def test_install_registers_logon_and_repeating_task_and_updates_driver_root(self):
+        ok_proc = laptop_driver_ctl.osal.CommandResult(0, "Ready\n", "")
+        with patch.object(laptop_driver_ctl, "_scheduler_enabled", return_value=True), \
+             patch.object(laptop_driver_ctl.osal, "run", return_value=ok_proc) as run_mock:
+            res = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp)
+            self.assertTrue(res["task_registered"])
+            self.assertEqual(res["task_state"], "Ready")
+            res2 = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp + "_next")
+            self.assertTrue(res2["task_registered"])
+        scripts_called = "\n".join(c.args[0][-1] for c in run_mock.call_args_list)
+        self.assertIn("-AtLogOn", scripts_called)
+        self.assertIn("-RepetitionInterval", scripts_called)
+        self.assertIn("Register-ScheduledTask", scripts_called)
+        self.assertIn("Disable-ScheduledTask", scripts_called)
+        ctl = json.loads((self.watch_dir / "control.json").read_text(encoding="utf-8-sig"))
+        self.assertEqual(ctl["driver_root"], self.tmp + "_next")
+        self.assertEqual(laptop_driver_ctl.driver_watch_status()["consecutive_failures"], 0)
+
+    def test_materialized_run_watch_py_covers_states_rotation_lock_and_alerts(self):
+        res = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp)
+        runner_path = Path(res["runner"])
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("test_run_watch_mod", str(runner_path))
+        mod = importlib.util.module_from_spec(spec)
+        with patch.dict(os.environ, {
+            "HARNESS_DRIVER_WATCH_DIR": str(self.watch_dir),
+            "HARNESS_DRIVER_LOG_PATH": str(self.log_path),
+            "HARNESS_DRIVER_WATCH_NO_ALERT": "",
+        }):
+            spec.loader.exec_module(mod)
+            # 1. Paused control
+            (self.watch_dir / "control.json").write_text(
+                json.dumps({"enabled": True, "paused": True, "driver_root": self.tmp}),
+                encoding="utf-8",
+            )
+            self.assertEqual(mod.run_tick(), 0)
+            self.assertEqual(json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))["state"], "paused")
+
+            # 2. Stopped control
+            (self.watch_dir / "control.json").write_text(
+                json.dumps({"enabled": False, "paused": False, "driver_root": self.tmp}),
+                encoding="utf-8",
+            )
+            self.assertEqual(mod.run_tick(), 0)
+            self.assertEqual(json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))["state"], "stopped")
+
+            # 3. Missing driver_root triggers error + failure counter + rate-limited alert
+            missing_root = str(Path(self.tmp) / "does-not-exist")
+            (self.watch_dir / "control.json").write_text(
+                json.dumps({"enabled": True, "paused": False, "driver_root": missing_root, "repo": "Treystu/harness", "dispatch_issue": 684}),
+                encoding="utf-8",
+            )
+            fake_gh = laptop_driver_ctl.osal.CommandResult(0, "ok", "")
+            with patch.object(mod.subprocess, "run", return_value=fake_gh) as sub_mock:
+                self.assertEqual(mod.run_tick(), 2)
+                st = json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))
+                self.assertEqual(st["state"], "error")
+                self.assertEqual(st["consecutive_failures"], 1)
+                self.assertTrue(st["alerted_failure"])
+                self.assertTrue(sub_mock.called)
+
+            # 4. Log rotation + active tick calling mocked scripts.windows_freebuff_watch.main()
+            scripts_dir = Path(self.tmp) / "scripts"
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+            (scripts_dir / "__init__.py").write_text("", encoding="utf-8")
+            (scripts_dir / "windows_freebuff_watch.py").write_text(
+                "def main():\n    print('mock watch tick')\n    return 0\n",
+                encoding="utf-8",
+            )
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            self.log_path.write_bytes(b"x" * (mod.MAX_LOG_BYTES + 10))
+            (self.watch_dir / "control.json").write_text(
+                json.dumps({"enabled": True, "paused": False, "driver_root": self.tmp}),
+                encoding="utf-8",
+            )
+            with patch.dict(sys.modules, {k: v for k, v in sys.modules.items() if not k.startswith("scripts")}):
+                for key in list(sys.modules):
+                    if key == "scripts" or key.startswith("scripts."):
+                        del sys.modules[key]
+                self.assertEqual(mod.run_tick(force=True, echo=True), 0)
+            st_ok = json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual(st_ok["state"], "idle_watching")
+            self.assertEqual(st_ok["consecutive_failures"], 0)
+            self.assertFalse(st_ok["alerted_failure"])
+            self.assertTrue(self.log_path.with_suffix(".log.1").is_file())
 
     def test_server_watch_endpoints_require_auth_when_configured_and_control_state(self):
         httpd = make_server("127.0.0.1", 0, auth_token="secret-tok")
