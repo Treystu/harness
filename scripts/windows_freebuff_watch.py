@@ -221,27 +221,44 @@ def dynamic_phase_timeout(item):
     return 480 if item else 240
 
 
+LANE_ALIASES = (
+    ("scmessenger", SCM_THREAD),
+    ("lane 1", THREAD),
+    ("disk audit", DISK_THREAD),
+    ("vision driver standup", VISION_THREAD),
+)
+
+
 def _lane_thread_from_dispatch(body):
+    """Which lane is this dispatch addressed to?
+
+    Three forms are in the oversight's own history: a thread id anywhere in the
+    body, a ``Lane:`` line, and - since episode L1-STOP-1014 - the lane named in
+    the banner with no ``Lane:`` line at all (7145072019 "RESTART DISPATCH -
+    Lane 1, episode L1-STOP-1014", 7146588401 "RESTART DISPATCH - SCMessenger,
+    episode SCM-STOP-1242"). Both of those were unclaimable while the watch
+    heartbeated "no unclaimed dispatches".
+
+    Only the banner line is read when there is no ``Lane:`` line: a lane named
+    in the body prose is not an addressee, so prose cannot redirect a dispatch.
+    """
     thread_pattern = re.compile(r"\b(" + "|".join(re.escape(tid) for tid in SESSIONS) + r")\b")
     match = thread_pattern.search(body)
     if match:
         return match.group(1)
-    lane_aliases = (
-        ("scmessenger", SCM_THREAD),
-        ("lane 1", THREAD),
-        ("disk audit", DISK_THREAD),
-        ("vision driver standup", VISION_THREAD),
-    )
     lane_line = re.search(r"^Lane:\s*(.+)$", body, re.I | re.M)
     if lane_line:
         text = lane_line.group(1).casefold()
-        for alias, tid in lane_aliases:
-            if alias in text:
-                return tid
+    else:
+        banner = next((line for line in body.splitlines() if line.strip()), "")
+        text = banner.casefold()
+    for alias, tid in LANE_ALIASES:
+        if alias in text:
+            return tid
     return None
 
 
-RUNNER_ACTION = re.compile(r"^Action\s+(?:for\s+the\s+runner|requested)\b", re.I | re.M)
+RUNNER_ACTION = re.compile(r"^(?:Runner\s+)?Action\s+(?:for\s+the\s+runner|requested)\b", re.I | re.M)
 DISPATCH_BANNER = re.compile(r"^(?:VISION\s+DRIVER\s+)?(?:RESTART\s+)?DISPATCH\b", re.I)
 
 
@@ -304,10 +321,11 @@ def parse_dynamic_dispatch(comment, now=None):
             "text": mission["text"],
             "digest": digest,
         }
-    # The oversight files the instruction line as either "Action for the runner:"
-    # (early dispatches) or "Action requested (runner alone, ...)" (the L1-STOP
-    # episode and later). Both are the same bounded restart; anything else is not
-    # an instruction and is never claimed.
+    # The oversight files the instruction line as "Action for the runner:"
+    # (early dispatches), "Action requested (runner alone, ...)" (the L1-STOP
+    # episode), or "Runner action requested:" (episode L1-STOP-1014 and the
+    # SCMessenger restart). All three are the same bounded restart; anything
+    # else is not an instruction and is never claimed.
     if not (restart_dispatch(body) and RUNNER_ACTION.search(body)):
         return None
     # The instruction may be wrapped mid-quote: 7122154514 writes
@@ -341,8 +359,14 @@ def parse_dynamic_dispatch(comment, now=None):
     }
 
 
-def poll_dynamic_dispatches(known, *, now=None):
-    """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item."""
+def poll_dynamic_dispatches(known, *, now=None, unclaimed=None):
+    """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item.
+
+    ``unclaimed`` is an optional sink: a dispatch-shaped owner comment that the
+    parser refuses is appended to it. The watch reported "no unclaimed
+    dispatches" for two hours while 7145072019 and 7146588401 sat unparsed, so
+    "nothing to claim" and "nothing I can read" must not read the same.
+    """
     now = now or datetime.now(timezone.utc)
     comments = []
     page = 1
@@ -357,6 +381,9 @@ def poll_dynamic_dispatches(known, *, now=None):
     for comment in comments:
         parsed = parse_dynamic_dispatch(comment, now=now)
         if not parsed:
+            body = comment.get("body") or ""
+            if unclaimed is not None and owner(comment) and restart_dispatch(body):
+                unclaimed.append(comment.get("id"))
             continue
         cid = parsed["comment_id"]
         thread = parsed["thread"]
@@ -410,7 +437,12 @@ def run_burn(receipts, known):
     source = receipts[BURN_QUEUE]
     end = datetime.fromisoformat(source["created_at"]) + timedelta(hours=3)
     if datetime.now(timezone.utc) >= end:
-        if poll_dynamic_dispatches(known):
+        unclaimed = []
+        if poll_dynamic_dispatches(known, unclaimed=unclaimed):
+            return
+        if unclaimed:
+            heartbeat(known, "dynamic oversight dispatch active; dispatch(es) present but "
+                             "not claimable: " + ", ".join(f"#{cid}" for cid in unclaimed))
             return
         heartbeat(known, "dynamic oversight dispatch active; no unclaimed dispatches")
         return

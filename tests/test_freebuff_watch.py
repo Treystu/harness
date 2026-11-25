@@ -705,6 +705,79 @@ class FreebuffWatchTests(unittest.TestCase):
             'Send "continue in full" to each idle lane (thread 2ae32937).\n'))
         self.assertIsNone(watch.parse_dynamic_dispatch(fill, now=now))
 
+    def test_parse_dynamic_dispatch_accepts_the_banner_lane_and_runner_action_wording(self):
+        """Episodes L1-STOP-1014 and SCM-STOP-1242 were unclaimed while the watch
+        heartbeated "no unclaimed dispatches".
+
+        7145072019 files the instruction as "Runner action requested:" and names
+        the lane only in the banner; 7146588401 names only "SCMessenger" in the
+        banner and writes no ``Lane:`` line at all. Both are the same bounded
+        restart the earlier wording described, so both must claim.
+        """
+        now = datetime(2026, 11, 24, 23, 0, tzinfo=timezone.utc)
+        lane1 = {
+            "id": 7145072019,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T21:32:47Z",
+            "body": (
+                "RESTART DISPATCH — Lane 1, episode L1-STOP-1014 (oversight tick 1014, "
+                "harness-codex-lane-oversight)\n\n"
+                "Lane 1 is PRESUMED STOPPED under Clause 6/7 GitHub-first detection.\n\n"
+                'Runner action requested: in-place restart only — exactly "continue in full"; '
+                "never a duplicate session, never model/settings changes.\n"
+            ),
+        }
+        parsed = watch.parse_dynamic_dispatch(lane1, now=now)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], watch.THREAD)
+        self.assertEqual(parsed["text"], watch.CONTINUATION)
+
+        scm = {
+            "id": 7146588401,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T22:44:26Z",
+            "body": (
+                "RESTART DISPATCH — SCMessenger, episode SCM-STOP-1242 "
+                "(lane-continuation-overnight watch run 123)\n\n"
+                "Action for the runner: restart SCMessenger in place with exactly "
+                '\"continue in full\"; never a duplicate session.\n'
+            ),
+        }
+        parsed = watch.parse_dynamic_dispatch(scm, now=now)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], watch.SCM_THREAD)
+
+    def test_a_lane_named_only_in_body_prose_is_not_an_addressee(self):
+        now = datetime(2026, 11, 24, 23, 0, tzinfo=timezone.utc)
+        comment = {
+            "id": 990020,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T22:00:00Z",
+            "body": (
+                "RESTART DISPATCH — fleet sweep\n\n"
+                "Context: Lane 1 was restarted earlier and must not move again.\n"
+                'Action for the runner: execute "continue in full" where addressed.\n'
+            ),
+        }
+        self.assertIsNone(watch.parse_dynamic_dispatch(comment, now=now))
+
+    def test_poll_reports_a_dispatch_it_cannot_parse_instead_of_nothing_to_claim(self):
+        now = datetime(2026, 11, 24, 23, 0, tzinfo=timezone.utc)
+        comments = [{
+            "id": 990021,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-24T22:30:00Z",
+            "body": "RESTART DISPATCH — fleet sweep\nNo instruction line here.\n",
+        }]
+        unclaimed = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=comments), \
+                 patch.object(watch, "execute", Mock()) as execute:
+                self.assertFalse(watch.poll_dynamic_dispatches(set(), now=now, unclaimed=unclaimed))
+        self.assertEqual(unclaimed, [990021])
+        execute.assert_not_called()
+
     def test_filed_on_issue_skips_a_dispatch_another_channel_already_executed(self):
         comments = [
             {"id": 7117989632, "body": "RESTART DISPATCH — SCMessenger"},
