@@ -11,7 +11,58 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from PIL import Image, ImageDraw
+try:
+    from PIL import Image, ImageDraw
+except ImportError:  # hermetic CI legs install no imaging stack
+    # The fake surface below only needs a frame object that crops and hashes
+    # bytes; without this the module failed to import at all and took the whole
+    # hermetic leg red with it (measured 2026-11-25 on the repo .venv, which has
+    # no Pillow, while the interpreter the watch runs under does).
+    class _Canvas:
+        # The fake surface paints one 32x32 near-white send arrow at this box;
+        # that is the only region the launcher measures.
+        ARROW = (1488, 1052, 1520, 1084)
+
+        def __init__(self, size=(1800, 1131), color=(0, 0, 0), bbox=None):
+            self.size = size
+            self.width, self.height = size
+            self._pixels = bytes(color)
+            self._bbox = bbox
+
+        def crop(self, region):
+            left, top, right, bottom = region
+            x0, y0 = max(self.ARROW[0], left), max(self.ARROW[1], top)
+            x1, y1 = min(self.ARROW[2], right), min(self.ARROW[3], bottom)
+            window = (right - left, bottom - top)
+            if x1 <= x0 or y1 <= y0:
+                return _Canvas(window, bbox=None)
+            return _Canvas(window, bbox=(x0 - left, y0 - top, x1 - left, y1 - top))
+
+        def convert(self, _mode):
+            return self
+
+        def point(self, _fn):
+            return self
+
+        def getbbox(self):
+            return self._bbox
+
+        def tobytes(self):
+            return self._pixels
+
+    class Image:  # type: ignore[no-redef]
+        @staticmethod
+        def new(_mode, size, color=(0, 0, 0)):
+            return _Canvas(size, color)
+
+    class ImageDraw:  # type: ignore[no-redef]
+        class _Pen:
+            def rectangle(self, *_args, **_kwargs):
+                return None
+
+        @staticmethod
+        def Draw(_image):
+            return ImageDraw._Pen()
 
 from scripts import windows_freebuff_dispatch as dispatch
 

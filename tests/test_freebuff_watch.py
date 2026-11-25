@@ -35,6 +35,19 @@ from scripts import windows_freebuff_watch as watch
 from scripts.windows_freebuff_dispatch import Dispatch
 
 
+def runtime_present():
+    """Stand in the desktop runtime that the claiming paths require.
+
+    ``require_driver_runtime`` refuses when windows_capture/PIL are absent, and
+    that refusal is correct in production - it is also true on every hermetic
+    CI leg, which is why five tests failed there while passing under the
+    interpreter the watch actually runs on. The tests below are about the claim
+    path, so they present the runtime explicitly; the refusal keeps its own test
+    against a controlled probe.
+    """
+    return patch.object(watch.importlib.util, "find_spec", lambda name: object())
+
+
 class _Surface:
     """Records the primitives a driver surface offers, so a sequence can be read."""
 
@@ -388,6 +401,7 @@ class FreebuffWatchTests(unittest.TestCase):
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
                  patch.object(watch, "checkpoint", write), \
+                 runtime_present(), \
                  patch.object(watch, "execute", execute):
                 watch.run_burn(receipts, known)
 
@@ -583,6 +597,7 @@ class FreebuffWatchTests(unittest.TestCase):
                  patch.object(watch, "desktop_idle", lambda: True), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "checkpoint", Mock()), \
+                 runtime_present(), \
                  patch.object(watch, "execute", execute):
                 self.assertTrue(watch.run_restoration({watch.SCM_RESTART: {"body": "authorized"}}, known))
             self.assertEqual(execute.call_args.args[1], f"{item}-project-roster-cure")
@@ -604,14 +619,25 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertIn("Hidden", cmd)
 
     def test_local_control_pause_or_stop_prevents_watch_tick(self):
+        """A paused tick does no work - and says what it is holding; a stopped
+        tick does nothing at all."""
         import json
         with tempfile.TemporaryDirectory() as tmp:
             ctl = Path(tmp) / "control.json"
             ctl.write_text(json.dumps({"enabled": True, "paused": True}), encoding="utf-8")
             with patch.dict("os.environ", {"HARNESS_DRIVER_CONTROL_FILE": str(ctl)}), \
-                 patch.object(watch, "worktree_head") as head_mock:
+                 patch.object(watch, "worktree_head") as head_mock, \
+                 patch.object(watch, "report_paused") as paused_mock:
                 watch.main()
             head_mock.assert_not_called()
+            paused_mock.assert_called_once()
+            ctl.write_text(json.dumps({"enabled": False, "paused": False}), encoding="utf-8")
+            with patch.dict("os.environ", {"HARNESS_DRIVER_CONTROL_FILE": str(ctl)}), \
+                 patch.object(watch, "worktree_head") as head_mock, \
+                 patch.object(watch, "report_paused") as paused_mock:
+                watch.main()
+            head_mock.assert_not_called()
+            paused_mock.assert_not_called()
 
     def test_parse_dynamic_dispatch_handles_freebuff_and_antigravity(self):
         now = datetime(2026, 11, 24, 1, 0, tzinfo=timezone.utc)
@@ -796,6 +822,8 @@ class FreebuffWatchTests(unittest.TestCase):
             with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
                  patch.object(watch, "api", return_value=[comment]), \
                  patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "checkpoint", Mock()), \
+                 patch.object(watch, "issue_comment", Mock()), \
                  patch.object(watch, "execute", execute):
                 self.assertFalse(watch.poll_dynamic_dispatches(
                     set(), now=now, cancelled=(watch.THREAD,)))
@@ -832,6 +860,8 @@ class FreebuffWatchTests(unittest.TestCase):
             with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
                  patch.object(watch, "api", return_value=[dispatch, cancellation]), \
                  patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "checkpoint", Mock()), \
+                 patch.object(watch, "issue_comment", Mock()), \
                  patch.object(watch, "execute", execute):
                 self.assertFalse(watch.poll_dynamic_dispatches(set(), now=now))
             execute.assert_not_called()
@@ -883,10 +913,17 @@ class FreebuffWatchTests(unittest.TestCase):
                  patch.object(watch, "desktop_idle", lambda: True), \
                  patch.object(watch, "checkpoint", write), \
                  patch.object(watch, "issue_comment", Mock()), \
+                 patch.object(watch, "advance_cursor", Mock()), \
+                 runtime_present(), \
                  patch.object(watch, "execute", execute):
                 self.assertTrue(watch.poll_dynamic_dispatches(set(), now=now))
-            self.assertEqual(write.call_args_list[0].args[0],
-                             "claim-dyn-7145072019-315608d2.json")
+            # The superseded row now gets its own durable verdict instead of
+            # being skipped in silence, so the claim is not the first write.
+            self.assertEqual([call.args[0] for call in write.call_args_list],
+                             ["skip-dyn-7129310215-315608d2.json",
+                              "claim-dyn-7145072019-315608d2.json",
+                              "result-dyn-7145072019-315608d2.json"])
+            self.assertEqual(write.call_args_list[0].args[1]["state"], "superseded")
             self.assertEqual(execute.call_args.args[2]["dispatch"], 7145072019)
 
     def test_poll_reports_a_dispatch_it_cannot_parse_instead_of_nothing_to_claim(self):
@@ -963,6 +1000,8 @@ class FreebuffWatchTests(unittest.TestCase):
                  patch.object(watch, "desktop_idle", lambda: True), \
                  patch.object(watch, "checkpoint", write), \
                  patch.object(watch, "issue_comment", posted), \
+                 patch.object(watch, "advance_cursor", Mock()), \
+                 runtime_present(), \
                  patch.object(watch, "execute", execute):
                 self.assertTrue(watch.poll_dynamic_dispatches({"claim-dyn-990002-antigravity.json"}, now=now))
             self.assertEqual(execute.call_args.args[2]["thread"], watch.SCM_THREAD)
@@ -991,12 +1030,151 @@ class FreebuffWatchTests(unittest.TestCase):
 
     def test_missing_driver_runtime_is_refused_by_name_before_a_claim(self):
         """L17: the %TEMP% proof venv is not durable, so the runtime the watch
-        actually runs under is checked before any claim and named when absent."""
-        self.assertIsNone(watch.require_driver_runtime())
+        actually runs under is checked before any claim and named when absent.
+
+        Both halves are measured against a controlled probe rather than the
+        ambient interpreter: the hermetic CI legs have no windows_capture, so
+        asserting that this interpreter has it made the suite red exactly where
+        it was supposed to be portable.
+        """
+        with patch.object(watch.importlib.util, "find_spec", lambda name: object()):
+            self.assertIsNone(watch.require_driver_runtime())
         with patch.object(watch.importlib.util, "find_spec",
                           side_effect=lambda name: None if name == "windows_capture" else object()):
             with self.assertRaisesRegex(RuntimeError, "driver runtime missing: windows_capture"):
                 watch.require_driver_runtime()
+
+    def test_the_daily_hours_banner_is_named_as_a_quota_refusal(self):
+        """Measured 2026-11-25 18:01 HST on the SCMessenger session: the app
+        renders "Today's hours are used up ... Your daily hours refill at 12:00
+        AM HST" and never says "usage limit". Without this marker the driver
+        reported "Stop square and exact queue placeholder were not verified",
+        which names a UI failure and hides the exhausted account behind it."""
+        surface = dispatch.Dispatch.__new__(dispatch.Dispatch)
+        surface.read_lines = lambda step, frame, region: [
+            "Today's hours are used up: an hour of DeepSeek V4.1 Flash Slow uses 1 hour,",
+            "and you have less than an hour left. Your daily hours refill at 12:00 AM HST.",
+        ]
+        self.assertIn("daily hours exhausted",
+                      surface.platform_refusal_notice("probe", None))
+
+    def test_oversight_and_lane_continuation_banners_parse_as_restarts(self):
+        """Gap 3 of audit 7149949800: 7143702385 leads with "OVERSIGHT RESTART
+        DISPATCH" and 7124370203 with "LANE CONTINUATION WATCH", and both were
+        unreadable while the census claimed zero unclaimed dispatches."""
+        now = datetime(2026, 11, 24, 23, 0, tzinfo=timezone.utc)
+        bodies = [
+            ("OVERSIGHT RESTART DISPATCH — Lane 1, episode L1-STOP-1010\n"
+             'Action for the runner: restart with "continue in full".\n'),
+            ("LANE CONTINUATION WATCH RESTART DISPATCH — Lane 1\n"
+             'Runner action requested: "continue in full"\n'),
+        ]
+        for index, body in enumerate(bodies):
+            comment = {"id": 991000 + index, "user": {"id": watch.OWNER_ID},
+                       "created_at": "2026-11-24T22:30:00Z", "body": body}
+            parsed = watch.parse_dynamic_dispatch(comment, now=now)
+            self.assertIsNotNone(parsed, body.splitlines()[0])
+            self.assertEqual(parsed["kind"], "restart")
+            self.assertEqual(parsed["thread"], watch.THREAD)
+
+    def test_the_runner_colon_instruction_line_parses(self):
+        """Measured 2026-11-25T04:30Z: 7151203687 writes "Runner: in-place
+        restart only - exactly \"continue in full\"", and the dispatch that was
+        filed to bring Lane 1 back was unreadable by the watch meant to run it."""
+        now = datetime(2026, 11, 25, 3, 0, tzinfo=timezone.utc)
+        comment = {
+            "id": 7151203687, "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T02:48:02Z",
+            "body": ("RESTART DISPATCH - Lane 1, episode L1-STOP-1035\n\n"
+                     "Lane 1 is PRESUMED STOPPED.\n\n"
+                     'Runner: in-place restart only - exactly "continue in full"; never a duplicate session.\n'),
+        }
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["thread"], watch.THREAD)
+
+    def test_a_steer_dispatch_is_named_as_unclaimable_not_silently_ignored(self):
+        """7149636711 is a STEER: it carries no instruction line, so the watch
+        must report it by name rather than let the heartbeat call the queue empty."""
+        now = datetime(2026, 11, 24, 23, 0, tzinfo=timezone.utc)
+        comment = {"id": 990031, "user": {"id": watch.OWNER_ID},
+                   "created_at": "2026-11-24T22:30:00Z",
+                   "body": ("STEER DISPATCH - Lane 1\n"
+                            "Text for the runner to send into Lane 1's session, verbatim: fix the driver.\n")}
+        with patch.object(watch, "api", return_value=[comment]), \
+             patch.object(watch, "advance_cursor", Mock()):
+            _, evidence = watch.scan_dispatch_comments(now=now)
+        self.assertIn(990031, evidence["unparsed"])
+        unclaimed = []
+        with patch.dict("os.environ", {"LOCALAPPDATA": tempfile.gettempdir()}), \
+             patch.object(watch, "api", return_value=[comment]), \
+             patch.object(watch, "advance_cursor", Mock()), \
+             patch.object(watch, "execute", Mock()) as execute:
+            self.assertFalse(watch.poll_dynamic_dispatches(set(), now=now, unclaimed=unclaimed))
+        execute.assert_not_called()
+        self.assertEqual(unclaimed, [990031])
+
+    def test_the_cursor_watermark_is_create_only_and_only_moves_forward(self):
+        """The ledger refuses a rewrite of an existing path (HTTP 422 "sha
+        wasn't supplied", measured 2026-11-25T04:27Z on the first live paused
+        tick), so the watermark is a new file per position, written once."""
+        written = Mock()
+        evidence = {"scanned_through": 7152505813, "scanned": 120}
+        with patch.object(watch, "checkpoint", written):
+            watch.advance_cursor(evidence, known={"cursor-7152000000.json"})
+        self.assertTrue(evidence["cursor_advanced"])
+        self.assertEqual(written.call_args.args[0], "cursor-7152505813.json")
+        written.reset_mock()
+        again = {"scanned_through": 7152505813, "scanned": 120}
+        with patch.object(watch, "checkpoint", written):
+            watch.advance_cursor(again, known={"cursor-7152505813.json"})
+        self.assertFalse(again["cursor_advanced"])
+        written.assert_not_called()
+
+    def test_the_canary_names_a_blind_scan_instead_of_reporting_an_empty_queue(self):
+        self.assertEqual(watch.canary({"owner": 0, "scanned_through": 0}),
+                         ["the scan returned no owner comments at all",
+                          "the scan advanced no cursor"])
+        self.assertEqual(watch.canary({"owner": 3, "scanned_through": 7152505813}), [])
+
+    def test_a_paused_watch_escalates_what_is_waiting_without_touching_a_desktop(self):
+        """Pause permanence: three dispatches sat unclaimed from 01:28Z with no
+        filing. A paused tick must say what it is holding, and run no input."""
+        body = ("RESTART DISPATCH — SCMessenger, episode SCM-STOP-1542\n"
+                'Action for the runner: "continue in full"\n')
+        comment = {"id": 7149910847, "user": {"id": watch.OWNER_ID},
+                   "created_at": datetime.now(timezone.utc).isoformat(), "body": body}
+        posted = Mock()
+        with patch.object(watch, "api", return_value=[comment]), \
+             patch.object(watch, "advance_cursor", Mock()), \
+             patch.object(watch, "checkpoints", return_value=set()), \
+             patch.object(watch, "checkpoint", Mock()) as written, \
+             patch.object(watch, "issue_comment", posted), \
+             patch.object(watch, "execute", Mock()) as execute:
+            self.assertTrue(watch.report_paused({"enabled": True, "paused": True,
+                                                 "cancelled_lanes": ()}))
+        execute.assert_not_called()
+        self.assertEqual(written.call_args.args[0][:19], "paused-escalation-2")
+        self.assertIn("PAUSED at the control surface", posted.call_args.args[0])
+        self.assertIn("#7149910847", posted.call_args.args[0])
+
+    def test_a_second_paused_tick_in_the_same_hour_does_not_repeat_the_escalation(self):
+        body = ("RESTART DISPATCH — SCMessenger, episode SCM-STOP-1542\n"
+                'Action for the runner: "continue in full"\n')
+        comment = {"id": 7149910847, "user": {"id": watch.OWNER_ID},
+                   "created_at": datetime.now(timezone.utc).isoformat(), "body": body}
+        bucket = watch.datetime.now(timezone.utc).strftime("%Y%m%d-%H")
+        digest = watch.hashlib.sha256(b"7149910847").hexdigest()[:8]
+        posted = Mock()
+        with patch.object(watch, "api", return_value=[comment]), \
+             patch.object(watch, "advance_cursor", Mock()), \
+             patch.object(watch, "checkpoints",
+                          return_value={f"paused-escalation-{bucket}-{digest}.json"}), \
+             patch.object(watch, "checkpoint", Mock()), \
+             patch.object(watch, "issue_comment", posted):
+            self.assertFalse(watch.report_paused({"enabled": True, "paused": True,
+                                                  "cancelled_lanes": ()}))
+        posted.assert_not_called()
 
     def test_local_control_state_accepts_utf8_bom_control_json(self):
         with tempfile.TemporaryDirectory() as tmp:

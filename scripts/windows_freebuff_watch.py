@@ -100,6 +100,11 @@ def checkpoint(name, event):
 
 def read_checkpoint(name):
     response = api(f"{ROOT}/{name}?ref={BRANCH}")
+    # A missing checkpoint comes back as a dict carrying "message", and an
+    # unexpected body is not a checkpoint either: name it instead of failing on
+    # a KeyError that reads like a code defect rather than an absent file.
+    if not isinstance(response, dict) or "content" not in response:
+        raise RuntimeError(f"checkpoint {name} is not readable")
     return json.loads(base64.b64decode(response["content"]))
 
 
@@ -179,13 +184,90 @@ def desktop_idle():
     return elapsed >= 60_000
 
 
-def heartbeat(known, state):
+LAST_SCAN = {}
+
+
+def current_evidence():
+    return dict(LAST_SCAN) or None
+
+
+def describe_scan(evidence):
+    """Render the scan's own counts.
+
+    ``heartbeat`` used to take a literal string, so a tick that had scanned
+    nothing and a tick that had scanned everything said the same words - the
+    2026-11-24 blindness ran ~8 h behind heartbeats that read "no unclaimed
+    dispatches". Every number here is measured by ``scan_dispatch_comments`` in
+    the same tick that posts it.
+    """
+    if not evidence:
+        return ""
+    text = (f"scan saw {evidence.get('owner', 0)} owner comment(s) through "
+            f"#{evidence.get('scanned_through', 0)}; "
+            f"{evidence.get('dispatches', 0)} dispatch-shaped; "
+            f"{evidence.get('claimable', 0)} claimable")
+    unparsed = sorted(evidence.get("unparsed") or ())
+    if unparsed:
+        text += "; not claimable: " + ", ".join(f"#{cid}" for cid in unparsed)
+    return text
+
+
+def heartbeat(known, state, evidence=None):
     now = datetime.now(timezone.utc)
     bucket = now.strftime("%Y%m%d-%H") + f"-{now.minute // 15}"
     name = f"heartbeat-{bucket}.json"
     if name not in known:
-        checkpoint(name, {"state": state})
-        issue_comment(f"Vision watch {CUTOVER} heartbeat. {state}.")
+        checkpoint(name, {"state": state, "evidence": evidence or {}})
+        detail = describe_scan(evidence)
+        message = f"Vision watch {CUTOVER} heartbeat. {state}."
+        if detail:
+            message += f" {detail}."
+        issue_comment(message)
+
+
+def canary(evidence):
+    """Prove this tick could see, and name it when it could not.
+
+    The expected cure shape for the blindness class: a tick that read an empty
+    or unadvanced page must fail loudly instead of reporting a quiet success.
+    """
+    problems = []
+    if not evidence.get("owner"):
+        problems.append("the scan returned no owner comments at all")
+    if not evidence.get("scanned_through"):
+        problems.append("the scan advanced no cursor")
+    return problems
+
+
+CURSOR = re.compile(r"^cursor-(\d+)\.json$")
+
+
+def advance_cursor(evidence, known=()):
+    """Hold the scan's position durably, without a write on every tick.
+
+    ``?since=DYNAMIC_SINCE`` is a constant, so every tick re-reads the same two
+    days and a 403 part-way through a page leaves no record of how far the last
+    complete scan actually reached. The watermark records that position and only
+    writes when it moves.
+
+    It is ``cursor-<id>.json``, not ``cursor.json``: the ledger is create-only
+    by design (that is what makes a claim at-most-once), and a rewrite of an
+    existing path is refused with HTTP 422 "sha wasn't supplied" - measured on
+    the first live paused tick at 2026-11-25T04:27Z.
+    """
+    position = evidence.get("scanned_through") or 0
+    if not position:
+        return evidence
+    reached = [int(match.group(1)) for name in known if (match := CURSOR.match(name))]
+    highest = max(reached, default=0)
+    evidence["cursor_advanced"] = position > highest
+    if position > highest:
+        checkpoint(f"cursor-{position}.json", {
+            "scanned_through": position,
+            "comments": evidence.get("scanned", 0),
+            "at": datetime.now(timezone.utc).isoformat(),
+        })
+    return evidence
 
 
 def cure_eligible(output, reasons, allowed_actions=()):
@@ -263,11 +345,32 @@ def _lane_thread_from_dispatch(body):
     return None
 
 
+# Measured 2026-11-25T04:30Z: dispatch 7151203687 (Lane 1, L1-STOP-1035) writes
+# its instruction as "Runner: in-place restart only - exactly \"continue in
+# full\"", which none of the Action forms matched, so the dispatch that the
+# oversight filed to bring this lane back was unreadable by the watch that was
+# supposed to execute it.
 RUNNER_ACTION = re.compile(
-    r"^(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner|requested))?\s*[:(]", re.I | re.M)
+    r"^(?:(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner|requested))?|Runner)\s*[:(]",
+    re.I | re.M)
+# A STEER hands the runner text to deliver rather than a bounded restart; it is
+# never claimed, but 7149636711 carried the owner's whole sequencing order and
+# must be named rather than dropped into an empty queue.
+STEER_TEXT = re.compile(r"^\s*Text\s+for\s+the\s+runner\b", re.I | re.M)
 CANCELLATION = re.compile(r"^\s*CANCELLATION\b", re.I | re.M)
 EPISODE = re.compile(r"episode\s+([A-Za-z0-9][A-Za-z0-9-]{3,})", re.I)
-DISPATCH_BANNER = re.compile(r"^(?:VISION\s+DRIVER\s+)?(?:RESTART\s+)?DISPATCH\b", re.I)
+# The oversight's own banners are not one shape: measured on #684, dispatches
+# arrived as "RESTART DISPATCH", "VISION DRIVER DISPATCH", "OVERSIGHT RESTART
+# DISPATCH" (7143702385) and "LANE CONTINUATION WATCH" (7124370203,
+# 7124855073), and the steer 7149636711 as "STEER DISPATCH". The narrow pattern
+# is why the census could claim "zero unclaimed dispatches" while four of those
+# sat unread; a banner that matches here still has to carry an instruction line
+# and the exact continuation before anything is claimed.
+DISPATCH_BANNER = re.compile(
+    r"^(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?(?:RESTART\s+|STEER\s+)?DISPATCH\b"
+    r"|^LANE\s+CONTINUATION\s+WATCH\b",
+    re.I,
+)
 
 
 def restart_dispatch(body):
@@ -283,7 +386,7 @@ def restart_dispatch(body):
     """
     if not DISPATCH_BANNER.match(body):
         return False
-    if body.upper().startswith("RESTART DISPATCH"):
+    if re.match(r"^(?:OVERSIGHT\s+)?(?:VISION\s+DRIVER\s+)?RESTART\s+DISPATCH\b", body, re.I):
         return True
     return "RESTART" in body[:600].upper()
 
@@ -395,13 +498,11 @@ def parse_dynamic_dispatch(comment, now=None):
     }
 
 
-def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
-    """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item.
+def scan_dispatch_comments(now=None, known=()):
+    """Read the whole dispatch page once, and measure what it held.
 
-    ``unclaimed`` is an optional sink: a dispatch-shaped owner comment that the
-    parser refuses is appended to it. The watch reported "no unclaimed
-    dispatches" for two hours while 7145072019 and 7146588401 sat unparsed, so
-    "nothing to claim" and "nothing I can read" must not read the same.
+    Every number the heartbeat reports comes from this one read, so "nothing to
+    claim" and "nothing I can read" can no longer print the same sentence.
     """
     now = now or datetime.now(timezone.utc)
     comments = []
@@ -413,6 +514,67 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
             break
         page += 1
     comments.sort(key=lambda item: item.get("id", 0))
+    parsed = {}
+    for comment in comments:
+        result = parse_dynamic_dispatch(comment, now=now)
+        if result:
+            parsed[comment.get("id")] = result
+    # Anything that carries a dispatch banner and still did not parse is named:
+    # a STEER that the parser cannot read must not disappear into an empty queue.
+    # Only intent counts as drift: a dispatch-shaped comment that also names an
+    # episode or carries an instruction line. Otherwise every oversight
+    # discussion post would be reported as unreadable and the alarm would be
+    # noise instead of a signal.
+    unparsed = [comment.get("id") for comment in comments
+                if owner(comment) and comment.get("id") not in parsed
+                and DISPATCH_BANNER.match(comment.get("body") or "")
+                and (RUNNER_ACTION.search(comment.get("body") or "")
+                     or STEER_TEXT.search(comment.get("body") or "")
+                     or EPISODE.search(comment.get("body") or ""))]
+    evidence = {
+        "scanned": len(comments),
+        "owner": sum(1 for comment in comments if owner(comment)),
+        "scanned_through": max((comment.get("id", 0) for comment in comments), default=0),
+        "dispatches": len(parsed),
+        "claimable": 0,
+        "unparsed": unparsed,
+        "parsed": parsed,
+    }
+    advance_cursor(evidence, known)
+    return comments, evidence
+
+
+def skipped_verdict(known, parsed, reason):
+    """File the verdict for a dispatch the watch deliberately did not run.
+
+    Measured 2026-11-25: the scan silently ``continue``d on superseded,
+    cancelled and closed-episode rows, so on #684 "superseded" and "lost" read
+    identically and the audit named exactly those dispatches as unaccounted for.
+    One durable verdict per dispatch, never repeated.
+    """
+    cid = parsed["comment_id"]
+    lane = parsed.get("thread") or "unknown"
+    name = f"skip-dyn-{cid}-{lane}.json"
+    if name in known:
+        return False
+    known.add(name)
+    checkpoint(name, {"dispatch": cid, "thread": lane, "state": "superseded", "reason": reason})
+    issue_comment(f"Vision watch #{cid} / `{lane}`: superseded, no input sent. {reason}.")
+    return True
+
+
+def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
+    """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item.
+
+    ``unclaimed`` is an optional sink: a dispatch-shaped owner comment that the
+    parser refuses is appended to it. The watch reported "no unclaimed
+    dispatches" for two hours while 7145072019 and 7146588401 sat unparsed, so
+    "nothing to claim" and "nothing I can read" must not read the same.
+    """
+    now = now or datetime.now(timezone.utc)
+    comments, evidence = scan_dispatch_comments(now=now, known=known)
+    LAST_SCAN.clear()
+    LAST_SCAN.update({key: value for key, value in evidence.items() if key != "parsed"})
     # Episode supersession: only the newest parsed restart per lane is claimable.
     # Measured 2026-11-25 01:06Z, after the wording cure went live: the scan takes
     # the oldest unclaimed id first, so it claimed 7129310215 (episode L1-STOP-974,
@@ -425,28 +587,34 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         if parsed and parsed["kind"] == "restart":
             lane = parsed["thread"]
             newest_restart[lane] = max(newest_restart.get(lane, 0), parsed["comment_id"])
+    claimable = 0
     state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
     for comment in comments:
         parsed = parse_dynamic_dispatch(comment, now=now)
         if not parsed:
             body = comment.get("body") or ""
-            if unclaimed is not None and owner(comment) and restart_dispatch(body):
+            if unclaimed is not None and owner(comment) and DISPATCH_BANNER.match(body):
                 unclaimed.append(comment.get("id"))
             continue
         cid = parsed["comment_id"]
         if parsed["kind"] == "restart" and newest_restart.get(parsed["thread"]) != cid:
             # A later restart for this lane exists: this episode is closed and
             # nothing is sent for it. The later dispatch is the one that speaks.
+            skipped_verdict(known, parsed, "a newer restart for this lane supersedes this episode")
             continue
         if parsed["kind"] == "restart" and episode_closed(comments, comment, parsed):
             # The oversight cancelled this episode by name: no input for it.
+            skipped_verdict(known, parsed, "the oversight cancelled this episode by name")
             continue
         if parsed["kind"] == "restart" and parsed["thread"] in cancelled:
             # The operator cancelled this lane at the control surface; a restart
             # for it is closed until that entry is removed. Measured 2026-11-25:
             # control.json carried cancelled_lanes=["315608d2"] while the watch
             # still treated Lane 1 restarts as claimable.
+            skipped_verdict(known, parsed, "the operator cancelled this lane at the control surface")
             continue
+        claimable += 1
+        LAST_SCAN["claimable"] = claimable
         thread = parsed["thread"]
         item = f"dyn-{cid}-{thread}"
         claim = f"claim-{item}.json"
@@ -469,7 +637,7 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
             return True
         require_driver_runtime()
         if not desktop_idle():
-            heartbeat(known, "waiting for owner desktop idle")
+            heartbeat(known, "waiting for owner desktop idle", current_evidence())
             return True
         checkpoint(claim, {"dispatch": cid, "thread": thread, "sha256": parsed["digest"]})
         out = state_dir / item
@@ -501,11 +669,18 @@ def run_burn(receipts, known, cancelled=()):
         unclaimed = []
         if poll_dynamic_dispatches(known, unclaimed=unclaimed, cancelled=cancelled):
             return
+        evidence = current_evidence()
+        problems = canary(evidence or {})
+        if problems:
+            heartbeat(known, "dynamic oversight dispatch active; canary FAILED: "
+                             + "; ".join(problems), evidence)
+            return
         if unclaimed:
             heartbeat(known, "dynamic oversight dispatch active; dispatch(es) present but "
-                             "not claimable: " + ", ".join(f"#{cid}" for cid in unclaimed))
+                             "not claimable: " + ", ".join(f"#{cid}" for cid in unclaimed),
+                      evidence)
             return
-        heartbeat(known, "dynamic oversight dispatch active; no unclaimed dispatches")
+        heartbeat(known, "dynamic oversight dispatch active; no unclaimed dispatches", evidence)
         return
     digest = hashlib.sha256(source["body"].encode()).hexdigest()
     queue = [(CENSUS, SCM_THREAD), *((BURN_QUEUE if thread == "918dad1a" else BURNDOWN, thread)
@@ -551,7 +726,7 @@ def run_burn(receipts, known, cancelled=()):
         guard_approval()
         require_driver_runtime()
         if not desktop_idle():
-            heartbeat(known, "waiting for owner desktop idle")
+            heartbeat(known, "waiting for owner desktop idle", current_evidence())
             return
         # A create-only remote claim is the at-most-once boundary, including crashes.
         authorization = receipts.get(dispatch_id, source)
@@ -574,7 +749,7 @@ def run_burn(receipts, known, cancelled=()):
             issue_comment(f"Vision watch #{dispatch_id} / `{thread}` {status}. {error}")
         checkpoint(f"result-{item}.json", {"dispatch": dispatch_id, "thread": thread, "state": status})
         return
-    heartbeat(known, "no unclaimed burn rows; parked rows stay isolated")
+    heartbeat(known, "no unclaimed burn rows; parked rows stay isolated", current_evidence())
 
 
 def run_restoration(receipts, known):
@@ -845,7 +1020,7 @@ def run_restoration(receipts, known):
         guard_approval()
         require_driver_runtime()
         if not desktop_idle():
-            heartbeat(known, "waiting for owner desktop idle before restoration")
+            heartbeat(known, "waiting for owner desktop idle before restoration", current_evidence())
             return True
         digest = hashlib.sha256(receipts[dispatch_id]["body"].encode()).hexdigest()
         checkpoint(f"claim-{item}.json", {"dispatch": dispatch_id, "thread": thread, "sha256": digest})
@@ -885,9 +1060,56 @@ def run_restoration(receipts, known):
     return False
 
 
+def report_paused(control):
+    """A paused watch with work waiting must say so, within one tick.
+
+    Measured 2026-11-25: the control surface was paused at 01:28Z and three
+    dispatches (7151203687, 7149910847, 7151843755) sat unclaimed for hours with
+    no filing about it - pause was permanent, silent, and invisible to oversight.
+    This runs no desktop action at all: it reads the dispatch page and files at
+    most one escalation per hour naming what is waiting.
+    """
+    known = checkpoints()
+    comments, evidence = scan_dispatch_comments(known=known)
+    del comments
+    cancelled = tuple(control.get("cancelled_lanes") or ())
+    newest = {}
+    for cid, parsed in evidence["parsed"].items():
+        if parsed["kind"] == "restart":
+            lane = parsed["thread"]
+            newest[lane] = max(newest.get(lane, 0), cid)
+    waiting = []
+    for cid, parsed in sorted(evidence["parsed"].items()):
+        lane = parsed.get("thread")
+        if lane in cancelled:
+            continue
+        if parsed["kind"] == "restart" and newest.get(lane) != cid:
+            continue
+        if f"claim-dyn-{cid}-{lane}.json" in known:
+            continue
+        waiting.append(cid)
+    # Once per hour per distinct waiting set: the same queue must not be filed
+    # twice, and a dispatch that arrives while paused must still be announced.
+    digest = hashlib.sha256(",".join(str(cid) for cid in waiting).encode()).hexdigest()[:8]
+    name = "paused-escalation-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H") + f"-{digest}.json"
+    if not waiting or name in known:
+        return False
+    checkpoint(name, {"state": "paused-with-pending", "waiting": sorted(waiting)})
+    issue_comment(f"Vision watch {CUTOVER} is PAUSED at the control surface with "
+                  f"{len(waiting)} dispatch(es) waiting: "
+                  + ", ".join(f"#{cid}" for cid in sorted(waiting))
+                  + ". Nothing will run until the control surface is unpaused. "
+                  + describe_scan(evidence))
+    return True
+
+
 def main():
     control = local_control_state()
-    if not control["enabled"] or control["paused"]:
+    if not control["enabled"]:
+        return
+    if control["paused"]:
+        # Escalate, do not act: a pause that never speaks is the stall mode.
+        report_paused(control)
         return
     head = worktree_head()
     if head is None:

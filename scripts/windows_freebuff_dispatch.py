@@ -2784,6 +2784,13 @@ class Dispatch:
         reading = self._norm(joined)
         markers = (
             ("yourfreesessionhasexpired", "free session expired"),
+            # Measured 2026-11-25 on the SCMessenger session: the app renders
+            # "Today's hours are used up ... Your daily hours refill at 12:00 AM
+            # HST" and never uses the phrase "usage limit", so the marker below
+            # was the only thing a quota block could hit - and it named a UI
+            # failure instead of the exhausted account it actually was.
+            ("hoursareusedup", "daily hours exhausted"),
+            ("dailyhoursrefill", "daily hours exhausted"),
             ("usagelimit", "usage limit notice"),
             ("ratelimit", "rate limit notice"),
             ("failedtosend", "failed to send message"),
