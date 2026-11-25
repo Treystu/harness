@@ -176,5 +176,5 @@ used), or the oversight reissues it with that route. Until then SCM sits parked
 with a claim and a result, which is the at-most-once outcome, not a second
 attempt lane.
 
-Refs #684. Issue #684 stays open until oversight accepts against 7094050344;
-this filing claims no completion.
+Refs #684. This filing does not close #684; acceptance is oversight's call
+against 7094050344.

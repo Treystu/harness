@@ -80,7 +80,7 @@ forward import or a runtime late import to break a cycle.
 - The line ranges are a reading of `746e3621`, not a generated artifact; if the
   module moves before a slice lands, the symbol names, not the numbers, are the
   contract.
-- This is a plan for six further slices. Issue #310 stays open after slice 1,
+- This is a plan for six further slices. Landing slice 1 does not close #310,
   and this lane takes no completion credit for the split as a whole.
 
 ### A constraint the first slice found
