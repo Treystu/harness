@@ -627,10 +627,6 @@ def decide_research_plan(
         saved_plan: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Optional[ResearchPlan], Optional[PlanApproval], Dict[str, Any]]:
     """Propose one plan and band one native judgment on it.
-    # Resolve omitted now so consent expiry is always enforced, even when the
-    # caller (or a saved-receipt resume) omits an explicit timestamp.
-    if now is None:
-        now = time.time()
 
     Every request entrypoint that can reach the network calls this one owner
     (#342) instead of proposing and judging separately. The proposal is a
@@ -643,6 +639,10 @@ def decide_research_plan(
     Returns ``(plan, approval, record)``; ``record`` is the gate's account of
     what happened and is what a lane persists for audit.
     """
+    # Resolve omitted now so consent expiry is always enforced, even when the
+    # caller (or a saved-receipt resume) omits an explicit timestamp.
+    if now is None:
+        now = time.time()
     proposal, why = propose_plan(
         prompt, request_id=request_id, capabilities=capabilities)
     plan_hash = proposal.hash() if proposal is not None else ""
