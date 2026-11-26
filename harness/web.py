@@ -799,7 +799,16 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
     if not callable(evaluate):
         emit("web_result_review_unavailable", site=site,
              reason="reviewer_absent", results=len(reviewable))
-        return ordered
+        # Fail closed: withhold the reviewable results and surface an outage
+        # evidence block instead of admitting them unreviewed (#77).
+        out = [s for s in ordered
+               if s.get("pinned") or id(s) not in {id(x) for x in reviewable}]
+        out.append({"kind": "reviewer", "ok": False, "review": "outage",
+                    "excluded": len(reviewable),
+                    "note": ("result reviewer unavailable (reviewer_absent): "
+                             "{} result(s) withheld, not admitted "
+                             "unreviewed".format(len(reviewable)))})
+        return out
     try:
         _result, structural = evaluate(
             prompt, reviewable, site=site, task_id=task_id)

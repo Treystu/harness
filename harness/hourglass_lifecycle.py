@@ -936,9 +936,13 @@ class HourglassLifecycleMixin:
                             route_cost, (int, float)) else 0.0),
                     }
 
+                # Bind the provider-call key to the plan as well, so a changed
+                # plan does not replay a cached route decision (#79/#83).
+                _plan_tag = str(getattr(research_plan, "hash", lambda: "")()) if research_plan is not None else ""
                 route_preflight = self.lifecycle.provider_call(
                     lifecycle_state,
-                    lifecycle_state["request_id"] + ":chat-route-review",
+                    lifecycle_state["request_id"] + ":chat-route-review:"
+                    + _plan_tag,
                     evaluate_route_once,
                     cost=lambda value: float(value.get("cost") or 0.0),
                     retry_unknown=True)
@@ -1068,12 +1072,20 @@ class HourglassLifecycleMixin:
                 checkpoint["research_plan_body"] = dict(body())
             # The whole receipt is recorded, not a subset: a later resume can
             # only adopt it if the per-query verdicts and expiry come with it.
+            # Preserve the existing receipt when reusing the same plan without a
+            # replacement approval instead of serializing None over it (#84).
             payload = getattr(plan_approval, "payload", None)
-            checkpoint["plan_approval"] = (
-                dict(payload()) if callable(payload) else {
+            if callable(payload):
+                checkpoint["plan_approval"] = dict(payload())
+            elif plan_approval is None and isinstance(
+                    checkpoint.get("plan_approval"), dict):
+                # keep the previously recorded receipt
+                pass
+            else:
+                checkpoint["plan_approval"] = {
                     "decision": "", "native": False, "plan_hash": "",
                     "request_hash": "", "revision": 0, "consent_id": "",
-                })
+                }
         checkpoint["known_cost"] = round(total_cost, 8)
         checkpoint["web_requested"] = web
         checkpoint["intent"] = intent

@@ -522,12 +522,21 @@ def approval_from_judgment(plan: ResearchPlan, judgment: Dict[str, Any],
     decision = str(judgment.get("decision") or DECISION_UNAVAILABLE)
     verdicts = tuple(bool(v) for v in (judgment.get("query_verdicts") or []))
     native = bool(judgment.get("native"))
+    # Preserve the binding fields from the judgment rather than restamping
+    # them from the supplied plan, so a judgment for one plan cannot be
+    # used to authorize a different plan (#80).
+    plan_hash = str(judgment.get("plan_hash") or plan.hash())
+    request_hash = str(judgment.get("request_hash") or plan.request_hash)
+    try:
+        revision = int(judgment.get("revision") or plan.revision)
+    except (TypeError, ValueError):
+        revision = int(plan.revision)
     return PlanApproval(
         decision=decision if native else DECISION_UNAVAILABLE,
         native=native,
-        plan_hash=plan.hash(),
-        request_hash=plan.request_hash,
-        revision=int(plan.revision),
+        plan_hash=plan_hash,
+        request_hash=request_hash,
+        revision=revision,
         confidence=float(judgment.get("confidence") or 0.0),
         consent_id=str(consent_id or ""),
         issued_at=float(issued_at or 0.0),
@@ -789,6 +798,10 @@ def execute_plan(plan: Optional[ResearchPlan],
         sent.append(query.query)
         sources.extend(_search_sources(
             search_fn, query.query, max_results=int(plan.max_results)))
+    # Enforce the accepted plan's aggregate source budget (#82).
+    limit = int(getattr(plan, "max_sources", len(sources)) or len(sources))
+    if limit > 0 and len(sources) > limit:
+        sources = sources[:limit]
     usable = any(s.get("ok") and str(s.get("text") or "").strip()
                  for s in sources)
     if not usable and fetches and not searches:
