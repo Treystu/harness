@@ -311,9 +311,20 @@ def _one_judgment_run(run: Dict[str, Any], threshold: Dict[str, Any]) -> List[st
     if combined_value < combined_min:
         faults.append(f"combined {combined_value} < {combined_min}")
     floor = float(threshold.get("axis_floor", 60))
-    low = sorted(name for name, value in axes.items() if float(value) < floor)
+    low = []
+    unparsed = []
+    for name, value in axes.items():
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            unparsed.append(name)
+            continue
+        if numeric < floor:
+            low.append(name)
+    if unparsed:
+        faults.append("axis rating not numeric: " + ", ".join(sorted(unparsed)))
     if low:
-        faults.append("axis below floor: " + ", ".join(low))
+        faults.append("axis below floor: " + ", ".join(sorted(low)))
     modal = _modal_axis(axes)
     modal_min = float(threshold.get("axis_modal_min", 85))
     if modal is None:
