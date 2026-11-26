@@ -390,8 +390,18 @@ class EscalationDriver:
             self.governor.record_actual(cost, model)
             if self.task_max_cost is not None and self.task_start_spent is not None:
                 if (float(getattr(self.governor, "spent", 0.0) or 0.0) - float(self.task_start_spent)) > float(self.task_max_cost):
-                    raise HarnessError(
-                        f"actual task cost would exceed --task-max-cost ${float(self.task_max_cost):.6f}; refusing")
+                    # #683 row 58: this rung already called the provider and
+                    # incurred cost, so it is an attempt that realized no pass
+                    # -- not a preflight refusal. Record it before the raise or
+                    # the replay/audit population silently loses the overrun.
+                    overrun = (
+                        f"actual task cost would exceed --task-max-cost "
+                        f"${float(self.task_max_cost):.6f}; refusing")
+                    self._record_attempt(start_rung=start_rung, rung=rung,
+                                         model=model, status="over_budget",
+                                         realized_pass=False, cost=cost,
+                                         reason=overrun)
+                    raise HarnessError(overrun)
             # A capability deferral is not file content -- hand it to finish_fn
             # (which routes HARNESS_DEFER) instead of treating it as a write.
             usable, unusable = assess_output(content, finish, allow_truncated=False)

@@ -52,6 +52,10 @@ REFUSAL_EVENT = "spend.refusal"
 #: (``decision_trace.TERMINAL_STATES``).
 REFUSAL_OUTCOME = "refused"
 
+#: An accounting overrun: the call already ran and was billed before the
+#: ceiling rejected its cost. ``refused`` would say it never ran (#683 row 70).
+OVERRUN_OUTCOME = "failed"
+
 
 def normalize_phase(phase):
     """Validate a dual-budget phase name (attempt | terminal)."""
@@ -386,14 +390,18 @@ class SpendGovernor:
         return self
 
     def _record_refusal(self, *, site, reason, requested=None, label=None,
-                        scope=None):
+                        scope=None, outcome=REFUSAL_OUTCOME,
+                        scope_envelope=None):
         """Persist one ceiling refusal through the shared trace writer (#476).
 
         ``site`` names the check that refused, ``requested`` is the amount that
         did not fit, and ``envelope`` is the dual-budget snapshot it was
         measured against, so the refusal is replayable against the numbers the
         governor actually held. ``outcome`` is the refused call's own outcome:
-        a ceiling refusal means the call did not run.
+        a pre-dispatch refusal means the call did not run, while an accounting
+        overrun names the call that already ran (#683 row 70).
+        ``scope_envelope`` carries the rejecting task scope's own allowance and
+        balances, which the global envelope cannot describe (#683 row 71).
 
         Unknown is absent, never defaulted: a refusal the governor cannot
         attribute to a task scope records no ``scope`` key at all, and a
@@ -410,7 +418,7 @@ class SpendGovernor:
         payload = {
             "site": site,
             "phase": env["phase"],
-            "outcome": REFUSAL_OUTCOME,
+            "outcome": outcome,
             "envelope": {
                 "max_cost": env["max_cost_usd"],
                 "spent": env["spent"],
@@ -427,6 +435,8 @@ class SpendGovernor:
             payload["label"] = str(label)
         if scope:
             payload["scope"] = str(scope)
+        if scope_envelope:
+            payload["scope_envelope"] = dict(scope_envelope)
         try:
             return record(REFUSAL_EVENT, payload=payload,
                           subject_id=scope or None,
@@ -435,7 +445,8 @@ class SpendGovernor:
             return None
 
     def _refuse_over_scope(self, targets, amount, what,
-                           *, count_outstanding=True, ending="Refusing."):
+                           *, count_outstanding=True, ending="Refusing.",
+                           dispatched=False):
         """Fail-closed scope leg: every target ledger must fit ``amount``.
 
         No-lock helper: call with ``_spend_lock`` held. Mirrors the global
@@ -454,8 +465,21 @@ class SpendGovernor:
                     f"'{target.label}' allowance ${target.max_cost:.6f} "
                     f"(scope spent=${target.spent:.6f}, "
                     f"outstanding=${target.outstanding:.6f}). {ending}")
-                self._record_refusal(site="task_scope", reason=reason,
-                                     requested=amount, scope=target.label)
+                # #683 row 71: the rejecting scope's own numbers, not only
+                # the global governor's envelope. #683 row 70: a settlement
+                # refusal names a call that already ran and was billed.
+                self._record_refusal(
+                    site="task_scope", reason=reason, requested=amount,
+                    scope=target.label,
+                    outcome=(OVERRUN_OUTCOME if dispatched
+                             else REFUSAL_OUTCOME),
+                    scope_envelope={
+                        "allowance": float(target.max_cost),
+                        "spent": float(target.spent),
+                        "outstanding": float(target.outstanding),
+                        "committed": float(committed),
+                        "remaining": float(target.max_cost - committed),
+                    })
                 raise HarnessError(reason)
 
     @staticmethod
@@ -949,7 +973,7 @@ class SpendGovernor:
                 self._refuse_over_scope(targets, actual_f,
                                         f"actual running cost (after '{label}')",
                                         count_outstanding=False,
-                                        ending="Aborting.")
+                                        ending="Aborting.", dispatched=True)
             self.spent += actual_f
             self._scope_settle(targets, spent=actual_f)
             self._cost_by_model[label] = (self._cost_by_model.get(label, 0.0) + actual_f)
@@ -1101,14 +1125,15 @@ class SpendGovernor:
                         f"(outstanding reservations: ${self._outstanding:.6f}; "
                         f"after '{label}'; phase={self._phase}). Aborting.")
                 self._record_refusal(site="record_actual", reason=reason,
-                                     requested=actual, label=label)
+                                     requested=actual, label=label,
+                                     outcome=OVERRUN_OUTCOME)
                 raise HarnessError(reason)
             bound = self._resolve_scope(scope)
             targets = self._scope_targets(bound)
             if actual > 0.0:
                 self._refuse_over_scope(targets, actual,
                                         f"actual running cost (after '{label}')",
-                                        ending="Aborting.")
+                                        ending="Aborting.", dispatched=True)
             self.spent += actual
             self._scope_settle(targets, spent=actual)
             self._cost_by_model[label] = (self._cost_by_model.get(label, 0.0) + actual)
