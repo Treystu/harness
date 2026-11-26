@@ -178,6 +178,47 @@ class RegisterMirrorParityTests(unittest.TestCase):
         self.assertEqual(actual_open_total, open_c)
 
 
+class RegisterCensusParityTests(unittest.TestCase):
+    """#754: the mirror, the register and the AGENTS pointer state one census."""
+
+    def test_mirror_does_not_claim_to_be_the_live_register(self):
+        roadmap = _read("docs/jev-roadmap.md")
+        start = roadmap.index("<!-- BEGIN REGISTER_MIRROR -->")
+        end = roadmap.index("<!-- END REGISTER_MIRROR -->")
+        mirror = roadmap[start:end]
+        self.assertNotIn(
+            "not the dated filings below, is the live count and order", mirror,
+            "the mirror may not claim to be the live order: the canonical register owns placement",
+        )
+        self.assertIn("Canonical burndown register", mirror)
+
+    def test_open_set_is_enumerated_at_its_declared_length(self):
+        roadmap = _read("docs/jev-roadmap.md")
+        line = next(row for row in roadmap.splitlines() if row.startswith("Open set ("))
+        declared = int(re.search(r"Open set \((\d+)\)", line).group(1))
+        numbers = re.findall(r"\d+", line.split(":", 1)[1])
+        self.assertEqual(len(numbers), declared, "the enumerated open set must match its declared count")
+        self.assertEqual(len(set(numbers)), declared, "a row may not be counted twice")
+
+    def test_register_placement_arithmetic_and_agents_pointer_agree(self):
+        roadmap = _read("docs/jev-roadmap.md")
+        line = next(row for row in roadmap.splitlines() if row.startswith("Open set ("))
+        declared = int(re.search(r"Open set \((\d+)\)", line).group(1))
+        placed = int(re.search(r"the tables below place \*\*(\d+)\*\* of the (\d+) open rows", roadmap).group(1))
+        unplaced = int(re.search(r"The other \*\*(\d+)\*\* were filed after", roadmap).group(1))
+        self.assertEqual(placed + unplaced, declared)
+
+        agents = _read("AGENTS.md")
+        total_a, placed_a, unplaced_a = (
+            int(g) for g in re.search(
+                r"\*\*(\d+) open issues\*\*.*?\*\*(\d+) are placed\*\*.*?\*\*(\d+) are\s+filed but not yet placed\*\*",
+                agents, re.S,
+            ).groups()
+        )
+        self.assertEqual((total_a, placed_a, unplaced_a), (declared, placed, unplaced),
+                         "AGENTS.md must regenerate to the register's census, not a stale one")
+
+
 class WorldwideModelsDocsTests(unittest.TestCase):
     """#407: the disclosure, the future-only rule and the floor are pinned."""
 
