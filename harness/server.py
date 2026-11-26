@@ -51,6 +51,8 @@ from .jev_policy import flush_all_fallbacks
 from . import osal
 from .history import delete_chat_session, list_chat_sessions, load_chat_history as _history_load_chat_history
 from .session import (apply_session, governor_for, ledger_for, run_meta)
+from .ledger_canary import maybe_run_canaries
+from .ledger_sweep import LedgerSweeper
 from .workspace import require_workspace, resolve_workspace_path
 from .ui_auth import load_or_create_ui_token, write_ui_handoff
 from .state_report import BackendMonitor
@@ -2766,6 +2768,24 @@ def make_server(host="127.0.0.1", port=8767,
     return httpd
 
 
+def _start_ledger_health():
+    """#336 / #683 row 39: the service lifecycle runs its canaries.
+
+    The serve process is the long-lived lifecycle the ruling names: run the
+    startup probes once, then keep the five-minute check (which also carries
+    the daily and six-hour-staleness triggers) on a daemon thread. A machine
+    with no configured ledger has nothing to probe, and a failed probe is
+    already reported through local diagnostics, so neither may block startup.
+    """
+    try:
+        ledger = ledger_for(load_settings(), caller="serve")
+    except (HarnessError, OSError, ValueError):
+        return None
+    maybe_run_canaries(ledger, startup=True)
+    return LedgerSweeper(
+        lambda: ledger_for(load_settings(), caller="serve")).start()
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="harness serve",
@@ -2822,10 +2842,14 @@ def main(argv=None):
     else:
         print("[OK] use `harness serve --open` or `harness desktop` to open an authenticated UI",
               file=sys.stderr)
+    sweeper = _start_ledger_health()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n[interrupted] UI server stopped", file=sys.stderr)
+    finally:
+        if sweeper is not None:
+            sweeper.stop()
 
 
 if __name__ == "__main__":
