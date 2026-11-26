@@ -156,6 +156,22 @@ class QueuedReportPeriodTests(unittest.TestCase):
             self.assertEqual(sent, [])
             self.assertEqual(profile.pending(), [])
 
+    def test_a_stale_report_that_cannot_be_deleted_is_retained(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = share.ShareProfile(tmp)
+            old = share._hex16(profile.enable()["period"])
+            profile.disable()
+            profile.enable()
+            profile.transport = lambda report: None
+            profile.queue({"protocol": "x", "proof": {
+                "consent_period": old}})
+            with mock.patch.object(share.os, "unlink",
+                                   side_effect=OSError("locked")):
+                result = profile.upload_pending()
+            self.assertEqual((result["sent"], result["dropped"],
+                              result["retained"]), (0, 0, 1))
+            self.assertEqual(result["reason"], "the consent period changed")
+
     def test_a_retry_sends_a_report_from_the_current_consent_period(self):
         with tempfile.TemporaryDirectory() as tmp:
             profile = share.ShareProfile(tmp)
@@ -185,6 +201,21 @@ class CitationPinRefreshTests(unittest.TestCase):
         self.assertNotIn((row["seq"], row["hash"]), older.citation_pins)
         older.sweep_compaction(segments=[])
         self.assertIn((row["seq"], row["hash"]), older.citation_pins)
+
+    def test_a_pin_refresh_tolerates_torn_lines_and_a_missing_segment(self):
+        writer = AutonomyLedger(self.path)
+        row = writer.append("verdict", note="cited evidence")
+        writer.pin_citation(row["seq"], row["hash"], source="gate:test")
+        with open(self.path, "a", encoding="utf-8") as handle:
+            handle.write("\n{broken\n")
+            handle.write('{"seq": 999000, "event": "complete"}\n')
+        other = AutonomyLedger(self.path)
+        other.citation_pins = set()
+        missing = os.path.join(self._tmp.name, "absent.jsonl")
+        with mock.patch.object(other, "_ledger_paths",
+                               return_value=[self.path, missing]):
+            pins = other._refresh_citation_pins()
+        self.assertIn((row["seq"], row["hash"]), pins)
 
     def test_an_append_rebases_citation_pins_from_another_instance(self):
         writer = AutonomyLedger(self.path)
