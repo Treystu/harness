@@ -1,4 +1,9 @@
-"""Gates for the turn-15 head-currency receipt. Product Jev first, Lucas second."""
+"""Gates for the turn-15 head-currency receipt. Lucas Gate v2 first, product Jev second.
+
+Usage: ``python gates_turn15.py [output.json]`` (default: gates-turn15.json).
+The committed artifacts are the ones evaluated; the earlier receipt's hashes
+named drafts that were never committed (#683 finding 64).
+"""
 import json
 import os
 import pathlib
@@ -48,8 +53,6 @@ def main():
     out = {}
     for key, (path, action) in ITEMS.items():
         text = path.read_text(encoding="utf-8")
-        verdict, structural = policy.evaluate_decision(
-            action, GOAL, f"W2 turn-15 head-currency {key}", site=SITE)
         categories = [
             {"id": cid, "applicable": True, "score": 9.5, "category_average": 9.5,
              "evidence": "The text names the head, asserts byte identity per file, "
@@ -66,14 +69,16 @@ def main():
                           "rationale": "Claims are limited to what the runs returned."}
                          for k, v in BIAS.items()],
             actual_risk=False, overall_average=9.5)
+        verdict, structural = policy.evaluate_decision(
+            action, GOAL, f"W2 turn-15 head-currency {key}", site=SITE)
         out[key] = {
             "product_jev": {
                 "verdict": verdict.get("verdict"),
                 "disposition": verdict.get("disposition"),
                 "margin": verdict.get("margin"),
-                "lead": verdict.get("lead"),
-                "advanced": verdict.get("advanced"),
-                "destructive": verdict.get("destructive"),
+                "lead": verdict.get("disposition_lead"),
+                "advanced": verdict.get("advances_goal"),
+                "destructive": verdict.get("is_destructive"),
                 "supported": structural.get("supported"),
                 "cost": structural.get("cost"),
                 "model": structural.get("model"),
@@ -83,17 +88,21 @@ def main():
                       "artifact_sha256": lucas["artifact_sha256"]},
         }
         print(key, "jev", verdict.get("verdict"),
-              "lead=%s destr=%s" % (verdict.get("lead"), verdict.get("destructive")),
+              "lead=%s destr=%s" % (verdict.get("disposition_lead"), verdict.get("is_destructive")),
               "| lucas", lucas["status"])
 
     after = len(ledger.tail(200000))
     total = sum((v["product_jev"]["cost"] or 0) for v in out.values())
+    head = (os.environ.get("HARNESS_TURN15_HEAD", "").strip()
+            or os.popen("git rev-parse HEAD").read().strip())
     out["_meta"] = {"ledger_rows_added": after - before,
                     "total_jev_cost_usd": round(total, 8), "site": SITE,
-                    "head_under_test": "d916a7bbe3de878dc842635c69f9f1cf3e619bfa",
-                    "product_identity": "d916a7bbe3de878dc842635c69f9f1cf3e619bfa"}
-    (pathlib.Path("evidence/lane-sessions/w2-2026-11-20/gates-turn15.json")
-     .write_text(json.dumps(out, indent=2).replace("\r\n", "\n"), encoding="utf-8"))
+                    "head_under_test": head,
+                    "product_identity": head}
+    target = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else
+                          "evidence/lane-sessions/w2-2026-11-20/gates-turn15.json")
+    target.write_text(json.dumps(out, indent=2).replace("\r\n", "\n"),
+                      encoding="utf-8")
     print("rows", after - before, "| cost $", total)
     return 0
 

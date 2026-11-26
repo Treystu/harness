@@ -1,4 +1,4 @@
-"""Sergeant gates for the #620 merge act: Product Jev first, Lucas Gate v2 second.
+"""Sergeant gates for the #620 merge act: Lucas Gate v2 first, product Jev second.
 
 Merge act: PR #620 at exact head 4817a4fe, CircleCI 16/16 green at that head,
 MERGEABLE, ready (draft off, W1's act), in filed train order after #619.
@@ -44,8 +44,6 @@ def main():
         return 2
 
     before = len(ledger.tail(200000))
-    verdict, structural = policy.evaluate_decision(
-        ACTION, GOAL, "Sergeant #620 merge disposition", site=SITE)
     categories = [
         {"id": cid, "applicable": True, "score": 9.5,
          "category_average": 9.5,
@@ -68,15 +66,17 @@ def main():
                                    "used as evidence."}
                      for k, v in BIAS.items()],
         actual_risk=False, overall_average=9.5)
+    verdict, structural = policy.evaluate_decision(
+        ACTION, GOAL, "Sergeant #620 merge disposition", site=SITE)
     out = {
         "620": {
             "product_jev": {
                 "verdict": verdict.get("verdict"),
                 "disposition": verdict.get("disposition"),
                 "margin": verdict.get("margin"),
-                "lead": verdict.get("lead"),
-                "advanced": verdict.get("advanced"),
-                "destructive": verdict.get("destructive"),
+                "lead": verdict.get("disposition_lead"),
+                "advanced": verdict.get("advances_goal"),
+                "destructive": verdict.get("is_destructive"),
                 "supported": structural.get("supported"),
                 "cost": structural.get("cost"),
                 "model": structural.get("model"),
@@ -87,8 +87,8 @@ def main():
         }
     }
     print("620 jev", verdict.get("verdict"),
-          f"lead={verdict.get('lead')} adv={verdict.get('advanced')} "
-          f"destr={verdict.get('destructive')}",
+          f"lead={verdict.get('disposition_lead')} adv={verdict.get('advances_goal')} "
+          f"destr={verdict.get('is_destructive')}",
           "| lucas", lucas["status"])
     after = len(ledger.tail(200000))
     out["_meta"] = {"ledger_rows_added": after - before,
@@ -98,7 +98,7 @@ def main():
     ok = (lucas["status"] == "pass"
           and (verdict.get("verdict") or "") in ("go", "proceed",
                                                      "approve", "pass")
-          and float(verdict.get("destructive") or 0) < 0.5)
+          and float(verdict.get("is_destructive") or 0) < 0.5)
     print("MERGE DECISION:", "GO" if ok else "HOLD")
     return 0 if ok else 3
 

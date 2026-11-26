@@ -1,4 +1,4 @@
-"""Gate for the turn-12 addendum: product Jev first, Lucas Gate v2 second."""
+"""Gate for the turn-12 addendum: Lucas Gate v2 first, product Jev second."""
 import json
 import os
 import pathlib
@@ -39,8 +39,6 @@ def main():
 
     before = len(ledger.tail(200000))
     text = TEXT.read_text(encoding="utf-8")
-    verdict, structural = policy.evaluate_decision(
-        ACTION, GOAL, "W2 turn-12 addendum 12b", site=SITE)
     categories = [
         {"id": cid, "applicable": True, "score": 9.5, "category_average": 9.5,
          "evidence": "The addendum names the head, the base, the exact diff and "
@@ -54,14 +52,16 @@ def main():
                       "rationale": "Claims are restricted to the rails read."}
                      for k, v in BIAS.items()],
         actual_risk=False, overall_average=9.5)
+    verdict, structural = policy.evaluate_decision(
+        ACTION, GOAL, "W2 turn-12 addendum 12b", site=SITE)
     out = {
         "product_jev": {
             "verdict": verdict.get("verdict"),
             "disposition": verdict.get("disposition"),
             "margin": verdict.get("margin"),
-            "lead": verdict.get("lead"),
-            "advanced": verdict.get("advanced"),
-            "destructive": verdict.get("destructive"),
+            "lead": verdict.get("disposition_lead"),
+            "advanced": verdict.get("advances_goal"),
+            "destructive": verdict.get("is_destructive"),
             "supported": structural.get("supported"),
             "cost": structural.get("cost"),
             "model": structural.get("model"),
