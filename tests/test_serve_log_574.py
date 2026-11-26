@@ -248,9 +248,15 @@ class CommandWiringTests(unittest.TestCase):
             def join(self, *a, **k):
                 return None
 
+        class _Threading:
+            # Replace only ui's view of the module. Patching
+            # ``threading.Thread`` itself also reaches subprocess, which on
+            # Python 3.14 builds its own reader threads through it.
+            Thread = _Thread
+
         with mock.patch("harness.ui.load_or_create_ui_token", return_value="tok"), \
                 mock.patch("harness.ui.write_ui_handoff", return_value="/tmp/handoff"), \
-                mock.patch("harness.ui.threading.Thread", _Thread), \
+                mock.patch("harness.ui.threading", _Threading), \
                 mock.patch("harness.ui.osal.open_url"), \
                 mock.patch("sys.stderr", new=io.StringIO()):
             ui_main(["--port", "0", "--browser", "--log-file", str(self.path)])
