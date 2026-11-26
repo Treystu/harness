@@ -134,10 +134,18 @@ def crossref_metadata(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     containers = message.get("container-title") or ()
     venue = str(containers[0]) if isinstance(containers, (list, tuple)) and containers \
         else (str(containers) if isinstance(containers, str) else "")
-    subtype = str(message.get("subtype") or message.get("type") or "").lower()
-    if subtype in ("posted-content", "preprint"):
+    parent_type = str(message.get("type") or "").lower()
+    subtype = str(message.get("subtype") or "").lower()
+    if parent_type == "posted-content":
+        # posted content is not formally published
+        if subtype in ("preprint",) or parent_type == "preprint":
+            version = "preprint"
+        else:
+            version = ""
+    elif subtype in ("posted-content", "preprint") or parent_type in (
+            "posted-content", "preprint"):
         version = "preprint"
-    elif subtype:
+    elif subtype or parent_type:
         version = "published"
     else:
         version = ""
