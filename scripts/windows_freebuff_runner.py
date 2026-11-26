@@ -46,16 +46,63 @@ def _hidden_subprocess_kwargs():
     return {}
 
 
-def api(endpoint, *, method="GET", body=None):
+_TRANSIENT_GH_MARKERS = (
+    "unexpected end of json input",
+    "bad gateway",
+    "service unavailable",
+    "gateway timeout",
+    "timed out",
+    "rate limit",
+    "connection reset",
+    "http 429",
+    "http 500",
+    "http 502",
+    "http 503",
+    "http 504",
+)
+
+
+def _is_transient_gh_error(message):
+    text = (message or "").casefold()
+    return any(marker in text for marker in _TRANSIENT_GH_MARKERS)
+
+
+def api(endpoint, *, method="GET", body=None, attempts=3):
     args = ["gh", "api", "--method", method, endpoint]
     if body is not None:
         args.extend(("--input", "-"))
-    result = subprocess.run(args, input=json.dumps(body) if body is not None else None,
-                            capture_output=True, text=True, encoding="utf-8", timeout=20, check=False,
-                            **_hidden_subprocess_kwargs())
-    if result.returncode:
-        raise RuntimeError(f"GitHub {method} failed for {endpoint}: {result.stderr.strip()[:220]}")
-    return json.loads(result.stdout)
+    payload = json.dumps(body) if body is not None else None
+    delays = (1.5, 3.0)
+    last_error = None
+    for attempt in range(max(1, attempts)):
+        try:
+            result = subprocess.run(
+                args, input=payload, capture_output=True, text=True, encoding="utf-8",
+                timeout=20, check=False, **_hidden_subprocess_kwargs())
+        except subprocess.TimeoutExpired as exc:
+            last_error = RuntimeError(f"GitHub {method} timed out for {endpoint}: {exc}")
+            if attempt + 1 < attempts:
+                time.sleep(delays[min(attempt, len(delays) - 1)])
+                continue
+            raise last_error from exc
+        if result.returncode == 0:
+            if not (result.stdout or "").strip():
+                return {}
+            try:
+                return json.loads(result.stdout)
+            except ValueError as exc:
+                last_error = RuntimeError(f"GitHub {method} invalid JSON for {endpoint}: {exc}")
+                if attempt + 1 < attempts:
+                    time.sleep(delays[min(attempt, len(delays) - 1)])
+                    continue
+                raise last_error from exc
+        err_text = result.stderr.strip()[:220]
+        last_error = RuntimeError(f"GitHub {method} failed for {endpoint}: {err_text}")
+        if attempt + 1 < attempts and _is_transient_gh_error(err_text):
+            time.sleep(delays[min(attempt, len(delays) - 1)])
+            continue
+        raise last_error
+    raise last_error
 
 
 def approved(comment, now):
@@ -320,7 +367,8 @@ def execute(output, number, mission, digest, bystanders):
                  blob=digest, filed_at=filed_at or None, claimed_at=claimed_at)
     dispatch_id = mission.get("dispatch", number)
     ack_timing = f" (filed {filed_at}, claimed {claimed_at})" if filed_at else f" (claimed {claimed_at})"
-    api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}{ack_timing}."})
+    if not mission.get("skip_pre_ack"):
+        api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}{ack_timing}."})
     state = "verified running"
     windows = []
     before = {}
@@ -390,6 +438,8 @@ def execute(output, number, mission, digest, bystanders):
                                          output / f"before-{label}.png", output / f"after-{label}.png"))
             except (OSError, RuntimeError) as error:
                 audit.append("escalation", step_id="after", reason=str(error))
+        if (output / "foreign-staged-send-only.json").is_file() and state == "verified running":
+            state = "verified running (send-only; foreign staged draft preserved)"
         audit.append("verification", step_id="result", state=state)
         note = ""
         try:
@@ -401,13 +451,18 @@ def execute(output, number, mission, digest, bystanders):
             note = f" Evidence upload failed: {error}"
         completed_at = _utc_iso_now()
         latency_note = _pickup_latency_note(filed_at, claimed_at, completed_at)
+        prefix = (
+            f"Vision standing restart log (Rule 7183684276) / `{mission['thread']}`: {state}."
+            if mission.get("skip_pre_ack")
+            else f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}."
+        )
         api(ISSUE, method="POST", body={"body": (
-            f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}. Evidence: "
+            f"{prefix} Evidence: "
             + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note + latency_note)})
     print(state)
     if uncertain:
         raise uncertain
-    return int(state != "verified running")
+    return int(not state.startswith("verified running"))
 
 
 def main():

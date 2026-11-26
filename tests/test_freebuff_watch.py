@@ -1956,5 +1956,217 @@ class LiveNavigationCureTests(unittest.TestCase):
                 d.query_search_field(_ArrowFrame(), attempts=1)
 
 
+class Step3OvernightAndStandingTests(unittest.TestCase):
+    """Step 3 fixes: 7176494509 L1-STOP routing, ghost Tab vs foreign Send-only, HTTP backoff, standing rule, #703."""
+
+    def test_7176494509_l1_stop_header_and_subject_routes_to_lane1(self):
+        comment = {
+            "id": 7176494509,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-25T22:32:40Z",
+            "body": (
+                "RESTART DISPATCH — episode L1-STOP-1112 (oversight tick 1112, 2026-11-25T22:31:22Z)\n\n"
+                "Lane 1 is PRESUMED STOPPED (Clause 6 GitHub-first detection).\n"
+                'Runner action requested: in-place restart only — exactly "continue in full".\n'
+            ),
+        }
+        now = datetime(2026, 11, 26, 6, 0, tzinfo=timezone.utc)
+        parsed = watch.parse_dynamic_dispatch(comment, now=now)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["kind"], "restart")
+        self.assertEqual(parsed["thread"], dispatch.THREAD)
+
+        # Even without an episode tag in the banner, the opening "<Lane> is PRESUMED STOPPED" line resolves.
+        no_ep = {
+            "id": 7176494599,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-26T05:00:00Z",
+            "body": (
+                "RESTART DISPATCH — oversight check\n\n"
+                "SCMessenger is PRESUMED STOPPED.\n"
+                'Runner action requested: "continue in full".\n'
+            ),
+        }
+        self.assertEqual(watch.parse_dynamic_dispatch(no_ep, now=now)["thread"], dispatch.SCM_THREAD)
+
+    def test_runner_api_and_watch_http_retry_transient_github_outage(self):
+        fail_eof = Mock(returncode=1, stdout="", stderr="unexpected end of JSON input\n")
+        ok_resp = Mock(returncode=0, stdout='{"ok": true}', stderr="")
+        with patch.object(runner.subprocess, "run", side_effect=[fail_eof, ok_resp]) as run_mock, \
+             patch.object(runner.time, "sleep"):
+            self.assertEqual(runner.api("repos/Treystu/harness/issues/295/comments"), {"ok": True})
+        self.assertEqual(run_mock.call_count, 2)
+
+        # Non-transient error (e.g. HTTP 422) does not spin retries.
+        fail_422 = Mock(returncode=1, stdout="", stderr="gh: Invalid request (HTTP 422)")
+        with patch.object(runner.subprocess, "run", return_value=fail_422) as run_mock, \
+             patch.object(runner.time, "sleep"):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 422"):
+                runner.api("repos/Treystu/slow-lane-ledger/contents/x", method="PUT", body={"a": 1})
+        self.assertEqual(run_mock.call_count, 1)
+
+        # report_claim_fault tolerates secondary write failure during outage and frees fault name.
+        known = set()
+        with patch.object(watch, "checkpoint", side_effect=RuntimeError("unexpected end of JSON input")):
+            self.assertFalse(watch.report_claim_fault(known, RuntimeError("boom")))
+        self.assertEqual(known, set())
+
+    def test_empty_autocomplete_tab_ghost_vs_real_foreign_staged_send_only(self):
+        dim_img = Image.new("RGB", (1800, 1131), (40, 40, 40)) if hasattr(Image.new("RGB", (10, 10)), "paste") else None
+        if dim_img is not None:
+            self.assertFalse(dispatch.has_send_arrow_outline(dim_img))
+            # Draw bright white 34x34 Send button in SEND_CONTROL (1480, 1043, 1535, 1100).
+            bright_img = dim_img.copy()
+            for x in range(1490, 1524):
+                for y in range(1055, 1089):
+                    bright_img.putpixel((x, y), (245, 245, 245))
+            self.assertTrue(dispatch.has_send_arrow_outline(bright_img))
+
+        # 1. Empty autocomplete ghost (no bright Send circle + '...tab' OCR) routes as 'empty' -> types continuation.
+        d = object.__new__(Dispatch)
+        d.recovering = False
+        d.scoped_input = True
+        d.standing = True
+        d.thread = dispatch.SCM_THREAD
+        d.label = "SCMessenger"
+        d.text = dispatch.CONTINUATION
+        d.audit = Mock()
+        d.reestablish_if_reloaded = Mock(return_value=False)
+        d.verify_lane = Mock()
+        d.turn_running = Mock(return_value=False)
+        d.locate_exact_text = Mock(side_effect=[RuntimeError("no placeholder"), [670, 1020]])
+        d.read_lines = Mock(side_effect=[
+            [],  # composer-expired-banner
+            [],  # composer-staged-mission
+            ["packetsfortheheldandgateditems...tab"],  # composer-written
+            ["Tab"],  # composer-tab-hint
+        ])
+        d.yes = Mock()
+        d.act = Mock()
+        d.verify_draft = Mock()
+        no_arrow_frame = Mock(size=(1800, 1131))
+        no_arrow_frame.crop = Mock(return_value=_ArrowCrop((55, 57)))
+        # Ensure getbbox() returns None when simulating no white circle:
+        no_arrow_crop = Mock()
+        no_arrow_crop.convert.return_value = no_arrow_crop
+        no_arrow_crop.point.return_value = no_arrow_crop
+        no_arrow_crop.getbbox.return_value = None
+        no_arrow_frame.crop = Mock(return_value=no_arrow_crop)
+        d.settle_view = Mock(return_value=no_arrow_frame)
+        d.frame = Mock(return_value=no_arrow_frame)
+        with patch.object(dispatch.time, "sleep"):
+            d.prepare_draft()
+        self.assertEqual([c.args[0] for c in d.act.call_args_list], ["focus-verified-composer", "type-continuation"])
+
+        # 2. Genuine foreign staged draft (bright white Send circle present + standing=True) -> Send-only, no typing.
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp) / "prepare"
+            out_dir.mkdir()
+            d2 = object.__new__(Dispatch)
+            d2.recovering = False
+            d2.scoped_input = True
+            d2.standing = True
+            d2.thread = dispatch.THREAD
+            d2.label = "Lane 1"
+            d2.project = "Harness"
+            d2.text = dispatch.CONTINUATION
+            d2.output = out_dir
+            d2.audit = Mock()
+            d2.reestablish_if_reloaded = Mock(return_value=False)
+            d2.verify_lane = Mock()
+            d2.turn_running = Mock(return_value=False)
+            d2.locate_exact_text = Mock(side_effect=RuntimeError("no placeholder"))
+            d2.read_lines = Mock(side_effect=[[], [], ["Investigate P1 calibration draft in detail"]])
+            d2.act = Mock()
+            arrow_frame = _ArrowFrame()
+            d2.settle_view = Mock(return_value=arrow_frame)
+            d2.prepare_draft()
+            d2.act.assert_not_called()
+            marker = Path(tmp) / "foreign-staged-send-only.json"
+            self.assertTrue(marker.is_file())
+
+            # send_draft honors foreign-staged-send-only.json without demanding 'continue in full'.
+            d2.output = Path(tmp) / "send"
+            d2.output.mkdir()
+            d2.phase = "send"
+            d2.allow_navigation = True
+            d2.post_send = False
+            d2.routes = Mock(return_value=[f"freebuff://chat/{dispatch.THREAD}-full"])
+            d2.require_foreground = Mock(return_value=1)
+            d2.stop_visible = Mock(side_effect=[False, True])
+            d2.locate_exact_text = Mock(return_value=[700, 980])
+            d2.working_banner = Mock(return_value="3s")
+            d2.reestablish_if_reloaded = Mock(return_value=False)
+            d2.frame = Mock(return_value=arrow_frame)
+            d2.read_lines = Mock(return_value=["Investigate P1 calibration draft in detail"])
+            d2.yes = Mock()
+            d2.act = Mock()
+            with patch.object(dispatch.time, "sleep"):
+                d2.send_draft()
+            send_call = d2.act.call_args_list[-1]
+            self.assertEqual(send_call.args[0], "send-once")
+            self.assertIn("foreign staged draft preserved", send_call.args[2]["control"])
+
+    def test_poll_dynamic_dispatches_routes_antigravity_when_calibrated(self):
+        now = datetime(2026, 11, 26, 8, 0, tzinfo=timezone.utc)
+        comment = {
+            "id": 996001,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-26T07:55:00Z",
+            "body": 'RESTART DISPATCH\nTarget: antigravity\nAction for the runner: "continue in full"\n',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            write = Mock()
+            posted = Mock()
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+                 patch.object(watch, "api", return_value=[comment]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "antigravity_adapter_ready", return_value=True), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "checkpoint", write), \
+                 patch.object(watch, "issue_comment", posted), \
+                 patch.object(watch, "advance_cursor", Mock()), \
+                 runtime_present(), \
+                 patch.object(watch, "_execute_antigravity", return_value="verified running (typed continuation)") as exec_ag:
+                self.assertTrue(watch.poll_dynamic_dispatches(set(), now=now))
+            exec_ag.assert_called_once()
+            self.assertIn("antigravity", posted.call_args.args[0])
+            self.assertEqual([c.args[0] for c in write.call_args_list],
+                             ["claim-dyn-996001-antigravity.json", "result-dyn-996001-antigravity.json"])
+
+    def test_poll_standing_burndown_restarts_respects_stillness_stop_and_logs_after(self):
+        now = datetime(2026, 11, 26, 8, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as tmp:
+            state_path = Path(tmp) / "monitor.json"
+            execute = Mock(return_value=0)
+            cp = Mock()
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp, "HARNESS_DRIVER_MONITOR_STATE": str(state_path)}), \
+                 patch.object(watch, "pause_requested", return_value=None), \
+                 patch.object(watch, "_sync_issue_comments", return_value=[]), \
+                 patch.object(watch, "_standing_lane_still", return_value=True), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=None), \
+                 patch.object(watch, "checkpoint", cp), \
+                 runtime_present(), \
+                 patch.object(watch, "execute", execute):
+                res = watch.poll_standing_burndown_restarts(
+                    set(), control={"continuous_burndown": True, "watched_lanes": (dispatch.THREAD,), "from_file": True}, now=now,
+                )
+            self.assertTrue(res)
+            self.assertTrue(execute.call_args.args[2]["skip_pre_ack"])
+            # Cooldown recorded so an immediate follow-up tick does not re-fire.
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp, "HARNESS_DRIVER_MONITOR_STATE": str(state_path)}), \
+                 patch.object(watch, "pause_requested", return_value=None), \
+                 patch.object(watch, "_sync_issue_comments", return_value=[]), \
+                 patch.object(watch, "execute", execute):
+                res2 = watch.poll_standing_burndown_restarts(
+                    set(), control={"continuous_burndown": True, "watched_lanes": (dispatch.THREAD,), "from_file": True},
+                    now=now + watch.timedelta(minutes=5),
+                )
+            self.assertFalse(res2)
+            self.assertEqual(execute.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

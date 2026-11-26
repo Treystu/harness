@@ -542,6 +542,28 @@ class ForegroundLost(RuntimeError):
     """
 
 
+def _send_arrow_bbox(frame, region=SEND_CONTROL):
+    """Locate the white up-arrow Send button outline in ``region``, or None."""
+    left, top, _, _ = region
+    try:
+        crop = frame.crop(region).convert("L")
+        outline = crop.point(lambda level: 255 if level >= 205 else 0).getbbox()
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if not (isinstance(outline, tuple) and len(outline) == 4
+            and all(isinstance(v, (int, float)) for v in outline)):
+        return None
+    if not (26 <= outline[2] - outline[0] <= 47 and 26 <= outline[3] - outline[1] <= 47):
+        return None
+    return [int(left + (outline[0] + outline[2]) // 2),
+            int(top + (outline[1] + outline[3]) // 2)]
+
+
+def has_send_arrow_outline(frame, region=SEND_CONTROL):
+    """True when the bright white circular Send button (luma >= 205) is visible."""
+    return _send_arrow_bbox(frame, region=region) is not None
+
+
 class Dispatch:
     def __init__(self, output, key, *, thread=THREAD, scoped_input=False, standing=False):
         from PIL import Image, ImageOps
@@ -2507,11 +2529,9 @@ class Dispatch:
         region = SEND_CONTROL
         self.yes("vision-staged-start-arrow", frame,
                  "Does this crop show a white button containing a black upward arrow?", region=region)
-        left, top, _, _ = region
-        outline = frame.crop(region).convert("L").point(lambda level: 255 if level >= 205 else 0).getbbox()
-        if outline is None or not (26 <= outline[2] - outline[0] <= 47 and 26 <= outline[3] - outline[1] <= 47):
+        point = _send_arrow_bbox(frame, region=region)
+        if point is None:
             raise RuntimeError("the staged mission's arrow outline was not located")
-        point = [left + (outline[0] + outline[2]) // 2, top + (outline[1] + outline[3]) // 2]
         fresh = self.frame("vision-staged-before-click")
         if not composer_unchanged(frame.crop(COMPOSER), fresh.crop(COMPOSER)):
             raise RuntimeError("the staged mission changed before the start action")
@@ -2618,11 +2638,9 @@ class Dispatch:
         region = SEND_CONTROL
         self.yes("vision-staged-start-arrow", frame,
                  "Does this crop show a white button containing a black upward arrow?", region=region)
-        left, top, _, _ = region
-        outline = frame.crop(region).convert("L").point(lambda level: 255 if level >= 205 else 0).getbbox()
-        if outline is None or not (26 <= outline[2] - outline[0] <= 47 and 26 <= outline[3] - outline[1] <= 47):
+        point = _send_arrow_bbox(frame, region=region)
+        if point is None:
             raise RuntimeError("the staged mission's arrow outline was not located")
-        point = [left + (outline[0] + outline[2]) // 2, top + (outline[1] + outline[3]) // 2]
         fresh = self.frame("vision-staged-before-click")
         if not composer_unchanged(frame.crop(COMPOSER), fresh.crop(COMPOSER)):
             raise RuntimeError("the staged mission changed before the start action")
@@ -2656,20 +2674,40 @@ class Dispatch:
         raise RuntimeError("the staged mission was submitted once but a sustained Stop cue was not verified")
 
     def identity_by_continuation(self):
-        """Prove the session from the approved continuation only it can hold.
+        """Prove the session from the approved continuation or preserved foreign draft.
 
         The app keeps drafts per session, so the continuation typed into this lane
         after it was proved identifies the session it was typed into. Measured
         2026-11-24 on 7126349762: at send time the selection was drawn as an
         outline the fill probe cannot see, while the draft read back exactly.
+        Under Standing Rule 7183684276, a verified foreign-staged draft marker
+        recorded in prepare similarly identifies the exact session at send-only.
         """
-        if self.phase != "send" or not self.text:
+        if self.phase != "send":
+            return False
+        pinned = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
+        marker_path = self._foreign_staged_marker()
+        if marker_path is not None and marker_path.is_file():
+            try:
+                foreign_data = json.loads(marker_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                foreign_data = {}
+            excerpt = self._norm(foreign_data.get("excerpt") or "")
+            if foreign_data.get("thread") == self.thread and len(excerpt) >= 12:
+                if self.saw_text("send-identity-foreign", self.frame("send-identity"),
+                                 COMPOSER_TEXT, excerpt):
+                    self.require_foreground()
+                    self.audit.append("verification", step_id="active-session-id",
+                                      route_fallback="foreign-staged-draft",
+                                      thread=self.thread, project=self.project,
+                                      pinned_uuid=pinned)
+                    return True
+        if not self.text:
             return False
         if not self.saw_text("send-identity-draft", self.frame("send-identity"),
                              COMPOSER_TEXT, self.text):
             return False
         self.require_foreground()
-        pinned = PINNED_UUIDS.get(self.thread) or lookup_local_session_uuid(self.thread)
         self.audit.append("escalation", step_id="identity-on-draft",
                           reason="no route and no readable selection ring; identity rests on the "
                                  "approved continuation this lane already holds")
@@ -2874,6 +2912,10 @@ class Dispatch:
         self.handoff = row
         return row
 
+    def _foreign_staged_marker(self):
+        output = getattr(self, "output", None)
+        return (output.parent / "foreign-staged-send-only.json") if output is not None else None
+
     def send_draft(self):
         pointer = self.text == DISK_POINTER
         operation = "steer" if pointer else "send"
@@ -2895,21 +2937,40 @@ class Dispatch:
         # send window at this read rather than at the stale pre-identity one.
         frame = self.frame("lane1-after-identity")
         observed_at = time.monotonic()
-        frame = self.verify_draft(frame)
+        foreign_marker = self._foreign_staged_marker()
+        foreign_data = None
+        if not pointer and foreign_marker is not None and foreign_marker.is_file():
+            foreign_data = json.loads(foreign_marker.read_text(encoding="utf-8"))
+            if foreign_data.get("thread") != self.thread:
+                raise RuntimeError("foreign-staged-send-only marker belongs to another thread")
+            placeholder = "Ask Freebuff... Use / for commands, @ for files"
+            written = self.read_lines("send-foreign-draft", frame, COMPOSER_TEXT)
+            if self.composer_written_route(written, placeholder) != "foreign":
+                raise RuntimeError("the preserved foreign staged draft was not verified at send")
+            self.audit.append("verification", step_id="verify-foreign-staged-send-only",
+                              excerpt=foreign_data.get("excerpt", "")[:120],
+                              source="standing-rule-7183684276")
+        else:
+            frame = self.verify_draft(frame)
         if self.scoped_input and not pointer and self.turn_running(frame):
             raise RuntimeError("the requested session resumed before send; no restart input")
         region = (1439, 1040, 1487, 1105) if pointer else SEND_CONTROL
         self.yes("verify-send-arrow", frame,
                  "Does this image show a white button containing a black upward arrow?",
                  region=region)
-        left, top, _, _ = region
-        crop = frame.crop(region).convert("L")
-        box = crop.point(lambda level: 255 if level >= 205 else 0).getbbox()
-        if box is None or not (26 <= box[2] - box[0] <= 47 and 26 <= box[3] - box[1] <= 47):
+        point = _send_arrow_bbox(frame, region=region)
+        if point is None:
             raise RuntimeError("the verified Send button outline could not be located")
-        point = [left + (box[0] + box[2]) // 2, top + (box[1] + box[3]) // 2]
-        control = f"{self.label} queue arrow" if pointer else f"{self.label} Send (up arrow)"
-        params = {"thread": self.thread, "text": self.text, "control": control,
+        if pointer:
+            control = f"{self.label} queue arrow"
+            send_text = self.text
+        elif foreign_data is not None:
+            control = f"{self.label} Send-only (foreign staged draft preserved)"
+            send_text = foreign_data.get("excerpt") or "<foreign-staged-preserved>"
+        else:
+            control = f"{self.label} Send (up arrow)"
+            send_text = self.text
+        params = {"thread": self.thread, "text": send_text, "control": control,
                   "point": point, "size": list(frame.size)}
         self.require_foreground()
         if self.thread in BURN_SESSIONS or self.thread == SCM_THREAD:
@@ -3067,10 +3128,45 @@ class Dispatch:
             written = self.read_lines("composer-written", frame, COMPOSER_TEXT)
             route = self.composer_written_route(written, placeholder)
             if route == "foreign":
-                raise RuntimeError(
-                    "composer-route: the composer holds a foreign draft, not "
-                    f"{self.text!r}; not typing over it "
-                    f"({self._norm(' '.join(written))[:120]!r})") from None
+                has_arrow = has_send_arrow_outline(frame)
+                if not has_arrow:
+                    tab_lines = self.read_lines("composer-tab-hint", frame, (646, 1007, 707, 1051))
+                    norm_written = self._norm(" ".join(written))
+                    has_tab_badge = any("tab" in self._norm(line) for line in tab_lines)
+                    if has_tab_badge or norm_written.endswith("tab"):
+                        # Measured on dyn-7179075691-2ae32937: SEND_CONTROL max_luma=187 (<205),
+                        # so FreeBuff is showing dim grey autocomplete hint + Tab badge, NOT a draft.
+                        self.audit.append(
+                            "verification", step_id="composer-empty-autocomplete-ghost",
+                            has_arrow=False, has_tab_badge=has_tab_badge,
+                            ghost_preview=norm_written[:80],
+                        )
+                        route = "empty"
+                if route == "foreign":
+                    if has_arrow and getattr(self, "standing", False):
+                        # Standing Rule 7183684276: preserve foreign staged text without overwriting;
+                        # hand off to send phase as Send-only once verified identity + pixels hold.
+                        marker_path = self._foreign_staged_marker()
+                        if marker_path is not None:
+                            composer_sha = hashlib.sha256(frame.crop(COMPOSER).tobytes()).hexdigest()
+                            excerpt = self._norm(" ".join(written))[:120]
+                            marker_path.parent.mkdir(parents=True, exist_ok=True)
+                            marker_path.write_text(json.dumps({
+                                "thread": self.thread,
+                                "composer_sha256": composer_sha,
+                                "excerpt": excerpt,
+                            }) + "\n", encoding="utf-8")
+                            self.audit.append(
+                                "verification", step_id="foreign-staged-send-only",
+                                composer_sha256=composer_sha, excerpt=excerpt,
+                                source="standing-rule-7183684276",
+                            )
+                            print("Platform state: foreign-staged-send-only")
+                            return
+                    raise RuntimeError(
+                        "composer-route: the composer holds a foreign draft, not "
+                        f"{self.text!r}; not typing over it "
+                        f"({self._norm(' '.join(written))[:120]!r})") from None
             if route is None:
                 route = self.choose("composer-route", frame,
                                 "Read the controls in this composer screenshot. Which is visible?", {

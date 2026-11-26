@@ -8,6 +8,7 @@ import json
 import os
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from ctypes import wintypes
@@ -119,7 +120,7 @@ def _gh_auth_token():
     return tok
 
 
-def _http_get_conditional(endpoint, etag=None):
+def _http_get_conditional(endpoint, etag=None, attempts=3):
     token = _gh_auth_token()
     if not token:
         return api(endpoint), None
@@ -131,16 +132,31 @@ def _http_get_conditional(endpoint, etag=None):
     }
     if etag:
         headers["If-None-Match"] = etag
-    req = urllib.request.Request(f"https://api.github.com/{endpoint}", headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            raw = resp.read().decode("utf-8")
-            return json.loads(raw), resp.headers.get("ETag")
-    except urllib.error.HTTPError as exc:
-        if exc.code == 304:
-            return _NOT_MODIFIED, etag
-        body = exc.read().decode("utf-8", errors="replace")[:220]
-        raise RuntimeError(f"GitHub GET HTTP {exc.code} for {endpoint}: {body}") from exc
+    url = f"https://api.github.com/{endpoint}"
+    delays = (1.5, 3.0)
+    transient_codes = {429, 500, 502, 503, 504}
+    for attempt in range(max(1, attempts)):
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read().decode("utf-8")
+                return json.loads(raw), resp.headers.get("ETag")
+        except urllib.error.HTTPError as exc:
+            if exc.code == 304:
+                return _NOT_MODIFIED, etag
+            body = exc.read().decode("utf-8", errors="replace")[:220]
+            err = RuntimeError(f"GitHub GET HTTP {exc.code} for {endpoint}: {body}")
+            if attempt + 1 < attempts and exc.code in transient_codes:
+                time.sleep(delays[min(attempt, len(delays) - 1)])
+                continue
+            raise err from exc
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            err = RuntimeError(f"GitHub GET failed for {endpoint}: {exc}")
+            if attempt + 1 < attempts:
+                time.sleep(delays[min(attempt, len(delays) - 1)])
+                continue
+            raise err from exc
+    raise RuntimeError(f"GitHub GET failed for {endpoint}")
 
 
 def _default_http_get_conditional_ref():
@@ -342,19 +358,44 @@ def local_control_state():
     raw = os.environ.get("HARNESS_DRIVER_CONTROL_FILE", "").strip()
     path = Path(raw) if raw else DEFAULT_CONTROL_PATH
     if not path.is_file():
-        return {"enabled": True, "paused": False, "cancelled_lanes": (), "path": str(path)}
+        return {
+            "enabled": True,
+            "paused": False,
+            "cancelled_lanes": (),
+            "continuous_burndown": False,
+            "watched_lanes": (THREAD,),
+            "antigravity_calibrated": False,
+            "from_file": False,
+            "path": str(path),
+        }
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
-        return {"enabled": False, "paused": True, "cancelled_lanes": (), "path": str(path),
-                "reason": "unreadable-control-file"}
+        return {
+            "enabled": False,
+            "paused": True,
+            "cancelled_lanes": (),
+            "continuous_burndown": False,
+            "watched_lanes": (THREAD,),
+            "antigravity_calibrated": False,
+            "from_file": True,
+            "path": str(path),
+            "reason": "unreadable-control-file",
+        }
     lanes = data.get("cancelled_lanes") or ()
     if not isinstance(lanes, (list, tuple)):
         lanes = ()
+    watched = data.get("watched_lanes") or (THREAD,)
+    if not isinstance(watched, (list, tuple)):
+        watched = (THREAD,)
     return {
         "enabled": bool(data.get("enabled", True)),
         "paused": bool(data.get("paused", False)),
         "cancelled_lanes": tuple(str(lane) for lane in lanes),
+        "continuous_burndown": bool(data.get("continuous_burndown", True)),
+        "watched_lanes": tuple(str(lane) for lane in watched),
+        "antigravity_calibrated": bool(data.get("antigravity_calibrated", False)),
+        "from_file": True,
         "path": str(path),
     }
 
@@ -556,9 +597,18 @@ def report_claim_fault(known, error):
     name = "canary-fault-" + now.strftime("%Y%m%d-%H") + f"-{digest}.json"
     if name in known:
         return False
-    known.add(name)
-    checkpoint(name, {"state": "claim-loop-fault", "error": detail})
-    issue_comment(f"Vision watch {CUTOVER} canary FAILED: claim-loop fault ({detail}).")
+    if isinstance(known, set):
+        known.add(name)
+    try:
+        checkpoint(name, {"state": "claim-loop-fault", "error": detail})
+    except (RuntimeError, OSError):
+        if isinstance(known, set):
+            known.discard(name)
+        return False
+    try:
+        issue_comment(f"Vision watch {CUTOVER} canary FAILED: claim-loop fault ({detail}).")
+    except (RuntimeError, OSError):
+        return False
     return True
 
 
@@ -688,36 +738,52 @@ LANE_ALIASES = (
 )
 
 
+_STOP_EPISODE_LANE = (
+    (re.compile(r"\bL1-STOP-\d+\b", re.I), THREAD),
+    (re.compile(r"\bSCM-STOP-\d+\b", re.I), SCM_THREAD),
+)
+_OPENING_STOPPED = re.compile(
+    r"^\s*(?:[\ufeff#>*\-\s]+|\*{2})*([^\n:]+?)\s+is\s+(?:PRESUMED\s+)?STOPPED\b",
+    re.I | re.M,
+)
+
+
 def _lane_thread_from_dispatch(body):
     """Which lane is this dispatch addressed to?
 
-    Three forms are in the oversight's own history: a thread id anywhere in the
-    body, a ``Lane:`` line, and - since episode L1-STOP-1014 - the lane named in
-    the banner with no ``Lane:`` line at all (7145072019 "RESTART DISPATCH -
-    Lane 1, episode L1-STOP-1014", 7146588401 "RESTART DISPATCH - SCMessenger,
-    episode SCM-STOP-1242"). Both of those were unclaimable while the watch
-    heartbeated "no unclaimed dispatches".
+    Forms in the oversight's own history: a thread id anywhere in the body,
+    a ``Lane:`` line, the lane/episode named in the banner (7145072019,
+    7146588401, 7176494509 ``RESTART DISPATCH - episode L1-STOP-1112``), or an
+    explicit opening subject declaration (``Lane 1 is PRESUMED STOPPED``).
 
-    Only the banner line is read when there is no ``Lane:`` line: a lane named
-    in the body prose is not an addressee, so prose cannot redirect a dispatch.
+    Arbitrary body prose is still not read: a lane mentioned in discussion prose
+    cannot redirect a dispatch.
     """
     thread_pattern = re.compile(r"\b(" + "|".join(re.escape(tid) for tid in SESSIONS) + r")\b")
     match = thread_pattern.search(body)
     if match:
         return match.group(1)
     lane_line = re.search("^" + _MD_PREFIX + r"Lane\*{0,2}:\s*(.+)$", body, re.I | re.M)
+    non_empty = [re.sub(r"^[\ufeff#>*\-\s]+|\*{2}", "", ln).strip()
+                 for ln in body.splitlines() if ln.strip()]
     if lane_line:
         text = lane_line.group(1).casefold()
     else:
-        banner = next(
-            (re.sub(r"^[\ufeff#>*\-\s]+|\*{2}", "", line).strip()
-             for line in body.splitlines() if line.strip()),
-            "",
-        )
+        banner = non_empty[0] if non_empty else ""
         text = banner.casefold()
+        for pat, tid in _STOP_EPISODE_LANE:
+            if pat.search(banner):
+                return tid
     for alias, tid in LANE_ALIASES:
         if alias in text:
             return tid
+    if not lane_line and non_empty:
+        head_block = "\n".join(non_empty[:3])
+        if stopped := _OPENING_STOPPED.search(head_block):
+            subj = stopped.group(1).casefold()
+            for alias, tid in LANE_ALIASES:
+                if alias in subj:
+                    return tid
     return None
 
 
@@ -998,6 +1064,154 @@ def skipped_verdict(known, parsed, reason):
     return True
 
 
+def antigravity_adapter_ready(control=None):
+    """True when #703 Antigravity calibration receipt or control override is active."""
+    ctrl = control if control is not None else local_control_state()
+    if ctrl.get("antigravity_calibrated"):
+        return True
+    try:
+        from .windows_antigravity_adapter import load_calibration
+        return load_calibration() is not None
+    except Exception:
+        return False
+
+
+def _execute_antigravity(out, cid, parsed):
+    from .windows_antigravity_adapter import execute_antigravity_dispatch
+    return execute_antigravity_dispatch(out, cid, parsed)
+
+
+def _stop_killswitch_active(comments):
+    pattern = re.compile(r"^" + _MD_PREFIX + r"(?:VISION-DISPATCH\s+)?STOP\b", re.I | re.M)
+    for item in comments:
+        if owner(item) and pattern.search(_comment_body(item)):
+            return True
+    return False
+
+
+def _standing_lane_still(lane, comments=(), *, idle_minutes=30, cooldown_minutes=20, now=None):
+    """True when the queue is non-empty and Lane 1 + repo have been still."""
+    now = now or datetime.now(timezone.utc)
+    recent_floor = now - timedelta(minutes=cooldown_minutes)
+    lane_token = f"`{lane}`"
+    for item in comments:
+        ts = item.get("created_at")
+        if not ts or _parse_iso(ts) < recent_floor:
+            continue
+        body = _comment_body(item)
+        if lane_token in body and (
+            body.startswith("Vision restart ") or body.startswith("Vision standing restart log")
+        ):
+            return False
+    issues = api("repos/Treystu/harness/issues?state=open&per_page=1")
+    if not issues:
+        return False
+    commits = api("repos/Treystu/harness/commits?sha=main&per_page=1")
+    pulls = api("repos/Treystu/harness/pulls?state=open&sort=updated&direction=desc&per_page=1")
+    c295 = api(
+        "repos/Treystu/harness/issues/295/comments?since="
+        f"{(now - timedelta(minutes=idle_minutes)).strftime('%Y-%m-%dT%H:%M:%SZ')}&per_page=20"
+    )
+    if _stop_killswitch_active(c295):
+        return False
+    latest_ts = None
+    for src, key in ((commits, ("commit", "committer", "date")),):
+        if src:
+            ts = src[0].get(key[0], {}).get(key[1], {}).get(key[2])
+            if ts:
+                dt = _parse_iso(ts)
+                if latest_ts is None or dt > latest_ts:
+                    latest_ts = dt
+    if pulls:
+        ts = pulls[0].get("updated_at")
+        if ts:
+            dt = _parse_iso(ts)
+            if latest_ts is None or dt > latest_ts:
+                latest_ts = dt
+    for item in c295:
+        ts = item.get("created_at")
+        if ts:
+            dt = _parse_iso(ts)
+            if latest_ts is None or dt > latest_ts:
+                latest_ts = dt
+    if latest_ts is not None and (now - latest_ts) < timedelta(minutes=idle_minutes):
+        return False
+    return True
+
+
+def poll_standing_burndown_restarts(known, cancelled=(), control=None, *, now=None,
+                                    idle_minutes=30, cooldown_minutes=20):
+    """Standing Rule 7183684276: autonomous in-place restart when continuous burndown is still."""
+    now = now or datetime.now(timezone.utc)
+    ctrl = control if control is not None else local_control_state()
+    if not ctrl.get("continuous_burndown"):
+        return False
+    if pause_requested():
+        return False
+    comments = _sync_issue_comments(since_floor=SINCE)
+    if _stop_killswitch_active(comments):
+        return False
+    watched = tuple(ctrl.get("watched_lanes") or (THREAD,))
+    state = _load_monitor_state() if _monitor_enabled() else {}
+    restarts = state.get("standing_restarts") if isinstance(state.get("standing_restarts"), dict) else {}
+    state_dir = Path(os.environ["LOCALAPPDATA"]) / "harness-freebuff-runner"
+    for lane in watched:
+        if lane in cancelled or lane != THREAD:
+            continue
+        last_raw = restarts.get(lane)
+        if last_raw:
+            try:
+                if (now - _parse_iso(last_raw)) < timedelta(minutes=cooldown_minutes):
+                    continue
+            except ValueError:
+                pass
+        if not _standing_lane_still(
+            lane, comments, idle_minutes=idle_minutes, cooldown_minutes=cooldown_minutes, now=now
+        ):
+            continue
+        require_driver_runtime()
+        if not desktop_idle():
+            return "deferred"
+        blocker = foreground_blocker()
+        if blocker is not None:
+            return "deferred"
+        guard_approval()
+        bucket = now.strftime("%Y%m%d-%H%M%S")
+        item = f"standing-{bucket}-{lane}"
+        out = state_dir / item
+        try:
+            out.mkdir(parents=True, exist_ok=True)
+            mission = {
+                "thread": lane,
+                "dispatch": "standing-7183684276",
+                "standing": True,
+                "skip_pre_ack": True,
+                "phase_timeout": dynamic_phase_timeout(item),
+            }
+            digest = hashlib.sha256(f"{item}:standing-7183684276".encode()).hexdigest()
+            status = "parked" if execute(out, item, mission, digest, ()) else "verified running"
+        except UncertainDriverExit as error:
+            checkpoint(f"interlock-{item}.json", {"dispatch": "standing-7183684276", "thread": lane, "state": str(error)})
+            issue_comment(f"Vision standing restart interlock `{lane}`: {error}")
+            status = "parked with desktop interlock"
+        except (OSError, RuntimeError) as error:
+            status = f"parked after standing attempt: {error}"
+            issue_comment(f"Vision standing restart log (Rule 7183684276) / `{lane}`: {status}.")
+        finally:
+            _clear_comments_etag()
+        checkpoint(f"standing-result-{bucket}-{lane}.json", {
+            "rule": 7183684276, "thread": lane, "state": status,
+        })
+        if _monitor_enabled():
+            fresh_state = _load_monitor_state()
+            map_r = fresh_state.get("standing_restarts") if isinstance(fresh_state.get("standing_restarts"), dict) else {}
+            map_r[lane] = now.isoformat()
+            fresh_state["standing_restarts"] = map_r
+            _save_monitor_state(fresh_state)
+        return True
+    return False
+
+
 def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
     """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item.
 
@@ -1065,6 +1279,28 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         LAST_SCAN["claimable"] = claimable
         guard_approval()
         if parsed["kind"] == "antigravity-park":
+            if antigravity_adapter_ready():
+                require_driver_runtime()
+                if not desktop_idle():
+                    heartbeat(known, "waiting for owner desktop idle", current_evidence())
+                    return "deferred"
+                checkpoint(claim, {"dispatch": cid, "target": "antigravity", "kind": "antigravity-restart"})
+                if isinstance(known, set):
+                    known.add(claim)
+                out = state_dir / item
+                try:
+                    out.mkdir(parents=True, exist_ok=True)
+                    status = _execute_antigravity(out, cid, parsed)
+                except (OSError, RuntimeError) as error:
+                    status = f"parked after claim: {error}"
+                finally:
+                    _clear_comments_etag()
+                result_name = f"result-{item}.json"
+                checkpoint(result_name, {"dispatch": cid, "target": "antigravity", "state": status})
+                if isinstance(known, set):
+                    known.add(result_name)
+                issue_comment(f"Vision restart result #{cid} / `antigravity`: {status}.")
+                return True
             checkpoint(claim, {"dispatch": cid, "target": "antigravity", "kind": parsed["kind"]})
             if isinstance(known, set):
                 known.add(claim)
@@ -1141,6 +1377,15 @@ def run_burn(receipts, known, cancelled=()):
                 return
         if drained:
             return
+        control = local_control_state()
+        if control.get("continuous_burndown") and control.get("from_file"):
+            try:
+                standing_outcome = poll_standing_burndown_restarts(known, cancelled=cancelled, control=control)
+            except Exception as error:
+                report_claim_fault(known, error)
+                return
+            if standing_outcome:
+                return
         evidence = current_evidence()
         problems = canary(evidence or {})
         if problems:
