@@ -1054,6 +1054,23 @@ function handleLiveEvent(ev, agentMsg) {
   } else if (ev.type === "research_unavailable") {
     label = `Web research stopped before model retries: ${String(ev.reason || "no usable source").slice(0, 160)}`;
     agentMsg.stepperTitleText.textContent = "Web research unavailable; stopping early.";
+  } else if (ev.type === "research_plan_gate") {
+    if (ev.code === "capability_unavailable") {
+      label = "Research capability_unavailable: no callable search/fetch capability bound (0 network calls)";
+      icon = "!";
+      agentMsg.stepperTitleText.textContent = "Web capability unavailable; zero network calls.";
+      activateModularAspect(agentMsg, "research_plan", "capability_unavailable", "!");
+    } else if (ev.phase === "accepted") {
+      const shortHash = String(ev.plan_hash || "").slice(0, 12);
+      label = `Jev approved exact research plan ${shortHash}`;
+      icon = "OK";
+      activateModularAspect(agentMsg, "research_plan", "Plan Approved", "OK");
+    } else {
+      const why = String(ev.code || ev.decision || "declined");
+      label = `Research plan withheld (${why}); 0 search/fetch calls`;
+      icon = "!";
+      activateModularAspect(agentMsg, "research_plan", "Plan Withheld", "!");
+    }
   } else if (ev.type === "simple_action_route_start") {
     label = "Jev is selecting the request workflow...";
     icon = "⌛";
@@ -1381,6 +1398,33 @@ function renderFinalResult(runRecord, agentMsg) {
         <span style="color:var(--fg); opacity:0.8;">${esc(res.next_step || "resume via the plan lane")}</span>
       </p>`;
     agentMsg.body.appendChild(deferNote);
+  }
+  if (res.research_plan) {
+    const rp = res.research_plan;
+    const planNote = document.createElement("div");
+    planNote.className = "deferred-note research-plan-receipt";
+    const title = rp.capability_unavailable
+      ? "capability_unavailable"
+      : `Research plan: ${rp.state || "unknown"}${rp.decision ? ` (${rp.decision})` : ""}`;
+    const caps = (rp.active_capabilities || []).join(", ") || "none";
+    const queryList = (rp.queries || []).map(q => q.url || q.query || "").filter(Boolean).join(" | ");
+    const domains = (rp.target_domains || []).join(", ");
+    const details = [
+      rp.plan_hash ? `hash ${String(rp.plan_hash).slice(0, 12)}` : "",
+      rp.jev_model ? `reviewer ${rp.jev_model}${rp.jev_verdict ? ` (${rp.jev_verdict})` : ""}` : "",
+      rp.consent_id ? `consent ${rp.consent_id}` : "",
+      rp.freshness ? `freshness ${rp.freshness}` : "",
+      `capabilities: ${caps}`,
+      `calls: search=${Number(rp.search_calls || 0)} fetch=${Number(rp.fetch_calls || 0)}`,
+    ].filter(Boolean).join(" · ");
+    planNote.innerHTML = `
+      <p style="margin:8px 0 0; font-size:12px;">
+        <strong>${esc(title)}</strong><br>
+        ${queryList ? `<span>queries: <code>${esc(queryList)}</code></span><br>` : ""}
+        ${domains ? `<span>domains: <code>${esc(domains)}</code></span><br>` : ""}
+        <span style="color:var(--fg); opacity:0.8;">${esc(details)}</span>
+      </p>`;
+    agentMsg.body.appendChild(planNote);
   }
 
   // Render Diff if present

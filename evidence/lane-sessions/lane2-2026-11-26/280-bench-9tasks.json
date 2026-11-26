@@ -1,0 +1,126 @@
+{
+  "issue": 280,
+  "gate_receipt": "https://github.com/Treystu/harness/issues/295#issuecomment-7187273967",
+  "executed_at_utc": "2026-11-26T09:00:50.045501+00:00",
+  "apply_model": "deepseek/deepseek-v4.1-flash",
+  "use_free": false,
+  "tasks": 9,
+  "statuses": {
+    "ok": 9
+  },
+  "pass_rate": 1.0,
+  "total_rounds": 9,
+  "mean_verify_rounds": 1.0,
+  "baseline_2026_10_20_fizz_mean_rounds": 5.0,
+  "fizz_rounds": 1,
+  "target_max_mean_rounds": 1.56,
+  "meets_rounds_bar": true,
+  "total_cost_usd": 0.003805,
+  "mean_cost_usd": 0.000423,
+  "total_rotations": 0,
+  "route_verify_with_calibration": {
+    "tier": "panel",
+    "panel": [
+      "deepseek/deepseek-v4-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "inclusionai/ling-3.0-flash",
+      "google/gemini-3.8-flash"
+    ],
+    "judge": "openai/gpt-5.6-sol",
+    "first_rung": "deepseek/deepseek-v4-flash",
+    "source": "declared",
+    "reasons": [
+      "no recorded calibration for this pool; declared ladder kept"
+    ]
+  },
+  "route_code_with_calibration": {
+    "tier": "apply",
+    "model": "inclusionai/ling-3.0-flash",
+    "pool": [
+      "inclusionai/ling-3.0-flash",
+      "deepseek/deepseek-v4.1-flash",
+      "deepseek/deepseek-v4-flash",
+      "openai/gpt-4o-mini"
+    ],
+    "first_rung": "inclusionai/ling-3.0-flash",
+    "source": "calibration",
+    "reasons": [
+      "declared head deepseek/deepseek-v4.1-flash has no recorded samples; kept",
+      "inclusionai/ling-3.0-flash promoted on 13 sample(s) at 1.000 because the declared head is unmeasured or struck"
+    ]
+  },
+  "per_task": [
+    {
+      "name": "add",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 5.322e-05
+    },
+    {
+      "name": "balanced",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.000158646
+    },
+    {
+      "name": "clamp",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.00022414391999999998
+    },
+    {
+      "name": "dedupe",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.00031622843999999997
+    },
+    {
+      "name": "fizzbuzz",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.00040039355999999996
+    },
+    {
+      "name": "leap",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.0004821490799999999
+    },
+    {
+      "name": "luhn",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.0006540696
+    },
+    {
+      "name": "median",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.0007316611199999999
+    },
+    {
+      "name": "reverse",
+      "status": "ok",
+      "rounds": 1,
+      "rotations": 0,
+      "model": null,
+      "cost": 0.0007845650399999999
+    }
+  ]
+}

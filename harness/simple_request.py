@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, List, Optional
 FILE_TARGET_RE = re.compile(
     r"\b[a-zA-Z0-9_\-./]+\.(?:py|rs|go|ts|js|md|json|toml|yaml|yml|c|cpp|h)\b"
 )
+_HTTP_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 _WORD_RE = re.compile(r"\b[a-z0-9][a-z0-9_-]*\b")
 _CURRENT_TERMS = (
     "tonight", "tomorrow", "this week", "next week", "this weekend",
@@ -263,6 +264,8 @@ def is_simple_answer_request(prompt: str, *, intent: str = "conversation") -> bo
     if intent != "conversation" or not text or len(text) > 2000:
         return False
     if FILE_TARGET_RE.search(text):
+        return False
+    if _HTTP_URL_RE.search(text):
         return False
     if is_workspace_inspection_request(text):
         return False

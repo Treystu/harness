@@ -438,3 +438,98 @@ test("11 studio inspector: Proof makes one read and paints each section as it la
   expect(await body.locator("h3").count()).toBe(6);
   await expect(body.locator("[data-pane-loading]")).toHaveCount(0);
 });
+
+test("12 chat renders research plan gate events and terminal receipt", async ({ page }) => {
+  await signInOwner(page);
+  let runIndex = 0;
+  await page.route("**/api/chat", (route) => {
+    runIndex += 1;
+    return route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: JSON.stringify({ id: `run-rp-${runIndex}`, kind: "chat" }),
+    });
+  });
+  await page.route("**/api/runs/run-rp-1/events**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      events: [
+        { seq: 1, type: "research_plan_gate", code: "capability_unavailable" },
+        { seq: 2, type: "research_plan_gate", phase: "accepted", plan_hash: "6dd42208a67192b7" },
+        { seq: 3, type: "research_plan_gate", phase: "declined", code: "approval_declined" },
+      ],
+    }),
+  }));
+  await page.route("**/api/runs/run-rp-1/result", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      id: "run-rp-1",
+      kind: "chat",
+      status: "ok",
+      result: {
+        status: "ok",
+        response: "Planned research answer.",
+        model: "fixture/offline",
+        cost: 0.001,
+        research_plan: {
+          state: "accepted",
+          decision: "accept",
+          plan_hash: "6dd42208a67192b7",
+          jev_model: "jev-1.14.0",
+          jev_verdict: "pass",
+          consent_id: "req-1:research-plan",
+          freshness: "current",
+          active_capabilities: ["fetch", "search"],
+          capability_unavailable: false,
+          search_calls: 1,
+          fetch_calls: 1,
+          queries: [{ url: "https://example.org/doc" }],
+          target_domains: ["example.org"],
+        },
+      },
+    }),
+  }));
+  await page.locator("#prompt-input").fill("research plan accepted");
+  await page.locator("#prompt-input").press("Enter");
+  const firstReceipt = page.locator(".research-plan-receipt").first();
+  await expect(firstReceipt).toBeVisible();
+  await expect(firstReceipt).toContainText("Research plan: accepted (accept)");
+  await expect(firstReceipt).toContainText("https://example.org/doc");
+  await expect(firstReceipt).toContainText("example.org");
+  await expect(firstReceipt).toContainText("calls: search=1 fetch=1");
+
+  await page.route("**/api/runs/run-rp-2/events**", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ events: [] }),
+  }));
+  await page.route("**/api/runs/run-rp-2/result", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      id: "run-rp-2",
+      kind: "chat",
+      status: "ok",
+      result: {
+        status: "ok",
+        response: "No capability bound.",
+        model: "fixture/offline",
+        cost: 0.0,
+        research_plan: {
+          capability_unavailable: true,
+          active_capabilities: [],
+          queries: [],
+          target_domains: [],
+        },
+      },
+    }),
+  }));
+  await page.locator("#prompt-input").fill("research plan unavailable");
+  await page.locator("#prompt-input").press("Enter");
+  const secondReceipt = page.locator(".research-plan-receipt").nth(1);
+  await expect(secondReceipt).toBeVisible();
+  await expect(secondReceipt).toContainText("capability_unavailable");
+  await expect(secondReceipt).toContainText("capabilities: none");
+});

@@ -15,13 +15,20 @@ fragments are removed before the claim is searched, and one test feeds the
 original comment text through the same helper to prove the detector still fires
 on the real defect rather than passing vacuously.
 """
+import os
 import re
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import harness.convergence as conv
+import harness.events as events
 import harness.jev as jev
 from harness._http import HttpTransport
+from harness.ledger import AutonomyLedger
+from harness.panel import panel_judge
+from tests._fake import JUDGE, P1, P2, FakeTransport, _gov
 
 HARNESS = Path(conv.__file__).resolve().parent
 
@@ -100,6 +107,132 @@ class TransportRetryAfterTests(unittest.TestCase):
     def test_transport_falls_back_to_its_own_backoff(self):
         self.assertEqual(HttpTransport()._retry_delay(0, None), 0.75)
         self.assertEqual(HttpTransport()._retry_delay(2, "not-a-number"), 3.0)
+
+
+def _model_entry(mid):
+    return {"id": mid, "pricing": {"prompt": "0", "completion": "0"}}
+
+
+def _chat_ok(text, *, cost=0.0001):
+    return {"choices": [{"message": {"content": text}}],
+            "usage": {"cost": cost}}
+
+
+class BreakerAndRetryTelemetryTests(unittest.TestCase):
+    def test_circuit_breaker_emits_lifecycle_transitions(self):
+        now = [0.0]
+        board = jev.CircuitBreakers(threshold=2, cooldown=30.0,
+                                    clock=lambda: now[0])
+        seen = []
+        sink = events.add_sink(seen.append)
+        try:
+            refusal, g1 = board.acquire("chat")
+            self.assertIsNone(refusal)
+            board.record("chat", "failure", g1)
+            refusal, g2 = board.acquire("chat")
+            self.assertIsNone(refusal)
+            board.record("chat", "failure", g2)
+
+            refusal, _ = board.acquire("chat")
+            self.assertIsNotNone(refusal)
+
+            now[0] = 31.0
+            refusal, g3 = board.acquire("chat")
+            self.assertIsNone(refusal)
+            board.record("chat", "failure", g3)
+
+            now[0] = 62.0
+            refusal, g4 = board.acquire("chat")
+            self.assertIsNone(refusal)
+            board.record("chat", "success", g4)
+        finally:
+            if sink is not None:
+                events.remove_sink(sink)
+
+        transitions = [e["transition"] for e in seen if e["type"] == "jev_breaker"]
+        self.assertEqual(
+            transitions,
+            ["opened", "refused_open", "probe_admitted",
+             "reopened", "probe_admitted", "closed"],
+        )
+
+    def test_panel_429_records_retry_position_delay_and_elapsed_s(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "ledger.jsonl")
+            fake = FakeTransport(
+                models=[_model_entry(P1), _model_entry(P2), _model_entry(JUDGE)],
+                posts=[
+                    (429, {"error": {"message": "rate limited"},
+                           "usage": {"cost": 0.0002}}),
+                    _chat_ok("recovered take", cost=0.0003),
+                    (500, {"error": {"message": "down"}}),
+                    _chat_ok("second panelist", cost=0.0001),
+                    _chat_ok('{"verdict": "ok", "agreement": "high", '
+                             '"confidence": 0.9, "disagreements": [], '
+                             '"defer": false}', cost=0.0001),
+                ],
+            )
+            gov = _gov(fake, max_cost=0.01)
+            ledger = AutonomyLedger(path)
+            ledger.ensure_offered_task_id("telemetry-475", source="test")
+            seen = []
+            sink = events.add_sink(seen.append)
+            try:
+                with mock.patch("harness.panel.interruptible_sleep"):
+                    panel_judge(
+                        transport=fake, api_key="k", governor=gov, prompt="Q?",
+                        panel=[P1, P2], judge=JUDGE, max_panelists=2,
+                        ledger=ledger, task_id="telemetry-475",
+                    )
+            finally:
+                if sink is not None:
+                    events.remove_sink(sink)
+            rows = [e for e in ledger.entries() if e["event"] == "model_result"]
+            retries = [r for r in rows if r.get("retry")]
+            self.assertEqual(retries[0]["retry_position"], 1)
+            self.assertEqual(retries[0]["retry_delay_s"], 0.5)
+            finals = [r for r in rows if r["event_note"] == "panel" and not r.get("retry")]
+            self.assertTrue(all("elapsed_s" in r for r in finals))
+            rate_events = [e for e in seen if e.get("reason") == "rate_limited"]
+            self.assertEqual(rate_events[0]["retry_position"], 1)
+            self.assertEqual(rate_events[0]["retry_delay_s"], 0.5)
+
+
+class OfflineComparatorReplayTests(unittest.TestCase):
+    def test_simulate_retry_schedule_covers_champion_and_comparators(self):
+        self.assertEqual(conv.simulate_retry_schedule([])["recovery_rate"], 0.0)
+        timelines = [
+            {"window_duration_s": 0.4, "retry_cost_usd": 0.0002},
+            {"window_duration_s": 1.4, "retry_cost_usd": 0.0002},
+            {"window_duration_s": 5.5, "retry_cost_usd": 0.0002},
+            {"window_duration_s": None, "retry_cost_usd": 0.0002},
+        ]
+        champ = conv.simulate_retry_schedule(timelines)
+        self.assertEqual(champ["recovered_calls"], 2)
+        self.assertEqual(champ["recovery_rate"], 0.5)
+        comp = conv.simulate_retry_schedule(timelines, max_retries=3, backoff_base=2.0)
+        self.assertGreater(comp["recovered_calls"], champ["recovered_calls"])
+        self.assertGreater(comp["total_wait_s"], champ["total_wait_s"])
+
+    def test_simulate_breaker_schedule_covers_champion_and_comparators(self):
+        trace = [
+            {"t": 0.0, "site": "apply", "outcome": "neutral", "cost_usd": 0.0},
+            {"t": 1.0, "site": "apply", "outcome": "failure", "cost_usd": 0.001},
+            {"t": 2.0, "site": "apply", "outcome": "failure", "cost_usd": 0.001},
+            {"t": 3.0, "site": "apply", "outcome": "failure", "cost_usd": 0.001},
+            {"t": 5.0, "site": "apply", "outcome": "failure", "cost_usd": 0.001},
+            {"t": 10.0, "site": "apply", "outcome": "success", "cost_usd": 0.001},
+            {"t": 35.0, "site": "apply", "outcome": "success", "cost_usd": 0.001},
+        ]
+        champ = conv.simulate_breaker_schedule(trace)
+        self.assertEqual(champ["threshold"], 3)
+        self.assertEqual(champ["blocked"], 2)
+        self.assertEqual(champ["avoided_failures"], 1)
+        self.assertEqual(champ["false_blocks"], 1)
+        self.assertAlmostEqual(champ["avoided_spend_usd"], 0.001, places=6)
+        wider = conv.simulate_breaker_schedule(trace, threshold=5, cooldown_s=120.0)
+        self.assertEqual(wider["blocked"], 0)
+        self.assertEqual(wider["false_blocks"], 0)
 
 
 if __name__ == "__main__":
