@@ -57,6 +57,7 @@ from .config import (
 )
 from .endpoint_pricing import load_fireworks_endpoints
 from .completion_spec import BAR_CLASSES, run_spec_file
+from .epoch_workspace import run_epoch_workspace
 from .errors import HarnessError
 from .ledger_sweep import run_daily_sweep, state_path
 from .lifecycle import LifecycleCoordinator
@@ -1874,6 +1875,37 @@ def _cmd_completion_spec(opts, settings):
     return board
 
 
+def _cmd_epoch_workspace(opts, settings):
+    """Create, publish and discard one throwaway epoch workspace (Build 2).
+
+    The clone is created from the named SHA, its first commit is pushed to the
+    iteration branch, the epoch PR opens as a draft at that commit, and the
+    clone is discarded last - only after the work is on canonical.
+    """
+    receipt = run_epoch_workspace(
+        opts.epoch,
+        opts.head,
+        remote=opts.remote,
+        root=opts.root,
+        base=opts.base,
+        repo=getattr(opts, "repo", None),
+        pr_title=getattr(opts, "pr_title", None),
+        pr_body=getattr(opts, "pr_body", None),
+        first_commit_file=getattr(opts, "first_commit_file", None),
+        first_commit_message=getattr(opts, "first_commit_message", None),
+        discard=getattr(opts, "discard", False),
+    )
+    if not getattr(opts, "json", False):
+        eprint(f"epoch: {receipt['epoch']} branch={receipt['branch']}")
+        eprint(f"head: {receipt['head_sha']}")
+        eprint(f"clone: {receipt['path']}")
+        eprint("pushed: " + ("yes" if receipt["pushed"] else "no"))
+        eprint("pr: " + (receipt["pr_url"] or "-"))
+        eprint("discarded: " + ("yes" if receipt["discarded"] else "no"))
+    _emit(receipt, opts.out, force_json=getattr(opts, "json", False))
+    return receipt
+
+
 def _cmd_jev_vision_assessment(opts, settings):
     """Run the bounded HV-0 vision assessment or a no-dispatch preflight."""
     state = build_vision_assessment_state(opts.repo_root)
@@ -2376,6 +2408,7 @@ _DISPATCH = {
     "economics": _cmd_economics,
     "jev-phase": _cmd_jev_phase,
     "completion-spec": _cmd_completion_spec,
+    "epoch-workspace": _cmd_epoch_workspace,
     "jev-vision-assessment": _cmd_jev_vision_assessment,
     "jev-freeze": _cmd_jev_freeze,
     "mission": _cmd_mission,
