@@ -780,8 +780,12 @@ class PublisherTests(unittest.TestCase):
         serialized = json.dumps(stored, sort_keys=True)
         for forbidden in ('"shares"', '"token"', '"consent_period"'):
             self.assertNotIn(forbidden, serialized)
-        self.assertEqual(set(stored["models"][MODEL]["calls"]["receipt"]
-                             ["cohort"]["totals"]), set(ps.STAT_FIELDS))
+        # #683 row 42: each published cell carries its own metric's totals
+        # only; a full totals block would expose a suppressed cell.
+        for metric, fields in ps.METRIC_FIELDS.items():
+            self.assertEqual(
+                set(stored["models"][MODEL][metric]["receipt"]["cohort"]
+                    ["totals"]), set(fields))
 
     def test_an_unsealed_round_publishes_nothing(self):
         self.assertEqual(self.publisher.seal("2026-09")["published_figures"], 0)
@@ -817,6 +821,133 @@ class RosterTests(unittest.TestCase):
         roster = ps.roster_payload(None)
         self.assertEqual(roster["figures"], [])
         self.assertEqual(roster["schema"], "public-roster-v1")
+
+
+class PerMetricFloorTests(unittest.TestCase):
+    """#683 row 42: one metric's owners never lift another metric's floor."""
+
+    def setUp(self):
+        self.boss = issuer()
+        self.publisher = ps.PublicPublisher(ISSUER_KEY, site_key=b"site")
+
+    def _latency_rows(self):
+        rows = []
+        for index in range(1, 4):
+            day = f"{ROUND}-{index:02d}"
+            rows.append({"event": "model_result", "ts": f"{day}T00:00:00Z",
+                         "model": MODEL, "cost": 0.002, "latency_ms": 120})
+            rows.append({"event": "complete", "ts": f"{day}T00:00:01Z",
+                         "model": MODEL, "status": "ok"})
+        return rows
+
+    def _without_latency_rows(self):
+        rows = []
+        for index in range(1, 4):
+            day = f"{ROUND}-{index:02d}"
+            rows.append({"event": "model_result", "ts": f"{day}T00:00:00Z",
+                         "model": MODEL, "cost": 0.002})
+            rows.append({"event": "complete", "ts": f"{day}T00:00:01Z",
+                         "model": MODEL, "status": "ok"})
+        return rows
+
+    def test_ten_reporters_do_not_publish_one_reporters_latency(self):
+        for index in range(ps.PUBLICATION_FLOOR - 1):
+            self.publisher.accept(report_for(
+                brokered=self.boss, secret=f"no-latency-{index}",
+                rows=self._without_latency_rows()))
+        self.publisher.accept(report_for(
+            brokered=self.boss, secret="with-latency",
+            rows=self._latency_rows()))
+
+        sealed = self.publisher.seal(ROUND)
+        figures = sealed["models"][MODEL]
+
+        self.assertEqual(figures["calls"]["state"], "published")
+        self.assertEqual(figures["success_rate"]["state"], "published")
+        self.assertEqual(figures["mean_latency_ms"]["state"], "suppressed")
+        self.assertEqual(figures["mean_latency_ms"]["reason"],
+                         "below the publication floor")
+
+    def test_a_receipt_never_carries_another_metrics_totals(self):
+        for index in range(ps.PUBLICATION_FLOOR):
+            self.publisher.accept(report_for(
+                brokered=self.boss, secret=f"operator-{index}"))
+
+        sealed = self.publisher.seal(ROUND)
+        figures = sealed["models"][MODEL]
+
+        self.assertEqual(set(figures["calls"]["receipt"]["cohort"]["totals"]),
+                         {"calls"})
+        self.assertEqual(
+            set(figures["mean_latency_ms"]["receipt"]["cohort"]["totals"]),
+            {"latency_ms", "timed_observations"})
+
+
+class IntakeContainmentTests(unittest.TestCase):
+    """#683 rows 41 and 43 at the intake boundary."""
+
+    def setUp(self):
+        self.boss = issuer()
+        self.publisher = ps.PublicPublisher(ISSUER_KEY, site_key=b"site")
+
+    def test_one_accepted_record_cannot_open_its_statistics(self):
+        report = report_for(brokered=self.boss, secret="solo")
+        opened = ps.open_payload(report["shares"])
+        accepted = self.publisher.accept(report)
+        self.assertTrue(accepted["accepted"])
+
+        token = report["eligibility"]["token"]
+        stored = self.publisher._open[ROUND]["tokens"][token]
+        self.assertNotIn("shares", stored)
+        stored_opened = ps.open_payload(stored["masked"])
+        self.assertNotEqual(stored_opened["stats"], opened["stats"])
+
+    def test_a_cohort_at_the_floor_still_publishes_the_same_figures(self):
+        for index in range(ps.PUBLICATION_FLOOR):
+            self.publisher.accept(report_for(
+                brokered=self.boss, secret=f"operator-{index}"))
+
+        sealed = self.publisher.seal(ROUND)
+        figures = sealed["models"][MODEL]
+        self.assertEqual(figures["calls"]["value"],
+                         ps.PUBLICATION_FLOOR * 3)
+        self.assertEqual(figures["success_rate"]["value"], 1.0)
+        self.assertEqual(figures["cost_per_success_micro_usd"]["value"], 2000.0)
+
+    def test_impossible_statistics_are_refused(self):
+        report = report_for(brokered=self.boss)
+        stats = dict(ps.open_payload(report["shares"])["stats"])
+        stats["successes"] = stats["tasks"] + 100
+        nonce = ps.open_payload(report["shares"])["nonce"]
+        forged = self._forge(report, stats, nonce)
+
+        with self.assertRaises(HarnessError) as caught:
+            ps.validate_submission(forged, verify_key=ISSUER_KEY)
+        self.assertIn("successes exceed", str(caught.exception))
+
+    def test_latency_observations_cannot_exceed_calls(self):
+        report = report_for(brokered=self.boss)
+        opened = ps.open_payload(report["shares"])
+        stats = dict(opened["stats"])
+        stats["timed_observations"] = stats["calls"] + 1
+        forged = self._forge(report, stats, opened["nonce"])
+
+        with self.assertRaises(HarnessError) as caught:
+            ps.validate_submission(forged, verify_key=ISSUER_KEY)
+        self.assertIn("latency observations exceed", str(caught.exception))
+
+    def _forge(self, report, stats, nonce):
+        """A self-consistent payload whose statistics are impossible."""
+        forged = json.loads(json.dumps(report))
+        forged["shares"] = ps.split_payload(stats, nonce)
+        forged["commitment"] = ps.commitment_for(
+            stats, nonce, round_id=round_id_of(forged), model=forged["model"])
+        forged["proof"]["stats_digest"] = ps._stats_digest(stats)
+        return forged
+
+
+def round_id_of(report):
+    return report["round"]
 
 
 if __name__ == "__main__":

@@ -92,6 +92,16 @@ STAT_BOUNDS = {"calls": 10 ** 9, "tasks": 10 ** 9, "successes": 10 ** 9,
                "cost_micro_usd": 10 ** 15, "latency_ms": 10 ** 12,
                "timed_observations": 10 ** 9}
 
+#: The statistics a published metric's receipt may carry (#683 row 42).
+#: A receipt that also carried every other field would expose a suppressed
+#: cell's totals by subtraction.
+METRIC_FIELDS = {
+    "calls": ("calls",),
+    "success_rate": ("tasks", "successes"),
+    "cost_per_success_micro_usd": ("cost_micro_usd", "successes"),
+    "mean_latency_ms": ("latency_ms", "timed_observations"),
+}
+
 NO_DATA_TEXT = "No verified data"
 
 CONSENT_FILENAME = "public-share-consent.json"
@@ -812,6 +822,7 @@ def validate_submission(payload: Any, *, verify_key: bytes) -> Dict[str, Any]:
                                 verify_key=verify_key),
              "eligibility voucher does not verify")
     opened = open_payload(shares)
+    _require_submitted_stats(opened["stats"])
     _require(commitment == commitment_for(opened["stats"], opened["nonce"],
                                           round_id=round_id, model=model),
              "commitment does not open to the submitted shares")
@@ -827,6 +838,43 @@ def validate_submission(payload: Any, *, verify_key: bytes) -> Dict[str, Any]:
 
 def _rate(numerator: int, denominator: int) -> Optional[float]:
     return round(numerator / denominator, 4) if denominator else None
+
+
+def _mask_shares(shares: List[Dict[str, Any]],
+                 mask: List[int]) -> List[Dict[str, Any]]:
+    """Hold shares as one-time-pad fragments (#683 row 41).
+
+    XOR is its own inverse, so the round's mask opens them at seal time while
+    the stored record alone does not open the contributor's statistics.
+    """
+    return [{"x": int(share["x"]),
+             "v": [int(value) ^ int(pad) for value, pad
+                   in zip(share["v"], mask)]}
+            for share in shares]
+
+
+def _unmask_shares(masked: List[Dict[str, Any]],
+                   mask: List[int]) -> List[Dict[str, Any]]:
+    return _mask_shares(masked, mask)
+
+
+def _require_submitted_stats(stats: Dict[str, int]) -> None:
+    """Refuse impossible statistics before they can reach a cohort (#683 row 43).
+
+    The reported reproduction -- 103 successes out of three tasks -- passed
+    intake because only the digests were checked. The bounds are the module's
+    own ``STAT_BOUNDS`` and the counts are the only consistent ordering the
+    sufficient statistics can have.
+    """
+    for field in STAT_FIELDS:
+        value = stats.get(field)
+        _require(isinstance(value, int) and not isinstance(value, bool)
+                 and 0 <= value <= STAT_BOUNDS[field],
+                 f"submitted statistic {field} is out of bounds")
+    _require(stats["successes"] <= stats["tasks"],
+             "submitted successes exceed its tasks")
+    _require(stats["timed_observations"] <= stats["calls"],
+             "submitted latency observations exceed its calls")
 
 
 class PublicPublisher:
@@ -848,6 +896,9 @@ class PublicPublisher:
         self.floor = int(floor)
         self._open: Dict[str, Dict[str, Any]] = {}
         self._sealed: Dict[str, Dict[str, Any]] = {}
+        # #683 row 41: one unpredictable mask per round, held outside every
+        # accepted record, so the intake never stores openable shares.
+        self._masks: Dict[str, List[int]] = {}
 
     def accept(self, payload: Any) -> Dict[str, Any]:
         """Validate and hold one report; a repeated token counts once."""
@@ -857,25 +908,43 @@ class PublicPublisher:
         if accepted["token"] in bucket["tokens"]:
             return {"accepted": False, "duplicate": True,
                     "round": round_id, "model": accepted["model"]}
+        mask = self._masks.get(round_id)
+        if mask is None:
+            mask = [secrets.randbits(64) for _ in range(len(STAT_FIELDS) + 1)]
+            self._masks[round_id] = mask
         bucket["tokens"][accepted["token"]] = {
             "model": accepted["model"],
             "commitment": accepted["commitment"],
-            "shares": payload["shares"],
+            # #683 row 41: the stored fragment is masked under a per-round
+            # mask that is not part of the record, so one accepted record
+            # cannot open that contributor's statistics.
+            "masked": _mask_shares(payload["shares"], mask),
         }
         bucket["order"].append(accepted["token"])
         return {"accepted": True, "duplicate": False, "round": round_id,
                 "model": accepted["model"]}
 
-    def _cell(self, contributions: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _cell(self, round_id: str,
+              contributions: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Cohort totals plus how many contributors recorded each field.
+
+        #683 row 42: a denominator is only above the floor when that many
+        contributors actually recorded the observation, so the count travels
+        with the totals instead of being the whole cohort's size.
+        """
         totals = {field: 0 for field in STAT_FIELDS}
+        observers = {field: 0 for field in STAT_FIELDS}
+        mask = self._masks.get(round_id) or [0] * (len(STAT_FIELDS) + 1)
         for contribution in contributions:
-            opened = open_payload(contribution["shares"])
+            opened = open_payload(_unmask_shares(contribution["masked"], mask))
             for field in STAT_FIELDS:
                 totals[field] += opened["stats"][field]
-        return totals
+                if opened["stats"][field] > 0:
+                    observers[field] += 1
+        return totals, observers
 
     def _figures(self, model: str, totals: Dict[str, int],
-                 operators: int) -> Dict[str, Any]:
+                 observers: Dict[str, int]) -> Dict[str, Any]:
         """One model's metrics; each needs its own denominator above the floor."""
         definitions = {
             "calls": ("calls", int(totals["calls"]) or None),
@@ -889,21 +958,25 @@ class PublicPublisher:
         }
         figures = {}
         for metric, (denominator, value) in definitions.items():
+            operators = int(observers.get(denominator) or 0)
             if operators < self.floor or value is None:
-                figures[metric] = {"state": "suppressed", "text": NO_DATA_TEXT,
-                                   "reason": "below the publication floor"
-                                   if operators < self.floor
-                                   else "undefined denominator"}
+                figures[metric] = {
+                    "state": "suppressed", "text": NO_DATA_TEXT,
+                    "reason": "undefined denominator"
+                    if int(totals[denominator]) == 0
+                    else "below the publication floor"}
                 continue
             core = {
                 "schema": FIGURE_SCHEMA, "state": "published",
                 "round": "", "model": model,
                 "metric": metric, "value": value,
                 "formula_version": FORMULA_VERSION,
+                # #683 row 42: only this metric's own totals travel with it,
+                # or a published cell would still expose a suppressed one.
                 "cohort": {"operators": operators,
                            "denominator": int(totals[denominator]),
                            "totals": {field: int(totals[field])
-                                      for field in STAT_FIELDS}},
+                                      for field in METRIC_FIELDS[metric]}},
             }
             figures[metric] = core
         return figures
@@ -927,8 +1000,8 @@ class PublicPublisher:
         published = suppressed = 0
         for model in sorted(by_model):
             contributions = by_model[model]
-            totals = self._cell(contributions)
-            figures = self._figures(model, totals, len(contributions))
+            totals, observers = self._cell(round_id, contributions)
+            figures = self._figures(model, totals, observers)
             for metric, figure in figures.items():
                 if figure["state"] == "suppressed":
                     suppressed += 1
@@ -973,6 +1046,7 @@ class PublicPublisher:
         }
         self._sealed[round_id] = sealed
         self._open.pop(round_id, None)
+        self._masks.pop(round_id, None)
         return sealed
 
     def published(self) -> Dict[str, Any]:
