@@ -171,6 +171,24 @@ class LintClaimsCitationAuditTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("semantic_support_unassessed", err)
 
+    def test_a_claim_missing_from_citation_claims_cannot_be_verified(self):
+        payload = _manifest(claims=[
+            {"id": "c1", "text": "The effect was measured.",
+             "source_refs": [1]},
+            {"id": "c2", "text": "An unassessed claim.", "source_refs": [1]},
+        ])
+        with self._resolved():
+            code, out, _err = self._run(payload)
+        self.assertEqual(code, 2)
+        report = json.loads(out)
+        self.assertFalse(report["citation_verified"])
+        audit = report["citation_audit"]
+        self.assertEqual(audit["unassessed_claims"], ["c2"])
+        gaps = [item for item in audit["unresolved"]
+                if item["kind"] == "claim" and item["id"] == "c2"]
+        self.assertEqual(len(gaps), 1)
+        self.assertIn("no citation assessment", " ".join(gaps[0]["reasons"]))
+
 
 class AuditReportCitationsTests(unittest.TestCase):
     def test_the_report_entry_uses_the_real_registry_when_none_is_given(self):

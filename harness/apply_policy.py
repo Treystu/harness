@@ -63,7 +63,7 @@ class ApplyEngineMixin:
         """The engine's one trace writer, or None when none was supplied."""
         return getattr(self, "trace", None)
 
-    def _record_candidates(self, req, pool_order, candidates):
+    def _record_candidates(self, req, pool_order, candidates, configured=None):
         """Persist this call's candidate pool and its order (#472).
 
         ``pool_order`` is the pool as it stood *before* ordering (the caller's
@@ -76,7 +76,8 @@ class ApplyEngineMixin:
         task_id = getattr(req, "task_id", None)
         if trace is None or not task_id:
             return
-        configured = list(pool_order or [])
+        configured = list(configured if configured is not None
+                          else pool_order or [])
         payload = {
             "lane": "apply",
             "primary": getattr(req, "model", None),
@@ -367,6 +368,7 @@ class ApplyEngineMixin:
         sequence rather than discovering the problem only after a failed
         model has already consumed a call."""
         pool_order = req.ordered if req.profiles is not None else self.router.apply_pool
+        configured = getattr(req, "configured_pool", None) or pool_order
         candidates = []
         for m_ in ([req.model] + list(pool_order)):
             if m_ not in candidates:
@@ -376,7 +378,8 @@ class ApplyEngineMixin:
             candidates = [m_ for m_ in candidates if m_ in known_models]
         except HarnessError:
             pass
-        self._record_candidates(req, pool_order, candidates)
+        self._record_candidates(req, pool_order, candidates,
+                                configured=configured)
         return candidates
 
     def _attempt_round(self, req, state, attempt_model):
@@ -475,6 +478,12 @@ class ApplyEngineMixin:
                         model=attempt_model, task_type="code", json_expected=False,
                         json_ok=None, status="error", cost=0.0, tracked_cost=0.0,
                         reported_cost=cost, backend=req.backend,                        reason="paid BYOK route")
+                    # Billing stays exactly as it was (no tracked charge); the
+                    # routing trace still records that this candidate WAS
+                    # tried, so per-candidate histories are complete (row 60).
+                    self._record_attempt(req, attempt_model, "error",
+                                         {"reason": "paid BYOK route",
+                                          "round": state.round_no})
                     outcome.last_error = "model is BYOK-routed (paid); no tracked output"
                     state.failed_models.add(attempt_model)
                     self._note_model_health(attempt_model, ok=False)

@@ -2266,6 +2266,17 @@ def _cmd_assess(opts, settings):
         except (AssessmentError, ValueError, OSError, TraceError) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, sort_keys=True))
             sys.exit(2)
+        if entry.get("unrecorded"):
+            # A failed append returns an ``unrecorded`` result with no event
+            # id. Report that as this command's JSON error and exit 2 instead
+            # of raising KeyError on the missing field (row 54).
+            print(json.dumps({
+                "ok": False,
+                "error": ("the decision trace was not recorded: "
+                          + str(entry.get("error") or "unknown")),
+                "trace": {"ledger": ledger_path, "unrecorded": True},
+            }, sort_keys=True))
+            sys.exit(2)
         report["trace"] = {"ledger": ledger_path,
                            "event_id": entry["event_id"],
                            "kind": entry["kind"]}
