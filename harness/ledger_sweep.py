@@ -25,6 +25,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
+from .ledger_canary import maybe_run_canaries
+
 #: The ruling's "five-minute check".
 SWEEP_CHECK_SECONDS = 300.0
 
@@ -79,17 +81,25 @@ def run_daily_sweep(ledger, *, now: Optional[float] = None,
                     last_sweep_epoch: Optional[float] = None,
                     state_file: Optional[str] = None,
                     force: bool = False) -> Dict[str, Any]:
-    """Sweep when the UTC day is unswept, and say honestly when it is not."""
+    """Sweep when the UTC day is unswept, and say honestly when it is not.
+
+    The same periodic check runs the canary probes when they are due (#683 row
+    39): this function is both the five-minute timer's unit and the cron-able
+    ``harness ledger sweep`` entrypoint, so the advertised daily and staleness
+    triggers have a real production caller.
+    """
     moment = time.time() if now is None else float(now)
+    canaries = maybe_run_canaries(ledger, now=moment)
     previous = (last_sweep_epoch if last_sweep_epoch is not None
                 else read_last_sweep(state_file))
     if not force and not sweep_due(moment, last_sweep_epoch=previous):
         return {"ran": False, "reason": "already swept this UTC day",
-                "swept_at": _iso(moment), "segments": []}
+                "swept_at": _iso(moment), "segments": [],
+                "canaries": canaries}
     results = ledger.sweep_compaction()
     write_last_sweep(state_file, moment)
     return {"ran": True, "reason": "due", "swept_at": _iso(moment),
-            "segments": results,
+            "segments": results, "canaries": canaries,
             "compacted": sum(1 for result in results
                              if result.get("compacted"))}
 
