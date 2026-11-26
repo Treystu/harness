@@ -256,15 +256,14 @@ def pin_window(ledger, *, brief: str, revision: str, selector: str,
                                 os.path.basename(out_path) + ".segments")
     segments = []
     for path in paths:
-        if not os.path.exists(path):
-            continue
-        os.makedirs(snapshot_dir, exist_ok=True)
-        sealed = os.path.join(snapshot_dir, os.path.basename(path))
-        shutil.copyfile(path, sealed)
-        segments.append({"path": os.path.basename(path),
-                         "snapshot": sealed,
-                         "sha256": _sha256_file(sealed),
-                         "bytes": os.path.getsize(sealed)})
+        if os.path.exists(path):
+            os.makedirs(snapshot_dir, exist_ok=True)
+            sealed = os.path.join(snapshot_dir, os.path.basename(path))
+            shutil.copyfile(path, sealed)
+            segments.append({"path": os.path.basename(path),
+                             "snapshot": sealed,
+                             "sha256": _sha256_file(sealed),
+                             "bytes": os.path.getsize(sealed)})
     rows = read_trace_events(ledger, kinds=kinds)
     selected = [{"event_id": row.get("event_id"), "kind": row.get("kind"),
                  "subject_id": row.get("subject_id"), "seq": row.get("seq"),

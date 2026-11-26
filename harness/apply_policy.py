@@ -368,9 +368,7 @@ class ApplyEngineMixin:
         sequence rather than discovering the problem only after a failed
         model has already consumed a call."""
         pool_order = req.ordered if req.profiles is not None else self.router.apply_pool
-        configured = getattr(req, "configured_pool", None)
-        if configured is None:
-            configured = pool_order
+        configured = getattr(req, "configured_pool", None) or pool_order
         candidates = []
         for m_ in ([req.model] + list(pool_order)):
             if m_ not in candidates:
