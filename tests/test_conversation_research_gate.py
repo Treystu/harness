@@ -24,13 +24,6 @@ class _PolicySpy(AcceptingPlanPolicy):
         self.kwargs.append(dict(kwargs))
         return super().evaluate_research_plan(state, **kwargs)
 
-    def evaluate_result_relevance(self, prompt, results, *, site, task_id):
-        # The same policy double stands in for the shared result reviewer; a
-        # plan-only double would be an absent reviewer and withhold results.
-        return None, {"results": [
-            {"url": str(item.get("url") or ""), "verdict": "relevant"}
-            for item in results]}
-
 
 class _BoomPolicy:
     def evaluate_research_plan(self, state, **kwargs):

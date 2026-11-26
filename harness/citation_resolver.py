@@ -136,14 +136,12 @@ def crossref_metadata(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
         else (str(containers) if isinstance(containers, str) else "")
     parent_type = str(message.get("type") or "").lower()
     subtype = str(message.get("subtype") or "").lower()
-    if parent_type == "posted-content":
-        # posted content is not formally published
-        if subtype in ("preprint",) or parent_type == "preprint":
-            version = "preprint"
-        else:
-            version = ""
-    elif subtype in ("posted-content", "preprint") or parent_type in (
-            "posted-content", "preprint"):
+    if parent_type in ("posted-content", "preprint"):
+        # Posted content is never formally published, whatever its subtype
+        # (preprint, working paper, ...). Testing the subtype first stamped a
+        # posted-content record with a non-preprint subtype as published (#73).
+        version = "preprint"
+    elif subtype in ("posted-content", "preprint"):
         version = "preprint"
     elif subtype or parent_type:
         version = "published"

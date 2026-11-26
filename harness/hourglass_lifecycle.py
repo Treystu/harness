@@ -937,12 +937,18 @@ class HourglassLifecycleMixin:
                     }
 
                 # Bind the provider-call key to the plan as well, so a changed
-                # plan does not replay a cached route decision (#79/#83).
-                _plan_tag = str(getattr(research_plan, "hash", lambda: "")()) if research_plan is not None else ""
+                # plan does not replay a cached route decision (#79/#83). With
+                # no plan the key stays the historical one: a persisted
+                # unknown-completion receipt must still suppress a replay
+                # instead of being billed a second time.
+                _plan_tag = (str(getattr(research_plan, "hash", lambda: "")())
+                             if research_plan is not None else "")
+                _route_key = lifecycle_state["request_id"] + ":chat-route-review"
+                if _plan_tag:
+                    _route_key += ":" + _plan_tag
                 route_preflight = self.lifecycle.provider_call(
                     lifecycle_state,
-                    lifecycle_state["request_id"] + ":chat-route-review:"
-                    + _plan_tag,
+                    _route_key,
                     evaluate_route_once,
                     cost=lambda value: float(value.get("cost") or 0.0),
                     retry_unknown=True)
