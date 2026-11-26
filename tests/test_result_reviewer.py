@@ -306,9 +306,11 @@ class ResultAdmissionTests(unittest.TestCase):
         self.assertEqual(reviewer.calls, [])
         self.assertEqual(sources[0]["review"]["verdict"], RESULT_RELEVANT)
 
-    def test_a_policy_without_the_reviewer_is_reported_and_passes(self):
+    def test_a_policy_without_the_reviewer_withholds_the_results(self):
         out, emitted = self._review(object(), _results())
-        self.assertEqual(len(out), 3)
+        self.assertEqual([item.get("kind") for item in out], ["reviewer"])
+        self.assertFalse(out[0]["ok"])
+        self.assertEqual(out[0]["excluded"], 3)
         unavailable = [call for call in emitted.call_args_list
                        if call.args and call.args[0] == "web_result_review_unavailable"]
         self.assertEqual(unavailable[0].kwargs["reason"], "reviewer_absent")
@@ -399,10 +401,11 @@ class ResultAdmissionTests(unittest.TestCase):
         self.assertTrue(any("EVIDENCE REVIEW: reviewer down" in m["content"]
                             for m in messages if m["role"] == "system"))
 
-    def test_without_a_reviewer_the_sources_pass_and_the_run_says_so(self):
+    def test_without_a_reviewer_the_sources_are_withheld_and_the_run_says_so(self):
         sources = _results()
         out, emitted = self._review(None, sources)
-        self.assertEqual(out, sources)
+        self.assertEqual([item.get("kind") for item in out], ["reviewer"])
+        self.assertTrue(all(not item.get("ok") for item in out))
         self.assertIn("web_result_review_unavailable",
                       [call.args[0] for call in emitted.call_args_list
                        if call.args])

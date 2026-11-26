@@ -497,10 +497,15 @@ class MissionExecutor:
 
         Every refusal path files a receipt, parks the file and returns; none of
         them raises out of here, because one bad mission must not stop the
-        queue. The two exceptions are an unreadable inbox (the root is wrong,
+        queue.         The two exceptions are an unreadable inbox (the root is wrong,
         which is not a per-mission condition) and a claim that cannot be
-        closed (the store is unavailable, which is not either).
+        closed (the store is unavailable, which is not either). A token that
+        cannot file receipts is refused up front for the same reason: executing
+        first would leave the claim open and the action replayable (#683
+        finding 25).
         """
+        self.inbox.token.require("read_missions")
+        self.inbox.token.require("write_receipts")
         pending = self.inbox.pending()
         if not pending:
             return None

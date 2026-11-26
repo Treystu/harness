@@ -111,10 +111,33 @@ MAX_EVENT_BUFFER = 4000
 
 
 def _default_backend_probe():
-    """The doctor's MCP stdio check is *the* backend reachability check."""
+    """The doctor's MCP stdio check validates *local* MCP startup only.
+
+    It does not contact the configured backend transport (e.g. the desktop's
+    remote ``harness-oc`` SSH tunnel), so a passing local check cannot confirm
+    that the connected backend is reachable. Report the backend as ``unknown``
+    in that case rather than ``ok``; a genuinely failed local check still reads
+    as unreachable (#33, #34).
+    """
     from .doctor import check_mcp_stdio
 
-    return check_mcp_stdio
+    def _probe():
+        try:
+            settings = load_settings()
+        except Exception:
+            settings = None
+        auth_token = getattr(settings, "mcp_auth_token", None) if settings else None
+        check = check_mcp_stdio(auth_token)
+        if str((check or {}).get("status") or "").upper() == "OK":
+            check = dict(check)
+            check["status"] = "UNKNOWN"
+            check["detail"] = (
+                "local MCP startup passed; the configured backend transport "
+                "was not contacted"
+            )
+        return check
+
+    return _probe
 
 # Rankings reports (advisory, read-only mirror): the `harness rankings`
 # output layout -- rankings/rankings-YYYY-MM-DD.json -- the same files the

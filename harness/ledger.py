@@ -61,6 +61,9 @@ class AutonomyLedger(LedgerAnalytics):
         self._seq = 0
         self._prev_hash = None
         self._segmented = False
+        # Reentrancy guard: suppress rotation-triggered compaction while a
+        # compaction transaction is already in progress (#37).
+        self._compacting = False
         # Count of corrupt/torn lines skipped at load (audit #8b: must exist
         # as a real attribute on every instance, clean load included).
         self.quarantined = 0
@@ -408,9 +411,15 @@ class AutonomyLedger(LedgerAnalytics):
 
     def sweep_compaction(self, segments=None):
         """Evaluate old sealed segments; compaction is the only way out."""
-        targets = (self._rotated_paths()[:-LEDGER_KEEP_ROTATIONS]
-                   if segments is None else list(segments))
-        return [self._compact_old_segment(path) for path in targets]
+        if self._compacting:
+            return []
+        self._compacting = True
+        try:
+            targets = (self._rotated_paths()[:-LEDGER_KEEP_ROTATIONS]
+                       if segments is None else list(segments))
+            return [self._compact_old_segment(path) for path in targets]
+        finally:
+            self._compacting = False
 
     def _compact_old_segment(self, path):
         """Archive, checkpoint and switch one segment -- or leave it intact."""
@@ -534,8 +543,12 @@ class AutonomyLedger(LedgerAnalytics):
                 # line whose predecessor is not loaded by a fresh instance.
                 self._persist(_canon(body))
                 old_segments = self._rotate_if_needed()
-        if old_segments:
-            self.sweep_compaction(old_segments)
+        if old_segments and not self._compacting:
+            self._compacting = True
+            try:
+                self.sweep_compaction(old_segments)
+            finally:
+                self._compacting = False
         return body
 
     def entries(self):

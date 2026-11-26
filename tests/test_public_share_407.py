@@ -498,12 +498,24 @@ class EligibilityTests(unittest.TestCase):
         boss = issuer()
         credential = boss.credential("secret")
         token = ps.eligibility_token(credential, model=MODEL, round_id=ROUND)
-        self.assertTrue(ps.verify_eligibility(token, boss.voucher(token),
-                                             verify_key=ISSUER_KEY))
+        voucher = boss.voucher(token, credential=credential, model=MODEL,
+                               round_id=ROUND)
+        self.assertTrue(ps.verify_eligibility(token, voucher,
+                                              verify_key=ISSUER_KEY))
         self.assertFalse(ps.verify_eligibility(token, "0" * 64,
                                               verify_key=ISSUER_KEY))
         self.assertFalse(ps.verify_eligibility(None, None,
                                               verify_key=ISSUER_KEY))
+
+    def test_an_arbitrary_token_cannot_be_vouched(self):
+        # #683 finding 40: a copied report with a swapped eligibility block
+        # must not obtain a voucher for a token the credential never derived.
+        boss = issuer()
+        credential = boss.credential("secret")
+        with self.assertRaises(HarnessError) as caught:
+            boss.voucher("arbitrary-token", credential=credential,
+                         model=MODEL, round_id=ROUND)
+        self.assertIn("not derived", str(caught.exception))
 
     def test_a_credential_and_an_issuer_key_are_required(self):
         with self.assertRaises(HarnessError):

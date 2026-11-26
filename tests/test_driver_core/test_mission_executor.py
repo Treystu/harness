@@ -256,6 +256,19 @@ class ClaimTests(InboxCase):
 
 
 class ExecutorTests(InboxCase):
+    def test_a_token_that_cannot_receipt_never_executes(self):
+        # #683 finding 25: without the write capability the claim would stay
+        # open after the action ran, so a second poll could replay it.
+        self.put(_payload())
+        read_only = mx.MissionToken(
+            "secret-token-value", capabilities=("read_missions",), repo=REPO)
+        executor = self.executor(inbox=self.inbox(token=read_only))
+        with self.assertRaises(mx.missions.MissionRefused) as caught:
+            executor.process_next()
+        self.assertIn("write_receipts", str(caught.exception))
+        self.assertEqual(self.executed, [])
+        self.assertEqual(self.inbox().pending(), ["m-1.json"])
+
     def test_a_valid_mission_executes_once_and_is_receipted(self):
         self.put(_payload())
         executor = self.executor()

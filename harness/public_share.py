@@ -570,14 +570,17 @@ def open_payload(shares: List[Dict[str, Any]], *, count: int = SHARE_COUNT) -> \
 # --------------------------------------------------------------------------
 
 class EligibilityIssuer:
-    """Vouches tokens without ever seeing an operator identity or credential.
+    """Vouches only the token a credential actually derives.
 
     A credential is issued once per profile; the client derives a
     model-and-round-scoped token from it and asks the issuer for a voucher.
     The voucher is an HMAC the client cannot compute, so a fabricated token is
-    refused. The issuer sees only round-scoped tokens, never the credential and
-    never an address, and one credential yields one token per model and round,
-    so a retry cannot count twice.
+    refused. The issuer re-derives the token from the presented credential,
+    model and round and refuses anything else, so arbitrary tokens cannot be
+    vouched by copying a report and swapping its eligibility block (#683
+    finding 40). The credential is used for that check only, never stored, and
+    one credential yields one token per model and round, so a retry cannot
+    count twice.
     """
 
     def __init__(self, key: bytes):
@@ -591,7 +594,19 @@ class EligibilityIssuer:
         return hmac.new(self._key, b"credential:" + profile_secret.encode(),
                         hashlib.sha256).hexdigest()
 
-    def voucher(self, token: str) -> str:
+    def voucher(self, token: str, *, credential: str, model: str,
+                round_id: str) -> str:
+        """Vouch this credential's own model-and-round token, or refuse."""
+        for name, value in (("token", token), ("credential", credential),
+                            ("model", model), ("round_id", round_id)):
+            if not isinstance(value, str) or not value.strip():
+                raise HarnessError(f"a voucher needs a non-empty {name}")
+        expected = eligibility_token(credential, model=model,
+                                     round_id=round_id)
+        if not hmac.compare_digest(expected, token):
+            raise HarnessError(
+                "voucher refused: the token is not derived from this "
+                "credential for that model and round")
         return hmac.new(self._key, b"voucher:" + token.encode(),
                         hashlib.sha256).hexdigest()
 
@@ -683,8 +698,10 @@ def build_report(*, ledger: Any, model: str, consent: Any,
     }
     if issuer is not None and credential:
         token = eligibility_token(credential, model=model, round_id=target_round)
-        report["eligibility"] = {"token": token,
-                                 "voucher": issuer.voucher(token)}
+        report["eligibility"] = {
+            "token": token,
+            "voucher": issuer.voucher(token, credential=credential,
+                                      model=model, round_id=target_round)}
     return report
 
 
