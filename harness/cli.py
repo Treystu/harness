@@ -56,6 +56,7 @@ from .config import (
     resolve_hourglass,
 )
 from .endpoint_pricing import load_fireworks_endpoints
+from .completion_spec import BAR_CLASSES, run_spec_file
 from .errors import HarnessError
 from .ledger_sweep import run_daily_sweep, state_path
 from .lifecycle import LifecycleCoordinator
@@ -1841,6 +1842,38 @@ def _cmd_jev_phase(opts, settings):
             f"< {result['min_score']} or hard gates failed — do not mark complete")
 
 
+def _cmd_completion_spec(opts, settings):
+    """Dry-run the frozen RSI completion spec over a recorded census (Build 1).
+
+    Bars are data: this face only loads the spec, runs its named checks against
+    the census and reports passed-against-full-total with every red bar named.
+    A run that cannot exercise a class is labelled PARTIAL and earns no credit.
+    """
+    board = run_spec_file(
+        opts.repo_root,
+        census_path=opts.census,
+        spec_path=getattr(opts, "spec", None),
+    )
+    summary = board["summary"]
+    if not getattr(opts, "json", False):
+        for name in BAR_CLASSES:
+            bucket = board["classes"][name]
+            eprint(f"{name}: {bucket['state']} ({bucket['passed']}/{bucket['total']})")
+        eprint(f"{summary['label']} verdict={summary['verdict']} "
+               f"passed={summary['passed']}/{summary['total']} credit={summary['credit']}")
+        if summary["red_bars"]:
+            eprint("red: " + ", ".join(summary["red_bars"]))
+        if summary["unrun_bars"]:
+            eprint("unrun: " + ", ".join(summary["unrun_bars"]))
+    _emit(board, opts.out, force_json=getattr(opts, "json", False))
+    if getattr(opts, "require_green", False) and not summary["credit"]:
+        raise HarnessError(
+            "completion spec is not fully green: red="
+            + (", ".join(summary["red_bars"]) or "-")
+            + "; unrun=" + (", ".join(summary["unrun_bars"]) or "-"))
+    return board
+
+
 def _cmd_jev_vision_assessment(opts, settings):
     """Run the bounded HV-0 vision assessment or a no-dispatch preflight."""
     state = build_vision_assessment_state(opts.repo_root)
@@ -2342,6 +2375,7 @@ _DISPATCH = {
     "rankings": _cmd_rankings,
     "economics": _cmd_economics,
     "jev-phase": _cmd_jev_phase,
+    "completion-spec": _cmd_completion_spec,
     "jev-vision-assessment": _cmd_jev_vision_assessment,
     "jev-freeze": _cmd_jev_freeze,
     "mission": _cmd_mission,

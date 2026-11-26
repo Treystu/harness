@@ -1,0 +1,154 @@
+{
+  "census_id": "rsi-build0-manual-epoch",
+  "as_of": {
+    "head": "6602e00df1b995fa994a6f0564b1d45e6cd4ba19",
+    "captured_at": "2026-11-20",
+    "note": "Epoch head identical at epoch start and end; no external landing during the epoch."
+  },
+  "provenance": {
+    "record": "ledger dispatch/harness/selfimprove-plan/build0/BUILD-0-RECEIPT.md",
+    "artifact": "ledger dispatch/harness/selfimprove-plan/build0/census-artifact.md",
+    "plan": "ledger dispatch/harness/selfimprove-plan/PLAN.md (blob 65302e2d8ffb826c06e7050078ef7f7119f1f476)",
+    "transcription": "Values are transcribed from the Build 0 receipt and census artifact; nothing is re-measured here."
+  },
+  "inventory": {
+    "issues": [
+      {"number": 277, "state": "open"},
+      {"number": 280, "state": "open"},
+      {"number": 281, "state": "open"},
+      {"number": 289, "state": "open"},
+      {"number": 291, "state": "open"},
+      {"number": 294, "state": "open"},
+      {"number": 295, "state": "open"},
+      {"number": 308, "state": "open"},
+      {"number": 309, "state": "open"},
+      {"number": 310, "state": "open"},
+      {"number": 313, "state": "open"},
+      {"number": 314, "state": "open"},
+      {"number": 318, "state": "open"},
+      {"number": 319, "state": "open"},
+      {"number": 337, "state": "open"},
+      {"number": 342, "state": "open"},
+      {"number": 343, "state": "open"},
+      {"number": 344, "state": "open"},
+      {"number": 380, "state": "open"},
+      {"number": 381, "state": "open"},
+      {"number": 382, "state": "open"},
+      {"number": 412, "state": "open", "operator_hold": true},
+      {"number": 413, "state": "open"},
+      {"number": 415, "state": "open", "operator_hold": true},
+      {"number": 422, "state": "open"},
+      {"number": 452, "state": "open", "operator_hold": true},
+      {"number": 466, "state": "open"},
+      {"number": 469, "state": "open"},
+      {"number": 475, "state": "open"},
+      {"number": 480, "state": "open", "operator_hold": true},
+      {"number": 482, "state": "open", "operator_hold": true},
+      {"number": 517, "state": "open"}
+    ],
+    "nonissue": [
+      {"id": "SELF-IMPROVE", "state": "open", "note": "RSI mode adopted 2026-11-20; Builds 0-4 are its open work."},
+      {"id": "FED-UNIFICATION", "state": "open", "note": "Served-UI unification census recorded NOT RUN."}
+    ],
+    "reconciliation": {
+      "issues": {
+        "api_count": 32,
+        "register_open": 35,
+        "receipted_closures": 3,
+        "closure_receipts": ["#414", "#467 (filing 7052166105)", "#474"],
+        "unexplained": []
+      },
+      "nonissue": {
+        "register_open": 2,
+        "unexplained": []
+      }
+    },
+    "closures": {
+      "recorded": false,
+      "note": "No closure occurred during the epoch; the three pre-base closures are register history with their own receipts."
+    }
+  },
+  "pulls": {
+    "open": [
+      {"number": 644, "head": "ff1a2606"},
+      {"number": 645, "head": "767babdb"},
+      {"number": 647, "head": "22f7deb2"}
+    ]
+  },
+  "worktrees": {
+    "recorded": false,
+    "note": "The Build 0 receipt records no fleet-wide unpushed-work read; not inferred here."
+  },
+  "rail": {
+    "head": "6602e00df1b995fa994a6f0564b1d45e6cd4ba19",
+    "source": "circleci",
+    "pipeline": "86f82d19-5f3a-4c2c-ae5a-5a2cbb1c2233",
+    "contexts": [
+      {"name": "ci", "state": "success"}
+    ],
+    "debt": []
+  },
+  "judgment": {
+    "artifact_bar": {
+      "instrument": "gap-seeking-v1",
+      "runs": [
+        {
+          "combined": 62.5,
+          "axes": {
+            "correctness": 60,
+            "completeness": 60,
+            "executability": 60,
+            "safety": 35,
+            "currency": 60
+          },
+          "probes": "proven",
+          "probes_score": 100
+        },
+        {
+          "combined": 62.5,
+          "axes": {
+            "correctness": 60,
+            "completeness": 60,
+            "executability": 60,
+            "safety": 35,
+            "currency": 60
+          },
+          "probes": "proven",
+          "probes_score": 100
+        }
+      ]
+    },
+    "phase_bar": {
+      "recorded": false,
+      "note": "The Build 0 receipt records no jev-phase --all run."
+    },
+    "change_set": {
+      "present": false,
+      "judged": false,
+      "note": "No fixes were executed by the epoch; the burndown train's PRs were untouched."
+    }
+  },
+  "behavior": {
+    "surfaces": {
+      "cli": {"state": "pass", "note": "harness --help exit 0 from a clean worktree."},
+      "mcp": {"state": "pass", "note": "stdio initialize returned server harness 0.5.1 with a tools capability."},
+      "gui": {"state": "not_run", "note": "Loopback driver service not startable (#413); this seat has no GUI surface."},
+      "studio": {"state": "not_run", "note": "Same surface-access block as the GUI leg."}
+    },
+    "never_defer": {"state": "not_run", "note": "No live provider-failure drive was run in Build 0."}
+  },
+  "census": {
+    "unification": {"closed": false, "note": "FED-UNIFICATION served-UI census has never been run."},
+    "self_claims": {"recorded": false, "note": "The claims panel was not run over the self-claims set."}
+  },
+  "checks_16_5": {
+    "recorded": false,
+    "checks": []
+  },
+  "plan_of_record": {
+    "canonical": "docs/jev-roadmap.md",
+    "census_view": "#295",
+    "single_home": true,
+    "generated": true
+  }
+}

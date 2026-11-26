@@ -809,6 +809,21 @@ def build_parser():
     pjphase.add_argument("--json", action="store_true", help="emit raw JSON only")
     _add_output_flags(pjphase)
 
+    pspec = sub.add_parser(
+        "completion-spec",
+        help="Run the frozen RSI completion spec (bars as data, five classes) "
+             "against a recorded census; a dry run names every red bar")
+    pspec.add_argument("--census", required=True,
+                       help="recorded census JSON to run the spec against")
+    pspec.add_argument("--spec", default=None,
+                       help="spec JSON path override (default packs/completion_spec.json)")
+    pspec.add_argument("--repo-root", default=".",
+                       help="repo root containing packs/completion_spec.json")
+    pspec.add_argument("--require-green", action="store_true",
+                       help="exit 1 unless every bar passes and the run earns credit")
+    pspec.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pspec)
+
     pvision = sub.add_parser(
         "jev-vision-assessment",
         help="Assess the Hourglass vision with one bounded, typed Jev request")
