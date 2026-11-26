@@ -1,4 +1,4 @@
-"""Sergeant gates for the #canon1 merge act: Product Jev first, Lucas Gate v2 second.
+"""Sergeant gates for the #canon1 merge act: Lucas Gate v2 first, product Jev second.
 
 Merge act: PR #canon1 at exact head dbb54a7, CircleCI 16/16 green at that head,
 MERGEABLE vs main 7acd2df3, ready, in dependency-safe slot per 6996071450 item 5 after cars 1-4. Register filing;
@@ -46,8 +46,6 @@ def main():
         return 2
 
     before = len(ledger.tail(200000))
-    verdict, structural = policy.evaluate_decision(
-        ACTION, GOAL, "Sergeant W468/W469 readiness filing", site=SITE)
     categories = [
         {"id": cid, "applicable": True, "score": 9.5,
          "category_average": 9.5,
@@ -70,15 +68,17 @@ def main():
                                    "used as evidence."}
                      for k, v in BIAS.items()],
         actual_risk=False, overall_average=9.5)
+    verdict, structural = policy.evaluate_decision(
+        ACTION, GOAL, "Sergeant W468/W469 readiness filing", site=SITE)
     out = {
         "w468w469": {
             "product_jev": {
                 "verdict": verdict.get("verdict"),
                 "disposition": verdict.get("disposition"),
                 "margin": verdict.get("margin"),
-                "lead": verdict.get("lead"),
-                "advanced": verdict.get("advanced"),
-                "destructive": verdict.get("destructive"),
+                "lead": verdict.get("disposition_lead"),
+                "advanced": verdict.get("advances_goal"),
+                "destructive": verdict.get("is_destructive"),
                 "supported": structural.get("supported"),
                 "cost": structural.get("cost"),
                 "model": structural.get("model"),
@@ -90,8 +90,8 @@ def main():
     }
     print("w468w469 jev", verdict.get("verdict"),
           "disp=", verdict.get("disposition"),
-          f"lead={verdict.get('lead')} adv={verdict.get('advanced')} "
-          f"destr={verdict.get('destructive')}",
+          f"lead={verdict.get('disposition_lead')} adv={verdict.get('advances_goal')} "
+          f"destr={verdict.get('is_destructive')}",
           "| lucas", lucas["status"])
     after = len(ledger.tail(200000))
     out["_meta"] = {"ledger_rows_added": after - before,

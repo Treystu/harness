@@ -1,4 +1,4 @@
-"""Sergeant gates for landing #475 car PR #638. Product Jev first, Lucas second.
+"""Sergeant gates for landing #475 car PR #638. Lucas Gate v2 first, product Jev second.
 
 Merge proposition (read live at filing time):
 - PR #638 head 79cb60da, base = main d916a7bb (merge-base == main: up to date).
@@ -75,8 +75,6 @@ def main():
         return 2
 
     before = len(ledger.tail(200000))
-    verdict, structural = policy.evaluate_decision(
-        ACTION, GOAL, "Sergeant landing disposition #638", site=SITE)
     categories = [
         {"id": cid, "applicable": True, "score": 9.5,
          "category_average": 9.5,
@@ -96,14 +94,16 @@ def main():
                       "rationale": "Claims are limited to what the live read "
                                    "returned."} for k, v in BIAS.items()],
         actual_risk=False, overall_average=9.5)
+    verdict, structural = policy.evaluate_decision(
+        ACTION, GOAL, "Sergeant landing disposition #638", site=SITE)
     out = {
         "product_jev": {
             "verdict": verdict.get("verdict"),
             "disposition": verdict.get("disposition"),
             "margin": verdict.get("margin"),
-            "lead": verdict.get("lead"),
-            "advanced": verdict.get("advanced"),
-            "destructive": verdict.get("destructive"),
+            "lead": verdict.get("disposition_lead"),
+            "advanced": verdict.get("advances_goal"),
+            "destructive": verdict.get("is_destructive"),
             "supported": structural.get("supported"),
             "cost": structural.get("cost"),
             "model": structural.get("model"),
