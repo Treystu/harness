@@ -409,12 +409,45 @@ class AutonomyLedger(LedgerAnalytics):
         return compaction.crosses_gap(previous.get("seq"),
                                       previous.get("hash"), entry, runs)
 
+    def _refresh_citation_pins(self):
+        """Re-derive citation pins from every retained segment on disk.
+
+        ``citation_pins`` was populated only at load and by this instance's
+        own ``pin_citation`` calls, so a citation another open instance
+        appended was invisible here. A sweep from the older instance then
+        deleted a cited row. Re-reading the segments before a sweep, and for
+        every entry the rebase picks up, keeps the pin set honest (#683 row 38).
+        """
+        pins = set(self.citation_pins)
+        for source_path in self._ledger_paths():
+            try:
+                with open(source_path, encoding="utf-8") as stream:
+                    for line in stream:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = json.loads(line)
+                        except (ValueError, TypeError):
+                            continue
+                        if (not isinstance(entry, dict)
+                                or entry.get("event") != "citation"
+                                or entry.get("target_seq") is None):
+                            continue
+                        pins.add((entry["target_seq"],
+                                  str(entry.get("target_hash"))))
+            except OSError:
+                continue
+        self.citation_pins = pins
+        return pins
+
     def sweep_compaction(self, segments=None):
         """Evaluate old sealed segments; compaction is the only way out."""
         if self._compacting:
             return []
         self._compacting = True
         try:
+            self._refresh_citation_pins()
             targets = (self._rotated_paths()[:-LEDGER_KEEP_ROTATIONS]
                        if segments is None else list(segments))
             return [self._compact_old_segment(path) for path in targets]
@@ -498,6 +531,14 @@ class AutonomyLedger(LedgerAnalytics):
                             if (entry.get("event") == "offer"
                                     and isinstance(entry.get("task_id"), str)):
                                 self._offered_task_ids.add(entry["task_id"])
+                            if (entry.get("event") == "citation"
+                                    and entry.get("target_seq") is not None):
+                                # Another instance's citation must pin here too,
+                                # or this instance's next sweep deletes a row
+                                # the ledger has already relied on.
+                                self.citation_pins.add((
+                                    entry["target_seq"],
+                                    str(entry.get("target_hash"))))
                             last_seq = entry["seq"]
                             last_hash = entry["hash"]
             except OSError:

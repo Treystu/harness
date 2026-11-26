@@ -404,6 +404,18 @@ class ShareProfile:
                     os.unlink(path)
                     dropped += 1
                     continue
+                period = (report.get("proof") or {}).get("consent_period")
+                if period != _hex16(policy["period"]):
+                    # A new consent period is a new authorization. The queued
+                    # report cites the old one, so it is discarded rather than
+                    # sent on a permission nobody gave it.
+                    try:
+                        os.unlink(path)
+                        dropped += 1
+                    except OSError:
+                        retained += 1
+                    reason = "the consent period changed"
+                    continue
                 try:
                     self.transport(report)
                 except HarnessError as exc:
@@ -469,6 +481,15 @@ def derive_stats(rows: List[Dict[str, Any]], model: str) -> Optional[Dict[str, i
             stats["tasks"] += 1
             if status == "ok":
                 stats["successes"] += 1
+        elif event == "abort":
+            # ``ApplyGate.terminal_failure`` records an ``abort`` with a
+            # reason, never a ``complete`` with a failed status. Counting only
+            # ``complete`` would leave failed apply runs out of the task
+            # denominator while their model-call costs stayed in, which makes
+            # a failure-heavy operator look faster and more reliable.
+            if not str(row.get("reason") or "").strip():
+                continue
+            stats["tasks"] += 1
         else:
             continue
         latencies = _finite(row.get("latency_ms"))

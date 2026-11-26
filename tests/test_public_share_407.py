@@ -69,6 +69,13 @@ def report_for(round_id=ROUND, model=MODEL, *, rows=None, brokered=None,
     )
 
 
+def report_for_profile(profile, **kwargs):
+    """A queued report always cites the period its own profile is under."""
+    report = report_for(**kwargs)
+    report["proof"]["consent_period"] = ps._hex16(profile.policy()["period"])
+    return report
+
+
 class ConsentRecordTests(unittest.TestCase):
     """The record, its scope, and the fail-closed policy over it."""
 
@@ -226,7 +233,7 @@ class ProfileWithdrawalTests(unittest.TestCase):
 
         self.profile.transport = transport
         self.profile.enable()
-        self.profile.queue(report_for())
+        self.profile.queue(report_for_profile(self.profile))
         result = self.profile.upload_pending()
         self.assertEqual(result["sent"], 0)
         self.assertEqual(result["retained"], 1)
