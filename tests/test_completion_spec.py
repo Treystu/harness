@@ -269,6 +269,14 @@ class GreenAndPartialTests(unittest.TestCase):
 
 
 class CompletionSpecCliTests(unittest.TestCase):
+    def tearDown(self):
+        # --quiet is process-global output state (harness/output.py QUIET) set by
+        # apply_output_flags; a test that leaves it True silences eprint for every
+        # test that runs after it.
+        from harness import output, render
+        output.QUIET = False
+        render.set_color_enabled(True)
+
     def test_cli_runs_the_build0_census_and_prints_the_board(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -285,7 +293,7 @@ class CompletionSpecCliTests(unittest.TestCase):
             with self.assertRaises((HarnessError, SystemExit)):
                 harness_cli.main(["completion-spec", "--repo-root", str(REPO_ROOT),
                                   "--census", str(BUILD0_CENSUS),
-                                  "--require-green", "--quiet"])
+                                  "--require-green"])
 
     def test_cli_human_summary_names_the_red_bars(self):
         stderr = io.StringIO()
@@ -304,7 +312,7 @@ class CompletionSpecCliTests(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()):
                 harness_cli.main(["completion-spec", "--repo-root", str(REPO_ROOT),
                                   "--census", str(BUILD0_CENSUS),
-                                  "--out", str(out), "--quiet"])
+                                  "--out", str(out)])
             board = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(board["summary"]["total"], 21)
 
