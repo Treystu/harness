@@ -236,9 +236,7 @@ class GhTransport(Transport):
             return self._api("POST", f"repos/{kwargs['repo']}/issues/"
                                      f"{kwargs['number']}/comments",
                              {"body": kwargs["body"]})
-        if operation == "read":
-            return self._api("GET", kwargs["path"])
-        raise HarnessError(f"unknown transport operation {operation!r}")
+        return self._api("GET", kwargs["path"])
 
 
 def verify_readback(transport: Transport, repo: str, filing: Filing) -> Filing:

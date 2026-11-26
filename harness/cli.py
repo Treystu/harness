@@ -1914,6 +1914,11 @@ def _cmd_epoch_workspace(opts, settings):
     return receipt
 
 
+def _self_filing_transport():
+    """The tracker poster. A seam for tests; production posts through ``gh``."""
+    return GhTransport()
+
+
 def _cmd_self_filing(opts, settings):
     """File one epoch package and one receipt to the tracker bus (Build 3).
 
@@ -1937,7 +1942,8 @@ def _cmd_self_filing(opts, settings):
         }
     else:
         result = file_test_epoch(
-            GhTransport(), opts.repo, epoch=opts.epoch, epoch_sha=opts.epoch_sha,
+            _self_filing_transport(), opts.repo, epoch=opts.epoch,
+            epoch_sha=opts.epoch_sha,
             bus=int(opts.bus), package=package, receipt=receipt,
             ledger_path=getattr(opts, "ledger", None) or DEFAULT_LEDGER, seat=seat)
         result["dry_run"] = False

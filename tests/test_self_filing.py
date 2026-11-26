@@ -342,6 +342,25 @@ class GhTransportTests(unittest.TestCase):
                                      body="b")
         self.assertIn("403", str(caught.exception))
 
+    def test_the_default_runner_is_a_real_shell_free_command(self):
+        import sys
+
+        result = mod._default_run([sys.executable, "-c", "print('ok')"])
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("ok", result.stdout)
+
+    def test_result_text_falls_back_to_stdout_and_stderr(self):
+        from types import SimpleNamespace
+
+        class Bare:
+            returncode = 1
+            stdout = "out"
+            stderr = "err"
+
+        self.assertEqual(mod._result_text(Bare()), "outerr")
+        self.assertEqual(mod._result_text(SimpleNamespace(combined="joined")),
+                         "joined")
+
     def test_non_json_output_is_refused(self):
         def runner(argv, cwd=None, input_text=None):
             return CommandResult(0, "not json")
@@ -468,6 +487,46 @@ class SelfFilingCliTests(unittest.TestCase):
         self.assertEqual(preview["seat"], SEAT_TAG)
         self.assertIn("### PACKAGE rsi-pkg-0001", preview["package"])
         self.assertIn("### RECEIPT test-20261126", preview["receipt"])
+
+    def test_cli_files_through_the_transport_and_reports_both_urls(self):
+        tracker = FakeTracker()
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = Path(tmp) / "package.json"
+            rec = Path(tmp) / "receipt.json"
+            ledger = str(Path(tmp) / "ledger.json")
+            write_text(pkg, json.dumps(package()))
+            write_text(rec, json.dumps(receipt()))
+            with mock.patch.object(harness_cli, "_self_filing_transport",
+                                   return_value=tracker):
+                stdout, _ = self._run([
+                    "self-filing", "--repo", REPO, "--bus", "295",
+                    "--epoch", "test-20261126", "--epoch-sha", SHA,
+                    "--package", str(pkg), "--receipt", str(rec),
+                    "--ledger", ledger, "--json"])
+            result = json.loads(stdout)
+            self.assertTrue(result["verified"])
+            self.assertFalse(result["dry_run"])
+            self.assertTrue(
+                result["package"]["url"].endswith("#issuecomment-1001"))
+            self.assertTrue(Path(ledger).is_file())
+
+    def test_cli_human_output_names_the_filed_records(self):
+        tracker = FakeTracker()
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = Path(tmp) / "package.json"
+            rec = Path(tmp) / "receipt.json"
+            ledger = str(Path(tmp) / "ledger.json")
+            write_text(pkg, json.dumps(package()))
+            write_text(rec, json.dumps(receipt()))
+            with mock.patch.object(harness_cli, "_self_filing_transport",
+                                   return_value=tracker):
+                _, stderr = self._run([
+                    "self-filing", "--repo", REPO, "--bus", "295",
+                    "--epoch", "test-20261126", "--epoch-sha", SHA,
+                    "--package", str(pkg), "--receipt", str(rec),
+                    "--ledger", ledger])
+        self.assertIn("seat: rsi-epoch", stderr)
+        self.assertIn("verified: yes", stderr)
 
     def test_cli_refuses_a_bad_sha(self):
         with tempfile.TemporaryDirectory() as tmp:
