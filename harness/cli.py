@@ -58,6 +58,14 @@ from .config import (
 from .endpoint_pricing import load_fireworks_endpoints
 from .completion_spec import BAR_CLASSES, run_spec_file
 from .epoch_workspace import run_epoch_workspace
+from .self_filing import (
+    DEFAULT_LEDGER,
+    SEAT_TAG,
+    GhTransport,
+    file_test_epoch,
+    render_package,
+    render_receipt,
+)
 from .errors import HarnessError
 from .ledger_sweep import run_daily_sweep, state_path
 from .lifecycle import LifecycleCoordinator
@@ -1906,6 +1914,45 @@ def _cmd_epoch_workspace(opts, settings):
     return receipt
 
 
+def _cmd_self_filing(opts, settings):
+    """File one epoch package and one receipt to the tracker bus (Build 3).
+
+    Append-only and read-back verified: the module has no edit, delete or close
+    verb, and a filing counts only when the tracker returns the exact body that
+    was sent. ``--dry-run`` renders both records without touching the tracker.
+    """
+    package = json.loads(Path(opts.package).read_text(encoding="utf-8"))
+    receipt = json.loads(Path(opts.receipt).read_text(encoding="utf-8"))
+    seat = getattr(opts, "seat", None) or SEAT_TAG
+    if getattr(opts, "dry_run", False):
+        result = {
+            "seat": seat,
+            "epoch": opts.epoch,
+            "epoch_sha": opts.epoch_sha,
+            "bus": int(opts.bus),
+            "package": render_package(package, seat=seat, epoch=opts.epoch,
+                                      epoch_sha=opts.epoch_sha),
+            "receipt": render_receipt(receipt, seat=seat, epoch=opts.epoch),
+            "dry_run": True,
+        }
+    else:
+        result = file_test_epoch(
+            GhTransport(), opts.repo, epoch=opts.epoch, epoch_sha=opts.epoch_sha,
+            bus=int(opts.bus), package=package, receipt=receipt,
+            ledger_path=getattr(opts, "ledger", None) or DEFAULT_LEDGER, seat=seat)
+        result["dry_run"] = False
+    if not getattr(opts, "json", False):
+        eprint(f"seat: {result['seat']} epoch: {result['epoch']} bus: {result['bus']}")
+        if result["dry_run"]:
+            eprint("dry run: nothing filed")
+        else:
+            eprint(f"package: {result['package']['url']}")
+            eprint(f"receipt: {result['receipt']['url']}")
+            eprint("verified: " + ("yes" if result["verified"] else "no"))
+    _emit(result, opts.out, force_json=getattr(opts, "json", False))
+    return result
+
+
 def _cmd_jev_vision_assessment(opts, settings):
     """Run the bounded HV-0 vision assessment or a no-dispatch preflight."""
     state = build_vision_assessment_state(opts.repo_root)
@@ -2409,6 +2456,7 @@ _DISPATCH = {
     "jev-phase": _cmd_jev_phase,
     "completion-spec": _cmd_completion_spec,
     "epoch-workspace": _cmd_epoch_workspace,
+    "self-filing": _cmd_self_filing,
     "jev-vision-assessment": _cmd_jev_vision_assessment,
     "jev-freeze": _cmd_jev_freeze,
     "mission": _cmd_mission,

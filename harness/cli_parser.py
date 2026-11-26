@@ -853,6 +853,26 @@ def build_parser():
     pews.add_argument("--json", action="store_true", help="emit raw JSON only")
     _add_output_flags(pews)
 
+    psf = sub.add_parser(
+        "self-filing",
+        help="File one RSI epoch package and one receipt to the tracker bus, "
+             "append-only and verified by read-back (--dry-run renders only)")
+    psf.add_argument("--repo", required=True, help="owner/name the bus lives in")
+    psf.add_argument("--bus", required=True, type=int,
+                     help="tracker issue number the records ride as comments")
+    psf.add_argument("--epoch", required=True, help="epoch name these records belong to")
+    psf.add_argument("--epoch-sha", dest="epoch_sha", required=True,
+                     help="full 40-character head SHA the epoch pinned to")
+    psf.add_argument("--package", required=True, help="package record JSON path")
+    psf.add_argument("--receipt", required=True, help="receipt record JSON path")
+    psf.add_argument("--ledger", default=None,
+                     help="loop ledger path (default tmp/rsi-epochs/self-filing-ledger.json)")
+    psf.add_argument("--seat", default=None, help="seat tag (default rsi-epoch)")
+    psf.add_argument("--dry-run", dest="dry_run", action="store_true",
+                     help="render both records and file nothing")
+    psf.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(psf)
+
     pvision = sub.add_parser(
         "jev-vision-assessment",
         help="Assess the Hourglass vision with one bounded, typed Jev request")
