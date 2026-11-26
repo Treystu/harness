@@ -159,27 +159,33 @@ class ConversationLifecycleMixin:
             # proposed here and native Jev judges it exactly once; only a plan
             # validate_plan accepts may search or fetch. A missing reviewer, an
             # unkeyed one, a decline or an invalid answer leaves both at zero.
+            raw_caps = getattr(self, "web_capabilities", ("search", "fetch"))
+            active_caps = () if raw_caps is None else tuple(raw_caps)
             request_id = str(
                 (lifecycle_state or {}).get("request_id") or "") or (
                 f"chat:{session_id}:{uuid4().hex}")
             plan, approval, plan_record = decide_research_plan(
                 prompt, policy=web_policy, request_id=request_id,
-                task_id=session_id)
+                task_id=session_id, capabilities=active_caps)
             if approval is None:
                 system_prompt += "\n\n" + _WEB_PLAN_WITHHELD_NOTE.format(
                     reason=(plan_record.get("reason")
                             or plan_record.get("state") or "declined"))
             else:
+                call_counts = {"search_calls": 0, "fetch_calls": 0}
                 try:
                     web_sources = self._gather_web_context(
                         prompt, named_hosts, jev_policy=web_policy,
                         task_id=session_id, plan=plan, approval=approval,
-                        request_id=request_id)
+                        request_id=request_id, capabilities=active_caps,
+                        counts=call_counts)
                 except ToolCancelled:
                     raise
                 except Exception as e:  # web tools must never kill the chat
                     web_sources = [{"kind": "web", "ok": False,
                                     "note": f"web tools error: {e}"}]
+                plan_record["search_calls"] = call_counts["search_calls"]
+                plan_record["fetch_calls"] = call_counts["fetch_calls"]
                 _allowed, _any = resolve_fetch_allowlist(self.settings)
                 if _any:
                     hosts = "any public website (SSRF-guarded)"
@@ -562,11 +568,31 @@ class ConversationLifecycleMixin:
     def _gather_web_context(self, prompt: str,
                             named_hosts=None, *, jev_policy=None,
                             task_id: Optional[str] = None,
-                            plan=None, approval=None, request_id: str = ""
+                            plan=None, approval=None, request_id: str = "",
+                            capabilities=None,
+                            counts: Optional[Dict[str, int]] = None
                             ) -> List[Dict[str, Any]]:
         # Web owns the network seams; pass those module functions through so
         # policy and hermetic test patches remain at the single owner.
         import harness.web as _web
+
+        local_counts = counts if counts is not None else {
+            "search_calls": 0, "fetch_calls": 0,
+        }
+        if capabilities is None:
+            raw_caps = getattr(self, "web_capabilities", ("search", "fetch"))
+            eff_caps = () if raw_caps is None else tuple(raw_caps)
+        else:
+            eff_caps = tuple(capabilities)
+        self._last_web_call_counts = local_counts
+
+        def _fetch(*args, **kwargs):
+            local_counts["fetch_calls"] = local_counts.get("fetch_calls", 0) + 1
+            return _web.fetch_url(*args, **kwargs)
+
+        def _search(*args, **kwargs):
+            local_counts["search_calls"] = local_counts.get("search_calls", 0) + 1
+            return _web.search_web(*args, **kwargs)
 
         allowed, any_public = resolve_fetch_allowlist(self.settings)
         gathered = gather_web_context(
@@ -574,14 +600,15 @@ class ConversationLifecycleMixin:
             allowed_hosts=allowed,
             allow_any_public=any_public,
             named_hosts=named_hosts or named_target_hosts(prompt),
-            fetch_url_fn=_web.fetch_url,
-            search_web_fn=_web.search_web,
+            fetch_url_fn=_fetch,
+            search_web_fn=_search,
             find_urls_fn=_web.find_urls,
             extract_query_fn=_web.extract_query,
             max_sources=_MAX_WEB_SOURCES,
             plan=plan,
             approval=approval,
             request_id=request_id,
+            capabilities=eff_caps,
         )
         # #660 line 1: ONE admission point for every retrieval path, so the
         # hourglass lane inheriting this method cannot drift from the chat lane.

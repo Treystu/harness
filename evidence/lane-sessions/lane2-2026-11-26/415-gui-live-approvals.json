@@ -1,0 +1,782 @@
+{
+  "issue": 415,
+  "lane": "lane2",
+  "base_main_sha": "55ac23178390c58d238410e9544cec79bb249f14",
+  "probed_commit_sha": "e6ebaa7dcf26478ca84132764d8139966646e134",
+  "ask1_simple_answer": {
+    "id": "7f9c046d742c",
+    "kind": "chat",
+    "task_id": "ui/7f9c046d742c",
+    "status": "ok",
+    "error": null,
+    "error_kind": null,
+    "known_cost_usd": null,
+    "created_at": 1795683755.5054717,
+    "finished_at": 1795683771.1020064,
+    "cancelled": false,
+    "result": {
+      "status": "ok",
+      "intent": "conversation",
+      "workflow_tier": "simple-answer",
+      "prompt": "In one sentence, what does HTTP status 204 indicate?",
+      "response": "HTTP status 204 (\"No Content\") indicates that the server successfully processed the request but is not returning any content in the response body.",
+      "model": "deepseek/deepseek-v4-flash",
+      "cost": 0.000324,
+      "simple_request": {
+        "pre": {
+          "verdict": "pass",
+          "confidence": 1.0,
+          "supported": 1.0,
+          "cost": 2.3814e-05,
+          "input_tokens": 567,
+          "output_tokens": 78,
+          "is_fallback": false,
+          "fallback_reason": null,
+          "model": "jev-1.14.0",
+          "site": "simple-strategy",
+          "discarded": false,
+          "strategy": "direct_answer",
+          "probabilities": {
+            "direct_answer": 1.0,
+            "web_research": 0.0,
+            "workspace_inspection": 0.0,
+            "simple_action": 0.0,
+            "needs_tool": 0.0,
+            "plan": 0.0,
+            "ambiguous": 0.0
+          },
+          "concentration": 1.0,
+          "pack_version": "simple-answer-strategy-v2",
+          "native": true
+        },
+        "post": {
+          "verdict": "fail",
+          "confidence": 0.0,
+          "supported": 0.04,
+          "cost": 2.205e-05,
+          "input_tokens": 525,
+          "output_tokens": 58,
+          "is_fallback": false,
+          "fallback_reason": null,
+          "model": "jev-1.14.0",
+          "site": "simple-answer-post",
+          "discarded": false,
+          "capability": "answer",
+          "pack_version": "answer-sufficiency-v1",
+          "native": true,
+          "answer_sufficient": 0.94,
+          "iteration_required": false,
+          "plan_required": false
+        },
+        "post_skipped": null,
+        "post_review_available": true,
+        "post_review_passed": false,
+        "generation_calls": 1,
+        "backends": [
+          {
+            "model": "deepseek/deepseek-v4-flash",
+            "provider": "openrouter",
+            "free": false,
+            "live": true,
+            "reason": "",
+            "cause": ""
+          },
+          {
+            "model": "deepseek/deepseek-v4.1-flash",
+            "provider": "openrouter",
+            "free": false,
+            "live": true,
+            "reason": "",
+            "cause": ""
+          },
+          {
+            "model": "inclusionai/ling-3.0-flash",
+            "provider": "openrouter",
+            "free": false,
+            "live": true,
+            "reason": "",
+            "cause": ""
+          },
+          {
+            "model": "google/gemini-3.8-flash",
+            "provider": "openrouter",
+            "free": false,
+            "live": true,
+            "reason": "",
+            "cause": ""
+          }
+        ],
+        "history_turns": 0,
+        "deadline_seconds": 60.0
+      }
+    }
+  },
+  "ask1_events": [
+    {
+      "ts": 1795683755.505929,
+      "seq": 4,
+      "type": "run_accepted",
+      "task_id": "ui/7f9c046d742c",
+      "kind": "chat",
+      "ui_run": "7f9c046d742c"
+    },
+    {
+      "ts": 1795683757.709995,
+      "seq": 5,
+      "type": "chat_turn_start",
+      "prompt": "In one sentence, what does HTTP status 204 indicate?",
+      "session_id": "gui-415-ask1-1795683755",
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683757.710096,
+      "seq": 6,
+      "type": "intent_classified",
+      "intent": "conversation",
+      "prompt": "In one sentence, what does HTTP status 204 indicate?",
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683761.7263658,
+      "seq": 8,
+      "type": "simple_request_start",
+      "prompt": "In one sentence, what does HTTP status 204 indicate?",
+      "session_id": "gui-415-ask1-1795683755",
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683761.732653,
+      "seq": 9,
+      "type": "lifecycle_progress",
+      "lane": "chat",
+      "stage": "strategy",
+      "status": "running",
+      "request_id": "f677da9386ca49eea3e7b66f9a029290",
+      "resumed": false,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683762.4218442,
+      "seq": 10,
+      "type": "spend_check",
+      "lane": "key",
+      "limit": 1.5,
+      "remaining": 1.498882447,
+      "reset": "daily",
+      "expect_label": false,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683763.4576788,
+      "seq": 11,
+      "type": "model_request_start",
+      "model": "jev-latest",
+      "attempt": "jev",
+      "request_id": "4831af30dcfb4dc3abccbb2bec1cd3aa",
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683763.4577808,
+      "seq": 12,
+      "type": "provider_http_attempt",
+      "request_id": "4831af30dcfb4dc3abccbb2bec1cd3aa",
+      "model": "jev-latest",
+      "model_attempt": "jev",
+      "phase": "start",
+      "wire_attempt": 1,
+      "max_wire_attempts": 4,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683763.9308956,
+      "seq": 13,
+      "type": "provider_http_attempt",
+      "request_id": "4831af30dcfb4dc3abccbb2bec1cd3aa",
+      "model": "jev-latest",
+      "model_attempt": "jev",
+      "phase": "response",
+      "wire_attempt": 1,
+      "max_wire_attempts": 4,
+      "http_status": 200,
+      "duration_s": 0.47,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683763.9310381,
+      "seq": 14,
+      "type": "model_request_end",
+      "model": "jev-latest",
+      "attempt": "jev",
+      "request_id": "4831af30dcfb4dc3abccbb2bec1cd3aa",
+      "outcome": "response",
+      "http_status": 200,
+      "duration_s": 0.47,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683764.4110894,
+      "seq": 15,
+      "type": "availability_selection",
+      "lane": "simple-answer",
+      "ladder": [
+        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-v4.1-flash",
+        "inclusionai/ling-3.0-flash",
+        "google/gemini-3.8-flash"
+      ],
+      "backends": [
+        {
+          "model": "deepseek/deepseek-v4-flash",
+          "provider": "openrouter",
+          "free": false,
+          "live": true,
+          "reason": "",
+          "cause": ""
+        },
+        {
+          "model": "deepseek/deepseek-v4.1-flash",
+          "provider": "openrouter",
+          "free": false,
+          "live": true,
+          "reason": "",
+          "cause": ""
+        },
+        {
+          "model": "inclusionai/ling-3.0-flash",
+          "provider": "openrouter",
+          "free": false,
+          "live": true,
+          "reason": "",
+          "cause": ""
+        },
+        {
+          "model": "google/gemini-3.8-flash",
+          "provider": "openrouter",
+          "free": false,
+          "live": true,
+          "reason": "",
+          "cause": ""
+        }
+      ],
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683765.8102996,
+      "seq": 16,
+      "type": "model_request_start",
+      "model": "deepseek/deepseek-v4-flash",
+      "attempt": "primary",
+      "request_id": "43cf3357c44e4926966b76e09adf2c91",
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683765.8104212,
+      "seq": 17,
+      "type": "provider_http_attempt",
+      "request_id": "43cf3357c44e4926966b76e09adf2c91",
+      "model": "deepseek/deepseek-v4-flash",
+      "model_attempt": "primary",
+      "phase": "start",
+      "wire_attempt": 1,
+      "max_wire_attempts": 4,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683769.3788705,
+      "seq": 18,
+      "type": "provider_http_attempt",
+      "request_id": "43cf3357c44e4926966b76e09adf2c91",
+      "model": "deepseek/deepseek-v4-flash",
+      "model_attempt": "primary",
+      "phase": "response",
+      "wire_attempt": 1,
+      "max_wire_attempts": 4,
+      "http_status": 200,
+      "duration_s": 3.57,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683769.3802285,
+      "seq": 19,
+      "type": "model_request_end",
+      "model": "deepseek/deepseek-v4-flash",
+      "attempt": "primary",
+      "request_id": "43cf3357c44e4926966b76e09adf2c91",
+      "outcome": "response",
+      "http_status": 200,
+      "duration_s": 3.57,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683769.396838,
+      "seq": 20,
+      "type": "model_request_start",
+      "model": "jev-latest",
+      "attempt": "jev",
+      "request_id": "2e69b78ed2554aa597363ab979ace89b",
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683769.3969529,
+      "seq": 21,
+      "type": "provider_http_attempt",
+      "request_id": "2e69b78ed2554aa597363ab979ace89b",
+      "model": "jev-latest",
+      "model_attempt": "jev",
+      "phase": "start",
+      "wire_attempt": 1,
+      "max_wire_attempts": 4,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683769.8818011,
+      "seq": 22,
+      "type": "provider_http_attempt",
+      "request_id": "2e69b78ed2554aa597363ab979ace89b",
+      "model": "jev-latest",
+      "model_attempt": "jev",
+      "phase": "response",
+      "wire_attempt": 1,
+      "max_wire_attempts": 4,
+      "http_status": 200,
+      "duration_s": 0.48,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683769.8819258,
+      "seq": 23,
+      "type": "model_request_end",
+      "model": "jev-latest",
+      "attempt": "jev",
+      "request_id": "2e69b78ed2554aa597363ab979ace89b",
+      "outcome": "response",
+      "http_status": 200,
+      "duration_s": 0.49,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683770.9369082,
+      "seq": 24,
+      "type": "lifecycle_progress",
+      "lane": "chat",
+      "stage": "terminal",
+      "status": "complete",
+      "request_id": "f677da9386ca49eea3e7b66f9a029290",
+      "resumed": false,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683770.936928,
+      "seq": 25,
+      "type": "simple_request_complete",
+      "status": "ok",
+      "model": "deepseek/deepseek-v4-flash",
+      "cost": 0.00032400450000000003,
+      "task_id": "ui/7f9c046d742c"
+    },
+    {
+      "ts": 1795683771.1020148,
+      "seq": 26,
+      "type": "run_finished",
+      "task_id": "ui/7f9c046d742c",
+      "kind": "chat",
+      "ui_run": "7f9c046d742c",
+      "status": "ok",
+      "error_kind": null,
+      "known_cost_usd": null
+    }
+  ],
+  "ask2_external_research": {
+    "run": {
+      "id": "c80deacdc8d2",
+      "kind": "chat",
+      "task_id": "ui/c80deacdc8d2",
+      "status": "needs_iteration",
+      "error": null,
+      "error_kind": null,
+      "known_cost_usd": null,
+      "created_at": 1795695083.0877342,
+      "finished_at": 1795695122.026204,
+      "cancelled": false,
+      "result": {
+        "status": "needs_iteration",
+        "intent": "conversation",
+        "workflow_tier": "web-research",
+        "prompt": "Summarize https://en.wikipedia.org/wiki/HTTP_ETag in two sentences.",
+        "context": {
+          "facts": 59,
+          "turns": 0,
+          "expanded": false,
+          "native": true,
+          "reason": "Jev recall p={'needs_earlier_context': 0.08, 'target_is_remembered': 0.99}"
+        },
+        "response": "Let me try fetching the page again.\n\nThe ETag (entity tag) is an HTTP response header that provides a unique identifier \u2014 typically a hash or version string \u2014 for a specific representation of a resource, allowing caches and clients to determine whether the content has changed. Clients reuse this identifier in conditional requests such as `If-None-Match` and `If-Match`, enabling servers to skip retransmission of unchanged data (304 Not Modified) or reject conflicting updates (412 Precondition Failed).",
+        "model": "inclusionai/ling-3.0-flash",
+        "cost": 0.002279,
+        "request_workflow": {
+          "selected": "web-research",
+          "effective": "web-research",
+          "source": "jev_request_workflow",
+          "native": true
+        },
+        "research_plan": {
+          "source": "research_plan_gate",
+          "proposed": true,
+          "plan_hash": "6dd42208a67192b779c2b99ae678ec2737c50622a5461314b866cf694d6cc6a7",
+          "request_hash": "3586a2bba1ac6bc86eb64d8f5a0aac9476fa84653ba0252959aed3dff0d74fc3",
+          "state": "accepted",
+          "native": true,
+          "decision": "accept",
+          "reason": "",
+          "cost": 3.4398000000000005e-05,
+          "active_capabilities": [
+            "fetch",
+            "search"
+          ],
+          "capability_unavailable": false,
+          "search_calls": 0,
+          "fetch_calls": 1,
+          "goal": "Summarize https://en.wikipedia.org/wiki/HTTP_ETag in two sentences.",
+          "queries": [
+            {
+              "query_id": "q1",
+              "query": "https://en.wikipedia.org/wiki/HTTP_ETag",
+              "purpose": "read the page the request names",
+              "url": "https://en.wikipedia.org/wiki/HTTP_ETag",
+              "kind": "fetch"
+            }
+          ],
+          "target_domains": [],
+          "freshness": "current",
+          "evidence_requirements": [
+            "readable text that answers the stated goal"
+          ],
+          "max_results": 3,
+          "jev_model": "jev-1.14.0",
+          "jev_verdict": "pass",
+          "consent_id": "4fe8931037924b498991c9a1cdd559e5:research-plan"
+        },
+        "verification": {
+          "status": "needs_review",
+          "source": "jev.answer_sufficiency",
+          "reason": "Jev review did not authorize another bounded answer attempt"
+        },
+        "stop_reason": "Jev review did not authorize another bounded answer attempt",
+        "web_used": false,
+        "web_sources": [
+          {
+            "kind": "web",
+            "ok": false
+          }
+        ],
+        "confidence": {
+          "threshold": 0.7,
+          "observed": 0.51,
+          "passed": false,
+          "source": "jev.noul.answer_sufficient"
+        },
+        "jev": {
+          "native": true,
+          "is_fallback": false,
+          "fallback_reason": null,
+          "verdict": "fail",
+          "supported": 0.32,
+          "answers": {
+            "answer_sufficient": 0.51,
+            "iteration_required": true,
+            "plan_required": false,
+            "raw": {
+              "answer_sufficient": {
+                "type": "noul",
+                "noul": 0.51
+              },
+              "iteration_required": {
+                "type": "noul",
+                "noul": 0.59
+              },
+              "plan_required": {
+                "type": "noul",
+                "noul": 0.32
+              }
+            },
+            "pack_version": "answer-sufficiency-v1"
+          },
+          "reasons": [
+            "answer_sufficient (noul): 0.51",
+            "iteration_required (noul): 0.59",
+            "plan_required (noul): 0.32"
+          ],
+          "cost": 2.6544000000000002e-05,
+          "input_tokens": 632,
+          "output_tokens": 58,
+          "model": "jev-1.14.0",
+          "pack_version": "answer-sufficiency-v1",
+          "confidence": {
+            "threshold": 0.7,
+            "observed": 0.51,
+            "passed": false,
+            "source": "jev.noul.answer_sufficient"
+          }
+        },
+        "hourglass": {
+          "stages": [
+            "context_intake",
+            "answer",
+            "jev_review"
+          ],
+          "skipped": [
+            "planning_waist",
+            "execution"
+          ],
+          "settings": {
+            "confirm": true,
+            "parallel": true,
+            "isolate": true,
+            "require_diff_authorization": true,
+            "decompose": true
+          },
+          "context_files": [],
+          "context_tokens": 60,
+          "context_scope": "none",
+          "rounds": [
+            {
+              "round": 1,
+              "model": "deepseek/deepseek-v4-flash",
+              "jev": {
+                "native": true,
+                "is_fallback": false,
+                "fallback_reason": null,
+                "verdict": "fail",
+                "supported": 0.31,
+                "answers": {
+                  "answer_sufficient": 0.48,
+                  "iteration_required": true,
+                  "plan_required": false,
+                  "raw": {
+                    "answer_sufficient": {
+                      "type": "noul",
+                      "noul": 0.48
+                    },
+                    "iteration_required": {
+                      "type": "noul",
+                      "noul": 0.55
+                    },
+                    "plan_required": {
+                      "type": "noul",
+                      "noul": 0.31
+                    }
+                  },
+                  "pack_version": "answer-sufficiency-v1"
+                },
+                "reasons": [
+                  "answer_sufficient (noul): 0.48",
+                  "iteration_required (noul): 0.55",
+                  "plan_required (noul): 0.31"
+                ],
+                "cost": 2.6292000000000002e-05,
+                "input_tokens": 626,
+                "output_tokens": 58,
+                "model": "jev-1.14.0",
+                "pack_version": "answer-sufficiency-v1",
+                "confidence": {
+                  "threshold": 0.7,
+                  "observed": 0.48,
+                  "passed": false,
+                  "source": "jev.noul.answer_sufficient"
+                }
+              }
+            },
+            {
+              "round": 2,
+              "model": "deepseek/deepseek-v4.1-flash",
+              "jev": {
+                "native": true,
+                "is_fallback": false,
+                "fallback_reason": null,
+                "verdict": "fail",
+                "supported": 0.29,
+                "answers": {
+                  "answer_sufficient": 0.29,
+                  "iteration_required": true,
+                  "plan_required": false,
+                  "raw": {
+                    "answer_sufficient": {
+                      "type": "noul",
+                      "noul": 0.29
+                    },
+                    "iteration_required": {
+                      "type": "noul",
+                      "noul": 0.67
+                    },
+                    "plan_required": {
+                      "type": "noul",
+                      "noul": 0.46
+                    }
+                  },
+                  "pack_version": "answer-sufficiency-v1"
+                },
+                "reasons": [
+                  "answer_sufficient (noul): 0.29",
+                  "iteration_required (noul): 0.67",
+                  "plan_required (noul): 0.46"
+                ],
+                "cost": 2.9148000000000003e-05,
+                "input_tokens": 694,
+                "output_tokens": 58,
+                "model": "jev-1.14.0",
+                "pack_version": "answer-sufficiency-v1",
+                "confidence": {
+                  "threshold": 0.7,
+                  "observed": 0.29,
+                  "passed": false,
+                  "source": "jev.noul.answer_sufficient"
+                }
+              }
+            },
+            {
+              "round": 3,
+              "model": "inclusionai/ling-3.0-flash",
+              "jev": {
+                "native": true,
+                "is_fallback": false,
+                "fallback_reason": null,
+                "verdict": "fail",
+                "supported": 0.32,
+                "answers": {
+                  "answer_sufficient": 0.51,
+                  "iteration_required": true,
+                  "plan_required": false,
+                  "raw": {
+                    "answer_sufficient": {
+                      "type": "noul",
+                      "noul": 0.51
+                    },
+                    "iteration_required": {
+                      "type": "noul",
+                      "noul": 0.59
+                    },
+                    "plan_required": {
+                      "type": "noul",
+                      "noul": 0.32
+                    }
+                  },
+                  "pack_version": "answer-sufficiency-v1"
+                },
+                "reasons": [
+                  "answer_sufficient (noul): 0.51",
+                  "iteration_required (noul): 0.59",
+                  "plan_required (noul): 0.32"
+                ],
+                "cost": 2.6544000000000002e-05,
+                "input_tokens": 632,
+                "output_tokens": 58,
+                "model": "jev-1.14.0",
+                "pack_version": "answer-sufficiency-v1",
+                "confidence": {
+                  "threshold": 0.7,
+                  "observed": 0.51,
+                  "passed": false,
+                  "source": "jev.noul.answer_sufficient"
+                }
+              }
+            }
+          ],
+          "request_workflow": {
+            "selected": "web-research",
+            "effective": "web-research",
+            "source": "jev_request_workflow",
+            "native": true
+          },
+          "web_sources": [
+            {
+              "kind": "web",
+              "ok": false
+            }
+          ]
+        },
+        "remaining_scope": "Jev requested or retained another review, but the bounded answer path stopped without claiming completion"
+      }
+    },
+    "research_plan_gate_events": [
+      {
+        "ts": 1795695094.6204784,
+        "seq": 24,
+        "type": "research_plan_gate",
+        "phase": "accepted",
+        "code": "",
+        "plan_hash": "6dd42208a67192b779c2b99ae678ec2737c50622a5461314b866cf694d6cc6a7",
+        "native": true,
+        "decision": "accept",
+        "capabilities": [
+          "fetch",
+          "search"
+        ],
+        "task_id": "ui/c80deacdc8d2"
+      }
+    ],
+    "event_count": 52,
+    "browser_screenshot_basename": "final_step_38.png",
+    "visited_origin": "http://127.0.0.1:8765",
+    "visible_receipt_text": "Research plan: accepted (accept)\nqueries: https://en.wikipedia.org/wiki/HTTP_ETag\nhash 6dd42208a671 \u00b7 reviewer jev-1.14.0 (pass) \u00b7 consent 4fe8931037924b498991c9a1cdd559e5:research-plan \u00b7 freshness current \u00b7 capabilities: fetch, search \u00b7 calls: search=0 fetch=1",
+    "visible_footer_text": "Model: inclusionai/ling-3.0-flash | Spend: $0.0023"
+  },
+  "zero_network_controls": {
+    "capability_unavailable": {
+      "source": "research_plan_gate",
+      "proposed": false,
+      "plan_hash": "",
+      "request_hash": "",
+      "state": "capability_unavailable",
+      "native": false,
+      "decision": "",
+      "reason": "capability_unavailable",
+      "cost": 0.0,
+      "active_capabilities": [],
+      "capability_unavailable": true,
+      "search_calls": 0,
+      "fetch_calls": 0
+    },
+    "declined_plan": {
+      "source": "research_plan_gate",
+      "proposed": true,
+      "plan_hash": "8e3e0250be67ccd7b183cbd99ca7464eeea49ef1a617c044c692661d6776ef12",
+      "request_hash": "0d820bf5106bb012a83cc6fe79bb9d655e79414ef9037cf9edb00d85033cf296",
+      "state": "declined",
+      "native": true,
+      "decision": "decline",
+      "reason": "approval_declined: the native decision was decline",
+      "cost": 0.0,
+      "active_capabilities": [
+        "fetch",
+        "search"
+      ],
+      "capability_unavailable": false,
+      "search_calls": 0,
+      "fetch_calls": 0,
+      "goal": "Summarize https://en.wikipedia.org/wiki/HTTP_ETag",
+      "queries": [
+        {
+          "query_id": "q1",
+          "query": "https://en.wikipedia.org/wiki/HTTP_ETag",
+          "purpose": "read the page the request names",
+          "url": "https://en.wikipedia.org/wiki/HTTP_ETag",
+          "kind": "fetch"
+        }
+      ],
+      "target_domains": [],
+      "freshness": "current",
+      "evidence_requirements": [
+        "readable text that answers the stated goal"
+      ],
+      "max_results": 3,
+      "jev_model": "jev-1.14.0",
+      "jev_verdict": "decline",
+      "consent_id": "df27291484c246fd902797f50b16a52a:research-plan"
+    },
+    "mock_network_calls": {
+      "search_mock_calls": 0,
+      "fetch_mock_calls": 0,
+      "browser_mock_calls": 0
+    }
+  }
+}

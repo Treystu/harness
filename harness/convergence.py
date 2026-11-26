@@ -523,3 +523,110 @@ def run_convergence_specialist(transport, api_key, governor, panel_results, mode
     result["draw"] = True
     result["degrade_reason"] = "specialist_unavailable"
     return result
+
+
+def simulate_retry_schedule(
+    timelines,
+    *,
+    max_retries=MAX_429_RETRIES,
+    backoff_base=RETRY_429_BACKOFF_SECONDS,
+):
+    """Simulate #475 429 retry recovery, added latency, and wasted spend."""
+    budget = max(0, int(max_retries))
+    base = max(0.0, float(backoff_base))
+    total_calls = 0
+    recovered_calls = 0
+    added_latency_s = 0.0
+    total_wait_s = 0.0
+    wasted_spend_usd = 0.0
+    total_retries = 0
+    for item in timelines:
+        total_calls += 1
+        window = item.get("window_duration_s")
+        retry_cost = max(0.0, float(item.get("retry_cost_usd") or 0.0))
+        elapsed = 0.0
+        for attempt in range(1, budget + 1):
+            total_retries += 1
+            delay = base * attempt
+            elapsed += delay
+            total_wait_s += delay
+            if window is not None and elapsed >= float(window):
+                recovered_calls += 1
+                added_latency_s += elapsed
+                break
+            wasted_spend_usd += retry_cost
+    return {
+        "max_retries": budget,
+        "backoff_base_s": round(base, 4),
+        "calls": total_calls,
+        "recovered_calls": recovered_calls,
+        "total_retries": total_retries,
+        "recovery_rate": (
+            round(recovered_calls / total_calls, 4) if total_calls else 0.0
+        ),
+        "added_latency_s": round(added_latency_s, 4),
+        "mean_recovered_latency_s": (
+            round(added_latency_s / recovered_calls, 4)
+            if recovered_calls else 0.0
+        ),
+        "total_wait_s": round(total_wait_s, 4),
+        "wasted_spend_usd": round(wasted_spend_usd, 6),
+    }
+
+
+def simulate_breaker_schedule(events, *, threshold=None, cooldown_s=None):
+    """Replay timestamped outcomes through :class:`CircuitBreakers` (#475)."""
+    from .jev import (
+        BREAKER_COOLDOWN_SECONDS,
+        BREAKER_FAILURE_THRESHOLD,
+        CircuitBreakers,
+    )
+
+    eff_threshold = max(
+        1,
+        int(BREAKER_FAILURE_THRESHOLD if threshold is None else threshold),
+    )
+    eff_cooldown = float(
+        BREAKER_COOLDOWN_SECONDS if cooldown_s is None else cooldown_s
+    )
+    clock = [0.0]
+    board = CircuitBreakers(
+        threshold=eff_threshold, cooldown=eff_cooldown, clock=lambda: clock[0]
+    )
+    total = 0
+    dispatched = 0
+    blocked = 0
+    avoided_failures = 0
+    false_blocks = 0
+    wasted_spend_usd = 0.0
+    avoided_spend_usd = 0.0
+    for ev in events:
+        total += 1
+        clock[0] = float(ev.get("t") or 0.0)
+        site = str(ev.get("site") or "default")
+        outcome = str(ev.get("outcome") or "neutral")
+        cost = max(0.0, float(ev.get("cost_usd") or 0.0))
+        refusal, generation = board.acquire(site)
+        if refusal is not None:
+            blocked += 1
+            if outcome == "failure":
+                avoided_failures += 1
+                avoided_spend_usd += cost
+            elif outcome == "success":
+                false_blocks += 1
+            continue
+        dispatched += 1
+        board.record(site, outcome, generation)
+        if outcome == "failure":
+            wasted_spend_usd += cost
+    return {
+        "threshold": eff_threshold,
+        "cooldown_s": round(eff_cooldown, 3),
+        "events": total,
+        "dispatched": dispatched,
+        "blocked": blocked,
+        "avoided_failures": avoided_failures,
+        "false_blocks": false_blocks,
+        "wasted_spend_usd": round(wasted_spend_usd, 6),
+        "avoided_spend_usd": round(avoided_spend_usd, 6),
+    }

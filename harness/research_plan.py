@@ -594,7 +594,7 @@ def propose_plan(prompt: str, *, request_id: str,
         return None, "goal_too_short"
     available = _capability_set(capabilities)
     if not available:
-        return None, "capability_missing"
+        return None, "capability_unavailable"
     queries: List[PlanQuery] = []
     for index, url in enumerate(goal_urls(goal)[:max_queries], start=1):
         if "fetch" not in available:
@@ -646,21 +646,40 @@ def decide_research_plan(
     proposal, why = propose_plan(
         prompt, request_id=request_id, capabilities=capabilities)
     plan_hash = proposal.hash() if proposal is not None else ""
+    active_caps = sorted(_capability_set(capabilities))
     record: Dict[str, Any] = {
         "source": "research_plan_gate",
         "proposed": proposal is not None,
         "plan_hash": plan_hash,
         "request_hash": (proposal.request_hash
                          if proposal is not None else ""),
-        "state": "invalid",
+        "state": ("capability_unavailable"
+                  if why == "capability_unavailable" else "invalid"),
         "native": False,
         "decision": "",
         "reason": why or "",
         "cost": 0.0,
+        "active_capabilities": active_caps,
+        "capability_unavailable": why == "capability_unavailable",
+        "search_calls": 0,
+        "fetch_calls": 0,
     }
     if proposal is None:
-        emit("research_plan_gate", phase="blocked", code=why)
+        emit("research_plan_gate", phase="blocked", code=why,
+             capabilities=active_caps)
         return None, None, record
+    record.update({
+        "goal": proposal.goal,
+        "queries": [
+            {"query_id": q.query_id, "query": q.query,
+             "purpose": q.purpose, "url": q.url, "kind": q.kind}
+            for q in proposal.queries
+        ],
+        "target_domains": list(proposal.domains),
+        "freshness": proposal.freshness,
+        "evidence_requirements": list(proposal.evidence_requirements),
+        "max_results": int(proposal.max_results),
+    })
     if saved_plan:
         # #344: an identical plan that a native judgment already accepted does
         # not need a second billed review. The adoption still passes through
@@ -679,18 +698,22 @@ def decide_research_plan(
                     "state": "accepted", "native": True,
                     "decision": reused.decision, "reason": "",
                     "cost": 0.0, "reused": True,
+                    "consent_id": str(reused.consent_id or ""),
                 })
                 emit("research_plan_gate", phase="accepted", code="",
                      plan_hash=plan_hash, native=True,
-                     decision=reused.decision, reused=True)
+                     decision=reused.decision, reused=True,
+                     capabilities=active_caps)
                 return proposal, reused, record
             record["reuse_reason"] = f"{check.code}: {check.reason}"
             emit("research_plan_gate", phase="reuse-rejected",
-                 code=check.code, plan_hash=plan_hash)
+                 code=check.code, plan_hash=plan_hash,
+                 capabilities=active_caps)
     evaluate = getattr(policy, "evaluate_research_plan", None)
     if not callable(evaluate):
         record.update(state="unavailable", reason="policy_missing")
-        emit("research_plan_gate", phase="blocked", code="policy_missing")
+        emit("research_plan_gate", phase="blocked", code="policy_missing",
+             capabilities=active_caps)
         return proposal, None, record
     try:
         _result, structural = evaluate(
@@ -704,7 +727,8 @@ def decide_research_plan(
     except Exception as exc:  # a reviewer outage never authorizes retrieval
         record.update(state="unavailable",
                       reason=f"reviewer_error: {type(exc).__name__}")
-        emit("research_plan_gate", phase="blocked", code="reviewer_error")
+        emit("research_plan_gate", phase="blocked", code="reviewer_error",
+             capabilities=active_caps)
         return proposal, None, record
     structural = structural if isinstance(structural, dict) else {}
     approval = approval_from_judgment(
@@ -721,11 +745,17 @@ def decide_research_plan(
         "state": "accepted" if accepted else "declined",
         "reason": "" if accepted else f"{check.code}: {check.reason}",
         "cost": float(structural.get("cost") or 0.0),
+        "jev_model": str(structural.get("model")
+                         or getattr(_result, "model", "") or ""),
+        "jev_verdict": str(structural.get("verdict")
+                           or getattr(_result, "verdict", "") or ""),
+        "consent_id": str(approval.consent_id or ""),
     })
     emit("research_plan_gate",
          phase=("accepted" if accepted else "blocked"),
          code="" if accepted else check.code, plan_hash=plan_hash,
-         native=bool(approval.native), decision=record["decision"])
+         native=bool(approval.native), decision=record["decision"],
+         capabilities=active_caps)
     return proposal, (approval if accepted else None), record
 
 

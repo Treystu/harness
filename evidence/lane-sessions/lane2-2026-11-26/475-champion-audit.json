@@ -1,0 +1,170 @@
+{
+  "issue": 475,
+  "generated_at_utc": "2026-11-26T08:51:59.827158+00:00",
+  "champion_constants_unchanged": {
+    "MAX_429_RETRIES": 2,
+    "RETRY_429_BACKOFF_SECONDS": 0.5,
+    "BREAKER_FAILURE_THRESHOLD": 3,
+    "BREAKER_COOLDOWN_SECONDS": 30.0,
+    "SHARED_BREAKER_CAP": 64
+  },
+  "ledger_census": {
+    "path": "C:\\Users\\SCM\\.config\\harness\\ledger.jsonl",
+    "total_rows": 3350,
+    "event_counts": {
+      "segment": 1,
+      "offer": 88,
+      "defer_midtask": 9,
+      "consent_rotate": 2,
+      "consent_accept": 2,
+      "jev_eval": 3049,
+      "simple_request_result": 12,
+      "brief_built": 68,
+      "model_result": 49,
+      "complete": 7,
+      "plan_verdict": 63
+    },
+    "method_a_structured": {
+      "never_recorded_before_branch": {
+        "jev_breaker_rows": 0,
+        "model_result_retry_position_keys": 0
+      },
+      "searched_and_found_zero": {
+        "panel_and_chat_model_result_rows": 49,
+        "empirical_429_or_retry_rows": 0,
+        "jev_eval_rows": 3049,
+        "empirical_breaker_or_transport_fallbacks": 0
+      }
+    },
+    "method_b_raw_substring": {
+      "retry_position_occurrences": 0,
+      "jev_breaker_occurrences": 0,
+      "circuit_open_occurrences": 0,
+      "http_fallback_occurrences": 0,
+      "transport_failure_occurrences": 0
+    }
+  },
+  "offline_comparator_simulations": {
+    "note": "Deterministic synthetic benchmark schedules proving comparator telemetry/simulation parity; not claimed as empirical host measurement.",
+    "retry_schedule_matrix": {
+      "champion": {
+        "max_retries": 2,
+        "backoff_base_s": 0.5,
+        "calls": 6,
+        "recovered_calls": 2,
+        "total_retries": 11,
+        "recovery_rate": 0.3333,
+        "added_latency_s": 2.0,
+        "mean_recovered_latency_s": 1.0,
+        "total_wait_s": 8.0,
+        "wasted_spend_usd": 0.0018
+      },
+      "comp_r1_b0.5": {
+        "max_retries": 1,
+        "backoff_base_s": 0.5,
+        "calls": 6,
+        "recovered_calls": 1,
+        "total_retries": 6,
+        "recovery_rate": 0.1667,
+        "added_latency_s": 0.5,
+        "mean_recovered_latency_s": 0.5,
+        "total_wait_s": 3.0,
+        "wasted_spend_usd": 0.001
+      },
+      "comp_r1_b2.0": {
+        "max_retries": 1,
+        "backoff_base_s": 2.0,
+        "calls": 6,
+        "recovered_calls": 2,
+        "total_retries": 6,
+        "recovery_rate": 0.3333,
+        "added_latency_s": 4.0,
+        "mean_recovered_latency_s": 2.0,
+        "total_wait_s": 12.0,
+        "wasted_spend_usd": 0.0008
+      },
+      "comp_r3_b0.5": {
+        "max_retries": 3,
+        "backoff_base_s": 0.5,
+        "calls": 6,
+        "recovered_calls": 3,
+        "total_retries": 15,
+        "recovery_rate": 0.5,
+        "added_latency_s": 5.0,
+        "mean_recovered_latency_s": 1.6667,
+        "total_wait_s": 14.0,
+        "wasted_spend_usd": 0.0024
+      },
+      "comp_r3_b2.0": {
+        "max_retries": 3,
+        "backoff_base_s": 2.0,
+        "calls": 6,
+        "recovered_calls": 5,
+        "total_retries": 12,
+        "recovery_rate": 0.8333,
+        "added_latency_s": 28.0,
+        "mean_recovered_latency_s": 5.6,
+        "total_wait_s": 40.0,
+        "wasted_spend_usd": 0.0014
+      }
+    },
+    "breaker_schedule_matrix": {
+      "champion": {
+        "threshold": 3,
+        "cooldown_s": 30.0,
+        "events": 8,
+        "dispatched": 5,
+        "blocked": 3,
+        "avoided_failures": 2,
+        "false_blocks": 1,
+        "wasted_spend_usd": 0.004,
+        "avoided_spend_usd": 0.002
+      },
+      "comp_t2_c30": {
+        "threshold": 2,
+        "cooldown_s": 30.0,
+        "events": 8,
+        "dispatched": 4,
+        "blocked": 4,
+        "avoided_failures": 3,
+        "false_blocks": 1,
+        "wasted_spend_usd": 0.003,
+        "avoided_spend_usd": 0.003
+      },
+      "comp_t2_c120": {
+        "threshold": 2,
+        "cooldown_s": 120.0,
+        "events": 8,
+        "dispatched": 3,
+        "blocked": 5,
+        "avoided_failures": 4,
+        "false_blocks": 1,
+        "wasted_spend_usd": 0.002,
+        "avoided_spend_usd": 0.004
+      },
+      "comp_t5_c30": {
+        "threshold": 5,
+        "cooldown_s": 30.0,
+        "events": 8,
+        "dispatched": 7,
+        "blocked": 1,
+        "avoided_failures": 1,
+        "false_blocks": 0,
+        "wasted_spend_usd": 0.005,
+        "avoided_spend_usd": 0.001
+      },
+      "comp_t5_c120": {
+        "threshold": 5,
+        "cooldown_s": 120.0,
+        "events": 8,
+        "dispatched": 6,
+        "blocked": 2,
+        "avoided_failures": 1,
+        "false_blocks": 1,
+        "wasted_spend_usd": 0.005,
+        "avoided_spend_usd": 0.001
+      }
+    }
+  },
+  "disposition": "terminal by recorded disposition, unmeasured on pre-branch host history; retry_position/retry_delay_s + jev_breaker telemetry + offline replay now wired"
+}

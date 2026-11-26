@@ -474,6 +474,7 @@ class CircuitBreakers:
         that began before the breaker last changed state is stale and can
         neither close it, clear a probe nor extend its cooldown.
         """
+        event_fields = None
         with self._lock:
             state = self._sites.setdefault(site, {
                 "failures": 0, "opened_at": None, "probing": False,
@@ -487,12 +488,26 @@ class CircuitBreakers:
                 state["probing"] = True
                 state["probe_at"] = now
                 state["generation"] += 1
-                return None, state["generation"]
-            return ("Jev circuit open for site {!r} after {} consecutive "
-                    "transport failures".format(site, state["failures"]), 0)
+                event_fields = {
+                    "transition": "probe_admitted",
+                    "failures": state["failures"],
+                    "generation": state["generation"],
+                }
+                result = (None, state["generation"])
+            else:
+                event_fields = {
+                    "transition": "refused_open",
+                    "failures": state["failures"],
+                    "generation": 0,
+                }
+                result = ("Jev circuit open for site {!r} after {} consecutive "
+                          "transport failures".format(site, state["failures"]), 0)
+        emit("jev_breaker", site=site, cooldown_s=self.cooldown, **event_fields)
+        return result
 
     def record(self, site: str, outcome: str, generation: Optional[int] = None) -> None:
         """``outcome`` is ``success``, ``failure`` or ``neutral``."""
+        event_fields = None
         with self._lock:
             state = self._sites.setdefault(site, {
                 "failures": 0, "opened_at": None, "probing": False,
@@ -502,16 +517,35 @@ class CircuitBreakers:
             probing = state["probing"]
             state["probing"] = False
             if outcome == "success":
-                if state["opened_at"] is not None:
+                was_open = state["opened_at"] is not None
+                if was_open:
                     state["generation"] += 1
                 state["failures"] = 0
                 state["opened_at"] = None
+                if was_open:
+                    event_fields = {
+                        "transition": "closed",
+                        "failures": 0,
+                        "generation": state["generation"],
+                    }
             elif outcome == "failure":
                 state["failures"] += 1
                 if probing or state["failures"] >= self.threshold:
+                    transition = (
+                        "reopened"
+                        if (state["opened_at"] is not None and probing)
+                        else "opened"
+                    )
                     if state["opened_at"] is None or probing:
                         state["generation"] += 1
                     state["opened_at"] = self._clock()
+                    event_fields = {
+                        "transition": transition,
+                        "failures": state["failures"],
+                        "generation": state["generation"],
+                    }
+        if event_fields is not None:
+            emit("jev_breaker", site=site, cooldown_s=self.cooldown, **event_fields)
 
     def would_allow(self, site: str) -> bool:
         """Side-effect-free: could a call be dispatched right now?"""

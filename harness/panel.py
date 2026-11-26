@@ -395,17 +395,20 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
             if response_cost:
                 governor.record_actual(response_cost, f"{model} (429 retry)")
             response_cost_recorded = True
+            retry_pos = retry_count + 1
+            delay = RETRY_429_BACKOFF_SECONDS * retry_pos
             if ledger and task_id:
                 ledger.append("model_result", task_id=task_id, event_note="panel",
                               model=model, task_type="structured" if run_convergence else "panel",
                               json_expected=run_convergence,
                               json_ok=False if run_convergence else None,
-                              status="error", cost=response_cost, retry=True)
-            retry_count += 1
+                              status="error", cost=response_cost, retry=True,
+                              retry_position=retry_pos, retry_delay_s=delay)
+            retry_count = retry_pos
             eprint(f"[panel] {model} rate-limited; bounded retry {retry_count}/{MAX_429_RETRIES}.")
             _events.emit("rotation", task_id=task_id, model=model,
-                         reason="rate_limited", retry=retry_count)
-            delay = RETRY_429_BACKOFF_SECONDS * retry_count
+                         reason="rate_limited", retry=retry_count,
+                         retry_position=retry_pos, retry_delay_s=delay)
             interruptible_sleep(delay, cancel_check)
         elapsed = time.time() - t0
         if status != 200:
@@ -422,7 +425,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                               task_type="structured" if run_convergence else "panel",
                               json_expected=run_convergence,
                               json_ok=False if run_convergence else None,
-                              status="error", cost=cost, retries=retry_count)
+                              status="error", cost=cost, retries=retry_count,
+                              elapsed_s=round(elapsed, 3))
             eprint(f"[panel] {model} FAILED ({status}): {err} -- rotating to next model.")
             _events.emit("rotation", task_id=task_id, model=model,
                          reason="http_error", http_status=status, error=err,
@@ -489,7 +493,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
         return {"ok": True, "result": {
             "model": model, "content": content, "finish_reason": finish_reason,
             "cost": cost, "truncated": finish_reason == "length",
-        }, "valid_claims": valid_claims, "cost": cost, "retries": retry_count}
+        }, "valid_claims": valid_claims, "cost": cost, "retries": retry_count,
+            "elapsed_s": round(elapsed, 3)}
 
     # Fan out up to `target` seats at once when the transport is safe for
     # concurrent POSTs (audit #10 latency fix); hermetic fakes opt out via
@@ -532,7 +537,8 @@ def panel_judge(*, transport, api_key, governor, prompt, panel, judge, max_token
                             task_type="structured" if run_convergence else "panel",
                             json_expected=run_convergence,
                             json_ok=_slot["valid_claims"] if run_convergence else None,
-                            status="ok", cost=_slot["cost"], retries=_slot["retries"])
+                            status="ok", cost=_slot["cost"], retries=_slot["retries"],
+                            elapsed_s=_slot.get("elapsed_s"))
                 else:
                     panel_failures.append(_slot["failure"])
                     if len(panel_results) < target:

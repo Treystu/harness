@@ -191,9 +191,11 @@ class HourglassLifecycleMixin:
             # #342: the route, the caller's flag and the text heuristics are
             # proposals only. Without a plan this lane already accepted, no
             # search, fetch or browser render may run.
+            raw_caps = getattr(self, "web_capabilities", ("search", "fetch"))
+            active_caps = () if raw_caps is None else tuple(raw_caps)
             plan_check = validate_plan(
                 plan, request_id=request_id, prompt=prompt,
-                capabilities=("search", "fetch"), approval=approval)
+                capabilities=active_caps, approval=approval)
             if not plan_check.ok:
                 emit("research_plan_gate", phase="blocked",
                      code=plan_check.code, lane="hourglass")
@@ -1019,6 +1021,8 @@ class HourglassLifecycleMixin:
                 and not any(fact in prompt.lower()
                             for fact in (_resolved_site,))):
             web_prompt = f"{prompt}\nTarget site: https://{_resolved_site}"
+        raw_caps = getattr(self, "web_capabilities", ("search", "fetch"))
+        active_caps = () if raw_caps is None else tuple(raw_caps)
         if web and research_plan is None:
             # #342: route choice only proposes retrieval. The plan is proposed
             # here, judged once by native Jev, and only acceptance keeps web
@@ -1028,6 +1032,7 @@ class HourglassLifecycleMixin:
                 web_prompt, policy=policy,
                 request_id=str(lifecycle_state["request_id"]),
                 task_id=sid, now=(time.time() if saved_plan else None),
+                capabilities=active_caps,
                 saved_plan=saved_plan)
             total_cost += float(plan_record.get("cost") or 0.0)
             checkpoint["research_plan_gate"] = plan_record
@@ -1048,7 +1053,7 @@ class HourglassLifecycleMixin:
             check = validate_plan(
                 research_plan,
                 request_id=str(lifecycle_state["request_id"]),
-                prompt=web_prompt, capabilities=("search", "fetch"),
+                prompt=web_prompt, capabilities=active_caps,
                 approval=plan_approval,
                 now=(time.time() if reused_receipt else None))
             checkpoint["research_plan_gate"] = {
@@ -1154,6 +1159,7 @@ class HourglassLifecycleMixin:
             # web_prompt already resolved above (#786); keep resolved_site
             # in sync for the site-audit / referential checks below.
             resolved_site = _resolved_site
+            self._last_web_call_counts = {"search_calls": 0, "fetch_calls": 0}
             context, file_contents, brief, web_sources = \
                 self._hourglass_request_context(
                     prompt, web=web, workspace=workspace_needed,
@@ -1161,6 +1167,12 @@ class HourglassLifecycleMixin:
                     jev_policy=policy, plan=research_plan,
                     approval=plan_approval,
                     request_id=str(lifecycle_state["request_id"]))
+            if isinstance(checkpoint.get("research_plan_gate"), dict):
+                counts = getattr(self, "_last_web_call_counts", None) or {}
+                checkpoint["research_plan_gate"]["search_calls"] = int(
+                    counts.get("search_calls") or 0)
+                checkpoint["research_plan_gate"]["fetch_calls"] = int(
+                    counts.get("fetch_calls") or 0)
             context_files = list(file_contents)
             context_tokens = int(brief.estimated_tokens)
             file_hashes = {
