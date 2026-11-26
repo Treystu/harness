@@ -140,6 +140,16 @@ class BackendMonitor:
                 "detail": _short(_scrub(check.get("detail"), self._secrets)),
                 "next_action": "",
             }
+        if status == "UNKNOWN":
+            return {
+                "state": BACKEND_UNKNOWN,
+                "endpoint": self._endpoint,
+                "checked_at": _iso(now),
+                "last_ok_at": _iso(self._last_ok_at),
+                "error": None,
+                "detail": _short(_scrub(check.get("detail"), self._secrets)),
+                "next_action": _short(check.get("next") or ""),
+            }
         return {
             "state": BACKEND_UNREACHABLE,
             "endpoint": self._endpoint,
