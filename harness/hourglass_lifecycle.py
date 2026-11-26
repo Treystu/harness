@@ -100,6 +100,18 @@ def _request_identity(prompt: str) -> str:
     return " ".join(str(prompt or "").split()).lower()
 
 
+def _chat_receipt_id(request_id: str, generation: int, kind: str,
+                     round_no: int) -> str:
+    """Name an answer/review receipt under its context generation (#776).
+
+    A resume that invalidates the checkpoint context rebuilds it and clears
+    the checkpoint answer, so the new generation must not find the previous
+    generation's completed receipt. Accounting history is untouched: older
+    receipts stay in the lifecycle usage under their own keys.
+    """
+    return f"{request_id}:chat-{kind}:{int(generation)}:{int(round_no)}"
+
+
 class HourglassLifecycleMixin:
     """The Jev-reviewed answer route and its checkpoint helpers."""
 
@@ -1161,6 +1173,13 @@ class HourglassLifecycleMixin:
                     jev_policy=policy, plan=research_plan,
                     approval=plan_approval,
                     request_id=str(lifecycle_state["request_id"]))
+            # A relevance review billed during context intake is part of this
+            # run's total, so a continuation rebuilding its governor from the
+            # checkpoint does not regain that spend (row 78).
+            web_review_cost = float(
+                getattr(web_sources, "cost", 0.0) or 0.0)
+            total_cost += web_review_cost
+            checkpoint["known_cost"] = round(total_cost, 8)
             context_files = list(file_contents)
             context_tokens = int(brief.estimated_tokens)
             file_hashes = {
@@ -1198,6 +1217,8 @@ class HourglassLifecycleMixin:
                 "request_prompt": prompt,
             })
             if resuming and not reusable:
+                checkpoint["request_generation"] = int(
+                    checkpoint.get("request_generation") or 0) + 1
                 checkpoint["answer"] = None
                 checkpoint["prior"] = None
                 checkpoint["rounds"] = []
@@ -1231,6 +1252,7 @@ class HourglassLifecycleMixin:
                               and checkpoint.get("stage") == "jev_review")
         first_round = max(1, int(checkpoint.get("next_round") or 1)) \
             if resuming else 1
+        generation = int(checkpoint.get("request_generation") or 0)
         jev_structural = None
         previous_envelopes = [
             entry.get("jev") for entry in history
@@ -1282,8 +1304,8 @@ class HourglassLifecycleMixin:
                 try:
                     attempt = self.lifecycle.provider_call(
                         lifecycle_state,
-                        lifecycle_state["request_id"] +
-                        f":chat-answer:{round_no}",
+                        _chat_receipt_id(lifecycle_state["request_id"],
+                                         generation, "answer", round_no),
                         lambda: self._hourglass_answer_once(
                             prompt, context, prior=prior,
                             model_offset=round_no - 1,
@@ -1345,8 +1367,9 @@ class HourglassLifecycleMixin:
                          confidence=None)
                     return proposal
             try:
-                jev_call_id = (lifecycle_state["request_id"] +
-                               f":chat-review:{round_no}")
+                jev_call_id = _chat_receipt_id(
+                    lifecycle_state["request_id"], generation, "review",
+                    round_no)
 
                 def evaluate_answer_once():
                     result, structural = policy.evaluate_answer(

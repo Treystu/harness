@@ -141,6 +141,7 @@ class ConversationLifecycleMixin:
         if wants_proposals:
             system_prompt += "\n\n" + _SCRIPT_CAPABILITY_NOTE
         web_sources: List[Dict[str, Any]] = []
+        web_review_cost = 0.0
         plan_record: Optional[Dict[str, Any]] = None
         if web:
             if cancel_check and cancel_check():
@@ -175,6 +176,8 @@ class ConversationLifecycleMixin:
                         prompt, named_hosts, jev_policy=web_policy,
                         task_id=session_id, plan=plan, approval=approval,
                         request_id=request_id)
+                    web_review_cost = float(
+                        getattr(web_sources, "cost", 0.0) or 0.0)
                 except ToolCancelled:
                     raise
                 except Exception as e:  # web tools must never kill the chat
@@ -394,6 +397,7 @@ class ConversationLifecycleMixin:
             defer_reason = None
             marker_defer = CAPABILITY_MARKER in response_text
             truncation_defer = False
+        cost += web_review_cost
 
         # A marked script proposal is a consent gate, not an answer: capture it
         # before the refusal/deferral heuristics, so "I cannot scrape this from

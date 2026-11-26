@@ -767,6 +767,18 @@ def source_label(source: Dict[str, Any]) -> str:
 _REVIEWED_KINDS = ("fetch", "search")
 
 
+class ReviewedSources(list):
+    """The admitted sources plus the reviewer's billed cost (row 78).
+
+    A list keeps every existing consumer's shape; the cost is an attribute so
+    the request lifecycle can accumulate it without a second return channel.
+    """
+
+    def __init__(self, items=(), *, cost: float = 0.0):
+        super().__init__(items)
+        self.cost = float(cost or 0.0)
+
+
 def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
                         site: str = "web-results",
                         task_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -787,14 +799,14 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
     candidates = [s for s in ordered
                   if s.get("ok") and str(s.get("kind") or "") in _REVIEWED_KINDS]
     if not candidates:
-        return ordered
+        return ReviewedSources(ordered)
     for source in candidates:
         if source.get("pinned"):
             source["review"] = {"verdict": "relevant", "probability": 1.0,
                                 "reason": "named by the request"}
     reviewable = [s for s in candidates if not s.get("pinned")]
     if not reviewable:
-        return ordered
+        return ReviewedSources(ordered)
     evaluate = getattr(policy, "evaluate_result_relevance", None)
     if not callable(evaluate):
         emit("web_result_review_unavailable", site=site,
@@ -808,7 +820,7 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
                     "note": ("result reviewer unavailable (reviewer_absent): "
                              "{} result(s) withheld, not admitted "
                              "unreviewed".format(len(reviewable)))})
-        return out
+        return ReviewedSources(out)
     try:
         _result, structural = evaluate(
             prompt, reviewable, site=site, task_id=task_id)
@@ -818,6 +830,9 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
         structural = {"results": [], "outage": True,
                       "outage_reason": "{}: {}".format(
                           type(exc).__name__, exc)}
+    # The policy settles this charge in the governor; the request lifecycle
+    # needs the receipt too, so the cost travels beside the sources (row 78).
+    review_cost = float(structural.get("cost") or 0.0)
     verdicts = list(structural.get("results") or [])
     outage = bool(structural.get("outage"))
     if not verdicts and outage:
@@ -853,7 +868,7 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
                     "note": ("result reviewer unavailable (" + reason + "): "
                              "{} result(s) withheld, not admitted "
                              "unreviewed".format(len(reviewable)))})
-    return out
+    return ReviewedSources(out, cost=review_cost)
 
 
 def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_any_public=False, named_hosts=None, fetch_url_fn=None, search_web_fn=None, find_urls_fn=None, extract_query_fn=None, max_sources=3, plan=None, approval=None, request_id="", capabilities=None, now=None):

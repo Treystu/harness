@@ -67,10 +67,11 @@ class _FakeReviewer:
 
     keyed = True
 
-    def __init__(self, verdicts, *, outage=False, reason=""):
+    def __init__(self, verdicts, *, outage=False, reason="", cost=0.0):
         self.verdicts = verdicts
         self.outage = outage
         self.reason = reason
+        self.cost = cost
         self.calls = []
 
     def evaluate_result_relevance(self, prompt, results, *, site, task_id):
@@ -81,7 +82,7 @@ class _FakeReviewer:
              "probability": None, "reason": "scripted"}
             for item, verdict in zip(results, self.verdicts)],
             "reviewed": not self.outage, "outage": self.outage,
-            "outage_reason": self.reason}
+            "outage_reason": self.reason, "cost": self.cost}
 
 
 class ReviewerPolicyTests(unittest.TestCase):
@@ -255,6 +256,19 @@ class ResultAdmissionTests(unittest.TestCase):
                          [RESULT_UNCERTAIN, RESULT_REJECTED])
         # The verdict rides on the admitted source for the run record.
         self.assertEqual(out[0]["review"]["verdict"], RESULT_RELEVANT)
+
+    def test_a_billed_review_carries_its_cost_beside_the_sources(self):
+        reviewer = _FakeReviewer(
+            [RESULT_RELEVANT, RESULT_RELEVANT, RESULT_RELEVANT], cost=0.25)
+        out, _emitted = self._review(reviewer, _results())
+        # The shape every consumer reads stays a list; the receipt rides on it.
+        self.assertIsInstance(out, list)
+        self.assertEqual(out.cost, 0.25)
+
+    def test_a_gather_with_nothing_to_review_bills_nothing(self):
+        sources = [{"kind": "search", "ok": False, "note": "offline"}]
+        out, _emitted = self._review(_FakeReviewer([]), sources)
+        self.assertEqual(out.cost, 0.0)
 
     def test_exclusion_keeps_the_snippet_versus_rendered_label(self):
         reviewer = _FakeReviewer([RESULT_RELEVANT, RESULT_REJECTED,
