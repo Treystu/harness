@@ -200,12 +200,16 @@ def report_requests(records: Iterable[Dict[str, Any]],
             reason = ("the backend could not be reached, so this request's "
                       "state is not confirmed")
         moment = record.get("updated_at")
+        # Confirmation requires request-specific evidence, which the generic
+        # backend probe does not obtain (#35). Keep it false unless such
+        # evidence is supplied, while preserving the durable checkpoint state
+        # and the independently reported backend reachability.
         out.append({
             "id": record.get("id"),
             "request_id": record.get("request_id") or record.get("id"),
             "state": state,
             "durable_state": durable,
-            "confirmed": reachable,
+            "confirmed": False,
             "reason": reason,
             "prompt": record.get("prompt") or "",
             "resumable": resumable,
