@@ -824,6 +824,35 @@ def build_parser():
     pspec.add_argument("--json", action="store_true", help="emit raw JSON only")
     _add_output_flags(pspec)
 
+    pews = sub.add_parser(
+        "epoch-workspace",
+        help="Create one throwaway RSI epoch workspace: clone from the named SHA, "
+             "push the epoch's first commit, open the draft epoch PR, discard")
+    pews.add_argument("--epoch", required=True,
+                      help="epoch slug (lowercase letters, digits, dashes)")
+    pews.add_argument("--head", required=True,
+                      help="epoch head: the full 40-character commit SHA to clone")
+    pews.add_argument("--remote", required=True,
+                      help="git remote URL or path the epoch clone is created from")
+    pews.add_argument("--root", default="tmp/rsi-epochs",
+                      help="directory the throwaway clones live under")
+    pews.add_argument("--base", default="main",
+                      help="base branch the epoch PR targets (default main)")
+    pews.add_argument("--repo", default=None,
+                      help="owner/name the draft epoch PR is opened against")
+    pews.add_argument("--pr-title", dest="pr_title", default=None,
+                      help="draft epoch PR title")
+    pews.add_argument("--pr-body", dest="pr_body", default=None,
+                      help="file holding the draft epoch PR body")
+    pews.add_argument("--first-commit-file", dest="first_commit_file", default=None,
+                      help="path the epoch's first commit adds (epoch marker)")
+    pews.add_argument("--first-commit-message", dest="first_commit_message",
+                      default=None, help="message for the epoch's first commit")
+    pews.add_argument("--discard", action="store_true",
+                      help="remove the clone after its work is pushed (and the PR opened)")
+    pews.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pews)
+
     pvision = sub.add_parser(
         "jev-vision-assessment",
         help="Assess the Hourglass vision with one bounded, typed Jev request")
