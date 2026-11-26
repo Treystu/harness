@@ -42,6 +42,9 @@ class ApplyRequest:
     token_budget: object = None
     assignment_context: object = None
     staleness_reason: object = None
+    # The pool before capability ordering ran, so an informed-order trace can
+    # show which candidates ordering removed (row 59).
+    configured_pool: object = None
     # #456 greenfield creation: this request creates a new file instead of
     # editing an existing one. The engine validates accordingly (missing
     # target required, no original, no backup) while governance -- atomic

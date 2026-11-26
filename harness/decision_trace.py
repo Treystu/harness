@@ -28,9 +28,12 @@ exposed by the reader.
 import hashlib
 import json
 import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Sequence
+
+from .ledger import AutonomyLedger
 
 TRACE_VERSION = "trace_v1"
 
@@ -196,7 +199,10 @@ def read_trace_events(source, *, kinds: Optional[Sequence[str]] = None,
     reader never silently upgrades a record it cannot interpret).
     """
     if isinstance(source, str):
-        paths = [source]  # the docstring's "``AutonomyLedger`` or a ledger path"
+        # The archive belongs to the ledger: resolving a bare path through the
+        # ledger's own enumeration keeps one owner of what a segment is, so a
+        # rotated ledger's path reads its retained segments too (row 55).
+        paths = AutonomyLedger(source).segment_paths()
     elif isinstance(source, (list, tuple)):
         paths = list(source)
     else:
@@ -241,9 +247,24 @@ def pin_window(ledger, *, brief: str, revision: str, selector: str,
         raise TraceError("a window manifest needs brief, revision and selector")
     unit_set = [str(unit) for unit in unit_ids]
     paths = _segment_paths(ledger)
-    segments = [{"path": os.path.basename(path), "sha256": _sha256_file(path),
-                 "bytes": os.path.getsize(path)}
-                for path in paths if os.path.exists(path)]
+    directory = os.path.dirname(os.path.abspath(out_path)) or "."
+    # The active ledger file is mutable: an ordinary append after this return
+    # would leave the manifest's hash describing bytes no longer at that path.
+    # Seal a byte-for-byte copy of every segment beside the manifest and hash
+    # the copy, so the pinned set is reproducible after rotation (row 53).
+    snapshot_dir = os.path.join(directory,
+                                os.path.basename(out_path) + ".segments")
+    segments = []
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        os.makedirs(snapshot_dir, exist_ok=True)
+        sealed = os.path.join(snapshot_dir, os.path.basename(path))
+        shutil.copyfile(path, sealed)
+        segments.append({"path": os.path.basename(path),
+                         "snapshot": sealed,
+                         "sha256": _sha256_file(sealed),
+                         "bytes": os.path.getsize(sealed)})
     rows = read_trace_events(ledger, kinds=kinds)
     selected = [{"event_id": row.get("event_id"), "kind": row.get("kind"),
                  "subject_id": row.get("subject_id"), "seq": row.get("seq"),
@@ -261,7 +282,6 @@ def pin_window(ledger, *, brief: str, revision: str, selector: str,
         "known_gaps": [str(gap) for gap in (gaps or ())],
         "pinned_at": _now(),
     }
-    directory = os.path.dirname(os.path.abspath(out_path)) or "."
     os.makedirs(directory, exist_ok=True)
     with open(out_path, "w", encoding="utf-8", newline="\n") as handle:
         json.dump(manifest, handle, indent=2, sort_keys=True)

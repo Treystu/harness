@@ -206,6 +206,29 @@ def audit_report_citations(report: Any, *, resolver: Any = _UNSET,
         resolver=active,
         semantic_by_claim=report.get("semantic_by_claim") or {},
     )
+    # The audit can only assess the claims it was handed. If the report's
+    # claims section names an id that ``citation_claims`` omits, that claim was
+    # never assessed -- leave it unresolved and refuse the report-level label
+    # rather than certifying a report whose own claims escaped review (row 75).
+    assessed = {
+        str(raw.get("claim_id") or raw.get("id"))
+        for raw in (report.get("citation_claims") or [])
+        if isinstance(raw, Mapping) and (raw.get("claim_id") or raw.get("id"))
+    }
+    unassessed = [
+        str(raw.get("claim_id") or raw.get("id"))
+        for raw in (report.get("claims") or [])
+        if isinstance(raw, Mapping) and (raw.get("claim_id") or raw.get("id"))
+        and str(raw.get("claim_id") or raw.get("id")) not in assessed
+    ]
+    if unassessed:
+        audit["unresolved"] = list(audit.get("unresolved") or []) + [
+            {"kind": "claim", "id": claim_id, "status": "not_verifiable",
+             "reasons": ["no citation assessment covers this claim"]}
+            for claim_id in unassessed]
+        audit["unassessed_claims"] = unassessed
+        audit["citation_verified"] = False
+        audit["ok"] = False
     # State which half answered, so a reader can tell a registry refusal from
     # an injected answer without guessing.
     audit["resolver"] = ("crossref" if use_default or isinstance(

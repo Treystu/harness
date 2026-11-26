@@ -11,6 +11,8 @@ order it happened. A reader re-derives the sequence from those rows.
 """
 from harness.decision_trace import DecisionTrace, read_trace_events
 from harness.apply_policy import ATTEMPT_EVENT, CANDIDATES_EVENT
+from unittest import mock
+
 from tests._applyfixture import (APPLY, CHANGED, CODER_A, ApplyFixture,
                                  scripted_run)
 from tests._fake import comp
@@ -109,3 +111,34 @@ class RoutingTraceTests(ApplyFixture):
         self._apply(engine, path)
         ok, detail = ledger.verify()
         self.assertTrue(ok, detail)
+
+    def test_configured_pool_precedes_capability_ordering(self):
+        path = self.make_file()
+        _fake, _gov, ledger, engine = self.make_env(
+            posts=[comp(CHANGED)], run=scripted_run([(0, "")]),
+            router_kw={"apply_pool": [CODER_A, "stale/not-in-catalog"]})
+        engine.trace = DecisionTrace(ledger)
+        # Capability ordering ranks the pool and drops the stale id; the row
+        # must still carry what the request configured so ``dropped`` is the
+        # denominator ordering removed, not a truncated echo.
+        with mock.patch("harness.apply.ordered_pool",
+                        return_value=([CODER_A], {"x": {}})):
+            self._apply(engine, path)
+        row = read_trace_events(ledger, kinds=[CANDIDATES_EVENT])[0]
+        self.assertEqual(row["configured_pool"],
+                         [CODER_A, "stale/not-in-catalog"])
+        self.assertEqual(row["dropped"], ["stale/not-in-catalog"])
+
+    def test_a_paid_byok_attempt_is_recorded_before_rotation(self):
+        path = self.make_file()
+        byok = {"choices": [{"message": {"content": CHANGED},
+                             "finish_reason": "stop"}],
+                "usage": {"cost": 0.0002, "is_byok": True}}
+        _fake, _gov, ledger, engine = self._env(
+            posts=[byok, comp(CHANGED)])
+        self._apply(engine, path)
+        attempts = read_trace_events(ledger, kinds=[ATTEMPT_EVENT])
+        self.assertEqual([row["model"] for row in attempts], [APPLY, CODER_A])
+        self.assertEqual(attempts[0]["status"], "error")
+        self.assertEqual(attempts[0]["reason"], "paid BYOK route")
+        self.assertEqual(attempts[0]["rank"], 1)
