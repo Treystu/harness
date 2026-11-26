@@ -202,9 +202,16 @@ class ReportRequestsTests(unittest.TestCase):
         self.assertFalse(out[0]["confirmed"])
         self.assertIn("checkpoint", out[0]["reason"])
 
-    def test_a_reachable_backend_confirms_the_durable_state(self):
+    def test_a_reachable_backend_does_not_confirm_without_request_evidence(self):
         out = report_requests([self._record("interrupted")],
                               self._backend(BACKEND_OK))
+        self.assertEqual(out[0]["state"], "interrupted")
+        self.assertFalse(out[0]["confirmed"])
+
+    def test_request_specific_evidence_confirms_the_durable_state(self):
+        out = report_requests([self._record("interrupted")],
+                              self._backend(BACKEND_OK),
+                              confirmed_ids={"rec1"})
         self.assertEqual(out[0]["state"], "interrupted")
         self.assertTrue(out[0]["confirmed"])
 
