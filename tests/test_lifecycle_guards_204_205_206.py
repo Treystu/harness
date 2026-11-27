@@ -253,6 +253,31 @@ class HonestRendererTests(unittest.TestCase):
         self.assertTrue(has_write_surface(["util.py"], None))
         self.assertTrue(has_write_surface([], {"nodes": [{"target_files": ["a.py"]}]}))
 
+    def test_gate_guard_without_prior_rounds_keeps_the_unconditional_assurance(self):
+        block = render_gate_guard("waist refused", True)
+        self.assertIn("this request was held before any file was written", block)
+        self.assertIn("Nothing was saved and nothing ran", block)
+
+    def test_gate_guard_names_the_earlier_rounds_that_did_write(self):
+        # #683 finding 17: a refusal after an executed round must not claim
+        # the whole request wrote nothing.
+        block = render_gate_guard(
+            "waist refused", True,
+            prior_rounds=[{"round": 1, "targets": ["util.py", "app.py"]}])
+        self.assertIn("this refused plan was held", block)
+        self.assertIn("Earlier round(s) 1 of this run already wrote", block)
+        self.assertIn("`app.py`", block)
+        self.assertIn("`util.py`", block)
+        self.assertNotIn("this request was held before any", block)
+        self.assertNotIn("Nothing was saved and nothing ran", block)
+
+    def test_gate_guard_says_executed_when_prior_round_named_no_targets(self):
+        block = render_gate_guard("waist refused", True,
+                                  prior_rounds=[{"round": 2, "targets": []},
+                                               "not a round"])
+        self.assertIn("Earlier round(s) 2 of this run already executed", block)
+        self.assertIn("their results remain on disk", block)
+
     def test_gate_guard_never_prints_internal_state_at_the_operator(self):
         # #569: the operator sees plain language, not the gate's own token.
         block = render_gate_guard("no_evidence_cited", True)
@@ -351,6 +376,17 @@ class RefusedEditIntegrationTests(unittest.TestCase):
                                           ["util.py"], "s2")
         self.assertEqual(res["status"], "refused")
         self.assertEqual(res["response"].count("Autonomous Waist Gate Guard"), 1)
+
+    def test_prior_rounds_reach_the_guard_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = _agent(tmp)
+            with patch.object(agent, "_handle_conversation",
+                              side_effect=RuntimeError("lane down")):
+                res = agent._refused_edit(
+                    self._refused(), "Update util.py", ["util.py"], "s4",
+                    prior_rounds=[{"round": 1, "targets": ["earlier.py"]}])
+        self.assertIn("Earlier round(s) 1 of this run already wrote", res["response"])
+        self.assertIn("earlier.py", res["response"])
 
     def test_conversational_answer_still_wins_when_real(self):
         with tempfile.TemporaryDirectory() as tmp:
