@@ -2510,20 +2510,20 @@ class Dispatch:
         region = model_chip_region()
         if region is None:
             self.audit.append(
-                "escalation", step_id="tier-unreadable",
+                "escalation", step_id="tier-unverified",
                 reason="no model chip region is calibrated on this install "
                        "(HARNESS_FREEBUFF_MODEL_CHIP)")
             raise RuntimeError(
-                "tier-check: the target session's tier cannot be read - no model chip "
+                "tier-unverified: the target session's tier cannot be read - no model chip "
                 "region is calibrated (set HARNESS_FREEBUFF_MODEL_CHIP to "
                 "'left,top,right,bottom'); refusing to restart a lane whose tier is "
                 "unknown") from None
         try:
             lines = self.read_lines("tier-chip", frame, region)
         except RuntimeError as error:
-            self.audit.append("escalation", step_id="tier-unreadable", reason=str(error))
+            self.audit.append("escalation", step_id="tier-unverified", reason=str(error))
             raise RuntimeError(
-                f"tier-check: the model chip could not be read ({error}); refusing to "
+                f"tier-unverified: the model chip could not be read ({error}); refusing to "
                 "restart a lane whose tier is unknown") from None
         reading = " ".join(lines)
         verdict = tier_verdict(reading)
@@ -2531,11 +2531,11 @@ class Dispatch:
                           reading=reading[:80])
         if verdict == "free":
             raise RuntimeError(
-                "tier-check: the target session reads as the free tier "
+                "tier-unverified: the target session reads as the free tier "
                 f"({reading[:80]!r}); refusing to restart a lane onto it")
         if verdict != "paid":
             raise RuntimeError(
-                "tier-check: the model chip read carries no recognizable tier "
+                "tier-unverified: the model chip read carries no recognizable tier "
                 f"({reading[:80]!r}); refusing to restart a lane whose tier is unknown")
         return verdict
 

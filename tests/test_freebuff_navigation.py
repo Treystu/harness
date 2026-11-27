@@ -905,7 +905,7 @@ class TierPrecheckTests(unittest.TestCase):
                 dispatch.verify_tier(Mock())
         dispatch.read_lines.assert_not_called()
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
-        self.assertIn("tier-unreadable", steps)
+        self.assertIn("tier-unverified", steps)
 
     def test_a_chip_that_cannot_be_read_at_all_refuses_the_restart(self):
         dispatch = object.__new__(Dispatch)
@@ -933,6 +933,37 @@ class TierPrecheckTests(unittest.TestCase):
     def test_a_reading_with_no_word_at_all_is_unknown_not_paid(self):
         self.assertEqual(dispatch_module.tier_verdict("... :: --"), "unknown")
         self.assertEqual(dispatch_module.tier_verdict("Free"), "free")
+    def test_an_uncalibrated_chip_refuses_before_any_input_is_sent(self):
+        """The whole point of the gate: no chip proof, no keystrokes."""
+        dispatch = object.__new__(Dispatch)
+        dispatch.recovering = True
+        dispatch.scoped_input = False
+        dispatch.audit = Mock()
+        dispatch.settle_view = Mock(return_value="frame")
+        dispatch.verify_lane = Mock()
+        dispatch.act = Mock()
+        dispatch.turn_running = Mock(return_value=False)
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
+            with self.assertRaisesRegex(RuntimeError, "^tier-unverified:"):
+                dispatch.prepare_draft()
+        dispatch.act.assert_not_called()
+        dispatch.turn_running.assert_not_called()
+
+    def test_a_paid_chip_lets_the_prepare_reach_its_next_step(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.recovering = True
+        dispatch.scoped_input = True
+        dispatch.audit = Mock()
+        dispatch.settle_view = Mock(return_value="frame")
+        dispatch.verify_lane = Mock()
+        dispatch.read_lines = Mock(return_value=["DeepSeek V4.1 Flash Slow"])
+        dispatch.turn_running = Mock(side_effect=RuntimeError("sentinel-next-step"))
+        with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40,1560,120"}):
+            with self.assertRaisesRegex(RuntimeError, "sentinel-next-step"):
+                dispatch.prepare_draft()
+        dispatch.turn_running.assert_called_once()
+
     def test_a_malformed_chip_box_is_refused_rather_than_guessed(self):
         with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40"}):
             with self.assertRaisesRegex(RuntimeError, "left,top,right,bottom"):
