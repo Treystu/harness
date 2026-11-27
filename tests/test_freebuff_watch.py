@@ -2278,3 +2278,35 @@ class DispatchRefusalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class CheckpointIdempotenceTests(unittest.TestCase):
+    """Measured 2026-11-27: an existing marker 422d every tick and stopped claims."""
+
+    def test_an_existing_checkpoint_is_updated_with_its_own_sha(self):
+        calls = []
+
+        def fake_api(path, method=None, body=None):
+            calls.append((path, method, body))
+            if method == "PUT" and "sha" not in (body or {}):
+                raise RuntimeError("GitHub PUT failed for " + path
+                                   + ': gh: Invalid request.' + chr(10) + chr(10)
+                                   + '"sha" wasn' + "'t supplied. (HTTP 422)'")
+            if method is None:
+                return {"sha": "abc123"}
+            return {"content": {"sha": "abc123"}}
+
+        with patch.object(watch, "api", Mock(side_effect=fake_api)), \
+                patch.object(watch, "_monitor_enabled", Mock(return_value=False)):
+            watch.checkpoint("skip-dyn-1-lane.json", {"dispatch": 1})
+        puts = [call for call in calls if call[1] == "PUT"]
+        self.assertEqual(len(puts), 2)
+        self.assertEqual(puts[-1][2]["sha"], "abc123")
+
+    def test_an_unrelated_failure_is_still_raised(self):
+        def fake_api(path, method=None, body=None):
+            raise RuntimeError("GitHub PUT failed: gh: Bad credentials (HTTP 401)")
+
+        with patch.object(watch, "api", Mock(side_effect=fake_api)), \
+                patch.object(watch, "_monitor_enabled", Mock(return_value=False)):
+            with self.assertRaises(RuntimeError):
+                watch.checkpoint("skip-dyn-2-lane.json", {"dispatch": 2})

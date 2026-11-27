@@ -316,9 +316,23 @@ def checkpoints():
 def checkpoint(name, event):
     event["at"] = datetime.now(timezone.utc).isoformat()
     content = base64.b64encode((json.dumps(event) + "\n").encode()).decode()
-    api(f"{ROOT}/{name}", method="PUT", body={
-        "branch": BRANCH, "message": f"Checkpoint vision watch {name}", "content": content,
-    })
+    body = {"branch": BRANCH, "message": f"Checkpoint vision watch {name}", "content": content}
+    try:
+        api(f"{ROOT}/{name}", method="PUT", body=body)
+    except RuntimeError as error:
+        # A checkpoint path that already exists answers 422 "'sha' wasn't
+        # supplied" (measured 2026-11-27: skip-dyn-7226574169-9ecc3453.json was
+        # written once, the checkpoint list never learned the name, and every
+        # tick after that failed - a canary fault that stopped the claim scan and
+        # left a filed dispatch unclaimed). The record is the same record, so
+        # update it with its own sha instead of failing the tick.
+        if "sha" not in str(error).casefold() or "422" not in str(error):
+            raise
+        existing = api(f"{ROOT}/{name}?ref={BRANCH}")
+        if not isinstance(existing, dict) or not existing.get("sha"):
+            raise
+        body["sha"] = existing["sha"]
+        api(f"{ROOT}/{name}", method="PUT", body=body)
     if _monitor_enabled():
         state = _load_monitor_state()
         known_list = list(state.get("known_checkpoints") or [])
