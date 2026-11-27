@@ -335,6 +335,53 @@ def walking_dispatch(pages, advances):
     return dispatch
 
 
+class PickPassTests(unittest.TestCase):
+    """Measured 2026-11-27: the pick lost the row the census had resolved."""
+
+    def _dispatch(self, heading="harness CLOUD"):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch._located_rows = {}
+        dispatch.project_of_row = Mock(return_value=heading)
+        return dispatch
+
+    def test_a_cloud_heading_row_is_the_lane_the_census_resolved(self):
+        """The strict rule the pick used dropped exactly this row."""
+        dispatch = self._dispatch()
+        row = {"text": "Lane 2", "x": 100, "x1": 300, "y": 200}
+        self.assertIs(dispatch._lane_row_in([row], "Lane 2"), row)
+
+    def test_a_heading_scrolled_out_of_frame_leaves_the_exact_row(self):
+        dispatch = self._dispatch(heading=None)
+        row = {"text": "Lane 2", "x": 100, "x1": 300, "y": 200}
+        self.assertIs(dispatch._lane_row_in([row], "Lane 2"), row)
+
+    def test_two_rows_for_one_name_stay_unresolved(self):
+        dispatch = self._dispatch()
+        rows = [{"text": "Lane 2", "x": 100, "y": 200},
+                {"text": "Lane 2", "x": 100, "y": 300}]
+        self.assertIsNone(dispatch._lane_row_in(rows, "Lane 2"))
+
+    def test_an_unrelated_heading_is_never_the_lane(self):
+        dispatch = self._dispatch(heading="Kalshi-Trader")
+        row = {"text": "Lane 2", "x": 100, "x1": 300, "y": 200}
+        self.assertIsNone(dispatch._lane_row_in([row], "Lane 2"))
+
+    def test_the_pick_clicks_the_census_row_and_says_so(self):
+        dispatch = self._dispatch()
+        dispatch._census_prefix_walk = Mock(return_value=(True, [(8, "Lane 2")]))
+        dispatch.scroll_sidebar_to_top = Mock(return_value="top")
+        row = {"text": "Lane 2", "x": 100, "x1": 300, "y": 200}
+        dispatch.settled_roster = Mock(return_value=("frame", [row]))
+        dispatch.click_exact_row = Mock()
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.navigate_by_unique_prefix(narrow=False))
+        dispatch.click_exact_row.assert_called_once()
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("prefix-pick-census-row", steps)
+
 class ProjectFamilyHeadingTests(unittest.TestCase):
     """Measured 2026-11-27: Lane 2 sits under "harness CLOUD", bound as "Harness"."""
 

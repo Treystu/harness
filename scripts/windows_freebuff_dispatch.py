@@ -1268,7 +1268,8 @@ class Dispatch:
         frame, rows = self.settled_roster(f"{step}-relocate", SIDEBAR, attempts=4)
         found, _ = self.session_candidates(rows, label, self.project)
         if not found:
-            found = [row for row in rows if row["text"].strip() == label.strip()]
+            lane_row = self._lane_row_in(rows, label)
+            found = [lane_row] if lane_row is not None else []
         if len(found) != 1:
             raise RuntimeError(f"{step}: the row moved and was not uniquely relocatable "
                                f"({len(found)} matches, label {label!r})")
@@ -1917,6 +1918,53 @@ class Dispatch:
             return False
         return left == right or left == right + "cloud" or right == left + "cloud"
 
+    def _lane_row_in(self, rows, name):
+        """The row that is this lane in one settled frame, by the census's binding.
+
+        The pick leg used to re-derive what the census had already proved, with a
+        stricter rule than the census used: it demanded an exact project heading
+        even when the census had accepted the cloud/local variant, and it dropped
+        the row outright when the heading had scrolled out of the frame. Measured
+        2026-11-27 (standing-20261127-coldlane2e): the census resolved "Lane 2"
+        under "harness CLOUD" at page 8 and the pick then lost it on every page it
+        re-walked, which is how a located lane became a not-found verdict.
+
+        The binding is: an exact heading outranks the variant, the variant counts
+        only when nothing exact matched, a heading outside the frame leaves the
+        exact text itself, and two rows for one name stay unresolved.
+        """
+        wanted = self._norm(name)
+        exact, family, unbound = [], [], []
+        for row in rows:
+            if self._norm(row["text"]) != wanted:
+                continue
+            heading = self.project_of_row(rows, row)
+            if heading is None:
+                unbound.append(row)
+            elif heading == self.project:
+                exact.append(row)
+            elif self._same_project_family(heading, self.project):
+                family.append(row)
+        for bucket in (exact, family, unbound):
+            if bucket:
+                return bucket[0] if len(bucket) == 1 else None
+        return None
+
+    def _remember_located(self, frame, rows, texts):
+        """Keep the census frame and row that resolved a lane, for the pick.
+
+        The pick must land on the row the census found. Remembering it is what
+        makes that checkable instead of assumed: the audit records whether the
+        clicked row sits where the census saw it.
+        """
+        memory = getattr(self, "_located_rows", None)
+        if memory is None:
+            memory = self._located_rows = {}
+        wanted = {self._norm(text) for text in texts}
+        for row in rows:
+            if self._norm(row["text"]) in wanted:
+                memory.setdefault(self._norm(row["text"]), (frame, row))
+
     def candidates_in(self, rows, page, found):
         """Collect the rows on one page that could be this lane, by identity.
 
@@ -2005,6 +2053,7 @@ class Dispatch:
                 break
             seen.append(texts)
             found = self.candidates_in(rows, page, found)
+            self._remember_located(frame, rows, [name for _, name in found])
             if not self.scroll_by(f"prefix-scroll-{page}", frame, [196, 850], -400):
                 frame = self.frame(f"prefix-{page}-recapture")
                 continue
@@ -2080,10 +2129,14 @@ class Dispatch:
                 self.audit.append("escalation", step_id=f"prefix-pick-{index}", reason=str(error))
                 frame = self.frame(f"prefix-pick-{index}-single")
                 rows = self.read_roster(f"prefix-pick-{index}-single", frame, SIDEBAR)
-            row = next((candidate for candidate in rows
-                        if self._norm(candidate["text"]) == self._norm(name)
-                        and self.project_of_row(rows, candidate) == self.project), None)
+            row = self._lane_row_in(rows, name)
             if row is not None:
+                located = getattr(self, "_located_rows", {}).get(self._norm(name))
+                same = bool(located and [located[1].get("x"), located[1].get("y")]
+                            == [row.get("x"), row.get("y")])
+                self.audit.append("verification", step_id="prefix-pick-census-row",
+                                  row=row["text"], census_page=page,
+                                  same_position=same)
                 self.click_exact_row("prefix-pick", frame, row)
                 time.sleep(1.2)
                 return True
