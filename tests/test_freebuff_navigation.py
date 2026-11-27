@@ -377,6 +377,37 @@ class SelectionProjectFamilyTests(unittest.TestCase):
         dispatch = self._dispatch("Kalshi-Trader")
         self.assertFalse(dispatch.selected_label_matches())
 
+class ComposerPlaceholderRouteTests(unittest.TestCase):
+    """Measured on dyn-7228544294: the empty composer read as machine text."""
+
+    def _dispatch(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 1"
+        dispatch.text = "continue in full"
+        dispatch.audit = Mock()
+        return dispatch
+
+    def test_the_current_placeholder_is_an_empty_composer(self):
+        dispatch = self._dispatch()
+        # The app's current placeholder, as the OCR delivered it.
+        written = ["typeamessagesentbeforethequeue"]
+        self.assertIsNone(dispatch.composer_written_route(written, "Ask Freebuff... Use / for commands"))
+
+    def test_the_legacy_placeholder_still_reads_as_empty(self):
+        dispatch = self._dispatch()
+        written = ["askfreebuffuseforcommandsforfiles"]
+        self.assertIsNone(dispatch.composer_written_route(written, "Ask Freebuff... Use / for commands"))
+
+    def test_the_continuation_is_staged_text(self):
+        dispatch = self._dispatch()
+        self.assertEqual(dispatch.composer_written_route(["continue in full"], "x"), "staged")
+
+    def test_a_real_foreign_draft_is_still_foreign(self):
+        dispatch = self._dispatch()
+        self.assertEqual(dispatch.composer_written_route(["owner module with an owner test"], "x"),
+                         "foreign")
+
+
 class ComposerFocusBeforeClearTests(unittest.TestCase):
     """Measured on dyn-7228279746: the clear had no renderer because nothing clicked."""
 
@@ -1018,7 +1049,7 @@ class ComposerTextVerdictTests(unittest.TestCase):
 
     def test_the_measured_run_together_label_is_machine_text(self):
         self.assertEqual(dispatch_module.composer_text_verdict(
-            ["typeamessagesentbeforethequeue"]), "machine")
+            "storingagentrequeststate"), "machine")
 
     def test_a_label_that_lost_only_its_spaces_is_still_machine_text(self):
         self.assertEqual(dispatch_module.composer_text_verdict(
@@ -1069,7 +1100,7 @@ class ComposerMachineTextGateTests(unittest.TestCase):
         return dispatch
 
     def test_machine_text_is_relayed_then_cleared_and_the_continuation_typed(self):
-        dispatch = self._dispatch(["typeamessagesentbeforethequeue"])
+        dispatch = self._dispatch(["storingagentrequeststate"])
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             dispatch.prepare_draft()
         dispatch.relay_composer_text.assert_called_once()
@@ -1082,8 +1113,8 @@ class ComposerMachineTextGateTests(unittest.TestCase):
         self.assertIn("composer-machine-text-replaced", steps)
 
     def test_a_composer_that_still_holds_machine_text_after_the_clear_refuses(self):
-        dispatch = self._dispatch(["typeamessagesentbeforethequeue"],
-                                  cleared=["typeamessagesentbeforethequeue"])
+        dispatch = self._dispatch(["storingagentrequeststate"],
+                                  cleared=["storingagentrequeststate"])
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             with self.assertRaisesRegex(RuntimeError, "survived the clear"):
                 dispatch.prepare_draft()

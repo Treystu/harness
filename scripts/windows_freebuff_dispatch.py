@@ -140,6 +140,19 @@ COMPOSER = (630, 918, 1550, 1110)
 # The editor's own text band only: the toolbar below it carries labels
 # (Build/Plan/Mission/Skills) that are not a draft.
 COMPOSER_TEXT = (650, 930, 1520, 1050)
+# An empty composer's own placeholder, as this app has worded it. The current one
+# normalizes to thirty unbroken letters, which is exactly the shape the
+# machine-text rule treats as a platform label - so an empty composer was being
+# relayed and "cleared" as if it held a robot's text (measured 2026-11-27,
+# dyn-7228544294: "composer-route: the machine text survived the clear
+# ('typeamessagesentbeforethequeue')"). The placeholder list is therefore part of
+# the route, not a guess: text that matches one of these is an empty composer.
+COMPOSER_PLACEHOLDERS = (
+    "Ask Freebuff... Use / for commands, @ for files",
+    "Type a message — sent before the queue",
+    "Type a message - sent before the queue",
+    "Type a message",
+)
 LANE_NAV = (80, 590, 390, 750)
 SEND_CONTROL = (1480, 1043, 1535, 1100)
 QUEUE_PLACEHOLDER = "Type a message — added to the queue"
@@ -3425,7 +3438,13 @@ class Dispatch:
             if attempt % 16 == 1 and (
                     not hit or self.user.GetAncestor(hit, 2) != self.require_foreground()):
                 raise RuntimeError("the verified composer renderer is no longer available")
-            if not self.user.PostMessageW(hit, 0x0102, 0x08, 1):
+            # Chrome's editor consumes Backspace from the key channel; a bare
+            # WM_CHAR is delivered but does not delete (measured 2026-11-27,
+            # dyn-7228544294: 320 characters posted, the text read back intact).
+            # Post the key pair and the character, to the same verified renderer.
+            if not (self.user.PostMessageW(hit, 0x0100, 0x08, 1)
+                    and self.user.PostMessageW(hit, 0x0101, 0x08, 0xC0000001)
+                    and self.user.PostMessageW(hit, 0x0102, 0x08, 1)):
                 raise RuntimeError("the verified FreeBuff composer refused the dismiss key")
             if attempt % 16 == 0:
                 time.sleep(0.05)
@@ -3606,6 +3625,11 @@ class Dispatch:
         reading = self._norm(" ".join(written))
         if not reading or self._norm(placeholder) in reading:
             return None
+        if any(self._norm(label) and self._norm(label) in reading
+               for label in COMPOSER_PLACEHOLDERS):
+            self.audit.append("verification", step_id="composer-placeholder-known",
+                              reading=reading[:80], route="empty")
+            return None
         if self._norm(self.text) and self._norm(self.text) in reading:
             return "staged"
         return "foreign"
@@ -3678,7 +3702,7 @@ class Dispatch:
                     left, top, right, bottom = COMPOSER_TEXT
                     self.act("focus-machine-composer", CLICK,
                              {"control": f"{self.label} composer",
-                              "point": [round((left + right) / 2), round(top + 10)],
+                              "point": [round((left + right) / 2), round((top + bottom) / 2)],
                               "size": list(frame.size)})
                     time.sleep(0.2)
                     self.act("clear-machine-composer", CLEAR,
