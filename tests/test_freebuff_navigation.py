@@ -408,6 +408,18 @@ class ComposerPlaceholderRouteTests(unittest.TestCase):
                          "foreign")
 
 
+class PreSendReanchorTests(unittest.TestCase):
+    """Measured on dyn-7229598525: identity outlasted the window, send refused."""
+
+    def test_an_expired_window_is_extended_only_on_an_unchanged_composer(self):
+        source = Path(dispatch_module.__file__).read_text(encoding="utf-8")
+        start = source.index("step_id=\"pre-send-reanchor\"")
+        window = source.rindex("if age > 60:", 0, start)
+        guard = source[window:start]
+        self.assertIn("composer_unchanged(frame.crop(COMPOSER), fresh.crop(COMPOSER))", guard)
+        self.assertIn("raise RuntimeError", guard)
+
+
 class SendArrowLightThemeTests(unittest.TestCase):
     """Measured on dyn-7229334626: a white control on a white page."""
 

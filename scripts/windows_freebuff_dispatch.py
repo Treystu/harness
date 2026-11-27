@@ -3569,7 +3569,19 @@ class Dispatch:
                 raise RuntimeError("composer changed between verification and send")
         age = time.monotonic() - observed_at
         if age > 60:
-            raise RuntimeError("the verified session and composer observations expired before send")
+            # Identity re-verification can outlast the observation window by itself
+            # (measured 2026-11-27, dyn-7229598525: the arrow verified, then
+            # "send-once: the verified send window expired before input"). Time is
+            # not the guarantee here - the composer is. Re-read it now, and extend
+            # the window only when it is byte-identical to the verified one.
+            fresh = self.frame("pre-send-reanchor")
+            if not composer_unchanged(frame.crop(COMPOSER), fresh.crop(COMPOSER)):
+                raise RuntimeError("the verified session and composer observations expired before send")
+            self.audit.append("escalation", step_id="pre-send-reanchor",
+                              age_seconds=round(age, 3),
+                              reason="identity work outlasted the observation window; the composer re-read unchanged")
+            observed_at = time.monotonic()
+            age = 0.0
         self.audit.append("verification", step_id="pre-send-freshness", age_seconds=round(age, 3))
         self.send_deadline = observed_at + 60
         self.send_composer = frame.crop(COMPOSER).tobytes() if self.standing else None
