@@ -22,9 +22,9 @@ origin wins. The operator tree (`main`) may lag; reconcile before trusting STATU
 
 ## Current mission (generated pointer - do not hand-edit)
 
-**Generated:** 2026-11-26 at `origin/main` `4efe51b9`, from a two-method live read
-(`gh issue list --state open --limit 400` = 100; search API `type:issue is:open` = 99,
-whose index has not yet caught up on `#745`, open when read, so the list read governs).
+**Generated:** 2026-11-27 at `origin/main` `58b0ea5a`, from a two-method live read
+(`gh issue list --state open --limit 400` = 43; search API `type:issue is:open`
+agrees at 43).
 Regenerate this block in the same act that refreshes the canonical register in
 [docs/jev-roadmap.md](docs/jev-roadmap.md); if the two disagree, the register wins
 and this block is regenerated, never hand-edited. Every change, including this
@@ -34,10 +34,10 @@ a time; never push directly to `main`.
 **The open set.** Issue #295 is the live queue; the **Canonical burndown register -
 2026-11-19** section in `docs/jev-roadmap.md` owns its count, placement and order,
 and the register mirror under it is that register's generated live-state annex.
-**100 open issues**, of which **26 are placed** in the register's tables and **74 are
-filed but not yet placed** (driver #703, #704, #722, gap audit #684, and the #683
-finding rows #725-#788); placing them is the register owner's taxonomy act, so this
-block names them as unplaced rather than inventing a wave.
+**43 open issues**, of which **26 are placed** in the register's tables and **17 are
+filed but not yet placed** (ports #655, security #652, #653, #805, gap audit #684,
+driver #703, #704, #722 and #818-#826); placing them is the register owner's taxonomy
+act, so this block names them as unplaced rather than inventing a wave.
 
 | Register section | Placed open |
 |---|---|
@@ -46,7 +46,7 @@ block names them as unplaced rather than inventing a wave.
 | W2 - verification + Champion program | 6 |
 | W3 - parked (owner-present tails) | 3 |
 | Tracker / blocked | 2 |
-| Filed, not yet placed | 74 |
+| Filed, not yet placed | 17 |
 
 **Canon rows are a different unit and are not in the counts above.** The `HV-*` /
 `EV-*` / `DRV-*` / `GAP-*` / `DF-*` families live in the roadmap's own tables:
