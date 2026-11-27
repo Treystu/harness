@@ -25,6 +25,7 @@ from .chat import (
 from . import events as _events
 from .consent import probe_consent, consent_renew
 from .errors import HarnessError, ToolCancelled
+from .ledger import require_intact_chain
 from .token_budget import USAGE_ACTUAL, USAGE_UNAVAILABLE
 from .output import eprint
 from .prompts import build_apply_prompt, consent_mechanics_text
@@ -158,6 +159,10 @@ class ApplyEngineMixin:
         retry context, candidate selection, dispatch, merge, preview/write +
         gate -- then gated escalation and the honest terminal assembly.
         Single exit per outcome; every mutation lives in ``state``."""
+        # #825: a dispatch is work whose evidence must be recordable. Refuse it
+        # before consent is minted, so no offer exists for work whose record
+        # could never be trusted.
+        require_intact_chain(self.ledger, "this dispatch")
         state = RunState(
             model_requested=req.model,
             rounds=list(req.continuation.get("history") or []),

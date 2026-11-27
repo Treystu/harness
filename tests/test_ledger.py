@@ -2,8 +2,10 @@ import json
 import os
 import tempfile
 import unittest
+from unittest.mock import Mock
 
 from harness.errors import HarnessError
+from harness.apply_policy import ApplyEngineMixin
 from harness.ledger import AutonomyLedger
 
 
@@ -365,14 +367,16 @@ class LedgerCorruptionTests(unittest.TestCase):
             with open(path, "a", encoding="utf-8") as f:
                 f.write("{not json\n")
             reloaded = AutonomyLedger(path)
-            # Load must not crash; the intact prefix stays usable.
+            # Load must not crash; the intact prefix stays readable.
             self.assertGreaterEqual(reloaded.quarantined, 1)
             self.assertTrue(reloaded.chain_broken)
-            # A new append still works on the intact prefix.
-            reloaded.append("complete", task_id="t1", model="m")
+            # #825: the chain that failed to verify refuses new evidence until
+            # it is repaired - the tamper evidence cannot be extended.
+            with self.assertRaisesRegex(HarnessError, "hash chain is broken at seq"):
+                reloaded.append("complete", task_id="t1", model="m")
             n = reloaded._valid_prefix_len()
             self.assertEqual(n, len(reloaded.entries()))
-            # verify fails closed until the torn line is repaired away.
+            # The report-only surfaces keep working while the chain is broken.
             ok, _bad = reloaded.verify()
             self.assertFalse(ok)
             kept, dropped = reloaded.repair()
@@ -389,6 +393,66 @@ class LedgerCorruptionTests(unittest.TestCase):
             led = AutonomyLedger(path)
             self.assertEqual(len(led.entries()), 0)
             self.assertEqual(led.quarantined, 2)
+
+
+class LedgerChainGuardTests(unittest.TestCase):
+    """#825: tamper detection must stop the writes and dispatches it guards."""
+
+    def _tampered(self, path):
+        led = AutonomyLedger(path)
+        led.append("offer", task_id="t1", model="m", required=True)
+        with open(path, encoding="utf-8") as f:
+            line = f.read().splitlines()[0]
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(line.replace('"offer"', '"OFFER"') + chr(10))
+        return AutonomyLedger(path)
+
+    def test_an_append_on_a_broken_chain_refuses_and_names_the_sequence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ledger.jsonl")
+            broken = self._tampered(path)
+            self.assertTrue(broken.chain_broken)
+            before = len(broken.entries())
+            with self.assertRaisesRegex(HarnessError, "broken at seq 1"):
+                broken.append("complete", task_id="t1", model="m")
+            # Nothing was written on top of the tampered record.
+            self.assertEqual(len(broken.entries()), before)
+
+    def test_the_report_only_surfaces_still_read_a_broken_chain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ledger.jsonl")
+            broken = self._tampered(path)
+            ok, bad = broken.verify()
+            self.assertFalse(ok)
+            self.assertEqual(bad, 1)
+            self.assertEqual(broken.entries(), [])
+            self.assertTrue(broken.chain_status()["chain_broken_on_load"])
+
+    def test_repair_restores_the_one_path_back_to_a_writable_ledger(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ledger.jsonl")
+            broken = self._tampered(path)
+            broken.repair()
+            self.assertFalse(broken.chain_broken)
+            # The tampered line is gone, so the task needs a fresh offer before
+            # its completion can be recorded.
+            broken.append("offer", task_id="t1", model="m", required=True)
+            broken.append("complete", task_id="t1", model="m")
+            ok, bad = AutonomyLedger(path).verify()
+            self.assertTrue(ok)
+            self.assertIsNone(bad)
+
+    def test_a_dispatch_refuses_before_consent_is_sought(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "ledger.jsonl")
+            broken = self._tampered(path)
+            engine = ApplyEngineMixin.__new__(ApplyEngineMixin)
+            engine.ledger = broken
+            engine._initial_consent = Mock(
+                side_effect=AssertionError("consent must not be sought"))
+            with self.assertRaisesRegex(HarnessError, "this dispatch cannot be recorded"):
+                engine._apply_edit(Mock())
+            engine._initial_consent.assert_not_called()
 
 
 class LedgerSegmentAnchorTests(unittest.TestCase):
