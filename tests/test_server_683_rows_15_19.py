@@ -84,6 +84,29 @@ class LedgerFingerprintTests(unittest.TestCase):
         self.assertNotEqual(first, srv._ledger_fingerprint(self.settings))
 
 
+class LedgerFingerprintFallbackTests(unittest.TestCase):
+    """A ledger that cannot be read still keys its own path."""
+
+    def _missing(self, name):
+        return os.path.join(tempfile.gettempdir(), f"{name}-{os.getpid()}.jsonl")
+
+    def test_a_missing_ledger_file_still_keys_its_path(self):
+        path = self._missing("absent-ledger")
+        self.assertFalse(os.path.exists(path))
+        fingerprint = srv._ledger_fingerprint(
+            SimpleNamespace(ledger_path=path))
+        # No segment to enumerate, so the active path is the whole key.
+        self.assertEqual(fingerprint, (path, None, None))
+
+    def test_a_ledger_that_cannot_be_opened_falls_back_to_the_active_path(self):
+        path = self._missing("unopenable-ledger")
+        with mock.patch.object(srv, "ledger_for",
+                               side_effect=srv.HarnessError("unreadable")):
+            fingerprint = srv._ledger_fingerprint(
+                SimpleNamespace(ledger_path=path))
+        self.assertEqual(fingerprint, ((path, None, None),))
+
+
 class LogSinkFailureTests(unittest.TestCase):
     """#683 finding 18: a failing log sink must not kill the response."""
 
@@ -109,6 +132,18 @@ class LogSinkFailureTests(unittest.TestCase):
         self.assertTrue(handler._log_degraded)
         self.assertIn("request logging disabled", "".join(messages))
         self.assertEqual(len(messages), 2)
+
+    def test_a_stderr_that_also_fails_still_disables_logging_once(self):
+        handler = self._handler()
+
+        class _Dead:
+            def write(self, line):
+                raise OSError(9, "bad file descriptor")
+
+        with mock.patch.object(srv.sys, "stderr", new=_Dead()):
+            handler.log_message("GET %s", "/")
+            handler.log_message("GET %s", "/again")
+        self.assertTrue(handler._log_degraded)
 
     def test_the_response_still_goes_out_with_a_failing_sink(self):
         import http.client

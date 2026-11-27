@@ -116,6 +116,29 @@ class ServeIdentityTests(unittest.TestCase):
                                                       stdout="")):
             self.assertEqual(_git_describe(Path(".")), "unknown")
 
+    def test_a_package_on_another_drive_is_unknown(self):
+        # A Windows checkout on a second drive has no relative path from the
+        # top level, which is a refusal rather than an exception.
+        with mock.patch.object(server_module.osal, "run",
+                               side_effect=self._source_tree()), \
+                mock.patch.object(server_module.os.path, "relpath",
+                                  side_effect=ValueError("different drive")):
+            self.assertEqual(_git_describe(Path(".")), "unknown")
+
+    def test_a_package_outside_the_toplevel_is_unknown(self):
+        with mock.patch.object(server_module.osal, "run",
+                               side_effect=self._source_tree()), \
+                mock.patch.object(server_module.os.path, "relpath",
+                                  return_value=".."):
+            self.assertEqual(_git_describe(Path(".")), "unknown")
+
+    def test_git_that_vanishes_mid_identity_is_unknown(self):
+        tree = self._source_tree()
+        with mock.patch.object(server_module.osal, "run",
+                               side_effect=[tree[0],
+                                            HarnessError("git gone")]):
+            self.assertEqual(_git_describe(Path(".")), "unknown")
+
     def test_the_server_header_names_the_package_version(self):
         self.assertEqual(UiRequestHandler.server_version,
                          f"harness-ui/{harness.__version__}")
