@@ -408,6 +408,29 @@ class ComposerPlaceholderRouteTests(unittest.TestCase):
                          "foreign")
 
 
+class SendArrowLightThemeTests(unittest.TestCase):
+    """Measured on dyn-7229334626: a white control on a white page."""
+
+    def _frame(self, arrow=True):
+        from PIL import Image
+        frame = Image.new("RGB", (1800, 1131), (249, 249, 249))
+        if arrow:
+            left, top, _, _ = dispatch_module.SEND_CONTROL
+            for x in range(left + 20, left + 33):
+                for y in range(top + 11, top + 18):
+                    frame.putpixel((x, y), (30, 30, 30))
+        return frame
+
+    def test_a_dark_glyph_on_a_white_page_is_the_send_control(self):
+        point = dispatch_module._send_arrow_bbox(self._frame())
+        self.assertIsNotNone(point)
+        control = dispatch_module.SEND_CONTROL
+        self.assertTrue(control[0] <= point[0] <= control[2])
+
+    def test_a_plain_white_page_has_no_send_control(self):
+        self.assertIsNone(dispatch_module._send_arrow_bbox(self._frame(arrow=False)))
+
+
 class SendArrowPixelsFirstTests(unittest.TestCase):
     """Measured on dyn-7229043019: a staged draft parked on a 0.31 arrow guess."""
 

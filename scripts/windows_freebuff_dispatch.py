@@ -692,20 +692,57 @@ class ForegroundLost(RuntimeError):
 
 
 def _send_arrow_bbox(frame, region=SEND_CONTROL):
-    """Locate the white up-arrow Send button outline in ``region``, or None."""
+    """Locate the Send control's up-arrow in ``region``, or None.
+
+    Two themes, two readings. The dark theme paints a white control on a dark
+    page, so the control itself is the bright blob. The light theme paints a white
+    control on a white page, where only the arrow has contrast: measured
+    2026-11-27 on dyn-7229334626, the whole 55x57 region read 249 except the glyph,
+    so the bright-blob rule returned a blob the size of the region, the locate
+    failed, and the send phase parked on a 0.3 model guess. The dark-glyph pass is
+    the same measurement on the other side of the contrast, and the composer's own
+    bottom border is cropped out first so a line cannot pass for an arrow.
+    """
     left, top, _, _ = region
     try:
         crop = frame.crop(region).convert("L")
-        outline = crop.point(lambda level: 255 if level >= 205 else 0).getbbox()
     except (AttributeError, TypeError, ValueError):
         return None
-    if not (isinstance(outline, tuple) and len(outline) == 4
+    outline = crop.point(lambda level: 255 if level >= 205 else 0).getbbox()
+    if (isinstance(outline, tuple) and len(outline) == 4
             and all(isinstance(v, (int, float)) for v in outline)):
+        if 26 <= outline[2] - outline[0] <= 47 and 26 <= outline[3] - outline[1] <= 47:
+            return [int(left + (outline[0] + outline[2]) // 2),
+                    int(top + (outline[1] + outline[3]) // 2)]
+    # Only a page as bright as the control itself is read this way: that is the
+    # light theme's signature, and it keeps the dark-glyph pass from ever looking
+    # for an arrow on a surface that is not one.
+    if not (isinstance(outline, tuple) and len(outline) == 4
+            and outline[2] - outline[0] >= crop.width - 2
+            and outline[3] - outline[1] >= crop.height - 2):
         return None
-    if not (26 <= outline[2] - outline[0] <= 47 and 26 <= outline[3] - outline[1] <= 47):
-        return None
-    return [int(left + (outline[0] + outline[2]) // 2),
-            int(top + (outline[1] + outline[3]) // 2)]
+    # A rule of the composer can run across this region; a line is wide and one
+    # row tall or two, while the glyph is neither. Rows that are mostly dark are
+    # dropped before the glyph is measured, so the point lands on the arrow.
+    mask = crop.crop((0, 0, crop.width, max(1, int(crop.height * 0.6))))
+    mask = mask.point(lambda level: 255 if level <= 120 else 0)
+    keep = mask.copy()
+    pixels = mask.load()
+    kept = keep.load()
+    wide = max(1, int(mask.width * 0.6))
+    for y in range(mask.height):
+        dark = sum(1 for x in range(mask.width) if pixels[x, y])
+        if dark >= wide:
+            for x in range(mask.width):
+                kept[x, y] = 0
+    glyph = keep.getbbox()
+    if (isinstance(glyph, tuple) and len(glyph) == 4
+            and all(isinstance(v, (int, float)) for v in glyph)):
+        width, height = glyph[2] - glyph[0], glyph[3] - glyph[1]
+        if 6 <= width <= 45 and 4 <= height <= 40:
+            return [int(left + (glyph[0] + glyph[2]) // 2),
+                    int(top + (glyph[1] + glyph[3]) // 2)]
+    return None
 
 
 def has_send_arrow_outline(frame, region=SEND_CONTROL):
