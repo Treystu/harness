@@ -25,6 +25,31 @@ def _canon(entry):
     return json.dumps(entry, sort_keys=True, separators=(",", ":"))
 
 
+def require_intact_chain(ledger, surface):
+    """Refuse work whose evidence ``ledger`` can no longer prove (#825).
+
+    Load sets ``chain_broken`` when a line fails its hash or its shape and
+    quarantines it, and ``verify()`` has always failed closed. Until now only
+    read-only surfaces consulted that state, so a ledger that had detected
+    tampering still accepted new evidence and work kept dispatching on top of
+    it - which invalidates every promise resting on the record being provable.
+    The refusal names the first bad sequence and the one action that makes the
+    ledger writable again.
+
+    Module-level so the dispatch path can ask the question of whatever ledger a
+    caller supplied: a duck-typed stand-in without the state simply has nothing
+    broken to report, while a real ledger's state is always consulted.
+    """
+    if not getattr(ledger, "chain_broken", False):
+        return
+    raise HarnessError(
+        "the autonomy ledger's hash chain is broken at seq "
+        f"{getattr(ledger, 'first_bad_seq', None)!r}: {surface} cannot be "
+        "recorded as evidence on a chain that does not verify. Repair it "
+        "first (`harness ledger repair`; archive the ledger directory "
+        "beforehand, repair unlinks) and retry.")
+
+
 LEDGER_MAX_BYTES = 10 * 1024 * 1024  # rotate the JSONL at 10 MB
 LEDGER_KEEP_ROTATIONS = 3
 # Matches ONLY the suffix _rotate_if_needed writes -- "%Y%m%dT%H%M%S.%f"
@@ -547,24 +572,8 @@ class AutonomyLedger(LedgerAnalytics):
         self._prev_hash = last_hash
 
     def require_intact_chain(self, surface):
-        """Refuse work whose evidence this ledger can no longer prove.
-
-        Load sets ``chain_broken`` when a line fails its hash or its shape and
-        quarantines it, and ``verify()`` has always failed closed. Until #825
-        only read-only surfaces consulted that state, so a ledger that had
-        detected tampering still accepted new evidence and work kept
-        dispatching on top of it - which invalidates every promise that rests
-        on the record being provable. The refusal names the first bad sequence
-        and the one action that makes the ledger writable again.
-        """
-        if not getattr(self, "chain_broken", False):
-            return
-        raise HarnessError(
-            "the autonomy ledger's hash chain is broken at seq "
-            f"{getattr(self, 'first_bad_seq', None)!r}: {surface} cannot be "
-            "recorded as evidence on a chain that does not verify. Repair it "
-            "first (`harness ledger repair`; archive the ledger directory "
-            "beforehand, repair unlinks) and retry.")
+        """Refuse work whose evidence this ledger can no longer prove."""
+        require_intact_chain(self, surface)
 
     def append(self, event, task_id=None, **fields):
         entry = {
