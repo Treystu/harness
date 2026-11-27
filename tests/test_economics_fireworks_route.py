@@ -130,6 +130,24 @@ class ToggleTests(_IsolatedHome):
             load_settings(overrides={"openrouter_enabled": False,
                                      "fireworks_enabled": False})
 
+    def test_an_explicit_zero_budget_is_flagged_explicit(self):
+        # #683 finding 7: zero from the environment is a prohibition, not the
+        # unset default that governor_for may replace with the run budget.
+        os.environ["HARNESS_FIREWORKS_BUDGET_USD"] = "0"
+        s = load_settings()
+        self.assertEqual(s.fireworks_budget_usd, 0.0)
+        self.assertTrue(s.fireworks_budget_explicit)
+
+    def test_an_unset_budget_is_not_flagged_explicit(self):
+        self.assertFalse(load_settings().fireworks_budget_explicit)
+
+    def test_a_config_file_budget_is_flagged_explicit(self):
+        self._write(".config/harness/config.json",
+                    '{"fireworks_budget_usd": 0}')
+        s = load_settings()
+        self.assertEqual(s.fireworks_budget_usd, 0.0)
+        self.assertTrue(s.fireworks_budget_explicit)
+
     def test_fireworks_can_be_the_only_enabled_provider(self):
         s = load_settings(overrides={"openrouter_enabled": False,
                                      "fireworks_enabled": True,

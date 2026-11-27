@@ -277,6 +277,78 @@ def _post(*, native=True, sufficient=0.95):
     }
 
 
+class ResolvedSettingTests(unittest.TestCase):
+    """#683 findings 28-30: resolve values before calling them contradictions."""
+
+    def _checks(self, script, *, promise=False, prose=""):
+        return {finding.check
+                for finding in analyse_script(script, promise=promise,
+                                              prose=prose)}
+
+    def test_power_positions_under_power_ticks_are_not_a_mismatch(self):
+        script = '''
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
+xs = [10 ** k for k in range(3)]
+ax.set_xticks([10 ** k for k in range(3)])
+ax.bar(xs, [1, 2, 3])
+'''
+        self.assertNotIn("tick-units", self._checks(script))
+
+    def test_plain_positions_under_power_ticks_still_are(self):
+        script = '''
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
+xs = [row[1] for row in ROWS]
+ax.set_xticks([10 ** k for k in range(3)])
+ax.bar(xs, [1, 2, 3])
+'''
+        self.assertIn("tick-units", self._checks(script))
+
+    def test_an_argparse_attribute_toggle_does_not_contradict_itself(self):
+        # `if args.log:` used to leave both branches unresolved, so the linear
+        # branch's title and the log branch's scaler were compared.
+        script = '''
+import argparse
+import matplotlib.pyplot as plt
+
+ap = argparse.ArgumentParser()
+ap.add_argument("--log", dest="log_mode", action="store_true")
+args = ap.parse_args()
+fig, ax = plt.subplots()
+if args.log_mode:
+    ax.set_title("Log scale")
+    ax.set_xscale("log")
+else:
+    ax.set_title("Linear scale")
+    ax.set_xscale("linear")
+'''
+        self.assertNotIn("panel-title", self._checks(script))
+
+    def test_a_later_scale_override_is_the_effective_one(self):
+        script = '''
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
+ax.set_title("Log scale")
+ax.set_xscale("linear")
+ax.set_xscale("log")
+'''
+        self.assertNotIn("panel-title", self._checks(script))
+
+    def test_a_title_that_disagrees_with_the_final_scales_is_still_reported(self):
+        script = '''
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots()
+ax.set_title("Log scale")
+ax.set_xscale("log")
+ax.set_xscale("linear")
+'''
+        findings = [finding for finding in analyse_script(script)
+                    if finding.check == "panel-title"]
+        self.assertEqual(len(findings), 1)
+        self.assertIn("x=linear", findings[0].detail)
+
+
 class AnswerPlotLifecycleTests(unittest.TestCase):
     """The lifecycle holds the candidate, revises once, then withholds."""
 

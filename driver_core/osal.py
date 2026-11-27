@@ -1271,6 +1271,8 @@ BOUNDED_TARGET_SCHEMA = "target@2"
 #: Windows input flags, declared once rather than spelled at each call site.
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_UNICODE = 0x0004
+#: ``INPUT.type`` for a keyboard record, the only record type this module sends.
+INPUT_KEYBOARD = 0x0001
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
 MOUSEEVENTF_WHEEL = 0x0800
@@ -1866,9 +1868,13 @@ def parse_key_combo(combo):
             f"{MAX_COMBO_KEYS} are declared")
     codes = []
     for token in tokens:
-        if len(token) == 1 and token.isalpha():
+        # #683 finding 22: the single-character shorthand is ASCII only. A
+        # non-ASCII character used to contribute its Unicode ordinal, which
+        # the native binding truncates to one byte -- `ctrl+ł` became Ctrl+A,
+        # a different shortcut from the one the caller named.
+        if len(token) == 1 and token.isascii() and token.isalpha():
             code = ord(token.upper())
-        elif len(token) == 1 and token.isdigit():
+        elif len(token) == 1 and token.isascii() and token.isdigit():
             code = ord(token)
         else:
             code = KEY_CODES.get(token)
@@ -1880,6 +1886,42 @@ def parse_key_combo(combo):
     if len(set(codes)) != len(codes):
         raise OsalError(f"key combination {combo!r} names a key twice")
     return tuple(codes)
+
+
+def _unicode_input_structures(ctypes):
+    """Build the ``INPUT`` record family ``SendInput`` consumes.
+
+    ``KEYBDINPUT.wScan`` is a ``WORD``, which is why one code point per
+    ``keybd_event`` call could never carry text above U+00FF (#683 finding
+    21). The structures are built against the same ctypes module the caller
+    will size them with, so ``sizeof(INPUT)`` agrees with the ABI the binding
+    declared.
+    """
+
+    class KEYBDINPUT(ctypes.Structure):
+        _fields_ = (("wVk", ctypes.c_ushort), ("wScan", ctypes.c_ushort),
+                    ("dwFlags", ctypes.c_ulong), ("time", ctypes.c_ulong),
+                    ("dwExtraInfo", ctypes.c_void_p))
+
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = (("dx", ctypes.c_long), ("dy", ctypes.c_long),
+                    ("mouseData", ctypes.c_ulong),
+                    ("dwFlags", ctypes.c_ulong), ("time", ctypes.c_ulong),
+                    ("dwExtraInfo", ctypes.c_void_p))
+
+    class HARDWAREINPUT(ctypes.Structure):
+        _fields_ = (("uMsg", ctypes.c_ulong),
+                    ("wParamL", ctypes.c_ushort),
+                    ("wParamH", ctypes.c_ushort))
+
+    class _INPUTUNION(ctypes.Union):
+        _fields_ = (("mi", MOUSEINPUT), ("ki", KEYBDINPUT),
+                    ("hi", HARDWAREINPUT))
+
+    class INPUT(ctypes.Structure):
+        _fields_ = (("type", ctypes.c_ulong), ("u", _INPUTUNION))
+
+    return INPUT, KEYBDINPUT, _INPUTUNION
 
 
 def _bind_input_events(*, ctypes_module=None):
@@ -1904,6 +1946,14 @@ def _bind_input_events(*, ctypes_module=None):
                                    ctypes.c_long, ctypes.c_ulong,
                                    ctypes.c_void_p)
     user32.mouse_event.restype = None
+    INPUT, KEYBDINPUT, _INPUTUNION = _unicode_input_structures(ctypes)
+    # SendInput is bound when the entry point exists; type_text refuses by
+    # name when it does not, rather than falling back to the one-byte path.
+    send_input = getattr(user32, "SendInput", None)
+    if send_input is not None:
+        send_input.argtypes = (ctypes.c_uint, ctypes.POINTER(INPUT),
+                               ctypes.c_int)
+        send_input.restype = ctypes.c_uint
 
     class POINT(ctypes.Structure):
         _fields_ = (("x", ctypes.c_long), ("y", ctypes.c_long))
@@ -1914,7 +1964,7 @@ def _bind_input_events(*, ctypes_module=None):
     if get_dpi is not None:
         get_dpi.argtypes = (ctypes.c_void_p,)
         get_dpi.restype = ctypes.c_ulong
-    return ctypes, user32, POINT
+    return ctypes, user32, POINT, (INPUT, KEYBDINPUT, _INPUTUNION)
 
 
 class _WindowsInputApi:
@@ -1924,13 +1974,11 @@ class _WindowsInputApi:
     the entry points that move a cursor or synthesise a keystroke, and the
     focus-only build never constructs it.
 
-    Events go through ``keybd_event``/``mouse_event`` rather than
-    ``SendInput``, and the tradeoff is stated rather than hidden: those two
-    send one event at a time, so a human typing during a synthetic run can
-    interleave where ``SendInput`` would inject one atomic batch. This
-    backend is supervised-only by policy, every action is verified after it
-    runs, and a struct ABI nobody can exercise on the CI that gates the
-    change is a worse risk than an interleave the verification would expose.
+    Literal text goes through ``SendInput`` as one atomic batch of UTF-16
+    code units, because ``keybd_event`` takes the character in a ``BYTE`` and
+    cannot carry text above U+00FF (#683 finding 21). Clicks, key chords and
+    scrolling keep ``mouse_event``/``keybd_event``: they send decided,
+    already-verified input, and changing their ABI is not this finding.
     """
 
     name = "windows-user32-sendinput"
@@ -1941,7 +1989,8 @@ class _WindowsInputApi:
                 f"the native input API binds Windows user32, which does not "
                 f"exist on {platform_name()!r}")
         try:
-            self._ctypes, self._user32, self._POINT = (
+            (self._ctypes, self._user32, self._POINT,
+             (self._INPUT, self._KEYBDINPUT, self._INPUTUNION)) = (
                 _bind_input_events() if bind is None else bind())
         except OsalError:
             raise
@@ -1962,22 +2011,37 @@ class _WindowsInputApi:
         self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
     def type_text(self, text):
-        """Type one literal string as Unicode key events."""
+        """Type one literal string as one atomic ``SendInput`` batch."""
         if not isinstance(text, str) or not text:
             raise OsalError(f"typing needs a non-empty string, got {text!r}")
-        # Validate the whole string before the first event. Refusing halfway
-        # would leave half the text typed and report a failure, which is the
-        # one outcome a caller cannot reason about.
-        for character in text:
-            if ord(character) > 0xFFFF:
-                raise OsalError(
-                    f"character {character!r} is outside the BMP; it is "
-                    "refused rather than sent as half a surrogate pair")
-        for character in text:
-            unit = ord(character)
-            self._user32.keybd_event(0, unit, KEYEVENTF_UNICODE, 0)
-            self._user32.keybd_event(
-                0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0)
+        send_input = getattr(self._user32, "SendInput", None)
+        if send_input is None:
+            raise OsalError(
+                "the Windows SendInput entry point is unavailable; literal "
+                "text cannot be typed without it")
+        # UTF-16 code units, not code points: Windows injects one record per
+        # unit, and a character above the BMP is two units (a surrogate
+        # pair). Building the whole array first is what makes the batch
+        # atomic -- a refusal halfway would leave half the text typed.
+        encoded = text.encode("utf-16-le")
+        units = [encoded[i] | (encoded[i + 1] << 8)
+                 for i in range(0, len(encoded), 2)]
+        records = (self._INPUT * (len(units) * 2))()
+        for index, unit in enumerate(units):
+            records[index * 2] = self._INPUT(
+                type=INPUT_KEYBOARD,
+                u=self._INPUTUNION(ki=self._KEYBDINPUT(
+                    0, unit, KEYEVENTF_UNICODE, 0, None)))
+            records[index * 2 + 1] = self._INPUT(
+                type=INPUT_KEYBOARD,
+                u=self._INPUTUNION(ki=self._KEYBDINPUT(
+                    0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0, None)))
+        sent = send_input(len(records), records,
+                          self._ctypes.sizeof(self._INPUT))
+        if sent != len(records):
+            raise OsalError(
+                f"SendInput accepted {sent} of {len(records)} unicode input "
+                "records; the text was not typed atomically")
 
     def key(self, codes):
         """Press the codes in order and release them in reverse."""
