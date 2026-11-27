@@ -375,6 +375,30 @@ class SelectionProjectFamilyTests(unittest.TestCase):
         dispatch = self._dispatch("Kalshi-Trader")
         self.assertFalse(dispatch.selected_label_matches())
 
+class OpenTabIdentityTests(unittest.TestCase):
+    """Measured on dyn-7227296013: the lane was open and no sidebar proof said so."""
+
+    def _dispatch(self, lines):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 1"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.frame = Mock(return_value="frame")
+        dispatch.read_lines = Mock(return_value=lines)
+        return dispatch
+
+    def test_the_open_title_names_the_lane(self):
+        dispatch = self._dispatch(["Code Chat Lane 1"])
+        self.assertTrue(dispatch.open_tab_matches())
+
+    def test_another_lane_title_is_not_this_lane(self):
+        dispatch = self._dispatch(["Code Chat Lane 2"])
+        self.assertFalse(dispatch.open_tab_matches())
+
+    def test_an_unreadable_title_is_not_a_match(self):
+        dispatch = self._dispatch([])
+        self.assertFalse(dispatch.open_tab_matches())
+
 class PickPassTests(unittest.TestCase):
     """Measured 2026-11-27: the pick lost the row the census had resolved."""
 
@@ -726,9 +750,12 @@ class RevealLaneRowTests(unittest.TestCase):
         dispatch.navigate_by_session_list = Mock(return_value=False)
         dispatch.find_highlighted_row = Mock(return_value=None)
         dispatch.saw_text = Mock(return_value=False)
+        dispatch.open_tab_matches = Mock(return_value=False)
         with self.assertRaises(RuntimeError):
             dispatch.verify_session_identity()
         dispatch.reveal_lane_row.assert_not_called()
+        # The refusal is only reachable when the open title does not name the lane.
+        dispatch.open_tab_matches.assert_called_once()
 
 
 class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):

@@ -149,6 +149,11 @@ SIDEBAR = (88, 225, 390, 1060)
 SEARCH_RESULTS = (546, 232, 1300, 470)
 SEARCH_PLACEHOLDER = (527, 168, 774, 228)
 SEARCH_PLACEHOLDER_TAIL = (626, 180, 700, 216)
+# The open session's own title, top-left of the transcript pane: measured
+# 2026-11-27 on dyn-7227296013's after capture (1800x1131), where the strip reads
+# "Code | Chat | Lane 1". This is the app stating which session is open, which
+# is a stronger identity than a selection band the theme may not paint.
+OPEN_TAB_REGION = (350, 6, 900, 42)
 SEARCH_CLOSE = (1257, 185, 1278, 207)
 COUNTS = (6, 16, 26, 36, 46)
 
@@ -2869,8 +2874,32 @@ class Dispatch:
         # its presence in the composer is the identity of the session it holds.
         if self.identity_by_continuation():
             return
+        # Measured 2026-11-27 (dyn-7227296013): the lane was open, its transcript
+        # on screen and its row visibly boxed, but this theme does not paint the
+        # bright selection fill the band detector looks for, so every sidebar
+        # proof failed and prepare refused a session it was looking at. The app
+        # names the open session in its tab strip, so that reading is the last
+        # proof before a refusal.
+        if self.open_tab_matches("pinned-open-tab"):
+            return
         raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
                            f"({self.label})")
+
+    def open_tab_matches(self, step="open-tab"):
+        """Does the transcript pane's title name this lane?"""
+        try:
+            frame = self.frame(f"{step}-capture")
+            lines = self.read_lines(step, frame, OPEN_TAB_REGION)
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id=step, reason=str(error))
+            return False
+        reading = self._norm(" ".join(lines))
+        if reading and self._norm(self.label) in reading:
+            self.audit.append("verification", step_id=step, label=self.label,
+                              source="the open session title", reading=reading[:80])
+            return True
+        self.audit.append("escalation", step_id=step, label=self.label, reading=reading[:80])
+        return False
 
     def verify_vision_seat(self):
         if not self.selected_label_matches(wait=3):
