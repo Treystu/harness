@@ -552,11 +552,14 @@ def describe_scan(evidence):
         return ""
     text = (f"scan saw {evidence.get('owner', 0)} owner comment(s) through "
             f"#{evidence.get('scanned_through', 0)}; "
-            f"{evidence.get('dispatches', 0)} dispatch-shaped; "
+            f"{evidence.get('dispatches', 0)} dispatch-shaped and parseable; "
             f"{evidence.get('claimable', 0)} claimable")
-    unparsed = sorted(evidence.get("unparsed") or ())
-    if unparsed:
-        text += "; not claimable: " + ", ".join(f"#{cid}" for cid in unparsed)
+    unparsed = evidence.get("unparsed") or ()
+    if isinstance(unparsed, dict):
+        text += "; not claimable: " + ", ".join(
+            f"#{cid} ({reason})" for cid, reason in sorted(unparsed.items()))
+    elif unparsed:
+        text += "; not claimable: " + ", ".join(f"#{cid}" for cid in sorted(unparsed))
     if "polls" in evidence:
         text += f"; polls={evidence.get('polls', 0)} (304={evidence.get('conditional_304s', 0)})"
     return text
@@ -793,9 +796,15 @@ _MD_PREFIX = r"\ufeff?(?:[ \t]+|[#*>-]+[ \t]+)*\*{0,2}"
 # full\"", which none of the Action forms matched, so the dispatch that the
 # oversight filed to bring this lane back was unreadable by the watch that was
 # supposed to execute it. Also tolerate Markdown bold/heading prefixes (7154645137).
+# Measured 2026-11-25T21:02Z: dispatch 7174526907 writes its instruction as
+# "Requested runner action: in-place restart only - exactly \"continue in
+# full\"". The qualifier in front of "Action" made a live restart unreadable, so
+# the two-word lead-in is declared rather than special-cased.
 RUNNER_ACTION = re.compile(
     "^" + _MD_PREFIX
-    + r"(?:(?:Runner\s+)?Action(?:\s+(?:for\s+the\s+runner(?:\s+alone)?|requested))?|Runner)\*{0,2}\s*[:(]",
+    + r"(?:(?:Requested\s+)?(?:Runner\s+)?Action"
+    + r"(?:\s+(?:for\s+the\s+runner(?:\s+alone)?|requested))?"
+    + r"|Requested\s+runner\s+action|Runner)\*{0,2}\s*[:(]",
     re.I | re.M)
 # A STEER hands the runner text to deliver rather than a bounded restart; it is
 # never claimed, but 7149636711 carried the owner's whole sequencing order and
@@ -978,6 +987,70 @@ def parse_dynamic_dispatch(comment, now=None):
     }
 
 
+# Only the claim window's own expiry is final enough to stop naming: a comment
+# older than 24 hours can never be claimed, and nothing about it can change. A
+# shape refusal stays named while the comment is young enough to act on, because
+# oversight may still re-file it in a shape the watch can read - and once it
+# ages out it retires under this same rule.
+PERMANENT_REFUSALS = ("stale-beyond-24h",)
+
+
+def refusal_reason(comment, *, now=None):
+    """Why this dispatch-shaped comment is not claimable, named by cause.
+
+    The heartbeat used to print a bare list of ids, so a dispatch refused for a
+    shape the code could read looked identical to one that had simply timed out
+    of the claim window. Each cause is named here by the same tests
+    ``parse_dynamic_dispatch`` applies, in the same order, with the 24-hour
+    claim bound first because it is final: a comment never changes.
+    """
+    body = _comment_body(comment).strip()
+    if not body:
+        return "empty-body"
+    created = comment.get("created_at")
+    if created and now is not None:
+        created_at = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        if now - created_at > timedelta(hours=24):
+            return "stale-beyond-24h"
+    if not restart_dispatch(body):
+        return "banner-names-no-restart"
+    instruction = RUNNER_ACTION.search(body)
+    if not instruction and BURN_WINDOW_BANNER.match(body):
+        instruction = BURN_INLINE_ACTION.search(body)
+    if not instruction:
+        return "no-instruction"
+    flat = re.sub(r"\s+", " ", body)
+    if (f'"{CONTINUATION}"' not in flat and f"'{CONTINUATION}'" not in flat
+            and not STAGED_CARRIER_RESUME.search(flat)):
+        return "no-continuation"
+    thread = _lane_thread_from_dispatch(body)
+    if not thread or thread not in SESSIONS:
+        return "no-lane"
+    return "unclassified"
+
+
+def retire_refusal(known, cid, reason):
+    """Record a final refusal once, then stop naming it every two minutes.
+
+    Measured 2026-11-27: 85 ids filled every heartbeat's "not claimable" list for
+    three days - nearly all stale past the claim's own 24-hour bound - so the
+    list could no longer be read as a queue and a genuinely unreadable fresh
+    dispatch would have been invisible inside it. Each final refusal is written
+    to the local checkpoint with its reason (durable and auditable); the
+    heartbeat then names only refusals that are still young enough to act on.
+    """
+    if reason not in PERMANENT_REFUSALS:
+        return False
+    name = f"refuse-dyn-{cid}.json"
+    if name in known:
+        return True
+    checkpoint(name, {"dispatch": cid, "state": "unclaimable", "reason": reason,
+                      "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")})
+    if isinstance(known, set):
+        known.add(name)
+    return True
+
+
 def scan_dispatch_comments(now=None, known=()):
     """Read the whole dispatch page once, and measure what it held.
 
@@ -998,12 +1071,17 @@ def scan_dispatch_comments(now=None, known=()):
     # episode or carries an instruction line. Otherwise every oversight
     # discussion post would be reported as unreadable and the alarm would be
     # noise instead of a signal.
-    unparsed = [comment.get("id") for comment in comments
-                if owner(comment) and comment.get("id") not in parsed
-                and DISPATCH_BANNER.match(body := _comment_body(comment))
-                and (RUNNER_ACTION.search(body)
-                     or STEER_TEXT.search(body)
-                     or EPISODE.search(body))]
+    unparsed = {}
+    for comment in comments:
+        if not owner(comment) or comment.get("id") in parsed:
+            continue
+        body = _comment_body(comment)
+        if not DISPATCH_BANNER.match(body):
+            continue
+        if not (RUNNER_ACTION.search(body) or STEER_TEXT.search(body)
+                or EPISODE.search(body)):
+            continue
+        unparsed[comment.get("id")] = refusal_reason(comment, now=now)
     evidence = {
         "scanned": len(comments),
         "owner": sum(1 for comment in comments if owner(comment)),
@@ -1216,9 +1294,10 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
     """Poll #684 for new owner-approved dispatches and execute at most one unclaimed item.
 
     ``unclaimed`` is an optional sink: a dispatch-shaped owner comment that the
-    parser refuses is appended to it. The watch reported "no unclaimed
-    dispatches" for two hours while 7145072019 and 7146588401 sat unparsed, so
-    "nothing to claim" and "nothing I can read" must not read the same.
+    parser refuses is recorded in it as ``{id: reason}``. The watch reported "no
+    unclaimed dispatches" for two hours while 7145072019 and 7146588401 sat
+    unparsed, so "nothing to claim" and "nothing I can read" must not read the
+    same - and a bare id could not say which of the two a row was.
     """
     now = now or datetime.now(timezone.utc)
     comments, evidence = scan_dispatch_comments(now=now, known=known)
@@ -1243,7 +1322,11 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         if not parsed:
             body = _comment_body(comment)
             if unclaimed is not None and owner(comment) and DISPATCH_BANNER.match(body):
-                unclaimed.append(comment.get("id"))
+                cid = comment.get("id")
+                reason = refusal_reason(comment, now=now)
+                if retire_refusal(known, cid, reason):
+                    continue
+                unclaimed[cid] = reason
             continue
         cid = parsed["comment_id"]
         if parsed["kind"] == "restart" and newest_restart.get(parsed["thread"]) != cid:
@@ -1361,7 +1444,7 @@ def run_burn(receipts, known, cancelled=()):
     source = receipts[BURN_QUEUE]
     end = datetime.fromisoformat(source["created_at"]) + timedelta(hours=3)
     if datetime.now(timezone.utc) >= end:
-        unclaimed = []
+        unclaimed = {}
         drained = 0
         while drained < 20:
             unclaimed.clear()
@@ -1393,8 +1476,10 @@ def run_burn(receipts, known, cancelled=()):
                              + "; ".join(problems), evidence)
             return
         if unclaimed:
-            heartbeat(known, "dynamic oversight dispatch active; dispatch(es) present but "
-                             "not claimable: " + ", ".join(f"#{cid}" for cid in unclaimed),
+            details = ", ".join(f"#{cid} ({reason})"
+                               for cid, reason in sorted(unclaimed.items()))
+            heartbeat(known, f"dynamic oversight dispatch active; {len(unclaimed)} "
+                             f"dispatch(es) present but not claimable: {details}",
                       evidence)
             return
         heartbeat(known, "dynamic oversight dispatch active; no unclaimed dispatches", evidence)

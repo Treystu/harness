@@ -450,14 +450,31 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
         self.assertIn("narrow-reused-query", steps)
 
-    def test_a_missing_field_refuses_by_name_without_walking(self):
+    def test_a_missing_field_falls_back_to_the_full_census(self):
+        """A3 (2026-11-27): an unreadable field is not a census of the list.
+
+        The walk used to conclude "not found" the moment the search field could
+        not be located, which turned one unreadable control into a lane verdict.
+        The exhaustive scroll walk now runs before any not-found verdict, and it
+        is the census that decides.
+        """
         dispatch = self._dispatch(rows=[{"text": "Lane 1"}], typed="", locate_error=True)
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
-            self.assertFalse(dispatch.navigate_by_unique_prefix(narrow=True))
+            self.assertTrue(dispatch.navigate_by_unique_prefix(narrow=True))
         dispatch.click_roster_row.assert_not_called()
-        dispatch.settled_roster.assert_not_called()
+        dispatch.settled_roster.assert_called()
+        dispatch.click_exact_row.assert_called()
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
         self.assertIn("narrow-walk", steps)
+        self.assertIn("prefix-unique", steps)
+
+    def test_a_narrowed_walk_with_no_unique_row_still_censuses_before_refusing(self):
+        dispatch = self._dispatch(rows=[{"text": "Harness"}], typed="Lane 1")
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertFalse(dispatch.navigate_by_unique_prefix(narrow=True))
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("narrow-no-unique-row", steps)
+        self.assertIn("prefix-census", steps)
 
 
 class _BandFrame:
@@ -736,6 +753,160 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
         dispatch.reloaded = Mock(return_value=True)
         self.assertFalse(dispatch.corroborates_running(Mock(), github_advanced=False))
         self.assertTrue(dispatch.corroborates_running(Mock(), github_advanced=True))
+
+
+class ComposerTextVerdictTests(unittest.TestCase):
+    """A1: the owner's ruling of 2026-11-26 (#684 c.7208601549).
+
+    Four Lane 1 restarts parked in one afternoon on a composer that read
+    'typeamessagesentbeforethequeue' - the platform's own control labels glued
+    together by the renderer. That is machine text, not an owner draft: relay it
+    verbatim, clear it, and keep steering. Parking stays reserved for a person's
+    writing.
+    """
+
+    def test_the_measured_run_together_label_is_machine_text(self):
+        self.assertEqual(dispatch_module.composer_text_verdict(
+            ["typeamessagesentbeforethequeue"]), "machine")
+
+    def test_a_label_that_lost_only_its_spaces_is_still_machine_text(self):
+        self.assertEqual(dispatch_module.composer_text_verdict(
+            ["type a message sent before the queue"]), "machine")
+
+    def test_a_person_s_writing_is_a_draft_and_is_never_typed_over(self):
+        for reading in (["owner module with an owner test"],
+                        ["continue in full after the merge"],
+                        ["fix the ledger and file the result"]):
+            self.assertEqual(dispatch_module.composer_text_verdict(reading), "draft")
+        self.assertEqual(dispatch_module.composer_text_verdict([]), "empty")
+
+    def test_a_single_short_word_is_not_machine_text(self):
+        self.assertEqual(dispatch_module.composer_text_verdict(["yes"]), "draft")
+        self.assertEqual(dispatch_module.composer_text_verdict(["continue"]), "draft")
+
+
+class ComposerMachineTextGateTests(unittest.TestCase):
+    """A1 end to end over the prepare phase: relay, clear, replace, keep going."""
+
+    def _dispatch(self, written, cleared=()):
+        dispatch = object.__new__(Dispatch)
+        dispatch.recovering = False
+        dispatch.scoped_input = True
+        dispatch.standing = True
+        dispatch.label = "Lane 1"
+        dispatch.text = "continue in full"
+        dispatch.audit = Mock()
+        dispatch.reestablish_if_reloaded = Mock(return_value=False)
+        dispatch.settle_view = Mock(return_value=Mock(size=(1800, 1131)))
+        dispatch.verify_lane = Mock()
+        dispatch.verify_tier = Mock(return_value="paid")
+        dispatch.turn_running = Mock(return_value=False)
+        dispatch.locate_exact_text = Mock(side_effect=RuntimeError("no placeholder"))
+
+        def read_lines(step, frame, region):
+            if step == "composer-written":
+                return written
+            if step == "composer-cleared-readback":
+                return list(cleared)
+            return []
+
+        dispatch.read_lines = Mock(side_effect=read_lines)
+        dispatch.relay_composer_text = Mock()
+        dispatch.act = Mock()
+        dispatch.frame = Mock(return_value=Mock(size=(1800, 1131)))
+        dispatch.verify_draft = Mock()
+        return dispatch
+
+    def test_machine_text_is_relayed_then_cleared_and_the_continuation_typed(self):
+        dispatch = self._dispatch(["typeamessagesentbeforethequeue"])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            dispatch.prepare_draft()
+        dispatch.relay_composer_text.assert_called_once()
+        self.assertEqual([c.args[0] for c in dispatch.act.call_args_list],
+                         ["clear-machine-composer", "focus-verified-composer",
+                          "type-continuation"])
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("composer-machine-text-replaced", steps)
+
+    def test_a_composer_that_still_holds_machine_text_after_the_clear_refuses(self):
+        dispatch = self._dispatch(["typeamessagesentbeforethequeue"],
+                                  cleared=["typeamessagesentbeforethequeue"])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            with self.assertRaisesRegex(RuntimeError, "survived the clear"):
+                dispatch.prepare_draft()
+        self.assertEqual([c.args[0] for c in dispatch.act.call_args_list],
+                         ["clear-machine-composer"])
+
+    def test_an_unrecognised_draft_still_parks_without_any_input(self):
+        dispatch = self._dispatch(["owner module with an owner test"])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            with patch("scripts.windows_freebuff_dispatch.has_send_arrow_outline",
+                       return_value=False):
+                with self.assertRaisesRegex(RuntimeError, "foreign draft"):
+                    dispatch.prepare_draft()
+        dispatch.relay_composer_text.assert_not_called()
+        self.assertEqual([c.args[0] for c in dispatch.act.call_args_list], [])
+
+class CaptureBudgetTests(unittest.TestCase):
+    """A3 (2026-11-27, #684 c.7219862556): a slow frame is retaken, not parked."""
+
+    @staticmethod
+    def _clock_and_capture(seconds):
+        state = {"t": 0.0}
+
+        def clock():
+            return state["t"]
+
+        def capture():
+            state["t"] += seconds
+            return "payload"
+
+        return clock, capture
+
+    def test_a_capture_just_past_the_old_last_budget_is_retaken_and_succeeds(self):
+        clock, capture = self._clock_and_capture(5.321)
+        payload, elapsed, attempts = dispatch_module.bounded_capture(capture, clock=clock)
+        self.assertEqual(payload, "payload")
+        self.assertEqual(attempts, 3)
+        self.assertAlmostEqual(elapsed, 5.321, places=3)
+
+    def test_a_capture_that_exceeds_every_budget_still_refuses_by_name(self):
+        clock, capture = self._clock_and_capture(20.0)
+        with self.assertRaisesRegex(RuntimeError, "capture exceeded"):
+            dispatch_module.bounded_capture(capture, clock=clock)
+
+
+class TierPrecheckTests(unittest.TestCase):
+    """A4: a restart never lands a lane on the free tier."""
+
+    def test_a_free_marker_disqualifies_and_a_paid_reading_is_the_seat_of_record(self):
+        self.assertEqual(dispatch_module.tier_verdict("DeepSeek V4.1 Flash :free"), "free")
+        self.assertEqual(dispatch_module.tier_verdict("GPT-6 Luna High"), "paid")
+        self.assertEqual(dispatch_module.tier_verdict(""), "unknown")
+
+    def test_the_gate_refuses_before_any_input_on_a_free_reading(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.audit = Mock()
+        dispatch.read_lines = Mock(return_value=["DeepSeek V4.1 Flash Free"])
+        with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40,1560,120"}):
+            with self.assertRaisesRegex(RuntimeError, "free tier"):
+                dispatch.verify_tier(Mock())
+
+    def test_an_uncalibrated_chip_is_recorded_as_unverified_not_assumed_paid(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.audit = Mock()
+        dispatch.read_lines = Mock()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
+            self.assertEqual(dispatch.verify_tier(Mock()), "unknown")
+        dispatch.read_lines.assert_not_called()
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("tier-unverified", steps)
+
+    def test_a_malformed_chip_box_is_refused_rather_than_guessed(self):
+        with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40"}):
+            with self.assertRaisesRegex(RuntimeError, "left,top,right,bottom"):
+                dispatch_module.model_chip_region()
 
 
 if __name__ == "__main__":

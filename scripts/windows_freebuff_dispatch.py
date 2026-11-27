@@ -41,7 +41,16 @@ QUERY = Action("query_freebuff", MUTATING, "query_freebuff", ("thread", "text", 
                "Search FreeBuff for the exact existing session title.", "gui")
 SCROLL = Action("scroll_freebuff", MUTATING, "scroll_freebuff", ("point", "size", "delta"),
                 "Scroll visible SCM content without focusing its composer.", "gui")
-VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.2.0", [FOCUS, CLICK, TYPE, SEND, QUERY, SCROLL])
+# A1 (owner ruling 2026-11-26, #684 c.7208601549): a composer holding
+# unrecognizable machine text is not an owner draft, so it is dismissed and the
+# approved continuation is typed after it. The action carries the control it
+# dismisses so the executor can refuse a request aimed anywhere else.
+CLEAR = Action("clear_freebuff_composer", MUTATING, "clear_freebuff_composer",
+               ("control",),
+               "Dismiss composer text that is not the owner's draft, after that "
+               "text is relayed verbatim on #684.", "gui")
+VOCABULARY = Vocabulary("windows-freebuff-dispatch", "1.3.0",
+                        [FOCUS, CLICK, TYPE, SEND, QUERY, SCROLL, CLEAR])
 THREAD = "315608d2"
 CONTINUATION = "continue in full"
 DISK_THREAD = "f90f01e9"
@@ -144,7 +153,12 @@ SEARCH_CLOSE = (1257, 185, 1278, 207)
 COUNTS = (6, 16, 26, 36, 46)
 
 
-CAPTURE_BUDGETS = (2.0, 5.0)
+# A3 (2026-11-27, #684 c.7219862556): the standing watch parked Lane 1 on
+# 'sidebar-top-10-after: capture exceeded 5s on 2 attempts (last 5.321s)'. A
+# capture is a snapshot, so a frame that lands just past the last budget is a
+# slow render, not a lost identity - the third attempt runs under a budget wide
+# enough to absorb the measured case, and only then does the run escalate.
+CAPTURE_BUDGETS = (2.0, 5.0, 10.0)
 _COMPOSER_SIZE = (COMPOSER[2] - COMPOSER[0], COMPOSER[3] - COMPOSER[1])
 
 
@@ -494,6 +508,86 @@ def resume_staged_session(surface, frame, *, attempts=6):
         "Resume mission and Start mission were clicked but no running Stop cue appeared")
 
 
+# A1 composer gate: what the composer's own text IS, before any model opinion.
+# The owner's ruling of 2026-11-26 (#684 c.7208601549) followed four parked
+# Lane 1 restarts in one afternoon: the composer read
+# 'typeamessagesentbeforethequeue' - the platform's own control labels
+# ("type a message", "sent", "before the queue") glued together by the
+# renderer, with no word boundary. That is not a draft and the lane must not
+# stop on it. Parking stays reserved for text that reads as a person's writing,
+# and even then the text is relayed verbatim before anything touches it
+# (#684 c.7125400686, bounded by the ruling).
+UI_LABEL_FRAGMENTS = (
+    "typeamessage", "typeyourmessage", "askfreebuff", "useforcommands",
+    "forfiles", "beforethequeue", "addedtothequeue", "sendamessage",
+    "searchchats",
+)
+MIN_RUN_TOGETHER = 18
+
+
+def composer_text_verdict(reading):
+    """Classify the composer's own reading: 'empty', 'machine' or 'draft'.
+
+    'machine' is the only verdict that authorizes a clear, and it is earned
+    deterministically - a platform label joined into one unbroken alphabetic run
+    (the measured instance is 30 characters with no space), or a known control
+    label with its spaces lost. Everything else is treated as 'draft': text that
+    could be the owner's own writing is never typed over, and is relayed
+    verbatim and parked for the oversight's ruling instead.
+    """
+    text = " ".join(str(reading or "").split())
+    folded = text.casefold()
+    if not folded:
+        return "empty"
+    squashed = "".join(folded.split())
+    machine = any(fragment in squashed for fragment in UI_LABEL_FRAGMENTS)
+    if not machine:
+        machine = (" " not in folded and len(squashed) >= MIN_RUN_TOGETHER
+                   and squashed.isalpha())
+    return "machine" if machine else "draft"
+
+
+# A4: a restart never lands a lane on the free tier. The session's own model
+# chip is the primary source; the free pool rate-limits (2026-09-21 probe: a
+# 429 on the free gemma rung) and the model policy of record is the cheap PAID
+# rung, so an explicit free marker is the one reading that refuses a send.
+FREE_TIER = re.compile(r"\bfree\b|:free\b", re.I)
+
+
+def tier_verdict(reading):
+    """Classify the session's model chip: 'free', 'paid' or 'unknown'.
+
+    Only an explicit free marker disqualifies; a non-empty reading with no such
+    marker is the seat of record. A blank reading is 'unknown' and is recorded
+    as unverified - never assumed paid and never silently treated as a refusal.
+    """
+    text = " ".join(str(reading or "").split()).casefold()
+    if not text:
+        return "unknown"
+    return "free" if FREE_TIER.search(text) else "paid"
+
+
+def model_chip_region(default=None):
+    """The model chip's box, from ``HARNESS_FREEBUFF_MODEL_CHIP`` 'l,t,r,b'.
+
+    The chip's position is an install fact, not something code may guess: a
+    region read off the wrong place would refuse a paid lane or clear a free
+    one, and both failures are silent. Until it is calibrated the gate records
+    the tier as unverified for the run.
+    """
+    raw = os.environ.get("HARNESS_FREEBUFF_MODEL_CHIP", "").strip()
+    if not raw:
+        return default
+    try:
+        left, top, right, bottom = (int(part) for part in raw.split(","))
+    except ValueError:
+        raise RuntimeError(
+            "HARNESS_FREEBUFF_MODEL_CHIP must be 'left,top,right,bottom' integers") from None
+    if not (0 <= left < right and 0 <= top < bottom):
+        raise RuntimeError("HARNESS_FREEBUFF_MODEL_CHIP names an empty box")
+    return (left, top, right, bottom)
+
+
 def bounded_capture(capture, *, budgets=CAPTURE_BUDGETS, clock=time.monotonic):
     """Capture the window, tolerating one slow frame before escalating.
 
@@ -611,6 +705,7 @@ class Dispatch:
         self.driver.register_executor(SEND.name, self.send)
         self.driver.register_executor(QUERY.name, self.query)
         self.driver.register_executor(SCROLL.name, self.scroll)
+        self.driver.register_executor(CLEAR.name, self.clear_composer)
 
     def describe(self, hwnd):
         if not hwnd:
@@ -1794,6 +1889,36 @@ class Dispatch:
         return bool(seen and wanted and len(wanted) >= 4
                     and (seen.startswith(wanted) or wanted.startswith(seen)))
 
+    def _census_prefix_walk(self, pages=8, found=None):
+        """Scroll the whole session list and collect every candidate row.
+
+        Returns (complete, found). ``complete`` is False only when a page could
+        not be censused at all, and the caller then refuses rather than
+        concluding anything from a partial list. A repeated page ends the walk
+        because the list itself ended there.
+        """
+        found = [] if found is None else found
+        frame = self.scroll_sidebar_to_top()
+        seen = []
+        for page in range(1, pages + 1):
+            try:
+                frame, rows = self.settled_roster(f"prefix-{page}", SIDEBAR, attempts=4)
+            except RuntimeError as error:
+                self.audit.append("escalation", step_id="prefix-walk", reason=str(error))
+                return False, found
+            frame, rows = self.expand_project(page, frame, rows, "prefix")
+            texts = [self._norm(row["text"]) for row in rows]
+            if texts in seen:
+                break
+            seen.append(texts)
+            found = self.candidates_in(rows, page, found)
+            if not self.scroll_by(f"prefix-scroll-{page}", frame, [196, 850], -400):
+                frame = self.frame(f"prefix-{page}-recapture")
+                continue
+            time.sleep(0.9)
+            frame = self.frame(f"prefix-{page}-after")
+        return True, found
+
     def navigate_by_unique_prefix(self, pages=8, narrow=None):
         """Open the configured lane when exactly ONE session list row can be it.
 
@@ -1817,43 +1942,25 @@ class Dispatch:
 
             try:
                 frame, rows = self.narrow_session_list()
+                found = self.candidates_in(rows, 1, found)
+                picked = self.resolve_unique(found)
+                if picked is not None:
+                    self.click_roster_row("narrow-pick", frame, rows, picked[1])
+                    time.sleep(1.2)
+                    return True
+                self.audit.append("escalation", step_id="narrow-no-unique-row",
+                                  label=self.label,
+                                  reason="the narrowed panel held no unique row; a "
+                                         "not-found verdict needs the full census")
             except RuntimeError as error:
                 self.audit.append("escalation", step_id="narrow-walk", reason=str(error))
-                _close_narrow_modal()
-                return False
-            found = self.candidates_in(rows, 1, found)
-            picked = self.resolve_unique(found)
-            if picked is None:
-                _close_narrow_modal()
-                return False
-            try:
-                self.click_roster_row("narrow-pick", frame, rows, picked[1])
-            except RuntimeError as error:
-                self.audit.append("escalation", step_id="narrow-pick", reason=str(error))
-                _close_narrow_modal()
-                return False
-            time.sleep(1.2)
-            return True
-        else:
-            frame = self.scroll_sidebar_to_top()
-            seen = []
-            for page in range(1, pages + 1):
-                try:
-                    frame, rows = self.settled_roster(f"prefix-{page}", SIDEBAR, attempts=4)
-                except RuntimeError as error:
-                    self.audit.append("escalation", step_id="prefix-walk", reason=str(error))
-                    return False
-                frame, rows = self.expand_project(page, frame, rows, "prefix")
-                texts = [self._norm(row["text"]) for row in rows]
-                if texts in seen:
-                    break
-                seen.append(texts)
-                found = self.candidates_in(rows, page, found)
-                if not self.scroll_by(f"prefix-scroll-{page}", frame, [196, 850], -400):
-                    frame = self.frame(f"prefix-{page}-recapture")
-                    continue
-                time.sleep(0.9)
-                frame = self.frame(f"prefix-{page}-after")
+            _close_narrow_modal()
+            # A3 (2026-11-27): a narrowed pass that cannot pick is not a census.
+            # The field misses clipped rows and lookalike families, so the
+            # exhaustive scroll walk runs before any not-found verdict is filed.
+        ok, found = self._census_prefix_walk(pages, found)
+        if not ok:
+            return False
         picked = self.resolve_unique(found)
         if picked is None:
             return False
@@ -2381,6 +2488,37 @@ class Dispatch:
                  "Is the navigation row labeled exactly Lane 1 visibly selected or highlighted "
                  "in the sidebar? Reject a plain unselected row.",
                  region=region)
+
+    def verify_tier(self, frame):
+        """Refuse a restart onto the free tier (A4), from the session's own chip.
+
+        The chip is read before any input and its verdict rides the audit, so a
+        restart that clears this gate says which tier it cleared on. An
+        uncalibrated chip region is recorded as an unverified tier rather than
+        assumed paid - and rather than refused, because a refusal with no
+        reading would park every lane on an install whose chip box is not yet
+        measured. A positive free reading always refuses.
+        """
+        region = model_chip_region()
+        if region is None:
+            self.audit.append("escalation", step_id="tier-unverified",
+                              reason="no model chip region is calibrated on this "
+                                     "install (HARNESS_FREEBUFF_MODEL_CHIP)")
+            return "unknown"
+        try:
+            lines = self.read_lines("tier-chip", frame, region)
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id="tier-unverified", reason=str(error))
+            return "unknown"
+        reading = " ".join(lines)
+        verdict = tier_verdict(reading)
+        self.audit.append("verification", step_id="tier-checked", verdict=verdict,
+                          reading=reading[:80])
+        if verdict == "free":
+            raise RuntimeError(
+                "tier-check: the target session reads as the free tier "
+                f"({reading[:80]!r}); refusing to restart a lane onto it")
+        return verdict
 
     def reveal_lane_row(self, pages=4, step="reveal-lane"):
         """Bring the lane's own row into view so its selection can be read.
@@ -2916,6 +3054,61 @@ class Dispatch:
         output = getattr(self, "output", None)
         return (output.parent / "foreign-staged-send-only.json") if output is not None else None
 
+    _CLEAR_BACKSPACES = 320
+
+    def relay_composer_text(self, written, frame):
+        """File unrecognizable composer text VERBATIM on #684 before any clear.
+
+        Relay-before-clear (#684 c.7125400686, bounded by the 2026-11-26 ruling):
+        if the classification is ever wrong the text is fully recoverable from
+        the issue, and oversight can fold anything worthwhile into a later
+        steer. The filing is a precondition of the clear, so a failed relay
+        raises and the lane parks rather than typing.
+        """
+        from .windows_freebuff_watch import ISSUE, issue_comment
+
+        reading = " ".join(written)
+        excerpt = self._norm(reading)[:400]
+        sha = hashlib.sha256(reading.encode("utf-8")).hexdigest()
+        issue_comment(
+            f"Vision composer relay (A1, ruling 7208601549) / `{self.thread}`: the "
+            "composer held text this driver cannot recognize as an owner draft; it "
+            "is being cleared now to continue steering.\n\n"
+            f"Verbatim reading: {excerpt!r}\n\n"
+            f"SHA-256 of the reading: `{sha}`. Screenshot: the run's own "
+            "`lane1-before-draft` capture in that run's evidence directory.\n\n"
+            "If this was the owner's draft, say so here: the text is preserved in "
+            "this comment, and A1 parks on anything that reads as a person's writing.")
+        self.audit.append("verification", step_id="composer-text-relayed", sha256=sha,
+                          excerpt=excerpt[:120], issue=ISSUE,
+                          source="relay-before-clear")
+        return excerpt
+
+    def clear_composer(self, action, params):
+        """Dismiss composer text that is not the owner's draft (A1 ruling).
+
+        The dismiss uses the same channel the standing type path uses - WM_CHAR
+        backspaces posted to the verified composer renderer - so no global key
+        event can land outside FreeBuff. It is bounded, and the caller re-reads
+        the composer afterwards: a clear that does not take is a named refusal,
+        never a silent continue.
+        """
+        if params.get("control") != f"{self.label} composer":
+            raise RuntimeError("the clear request names another control")
+        hit = self.composer_renderer
+        for attempt in range(1, self._CLEAR_BACKSPACES + 1):
+            if attempt % 16 == 1 and (
+                    not hit or self.user.GetAncestor(hit, 2) != self.require_foreground()):
+                raise RuntimeError("the verified composer renderer is no longer available")
+            if not self.user.PostMessageW(hit, 0x0102, 0x08, 1):
+                raise RuntimeError("the verified FreeBuff composer refused the dismiss key")
+            if attempt % 16 == 0:
+                time.sleep(0.05)
+        time.sleep(0.3)
+        self.audit.append("verification", step_id="composer-cleared",
+                          characters=self._CLEAR_BACKSPACES,
+                          source="WM_CHAR backspace on the verified renderer")
+
     def send_draft(self):
         pointer = self.text == DISK_POINTER
         operation = "steer" if pointer else "send"
@@ -3097,6 +3290,9 @@ class Dispatch:
             self.reestablish_if_reloaded("prepare")
         frame = self.settle_view("lane1-before-draft")
         self.verify_lane(frame)
+        # A4: the tier is checked on the verified lane, before any input, so a
+        # restart can never land on the free pool.
+        self.verify_tier(frame)
         if self.scoped_input and self.turn_running(frame):
             raise RuntimeError("the requested session is already running; no restart input")
         # Primary-source cues before the model: a live stop control means the
@@ -3142,6 +3338,33 @@ class Dispatch:
                             ghost_preview=norm_written[:80],
                         )
                         route = "empty"
+                if route == "foreign" and composer_text_verdict(" ".join(written)) == "machine":
+                    # A1 ruling 2026-11-26 (#684 c.7208601549): unrecognizable
+                    # machine text is not an owner draft. Relay it verbatim FIRST,
+                    # then dismiss it and keep steering - never park on it.
+                    self.relay_composer_text(written, frame)
+                    self.act("clear-machine-composer", CLEAR,
+                             {"control": f"{self.label} composer"})
+                    time.sleep(1.0)
+                    frame = self.frame("lane1-composer-cleared")
+                    leftover = self.read_lines("composer-cleared-readback", frame,
+                                               COMPOSER_TEXT)
+                    if composer_text_verdict(" ".join(leftover)) == "machine":
+                        raise RuntimeError(
+                            "composer-route: the machine text survived the clear "
+                            f"({self._norm(' '.join(leftover))[:120]!r})") from None
+                    self.audit.append(
+                        "verification", step_id="composer-machine-text-replaced",
+                        relayed=self._norm(" ".join(written))[:120],
+                        source="owner ruling 7208601549: replace and continue")
+                    try:
+                        point = self.locate_exact_text(
+                            "locate-empty-placeholder", frame, placeholder,
+                            (646, 950, 1260, 1014))
+                    except RuntimeError:
+                        left, top, right, bottom = COMPOSER_TEXT
+                        point = [(left + right) // 2, (top + bottom) // 2]
+                    route = "placeholder"
                 if route == "foreign":
                     if has_arrow and getattr(self, "standing", False):
                         # Standing Rule 7183684276: preserve foreign staged text without overwriting;

@@ -35,6 +35,18 @@ from scripts import windows_freebuff_watch as watch
 from scripts.windows_freebuff_dispatch import Dispatch
 
 
+def recent_stamp(minutes):
+    """A dispatch timestamp inside the claim's own 24-hour bound.
+
+    Fixed stamps date the fixture: the 2026-11-25 literals this file used
+    passed the bound on 2026-11-26 and the drain test began failing for the
+    clock rather than for the behaviour it pins.
+    """
+    from datetime import timedelta
+    return ((datetime.now(timezone.utc) - timedelta(minutes=minutes))
+            .strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+
 def runtime_present():
     """Stand in the desktop runtime that the claiming paths require.
 
@@ -340,11 +352,11 @@ class CaptureBudgetTests(unittest.TestCase):
         self.assertEqual((payload, attempts), ("only", 1))
         self.assertEqual(len(calls), 1)
 
-    def test_two_slow_frames_still_refuse_by_name(self):
-        ticks = iter([0.0, 2.4, 10.0, 16.0])
+    def test_every_budget_must_be_exceeded_before_the_capture_refuses(self):
+        ticks = iter([0.0, 11.0, 11.0, 23.0, 23.0, 35.0])
         with self.assertRaises(RuntimeError) as caught:
             dispatch.bounded_capture(lambda: "slow", clock=lambda: next(ticks))
-        self.assertIn("capture exceeded 5s on 2 attempts", str(caught.exception))
+        self.assertIn("capture exceeded 10s on 3 attempts", str(caught.exception))
 
 
 class FreebuffWatchTests(unittest.TestCase):
@@ -1008,13 +1020,13 @@ class FreebuffWatchTests(unittest.TestCase):
             "created_at": "2026-11-24T22:30:00Z",
             "body": "RESTART DISPATCH — fleet sweep\nNo instruction line here.\n",
         }]
-        unclaimed = []
+        unclaimed = {}
         with tempfile.TemporaryDirectory() as tmp:
             with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
                  patch.object(watch, "api", return_value=comments), \
                  patch.object(watch, "execute", Mock()) as execute:
                 self.assertFalse(watch.poll_dynamic_dispatches(set(), now=now, unclaimed=unclaimed))
-        self.assertEqual(unclaimed, [990021])
+        self.assertEqual(unclaimed, {990021: "no-instruction"})
         execute.assert_not_called()
 
     def test_filed_on_issue_skips_a_dispatch_another_channel_already_executed(self):
@@ -1180,14 +1192,14 @@ class FreebuffWatchTests(unittest.TestCase):
              patch.object(watch, "advance_cursor", Mock()):
             _, evidence = watch.scan_dispatch_comments(now=now)
         self.assertIn(990031, evidence["unparsed"])
-        unclaimed = []
+        unclaimed = {}
         with patch.dict("os.environ", {"LOCALAPPDATA": tempfile.gettempdir()}), \
              patch.object(watch, "api", return_value=[comment]), \
              patch.object(watch, "advance_cursor", Mock()), \
              patch.object(watch, "execute", Mock()) as execute:
             self.assertFalse(watch.poll_dynamic_dispatches(set(), now=now, unclaimed=unclaimed))
         execute.assert_not_called()
-        self.assertEqual(unclaimed, [990031])
+        self.assertEqual(unclaimed, {990031: "banner-names-no-restart"})
 
     def test_the_cursor_watermark_is_create_only_and_only_moves_forward(self):
         """The ledger refuses a rewrite of an existing path (HTTP 422 "sha
@@ -1703,13 +1715,13 @@ class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
             {
                 "id": 7158410813,
                 "user": {"id": watch.OWNER_ID},
-                "created_at": "2026-11-25T09:29:53Z",
+                "created_at": recent_stamp(20),
                 "body": "## RESTART DISPATCH \u2014 BigEnergyCo\nRunner action requested: Resume -> Start on the staged carrier.",
             },
             {
                 "id": 7159142905,
                 "user": {"id": watch.OWNER_ID},
-                "created_at": "2026-11-25T10:02:32Z",
+                "created_at": recent_stamp(5),
                 "body": 'OVERSIGHT RESTART DISPATCH \u2014 Lane 1\nAction for the runner alone: "continue in full"',
             },
         ]
@@ -2166,6 +2178,99 @@ class Step3OvernightAndStandingTests(unittest.TestCase):
                 )
             self.assertFalse(res2)
             self.assertEqual(execute.call_count, 1)
+
+
+NL = chr(10)
+Q = chr(34)
+S = chr(39)
+
+
+class DispatchRefusalTests(unittest.TestCase):
+    """A2: "present but not claimable" names its cause and stops repeating itself.
+
+    Measured 2026-11-27: 85 ids filled every heartbeat's refusal list for three
+    days - nearly all past the 24-hour claim bound - so the list could no longer
+    be read as a queue. Among the four dispatches filed on 2026-11-26,
+    7174526907 carries its instruction as "Requested runner action:", a shape the
+    parser did not read at all.
+    """
+
+    def _comment(self, body, *, cid=7174526907, created="2026-11-25T21:02:24Z"):
+        return {"id": cid, "user": {"id": watch.OWNER_ID}, "body": body,
+                "created_at": created}
+
+    def test_the_requested_runner_action_wording_is_read(self):
+        comment = self._comment(
+            "OVERSIGHT RESTART DISPATCH - Episode L1-STOP-1106" + NL + NL +
+            "Lane 1 is PRESUMED STOPPED." + NL + NL +
+            'Requested runner action: in-place restart only - exactly ' + Q +
+            'continue in full' + Q + '; never a duplicate session, never ' +
+            'model/settings changes.' + NL)
+        parsed = watch.parse_dynamic_dispatch(
+            comment, now=datetime(2026, 11, 25, 21, 30, tzinfo=timezone.utc))
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed["thread"], watch.THREAD)
+        self.assertEqual(parsed["mode"], "continuation")
+
+    def test_a_dispatch_with_no_instruction_line_is_named_no_instruction(self):
+        comment = self._comment(
+            "DISPATCH - scale to two tandem working lanes" + NL + NL +
+            'Lane 1' + S + 's continuation rides the L1-STOP-1112 restart '
+            "already routed." + NL,
+            cid=7183653129, created="2026-11-26T05:37:18Z")
+        self.assertEqual(
+            watch.refusal_reason(comment,
+                                 now=datetime(2026, 11, 26, 6, 0, tzinfo=timezone.utc)),
+            "no-instruction")
+
+    def test_a_dispatch_past_the_claim_bound_is_named_stale(self):
+        comment = self._comment(
+            "RESTART DISPATCH - Lane 1, episode L1-STOP-1106" + NL + NL +
+            'Requested runner action: in-place restart only - exactly ' + Q +
+            'continue in full' + Q + '.' + NL)
+        self.assertEqual(
+            watch.refusal_reason(comment,
+                                 now=datetime(2026, 11, 27, 10, 0, tzinfo=timezone.utc)),
+            "stale-beyond-24h")
+
+    def test_a_final_refusal_is_recorded_once_and_not_reported_twice(self):
+        now = datetime(2026, 11, 27, 10, 0, tzinfo=timezone.utc)
+        comment = self._comment(
+            "RESTART DISPATCH - Lane 1, episode L1-STOP-1106" + NL + NL +
+            'Requested runner action: in-place restart only - exactly ' + Q +
+            'continue in full' + Q + '.' + NL)
+        known = set()
+        with patch.dict("os.environ", {"LOCALAPPDATA": tempfile.gettempdir()}):
+            with patch.object(watch, "api", return_value=[comment]):
+                with patch.object(watch, "advance_cursor", Mock()):
+                    with patch.object(watch, "execute", Mock()):
+                        with patch.object(watch, "checkpoint", Mock()) as checkpoint:
+                            unclaimed = {}
+                            watch.poll_dynamic_dispatches(known, now=now, unclaimed=unclaimed)
+                            self.assertEqual(unclaimed, {})
+                            self.assertIn("refuse-dyn-7174526907.json",
+                                          [c.args[0] for c in checkpoint.call_args_list])
+                            checkpoint.reset_mock()
+                            unclaimed = {}
+                            watch.poll_dynamic_dispatches(known, now=now, unclaimed=unclaimed)
+                            self.assertEqual(unclaimed, {})
+                            self.assertNotIn("refuse-dyn-7174526907.json",
+                                             [c.args[0] for c in checkpoint.call_args_list])
+
+    def test_a_fresh_shape_refusal_is_still_named_by_reason(self):
+        now = datetime(2026, 11, 27, 10, 0, tzinfo=timezone.utc)
+        comment = self._comment(
+            "STEER DISPATCH - Lane 1" + NL +
+            'Text for the runner to send into Lane 1' + S + 's session, '
+            "verbatim: fix the driver." + NL,
+            cid=7224000000, created="2026-11-27T09:50:00Z")
+        with patch.dict("os.environ", {"LOCALAPPDATA": tempfile.gettempdir()}):
+            with patch.object(watch, "api", return_value=[comment]):
+                with patch.object(watch, "advance_cursor", Mock()):
+                    with patch.object(watch, "checkpoint", Mock()):
+                        unclaimed = {}
+                        watch.poll_dynamic_dispatches(set(), now=now, unclaimed=unclaimed)
+        self.assertEqual(unclaimed, {7224000000: "banner-names-no-restart"})
 
 
 if __name__ == "__main__":
