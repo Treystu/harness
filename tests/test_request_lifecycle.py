@@ -1573,6 +1573,262 @@ class FallbackLatticeUnitTests(unittest.TestCase):
         self.assertEqual(len(result["fixed_point"]["attempts"]), 2)
 
 
+class _FakeResponse:
+    def __init__(self, body, status=200):
+        self._body = body
+        self.status = status
+
+    def read(self, _size=-1):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+class FallbackLatticeTransportTests(unittest.TestCase):
+    """The bounded acquisition transport, exercised through its seam."""
+
+    def _public(self):
+        return patch("harness.web._resolved_addresses_public",
+                     return_value=["140.82.112.3"])
+
+    def test_only_https_urls_with_a_host_are_fetched(self):
+        from harness.fallback_lattice import _http_get_text
+
+        with self.assertRaises(HarnessError):
+            _http_get_text("")
+        with self.assertRaises(HarnessError):
+            _http_get_text("http://example.com/x")
+
+    def test_a_public_host_is_proven_before_the_request(self):
+        from harness.fallback_lattice import _http_get_text
+
+        with patch("harness.fallback_lattice.urllib.request.urlopen") as open_, \
+             patch("harness.web._resolved_addresses_public",
+                   side_effect=HarnessError("site probe refused: non-public")):
+            with self.assertRaises(HarnessError):
+                _http_get_text("https://example.com/x")
+        open_.assert_not_called()
+
+    def test_a_200_body_is_returned_and_other_statuses_refused(self):
+        from harness.fallback_lattice import _http_get_text
+
+        with self._public(), \
+             patch("harness.fallback_lattice.urllib.request.urlopen",
+                   return_value=_FakeResponse("hello".encode())):
+            self.assertEqual(
+                _http_get_text("https://example.com/x"), "hello")
+        with self._public(), \
+             patch("harness.fallback_lattice.urllib.request.urlopen",
+                   return_value=_FakeResponse(b"gone", status=410)):
+            with self.assertRaises(HarnessError):
+                _http_get_text("https://example.com/x")
+        with self._public(), \
+             patch("harness.fallback_lattice.urllib.request.urlopen",
+                   side_effect=OSError("connection reset")):
+            with self.assertRaises(HarnessError):
+                _http_get_text("https://example.com/x")
+
+    def test_json_must_be_an_object(self):
+        from harness.fallback_lattice import _http_get_json
+
+        with self._public(), \
+             patch("harness.fallback_lattice.urllib.request.urlopen",
+                   return_value=_FakeResponse(b'{"a": 1}')):
+            self.assertEqual(_http_get_json("https://example.com/j"), {"a": 1})
+        with self._public(), \
+             patch("harness.fallback_lattice.urllib.request.urlopen",
+                   return_value=_FakeResponse(b"[]")):
+            with self.assertRaises(HarnessError):
+                _http_get_json("https://example.com/j")
+        with self._public(), \
+             patch("harness.fallback_lattice.urllib.request.urlopen",
+                   return_value=_FakeResponse(b"not json")):
+            with self.assertRaises(HarnessError):
+                _http_get_json("https://example.com/j")
+
+    def test_the_page_alternate_admits_only_the_named_host(self):
+        from harness.fallback_lattice import _fetch_page
+
+        page = {"url": "https://example.com/x", "title": "t",
+                "text": "body", "fetched_by": "http"}
+        with patch("harness.web.fetch_url", return_value=page) as fetch:
+            self.assertEqual(_fetch_page("https://example.com/x")["text"],
+                             "body")
+        _, kwargs = fetch.call_args
+        self.assertEqual(kwargs["named_hosts"], {"example.com"})
+        self.assertEqual(kwargs["allowed_hosts"], ())
+        with self.assertRaises(HarnessError):
+            _fetch_page("not-a-url")
+
+    def test_a_bare_document_fails_the_structural_checks(self):
+        from harness.fallback_lattice import review_html
+
+        _checks, findings, claims = review_html("bare.html", "<p>x</p>")
+        self.assertEqual(
+            {finding["check"] for finding in findings},
+            {"doctype", "html_lang", "charset", "viewport", "title"})
+        self.assertTrue(all(finding["severity"] == "minor"
+                            for finding in findings))
+        self.assertEqual(claims, [])
+
+    def test_an_incomplete_target_is_refused_by_name(self):
+        from harness.fallback_lattice import acquire_file, acquire_repository
+
+        with self.assertRaises(HarnessError):
+            acquire_file({"owner": "x", "repo": "y"})
+        with self.assertRaises(HarnessError):
+            acquire_repository({"owner": "x"})
+
+    def test_an_empty_repository_names_what_could_not_be_fetched(self):
+        from harness.fallback_lattice import acquire_repository, parse_target
+
+        target = parse_target("https://github.com/Treystu/solarclock")
+        tree = {"tree": [{"path": "a.js", "type": "blob", "size": 5}]}
+        with patch("harness.fallback_lattice._http_get_json",
+                   side_effect=[{"default_branch": "main"}, tree]), \
+             patch("harness.fallback_lattice._http_get_text",
+                   side_effect=HarnessError("acquisition failed: HTTP 404")):
+            with self.assertRaises(HarnessError) as caught:
+                acquire_repository(target)
+        self.assertIn("HTTP 404", str(caught.exception))
+        with patch("harness.fallback_lattice._http_get_json",
+                   side_effect=[{"default_branch": "main"}, {"tree": []}]):
+            with self.assertRaises(HarnessError) as caught:
+                acquire_repository(target)
+        self.assertIn("no inspectable text files", str(caught.exception))
+
+    def test_a_tree_entry_without_a_path_is_skipped(self):
+        from harness.fallback_lattice import _select_files
+
+        self.assertEqual(
+            _select_files({"tree": [{"type": "blob"},
+                                    {"path": "a.js", "type": "blob"}]}),
+            [{"path": "a.js", "size": None}])
+
+    def test_a_repository_review_reads_python_sources_too(self):
+        from harness.fallback_lattice import review_material
+
+        checks, findings, _claims = review_material({
+            "paths_inspected": ["clock.py", "notes.rst"],
+            "files": {"clock.py": "import datetime\ndatetime.now()\n",
+                      "notes.rst": "notes\n"},
+        })
+        self.assertIn("naive_local_time", {item["check"] for item in findings})
+        self.assertIn("retrieved", {check["check"] for check in checks})
+        self.assertEqual(checks[0]["result"], "fail")
+
+    def test_a_report_without_a_status_does_not_claim_reachability(self):
+        from harness.fallback_lattice import build_report
+
+        material = {"kind": "page", "url": "https://example.com/x",
+                    "files": {"(hosted page)": "text"},
+                    "paths_inspected": ["(hosted page)"]}
+        report = build_report("check it", material, [], [], [],
+                              reachability={"http_status": None,
+                                            "verdict": "timeout"})
+        self.assertIn("Reachability observed: no HTTP status (timeout)", report)
+        self.assertIn("No discrepancy was found", report)
+
+    def test_a_partial_retrieval_is_named_in_the_answer(self):
+        from harness.fallback_lattice import FallbackLatticeMixin
+
+        class _Agent(FallbackLatticeMixin):
+            history_dir = None
+
+        broken = ("https://raw.githubusercontent.com/Treystu/solarclock/main/"
+                  "clock.js")
+        json_patch, text_patch = _repo_seams(failing=(broken,))
+        with tempfile.TemporaryDirectory() as tmp, json_patch, text_patch, \
+             patch.object(FallbackLatticeMixin, "_lattice_probe",
+                          return_value=dict(_UP)):
+            agent = _Agent()
+            agent.history_dir = Path(tmp)
+            result = agent._run_acquired_workflow(
+                REPO_PROMPT,
+                {"operation": "inspect_repository",
+                 "target": {"kind": "repository", "url":
+                            "https://github.com/Treystu/solarclock",
+                            "owner": "Treystu", "repo": "solarclock"}},
+                session_id="partial")
+        self.assertEqual(result["status"], "ok")
+        self.assertIn("clock.js was not retrieved", result["response"])
+
+    def test_cancellation_during_the_alternate_propagates(self):
+        from harness.fallback_lattice import FallbackLatticeMixin
+
+        class _Agent(FallbackLatticeMixin):
+            history_dir = None
+
+        with patch("harness.fallback_lattice.acquire_target",
+                   side_effect=HarnessError("acquisition failed: HTTP 502")), \
+             patch("harness.fallback_lattice._fetch_page",
+                   side_effect=ToolCancelled("cancelled")):
+            with self.assertRaises(ToolCancelled):
+                _Agent()._run_acquired_workflow(
+                    REPO_PROMPT,
+                    {"operation": "inspect_repository",
+                     "target": {"url": "https://github.com/a/b",
+                                "kind": "repository"}},
+                    session_id="cancel-alt")
+
+    def test_a_declined_workspace_review_uses_the_selected_workspace(self):
+        handed = {"status": "ok", "response": "the workspace lane owns this"}
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = AutonomousAgent(settings=_lane_settings(),
+                                    history_dir=Path(tmp), root_dir=Path(tmp))
+            with patch.object(AutonomousAgent, "run_hourglass_request",
+                              return_value=handed) as hourglass:
+                result = agent._route_declined_request(
+                    "inspect this repository and list its modules",
+                    "declined-workspace")
+        self.assertIs(result, handed)
+        self.assertEqual(hourglass.call_count, 1)
+
+    def test_a_fixed_point_without_attempts_still_names_the_operation(self):
+        from harness.fallback_lattice import fixed_point_failure
+
+        result = fixed_point_failure("check it", {"url": "https://x.test"}, [])
+        self.assertIn("Attempts made: 0", result["response"])
+        self.assertIn("no attempt ran", result["response"])
+        self.assertIn("Operation: acquisition", result["response"])
+
+    def test_cancellation_stops_the_workflow_before_acquisition(self):
+        from harness.fallback_lattice import FallbackLatticeMixin
+
+        class _Agent(FallbackLatticeMixin):
+            history_dir = None
+
+        with patch("harness.fallback_lattice.acquire_target") as acquire:
+            with self.assertRaises(ToolCancelled):
+                _Agent()._run_acquired_workflow(
+                    REPO_PROMPT,
+                    {"operation": "inspect_repository",
+                     "target": {"url": "https://github.com/a/b",
+                                "kind": "repository"}},
+                    session_id="cancel", cancel_check=lambda: True)
+        acquire.assert_not_called()
+
+    def test_the_probe_reports_a_refusal_instead_of_raising(self):
+        from harness.fallback_lattice import FallbackLatticeMixin
+
+        class _Agent(FallbackLatticeMixin):
+            pass
+
+        with patch("harness.web.preflight_public_site",
+                   side_effect=HarnessError("site probe refused: private")):
+            observed = _Agent()._lattice_probe("https://example.com")
+        self.assertEqual(observed["verdict"], "refused")
+        self.assertIn("private", observed["reason"])
+        with patch("harness.web.preflight_public_site",
+                   side_effect=ToolCancelled("cancelled")):
+            with self.assertRaises(ToolCancelled):
+                _Agent()._lattice_probe("https://example.com")
+
+
 class FallbackLatticeRoutingTests(unittest.TestCase):
     """The three owner prompts execute instead of bouncing (#805)."""
 
