@@ -2886,20 +2886,35 @@ class Dispatch:
                            f"({self.label})")
 
     def open_tab_matches(self, step="open-tab"):
-        """Does the transcript pane's title name this lane?"""
+        """Does the transcript pane's title name this lane?
+
+        The title is small type, and line OCR drops its numeral (measured
+        2026-11-27, dyn-7227546381: "Lane 1" came back as "lanelv", which cannot
+        be told apart from "Lane 2" by similarity). So the proof is the exact
+        locator the driver already trusts for "Search chats": it matches the
+        label itself against the title region instead of reading glyphs. The
+        line reading is kept in the audit for transparency, never used to decide.
+        """
         try:
             frame = self.frame(f"{step}-capture")
-            lines = self.read_lines(step, frame, OPEN_TAB_REGION)
         except RuntimeError as error:
             self.audit.append("escalation", step_id=step, reason=str(error))
             return False
-        reading = self._norm(" ".join(lines))
-        if reading and self._norm(self.label) in reading:
-            self.audit.append("verification", step_id=step, label=self.label,
-                              source="the open session title", reading=reading[:80])
-            return True
-        self.audit.append("escalation", step_id=step, label=self.label, reading=reading[:80])
-        return False
+        try:
+            point = self.locate_exact_text(step, frame, self.label, OPEN_TAB_REGION)
+        except RuntimeError as error:
+            try:
+                lines = self.read_lines(f"{step}-read", frame, OPEN_TAB_REGION)
+                reading = self._norm(" ".join(lines))[:80]
+            except RuntimeError:
+                reading = ""
+            self.audit.append("escalation", step_id=step, label=self.label,
+                              reading=reading, reason=str(error)[:200])
+            return False
+        self.audit.append("verification", step_id=step, label=self.label,
+                          source="the open session title, matched exactly",
+                          point=list(point)[:2])
+        return True
 
     def verify_vision_seat(self):
         if not self.selected_label_matches(wait=3):

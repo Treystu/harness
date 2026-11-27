@@ -376,28 +376,31 @@ class SelectionProjectFamilyTests(unittest.TestCase):
         self.assertFalse(dispatch.selected_label_matches())
 
 class OpenTabIdentityTests(unittest.TestCase):
-    """Measured on dyn-7227296013: the lane was open and no sidebar proof said so."""
+    """Measured on dyn-7227546381: the title OCR drops the lane numeral."""
 
-    def _dispatch(self, lines):
+    def _dispatch(self, located):
         dispatch = object.__new__(Dispatch)
         dispatch.label = "Lane 1"
         dispatch.project = "Harness"
         dispatch.audit = Mock()
         dispatch.frame = Mock(return_value="frame")
-        dispatch.read_lines = Mock(return_value=lines)
+        dispatch.read_lines = Mock(return_value=["Code Chat lanelv"])
+        if located is None:
+            dispatch.locate_exact_text = Mock(side_effect=RuntimeError("not located"))
+        else:
+            dispatch.locate_exact_text = Mock(return_value=located)
         return dispatch
 
-    def test_the_open_title_names_the_lane(self):
-        dispatch = self._dispatch(["Code Chat Lane 1"])
+    def test_the_exact_locator_proves_the_open_title(self):
+        dispatch = self._dispatch([430, 20])
         self.assertTrue(dispatch.open_tab_matches())
 
-    def test_another_lane_title_is_not_this_lane(self):
-        dispatch = self._dispatch(["Code Chat Lane 2"])
+    def test_an_unlocated_title_is_never_read_as_a_match(self):
+        """lanelv cannot be told from Lane 2, so it must not decide."""
+        dispatch = self._dispatch(None)
         self.assertFalse(dispatch.open_tab_matches())
-
-    def test_an_unreadable_title_is_not_a_match(self):
-        dispatch = self._dispatch([])
-        self.assertFalse(dispatch.open_tab_matches())
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("open-tab", steps)
 
 class PickPassTests(unittest.TestCase):
     """Measured 2026-11-27: the pick lost the row the census had resolved."""
