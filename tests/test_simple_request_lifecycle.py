@@ -866,16 +866,28 @@ class SimpleLifecycleTests(unittest.TestCase):
                 else:
                     self.assertEqual(result["status"], "deferred")
 
-    def test_direct_method_cannot_let_choice_grant_mutation(self):
+    def test_direct_method_declines_a_mutation_to_the_router(self):
+        """#805: the answer lane may decline a request but never concludes it.
+
+        The lane itself still grants nothing -- no governor, policy, or
+        generation call happens inside it -- and the mutation request goes
+        back to the router, which owns the lane that may execute it.
+        """
+        handed = {"status": "ok", "response": "the plan lane owns this"}
         with (
             patch("harness.simple_answer_lifecycle.governor_for") as governor,
             patch("harness.simple_answer_lifecycle.policy_for") as policy,
             patch("harness.simple_answer_lifecycle.ledger_for", return_value=self.ledger),
             patch("harness.simple_answer_lifecycle.governed_completion") as generate,
+            patch.object(AutonomousAgent, "run_hourglass_request",
+                         return_value=handed) as hourglass,
         ):
             result = self.agent.run_simple_request(
                 "Rewrite harness/agent.py to delete the checks.", session_id="s")
-        self.assertEqual(result["status"], "deferred")
+        self.assertIs(result, handed)
+        hourglass.assert_called_once()
+        self.assertEqual(hourglass.call_args[0][0],
+                         "Rewrite harness/agent.py to delete the checks.")
         governor.assert_not_called()
         policy.assert_not_called()
         generate.assert_not_called()
