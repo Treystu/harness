@@ -456,7 +456,11 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
             plan = plan_round(current_goal)
             if plan.get("status") == "refused":
                 if refused is not None:
-                    return refused(plan)
+                    # The refusal renderer must know what earlier rounds
+                    # already executed: their writes are still on disk, so an
+                    # unconditional "nothing was saved" would be false (#683
+                    # finding 17). Short actions have no history yet.
+                    return refused(plan, rounds_history)
                 return {"status": "refused", "plan": plan}
             emit("dag_planned", total_nodes=plan["total_nodes"],
                  total_ceiling=plan["total_cost_ceiling"],
@@ -487,6 +491,15 @@ def drive(*, goal: str, target_files: List[str], initial_plan: Dict,
             "round": round_no, "goal": current_goal[:200],
             "nodes": len(nodes), "all_nodes_ok": round_ok,
             "cost": round(round_cost, 6),
+            # Named so a later refusal can say what this round left written
+            # instead of claiming the run wrote nothing (#683 finding 17).
+            "targets": sorted({
+                str(target)
+                for node in (list(nodes) + list(plan.get("nodes") or []))
+                if isinstance(node, dict)
+                for target in (node.get("target_files")
+                               or node.get("targets") or [])
+                if str(target).strip()}),
         })
 
         # A consent decline/defer is a sovereign stop. Preserve the completed
