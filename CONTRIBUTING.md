@@ -309,6 +309,7 @@ cheap; losing either is not.
 | `harness/agent.py` | runtime composition root for route adapters and the shared lifecycle coordinator |
 | `harness/request_intent.py` | deterministic prompt intent, greeting, and bounded site-check classification |
 | `harness/request_router.py` | request dispatch, continuation routing, and workspace scope selection |
+| `harness/fallback_lattice.py` | the router's rung-2 record for a declined request (#805): verb+object resolution, bounded repository/blob acquisition, deterministic evidence-bearing review, and the fixed-point impossibility record -- no lifecycle but the router concludes |
 | `harness/simple_action_lifecycle.py` | bounded read-only public site checks with Jev route selection |
 | `harness/conversation_lifecycle.py` | conversational fallback generation, web evidence, and honest deferral |
 | `harness/execution_stages.py` | planning-stage composition, stage judgments, and restart guards |
