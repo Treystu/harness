@@ -8,6 +8,7 @@ window and input APIs. The one real binding is exercised against a fake
 ``user32``, which is the part most likely to be wrong (an argument type, a
 restype) and the part worth proving without a Windows host.
 """
+import ctypes
 import unittest
 from unittest import mock
 
@@ -256,18 +257,34 @@ class KeyComboParseTests(unittest.TestCase):
             osal.parse_key_combo("ctrl++s")
         self.assertIn("empty token", str(caught.exception))
 
+    def test_a_non_ascii_letter_never_aliases_a_virtual_key(self):
+        # #683 finding 22: ord("ł") truncated to a byte is Ctrl+A.
+        with self.assertRaises(OsalError) as caught:
+            osal.parse_key_combo("ctrl+ł")
+        self.assertIn("ł", str(caught.exception))
+        self.assertIn("not declared", str(caught.exception))
+
 
 class FakeCtypes:
-    """Just enough ctypes for the binding block to declare itself."""
+    """Real ctypes types behind a fake ``WinDLL``.
 
-    c_int = int
-    c_ubyte = int
-    c_ulong = int
-    c_long = int
-    c_void_p = int
-    Structure = object
-    POINTER = staticmethod(lambda entry: entry)
-    byref = staticmethod(lambda point: point)
+    The real types matter now that typing builds an ``INPUT`` array: the
+    records have to be layout-compatible with what ``SendInput`` was bound
+    with, and ``sizeof`` has to agree. Only the DLL lookup is faked.
+    """
+
+    c_int = ctypes.c_int
+    c_ubyte = ctypes.c_ubyte
+    c_ushort = ctypes.c_ushort
+    c_uint = ctypes.c_uint
+    c_ulong = ctypes.c_ulong
+    c_long = ctypes.c_long
+    c_void_p = ctypes.c_void_p
+    Structure = ctypes.Structure
+    Union = ctypes.Union
+    POINTER = staticmethod(ctypes.POINTER)
+    byref = staticmethod(ctypes.byref)
+    sizeof = staticmethod(ctypes.sizeof)
 
     def __init__(self, user32):
         self._user32 = user32
@@ -283,7 +300,7 @@ class Point:
 
 
 def _sender(user32):
-    binding = (FakeCtypes(user32), user32, Point)
+    binding = osal._bind_input_events(ctypes_module=FakeCtypes(user32))
     with mock.patch.object(osal, "platform_name", return_value="windows"):
         return osal._WindowsInputApi(bind=lambda: binding)
 
@@ -293,11 +310,14 @@ class WindowsInputApiTests(unittest.TestCase):
         self.user32 = mock.MagicMock()
         self.user32.SetCursorPos.return_value = 1
         self.user32.ClientToScreen.side_effect = self._to_screen
+        # SendInput reports how many records it inserted.
+        self.user32.SendInput.side_effect = lambda count, records, size: count
 
     @staticmethod
     def _to_screen(hwnd, point):
-        point.x += 10
-        point.y += 20
+        target = getattr(point, "_obj", point)
+        target.x += 10
+        target.y += 20
         return 1
 
     def test_it_refuses_to_construct_off_windows(self):
@@ -307,16 +327,29 @@ class WindowsInputApiTests(unittest.TestCase):
         self.assertIn("does not exist", str(caught.exception))
 
     def test_the_binding_declares_every_entry_point(self):
-        module, user32, point = osal._bind_input_events(
+        module, user32, point, structures = osal._bind_input_events(
             ctypes_module=FakeCtypes(self.user32))
         self.assertIsInstance(module, FakeCtypes)
-        self.assertIs(point, self.user32.ClientToScreen.argtypes[1])
-        self.assertEqual(user32.SetCursorPos.argtypes, (int, int))
-        self.assertEqual(user32.keybd_event.argtypes, (int, int, int, int))
+        self.assertIs(point, user32.ClientToScreen.argtypes[1]._type_)
+        self.assertEqual(user32.SetCursorPos.argtypes,
+                         (ctypes.c_int, ctypes.c_int))
+        self.assertEqual(user32.keybd_event.argtypes,
+                         (ctypes.c_ubyte, ctypes.c_ubyte,
+                          ctypes.c_ulong, ctypes.c_void_p))
         self.assertEqual(user32.mouse_event.argtypes,
-                         (int, int, int, int, int))
-        self.assertEqual(user32.ClientToScreen.argtypes, (int, point))
-        self.assertEqual(user32.GetDpiForWindow.restype, int)
+                         (ctypes.c_ulong, ctypes.c_long, ctypes.c_long,
+                          ctypes.c_ulong, ctypes.c_void_p))
+        self.assertEqual(user32.ClientToScreen.argtypes[0], ctypes.c_void_p)
+        self.assertEqual(user32.GetDpiForWindow.restype, ctypes.c_ulong)
+        # #683 finding 21: the Unicode path is SendInput, whose pointer
+        # argument has to be the exact INPUT type the array is built from.
+        self.assertEqual(user32.SendInput.argtypes,
+                         (ctypes.c_uint, ctypes.POINTER(structures[0]),
+                          ctypes.c_int))
+        self.assertEqual(user32.SendInput.restype, ctypes.c_uint)
+        self.assertEqual([field[0] for field in structures[2]._fields_],
+                         ["mi", "ki", "hi"])
+        self.assertGreaterEqual(ctypes.sizeof(structures[0]), 24)
 
     def test_moving_refuses_when_windows_says_no(self):
         self.user32.SetCursorPos.return_value = 0
@@ -333,23 +366,57 @@ class WindowsInputApiTests(unittest.TestCase):
             [mock.call(osal.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0),
              mock.call(osal.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)])
 
-    def test_typing_sends_one_unicode_pair_per_character(self):
+    def test_typing_sends_one_atomic_unicode_batch(self):
+        # #683 finding 21: one SendInput call, one record per UTF-16 unit,
+        # and the surrogate pair as two units.
+        text = "héllo 日本 𝄞"
         sender = _sender(self.user32)
-        sender.type_text("ab")
-        self.assertEqual(
-            self.user32.keybd_event.call_args_list,
-            [mock.call(0, ord("a"), osal.KEYEVENTF_UNICODE, 0),
-             mock.call(0, ord("a"),
-                       osal.KEYEVENTF_UNICODE | osal.KEYEVENTF_KEYUP, 0),
-             mock.call(0, ord("b"), osal.KEYEVENTF_UNICODE, 0),
-             mock.call(0, ord("b"),
-                       osal.KEYEVENTF_UNICODE | osal.KEYEVENTF_KEYUP, 0)])
+        sender.type_text(text)
+        self.assertEqual(self.user32.keybd_event.call_count, 0)
+        count, records, size = self.user32.SendInput.call_args.args
+        encoded = text.encode("utf-16-le")
+        units = [encoded[i] | (encoded[i + 1] << 8)
+                 for i in range(0, len(encoded), 2)]
+        self.assertEqual(count, len(units) * 2)
+        self.assertEqual(size, ctypes.sizeof(sender._INPUT))
+        for index, unit in enumerate(units):
+            down = records[index * 2]
+            up = records[index * 2 + 1]
+            self.assertEqual(down.type, osal.INPUT_KEYBOARD)
+            self.assertEqual(down.u.ki.wScan, unit)
+            self.assertEqual(down.u.ki.dwFlags, osal.KEYEVENTF_UNICODE)
+            self.assertEqual(up.u.ki.wScan, unit)
+            self.assertEqual(up.u.ki.dwFlags,
+                             osal.KEYEVENTF_UNICODE | osal.KEYEVENTF_KEYUP)
+        # 𝄞 is one Python character and two UTF-16 units.
+        self.assertEqual(units.count(0xD834), 1)
+        self.assertEqual(units.count(0xDD1E), 1)
 
-    def test_a_character_outside_the_bmp_is_refused_whole(self):
+    def test_a_short_send_refuses_rather_than_reporting_success(self):
+        self.user32.SendInput.side_effect = lambda count, records, size: 1
         sender = _sender(self.user32)
         with self.assertRaises(OsalError) as caught:
-            sender.type_text("a\U0001F600")
-        self.assertIn("outside the BMP", str(caught.exception))
+            sender.type_text("ab")
+        self.assertIn("accepted 1 of 4", str(caught.exception))
+
+    def test_a_missing_send_input_entry_point_refuses_by_name(self):
+        class _NoSendInput:
+            SetCursorPos = mock.MagicMock()
+            keybd_event = mock.MagicMock()
+            mouse_event = mock.MagicMock()
+            ClientToScreen = mock.MagicMock()
+            GetDpiForWindow = mock.MagicMock()
+
+        user32 = _NoSendInput()
+        binding = osal._bind_input_events(
+            ctypes_module=FakeCtypes(user32))
+        self.user32 = user32
+        with mock.patch.object(osal, "platform_name", return_value="windows"):
+            sender = osal._WindowsInputApi(bind=lambda: binding)
+            with self.assertRaises(OsalError) as caught:
+                sender.type_text("a")
+        self.assertIn("SendInput", str(caught.exception))
+        self.assertIn("unavailable", str(caught.exception))
 
     def test_a_chord_releases_in_reverse(self):
         sender = _sender(self.user32)
