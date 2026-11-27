@@ -1307,6 +1307,12 @@ class UiState:
         self.started_at = time.time()
         self._event_sink_installed = False
         self._api_cache = {}
+        #: Request ids this process is executing right now, learned from the
+        #: lifecycle events it emits. Their checkpoints live in the same
+        #: history directory a restart scan reads, so they must be excluded
+        #: from recovery or in-flight work reads as "no live owner" (#683
+        #: finding 31).
+        self._live_requests = set()
 
     def create_pairing_code(self):
         """Create one short-lived code; creating another invalidates it."""
@@ -1342,17 +1348,36 @@ class UiState:
             self._pair_code_expires_at = 0.0
             return "ok", self.owner_token or self.auth_token
 
-    def cached(self, key, build):
+    def cached(self, key, build, *, now=None):
         """Short-TTL cache for polled read endpoints. Each miss would call
         the live OpenRouter API (and emit a spend_check event), so a 5s
-        dashboard poll without this floods both."""
-        now = time.time()
+        dashboard poll without this floods both.
+
+        ``now`` lets a caller (and a test) supply the moment instead of
+        reaching for the global clock; production callers omit it.
+        """
+        now = time.time() if now is None else float(now)
         with self.lock:
             hit = self._api_cache.get(key)
             if hit and now - hit[0] < self.CACHE_TTL:
                 return hit[1]
         value = build()  # computed outside the lock
         with self.lock:
+            # Expired rows are removed on insert, and the snapshot keeps only
+            # its current fingerprint: that key embeds a ledger fingerprint,
+            # so every write between two Proof visits would otherwise retain
+            # a full aggregated payload forever (#683 finding 16).
+            expired = [stale for stale, (at, _value)
+                       in self._api_cache.items()
+                       if now - at >= self.CACHE_TTL]
+            for stale in expired:
+                del self._api_cache[stale]
+            if isinstance(key, tuple) and key and key[0] == "site_snapshot":
+                superseded = [stale for stale in self._api_cache
+                              if isinstance(stale, tuple) and stale
+                              and stale[0] == "site_snapshot" and stale != key]
+                for stale in superseded:
+                    del self._api_cache[stale]
             self._api_cache[key] = (now, value)
         return value
 
@@ -1368,9 +1393,22 @@ class UiState:
             self._event_sink_installed = False
 
     def _on_event(self, event):
+        request_id = event.get("request_id")
         with self.lock:
             self.events.append(event)
             self.last_seq = event.get("seq", self.last_seq)
+            if isinstance(request_id, str) and request_id:
+                # Only a request this server is actually running is live:
+                # the id counts while a run in the registry is running, so a
+                # lifecycle used merely to write a checkpoint (a restart
+                # fixture, an older process's evidence) cannot hide itself
+                # from recovery.
+                active = any(run.get("status") == "running"
+                             for run in self.runs.values())
+                if event.get("status") == "running" and active:
+                    self._live_requests.add(request_id)
+                else:
+                    self._live_requests.discard(request_id)
 
     def events_after(self, after, task_id=None):
         with self.lock:
@@ -1463,10 +1501,16 @@ class UiState:
         """
         from .run_recovery import discover_requests
 
+        with self.lock:
+            live = set(self._live_requests)
         try:
-            return discover_requests(self.history_dir)
+            found = discover_requests(self.history_dir)
         except (OSError, HarnessError):
             return []
+        # A checkpoint written by a request this process is still running is
+        # not a recovered request: it has a live owner (#683 finding 31).
+        return [item for item in found
+                if str(item.get("request_id") or "") not in live]
 
 
 def _settings_view():
@@ -1566,17 +1610,70 @@ def _list_missions(root, *, limit=25, offset=0):
 _HANDLER_TIMEOUT = 10.0
 
 
+def _ledger_fingerprint(settings):
+    """Identity of every ledger file verification reads.
+
+    The active file alone is not enough: `AutonomyLedger.segment_paths`
+    verifies the rotated segments too, and one of those can change without the
+    active file's size or mtime moving (#683 finding 15). A missing or
+    unreadable input still contributes its path, so its disappearance changes
+    the key.
+    """
+    def _file(path):
+        try:
+            st = os.stat(path)
+        except OSError:
+            return (str(path), None, None)
+        return (str(path), st.st_size, getattr(st, "st_mtime_ns", None))
+
+    try:
+        paths = ledger_for(settings).segment_paths()
+    except (OSError, HarnessError):
+        paths = [settings.ledger_path]
+    return tuple(_file(path) for path in paths) or (
+        str(settings.ledger_path), None, None)
+
+
 def _git_describe(repo_root):
-    """``git describe --always --dirty`` at ``repo_root``, or ``"unknown"``.
+    """``git describe`` for the repository that tracks this package, or
+    ``"unknown"``.
 
     Read once at server start, never per request. A served head that cannot
     name its commit is what #587 reported; an installed wheel outside a git
     tree is a legitimate ``unknown`` rather than an error, and the package
     version still identifies it.
+
+    #683 finding 19: ``git -C`` walks up, so a wheel installed in a ``.venv``
+    inside another project's checkout described that project's commit. The
+    resolved top level must therefore actually track this package's
+    ``__init__.py`` before its commit is accepted.
     """
+    def git(*args):
+        return osal.run(["git", "-C", str(repo_root), *args], timeout=5)
+
     try:
-        done = osal.run(["git", "-C", str(repo_root), "describe",
-                         "--always", "--dirty"], timeout=5)
+        top = git("rev-parse", "--show-toplevel")
+    except (OSError, HarnessError):
+        return "unknown"
+    if top.returncode != 0 or not (top.stdout or "").strip():
+        return "unknown"
+    toplevel = os.path.abspath((top.stdout or "").strip())
+    package = os.path.dirname(os.path.abspath(__file__))
+    try:
+        relative = os.path.relpath(package, toplevel)
+    except ValueError:
+        return "unknown"
+    if relative == os.pardir or relative.startswith(os.pardir + os.sep):
+        return "unknown"
+    try:
+        tracked = git("ls-files", "--error-unmatch",
+                      os.path.join(relative, "__init__.py"))
+    except (OSError, HarnessError):
+        return "unknown"
+    if tracked.returncode != 0:
+        return "unknown"
+    try:
+        done = git("describe", "--always", "--dirty")
     except (OSError, HarnessError):
         return "unknown"
     commit = (done.stdout or "").strip()
@@ -1628,17 +1725,31 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         # Never let a credential reach the log: redact the value of any
         # credential parameter a client put in a URL, whatever the server does
         # with it (#653 widened this from token= to the parameter family).
+        if getattr(self, "_log_degraded", False):
+            return
         line = _CREDENTIAL_IN_LOG_RE.sub(r"\g<name>REDACTED", format % args)
-        sys.stderr.write(f"[ui] {line}\n")
         # #574: the process owns its request log, so a probe that gets a 200
         # always leaves a matching record on disk. The redacted line is the
         # one that reaches the file; the file adds only a UTC stamp.
         # A handler can be asked to log before it is attached to a server (a
         # bare handler built for one message, as some tests do), so the server
         # is looked up defensively rather than assumed.
-        log = getattr(getattr(self, "server", None), "serve_log", None)
-        if log is not None:
-            log.write(f"[ui] {line}")
+        #
+        # #683 finding 18: send_response() logs before it sends headers, so an
+        # OSError here used to close the connection with no response at all.
+        # A failing sink is reported once and then disabled; the reply goes
+        # out either way.
+        try:
+            sys.stderr.write(f"[ui] {line}\n")
+            log = getattr(getattr(self, "server", None), "serve_log", None)
+            if log is not None:
+                log.write(f"[ui] {line}")
+        except (OSError, ValueError) as exc:
+            self._log_degraded = True
+            try:
+                sys.stderr.write(f"[ui] request logging disabled: {exc}\n")
+            except (OSError, ValueError):
+                pass
 
     def end_headers(self):
         # #587: identity rides every response, token-free, so a browser (or a
@@ -2342,15 +2453,13 @@ class UiRequestHandler(BaseHTTPRequestHandler):
         # Every call used to re-read the ledger, re-verify its hash chain and
         # recompute the metrics (~3.5 s on an operator-sized ledger), and the
         # Proof pane blocked its first paint on exactly that (#599). The
-        # result is cached under a fingerprint of the ledger FILE, so a write
-        # — including a tamper — changes size or mtime and re-verifies before
-        # anything is served again; repeats inside the TTL cost nothing.
-        try:
-            st = os.stat(settings.ledger_path)
-            fingerprint = (str(settings.ledger_path), st.st_size,
-                           getattr(st, "st_mtime_ns", None))
-        except OSError:
-            fingerprint = (str(settings.ledger_path), None, None)
+        # result is cached under a fingerprint of every file the ledger
+        # verifies — the active file AND its retained segments — so a write or
+        # a tampered segment changes the key and re-verifies before anything
+        # is served again; repeats inside the TTL cost nothing (#683 finding
+        # 15). Fingerprinting only the active file let a broken retained chain
+        # keep serving the payload `verify()` would now reject.
+        fingerprint = _ledger_fingerprint(settings)
 
         def build():
             ledger = ledger_for(settings)
