@@ -1459,6 +1459,17 @@ class Dispatch:
                     self.audit.append("verification", step_id="selected-row", row=row["text"],
                                       project=project)
                     return True
+                if project is None and self._no_rival_for_name(rows, row):
+                    # The heading can sit outside the frame while the selected
+                    # row is visible (measured 2026-11-27, dyn-7226817360: the
+                    # probe read "Ra Lane 2" with no heading, so no project could
+                    # be compared and the open lane was refused twice). Without a
+                    # heading the row's own name decides, and only when nothing
+                    # else in the frame carries it.
+                    self.audit.append("verification", step_id="selected-row-unbound",
+                                      row=row["text"],
+                                      reason="heading outside the frame; no rival row carries this name")
+                    return True
                 # A highlighted same-titled row in another project is the
                 # false-green defect, not this lane.
                 self.audit.append("escalation", step_id="selected-row-project", row=row["text"],
@@ -1466,6 +1477,16 @@ class Dispatch:
             if time.monotonic() >= deadline:
                 return False
             time.sleep(0.8)
+
+    def _no_rival_for_name(self, rows, row):
+        """Is the selected row the only row in this frame carrying its name?"""
+        here = (row.get("x"), row.get("y"))
+        for candidate in rows:
+            if (candidate.get("x"), candidate.get("y")) == here:
+                continue
+            if self.row_matches(candidate["text"], self.label):
+                return False
+        return True
 
     def reloaded(self, frame):
         """Has the renderer thrown its session away and landed on a new chat?

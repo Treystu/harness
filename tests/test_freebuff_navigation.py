@@ -357,6 +357,20 @@ class SelectionProjectFamilyTests(unittest.TestCase):
         dispatch = self._dispatch("Harness")
         self.assertTrue(dispatch.selected_label_matches())
 
+    def test_a_heading_outside_the_frame_leaves_the_unique_name(self):
+        """Measured on dyn-7226817360: the heading was None and the lane was refused."""
+        dispatch = self._dispatch(None)
+        self.assertTrue(dispatch.selected_label_matches())
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("selected-row-unbound", steps)
+
+    def test_an_unbound_heading_is_refused_when_a_rival_carries_the_name(self):
+        dispatch = self._dispatch(None)
+        row = {"text": "Ra Lane 2", "x": 118, "x1": 300, "y": 495}
+        rival = {"text": "Lane 2 Waist Composition Mission Brief", "x": 118, "x1": 300, "y": 700}
+        dispatch.settled_roster = Mock(return_value=("frame", [row, rival]))
+        self.assertFalse(dispatch.selected_label_matches())
+
     def test_a_highlighted_row_in_another_project_is_still_refused(self):
         dispatch = self._dispatch("Kalshi-Trader")
         self.assertFalse(dispatch.selected_label_matches())
