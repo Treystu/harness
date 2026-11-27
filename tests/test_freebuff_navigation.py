@@ -488,8 +488,12 @@ class PanelFirstSearchTests(unittest.TestCase):
         dispatch.require_foreground = Mock()
         dispatch.navigate_by_panel_exact = Mock(return_value=True)
         dispatch.navigate_by_session_list = Mock(side_effect=AssertionError("walk"))
+        dispatch.scroll_sidebar_to_top = Mock(return_value="frame")
         dispatch.open_search()
         dispatch.navigate_by_panel_exact.assert_called_once()
+        # Measured on dyn-7227021046: from the state the previous claim left
+        # behind, the panel route was unavailable, so the phase must reset first.
+        dispatch.scroll_sidebar_to_top.assert_called_once()
 
 class NarrowedPrefixWalkTests(unittest.TestCase):
     """The unique-prefix proof over a search-filtered roster.
