@@ -955,7 +955,19 @@ class Dispatch:
                     or self.turn_running(fresh)):
                 raise RuntimeError("the standing composer changed after approval")
         if self.send_deadline is None or time.monotonic() > self.send_deadline:
-            raise RuntimeError("the verified send window expired before input")
+            # The executor's own identity pass can outlive the window the caller
+            # armed (measured 2026-11-27, dyn-7229793962: prepared, staged, exact
+            # read-back, identity, arrow measured, then "the verified send window
+            # expired before input" twice over). A fresh, unchanged composer is a
+            # stronger statement than elapsed time, so it re-anchors the window
+            # here too; anything else still refuses by name.
+            recheck = self.frame("send-window-recheck")
+            if (self.send_composer is None
+                    or not composer_unchanged(self.send_composer, recheck.crop(COMPOSER))):
+                raise RuntimeError("the verified send window expired before input")
+            self.audit.append("escalation", step_id="send-window-reanchor",
+                              reason="the executor's identity pass outlasted the window; the composer re-read unchanged")
+            self.send_deadline = time.monotonic() + 60
         self.click(action, params)
 
     def query(self, action, params):
@@ -3584,7 +3596,9 @@ class Dispatch:
             age = 0.0
         self.audit.append("verification", step_id="pre-send-freshness", age_seconds=round(age, 3))
         self.send_deadline = observed_at + 60
-        self.send_composer = frame.crop(COMPOSER).tobytes() if self.standing else None
+        # The verified composer is the window's guarantee in both modes: the
+        # executor re-reads it before input and after its own identity pass.
+        self.send_composer = frame.crop(COMPOSER).tobytes()
         with marker.open("x", encoding="utf-8") as handle:
             json.dump({"thread": self.thread, "step": f"{operation}-once", "text": self.text,
                        "evidence": self.output.name}, handle)

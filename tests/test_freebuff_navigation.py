@@ -408,6 +408,15 @@ class ComposerPlaceholderRouteTests(unittest.TestCase):
                          "foreign")
 
 
+    def test_the_executor_reanchors_only_on_an_unchanged_composer(self):
+        source = Path(dispatch_module.__file__).read_text(encoding="utf-8")
+        start = source.index("step_id=\"send-window-reanchor\"")
+        window = source.rindex("if self.send_deadline is None", 0, start)
+        guard = source[window:start]
+        self.assertIn("composer_unchanged(self.send_composer, recheck.crop(COMPOSER))", guard)
+        self.assertIn("raise RuntimeError", guard)
+
+
 class PreSendReanchorTests(unittest.TestCase):
     """Measured on dyn-7229598525: identity outlasted the window, send refused."""
 
