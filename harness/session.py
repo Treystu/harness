@@ -95,8 +95,8 @@ def governor_for(settings, max_cost_override=None):
                                      HARD_MAX_COST)
         gov = SpendGovernor(HttpTransport(), fw_key, settings.expect_key_label,
                             max_cost,
-                            fireworks_budget_usd=getattr(
-                                settings, "fireworks_budget_usd", 0.0),
+                            fireworks_budget_usd=_budget(
+                                settings, "fireworks_budget_usd"),
                             meta_budget_usd=_budget(
                                 settings, "meta_budget_usd"))
         gov.key_info = {"label": "fireworks", "limit": max_cost, "remaining": max_cost}
@@ -118,7 +118,15 @@ def governor_for(settings, max_cost_override=None):
                                  HARD_MAX_COST)
     fw_budget = _budget(settings, "fireworks_budget_usd")
     fw_key = getattr(settings, "fireworks_key", None)
-    if fw_budget <= 0.0 and isinstance(fw_key, str) and fw_key.strip():
+    # #683 finding 7: an explicit zero is a prohibition, not the unset
+    # default. Only an unset budget is replaced by the run budget; when the
+    # operator wrote HARNESS_FIREWORKS_BUDGET_USD=0 while holding a key, the
+    # governor must refuse every Fireworks call rather than cap it at
+    # max_cost. Stub settings without the flag keep the old reading.
+    fw_budget_explicit = getattr(settings, "fireworks_budget_explicit",
+                                 fw_budget > 0.0)
+    if (fw_budget <= 0.0 and not fw_budget_explicit
+            and isinstance(fw_key, str) and fw_key.strip()):
         fw_budget = max_cost
     gov = SpendGovernor(HttpTransport(), api_key, settings.expect_key_label,
                         max_cost,

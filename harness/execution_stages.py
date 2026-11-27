@@ -421,8 +421,14 @@ class ExecutionStageMixin:
             pass
         return plan
 
-    def _refused_edit(self, plan, prompt, target_files, session_id):
-        """Terminal envelope for a waist refusal: nothing dispatched."""
+    def _refused_edit(self, plan, prompt, target_files, session_id,
+                      prior_rounds=None):
+        """Terminal envelope for a waist refusal: nothing dispatched.
+
+        ``prior_rounds`` carries the orchestrator's executed rounds so the
+        guard block can name files already written instead of claiming the
+        whole run wrote nothing (#683 finding 17).
+        """
         confirmation = plan.get("confirmation") or {}
         reason = confirmation.get("reason") or "unspecified"
 
@@ -484,6 +490,7 @@ class ExecutionStageMixin:
             reason,
             has_write_surface(target_files, plan.get("dag")),
             paths=surface,
+            prior_rounds=prior_rounds,
         )
         notice_blocks = dedupe_notices([guard_block] if guard_block else [])
         if notice_blocks:

@@ -949,11 +949,20 @@ class Settings:
                   meta_enabled=False, use_meta=False, meta_key="",
                   meta_budget_usd=0.0, groq_key="", cerebras_key="",
                   local_pool=None, use_local_pool=False,
-                  max_orch_rounds=3):
+                  max_orch_rounds=3, fireworks_budget_explicit=None):
         self.use_free = use_free
         self.openrouter_enabled = bool(openrouter_enabled)
         self.fireworks_enabled = bool(fireworks_enabled or use_fireworks)
         self.fireworks_budget_usd = float(fireworks_budget_usd)
+        # Whether the operator actually set the Fireworks budget (#683
+        # finding 7): an explicit zero is a prohibition, not "unset", so the
+        # session cannot substitute the whole run budget for it. Callers that
+        # construct Settings directly get the intuitive reading -- a positive
+        # value was set, a zero was not -- and load_settings records what the
+        # environment/config file actually carried.
+        if fireworks_budget_explicit is None:
+            fireworks_budget_explicit = self.fireworks_budget_usd > 0.0
+        self.fireworks_budget_explicit = bool(fireworks_budget_explicit)
         self.meta_enabled = bool(meta_enabled or use_meta)
         self.meta_budget_usd = float(meta_budget_usd)
         if not (self.openrouter_enabled or self.fireworks_enabled
@@ -1441,6 +1450,14 @@ def load_settings(overrides=None):
         meta_budget_usd=_num("meta_budget_usd", float, 0.0, 1_000_000.0, 0.0),
         fetch_allowlist_enabled=_as_bool(get("fetch_allowlist_enabled", True)),
         fetch_allowlist_hosts=_split_list(str(get("fetch_allowlist_hosts", ""))),
+        # #683 finding 7: "present and zero" is not "unset". The flag is
+        # recorded from the sources themselves, not from the resolved value,
+        # so an explicit HARNESS_FIREWORKS_BUDGET_USD=0 survives as a
+        # prohibition instead of being read as the default.
+        fireworks_budget_explicit=bool(
+            (overrides and "fireworks_budget_usd" in overrides)
+            or os.environ.get(_ENV_NAMES["fireworks_budget_usd"]) is not None
+            or "fireworks_budget_usd" in cfg),
     )
     if settings.use_meta:
         _enforce_meta_allowlist(settings)
