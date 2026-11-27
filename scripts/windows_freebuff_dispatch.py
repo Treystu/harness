@@ -3492,12 +3492,23 @@ class Dispatch:
         if self.scoped_input and not pointer and self.turn_running(frame):
             raise RuntimeError("the requested session resumed before send; no restart input")
         region = (1439, 1040, 1487, 1105) if pointer else SEND_CONTROL
-        self.yes("verify-send-arrow", frame,
-                 "Does this image show a white button containing a black upward arrow?",
-                 region=region)
+        # The arrow's own pixels answer this, and they answer it exactly: the
+        # outline is located in the send control's own region. Asking a model
+        # first parked a staged, identity-verified draft on a 0.31 guess
+        # (measured 2026-11-27, dyn-7229043019), which is the same defect the
+        # composer routes already cured. The model is asked only when there is no
+        # outline to measure at all.
         point = _send_arrow_bbox(frame, region=region)
         if point is None:
-            raise RuntimeError("the verified Send button outline could not be located")
+            self.yes("verify-send-arrow", frame,
+                     "Does this image show a white button containing a black upward arrow?",
+                     region=region)
+            point = _send_arrow_bbox(frame, region=region)
+            if point is None:
+                raise RuntimeError("the verified Send button outline could not be located")
+        else:
+            self.audit.append("verification", step_id="send-arrow-outline",
+                              point=list(point)[:2], source="the send control's own pixels")
         if pointer:
             control = f"{self.label} queue arrow"
             send_text = self.text

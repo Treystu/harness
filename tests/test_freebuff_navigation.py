@@ -408,6 +408,16 @@ class ComposerPlaceholderRouteTests(unittest.TestCase):
                          "foreign")
 
 
+class SendArrowPixelsFirstTests(unittest.TestCase):
+    """Measured on dyn-7229043019: a staged draft parked on a 0.31 arrow guess."""
+
+    def test_the_send_outline_is_located_before_any_model_is_asked(self):
+        source = Path(dispatch_module.__file__).read_text(encoding="utf-8")
+        outline = source.index("step_id=\"send-arrow-outline\"")
+        asked = source.index('"verify-send-arrow"')
+        self.assertLess(outline, asked)
+
+
 class ComposerFocusBeforeClearTests(unittest.TestCase):
     """Measured on dyn-7228279746: the clear had no renderer because nothing clicked."""
 
