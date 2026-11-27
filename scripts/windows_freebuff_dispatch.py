@@ -2418,6 +2418,17 @@ class Dispatch:
         if self.thread == VISION_THREAD and self.standing:
             self.open_vision_seat()
             return
+        # Each claim starts from whatever the previous one left behind. Measured
+        # 2026-11-27 (dyn-7227021046): the prior run had scrolled the list deep,
+        # the Search icon could not be located, and the panel route that carried
+        # the two claims before it was simply unavailable - the phase then spent
+        # its budget on an eighteen-page walk. A proven top-of-list state costs
+        # one scroll and makes the route choice deterministic.
+        try:
+            self.scroll_sidebar_to_top()
+            self.frame("freebuff-search-reset")
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id="search-state-reset", reason=str(error))
         # The panel is three steps and the roster walk is minutes; measured
         # 2026-11-27 (standing-20261127-coldlane2b) the walk spent the search
         # phase's whole budget on a lane whose sidebar row is clipped, while the
