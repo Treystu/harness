@@ -662,8 +662,11 @@ TOOL_SCHEMAS = [
                                "description": "Require stable state before execution"},
             "task_id": {"type": "string"},
         }, "required": ["target"]},
+        # A keyed driver service sends captured state to external model
+        # services (the extraction pool and the Jev endpoint), so this tool
+        # is open-world whatever it does locally (#683 finding 9).
         "annotations": {"readOnlyHint": False, "destructiveHint": True,
-                        "idempotentHint": False, "openWorldHint": False},
+                        "idempotentHint": False, "openWorldHint": True},
     },
     {
         "name": "driver_health",

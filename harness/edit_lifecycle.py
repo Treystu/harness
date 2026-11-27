@@ -791,8 +791,9 @@ class AutoEditLifecycleMixin:
             execute_plan=execute_plan,
             completion_chat=lambda prompt_text: self._orchestrator_chat_fn(gov)(prompt_text),
             emit=emit, cancel_check=cancel_check,
-            refused=lambda refused_plan: self._refused_edit(
-                refused_plan, prompt, target_files, session_id))
+            refused=lambda refused_plan, prior_rounds=None: self._refused_edit(
+                refused_plan, prompt, target_files, session_id,
+                prior_rounds=prior_rounds))
         if use_jev_completion:
             drive_kwargs.update(jev_policy=plan_policy,
                                 jev_completion_threshold=0.99)
