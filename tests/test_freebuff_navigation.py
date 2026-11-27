@@ -2,12 +2,14 @@
 
 import json
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
 from scripts import windows_freebuff_dispatch as dispatch_module
+from scripts import windows_freebuff_runner as runner
 from scripts.windows_freebuff_dispatch import SIDEBAR, Dispatch, lookup_local_session_uuid, same_rows
 
 
@@ -374,6 +376,49 @@ class SelectionProjectFamilyTests(unittest.TestCase):
     def test_a_highlighted_row_in_another_project_is_still_refused(self):
         dispatch = self._dispatch("Kalshi-Trader")
         self.assertFalse(dispatch.selected_label_matches())
+
+class SelectionHandoffTests(unittest.TestCase):
+    """Measured 2026-11-27: the select phase proved what prepare could not re-derive."""
+
+    def _dispatch(self, record, root):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 1"
+        dispatch.thread = "315608d2"
+        dispatch.audit = Mock()
+        dispatch.output = Path(root) / "prepare"
+        dispatch.output.mkdir(parents=True, exist_ok=True)
+        if record is not None:
+            (Path(root) / "selection.json").write_text(json.dumps(record), encoding="utf-8")
+        return dispatch
+
+    def test_this_runs_fresh_selection_for_this_lane_is_accepted(self):
+        with tempfile.TemporaryDirectory() as root:
+            record = {"thread": "315608d2", "at": datetime.now(timezone.utc).isoformat()}
+            dispatch = self._dispatch(record, root)
+            self.assertTrue(dispatch.selection_handoff())
+
+    def test_another_lane_is_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            record = {"thread": "9ecc3453", "at": datetime.now(timezone.utc).isoformat()}
+            dispatch = self._dispatch(record, root)
+            self.assertFalse(dispatch.selection_handoff())
+
+    def test_a_stale_selection_is_refused(self):
+        with tempfile.TemporaryDirectory() as root:
+            old = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+            record = {"thread": "315608d2", "at": old}
+            dispatch = self._dispatch(record, root)
+            self.assertFalse(dispatch.selection_handoff())
+
+    def test_no_record_means_no_proof(self):
+        with tempfile.TemporaryDirectory() as root:
+            dispatch = self._dispatch(None, root)
+            self.assertFalse(dispatch.selection_handoff())
+
+    def test_the_runner_records_the_select_proof(self):
+        source = Path(runner.__file__).read_text(encoding="utf-8")
+        self.assertIn('"selection.json"', source)
+
 
 class OpenTabIdentityTests(unittest.TestCase):
     """Measured on dyn-7227546381: the title OCR drops the lane numeral."""
@@ -754,6 +799,7 @@ class RevealLaneRowTests(unittest.TestCase):
         dispatch.find_highlighted_row = Mock(return_value=None)
         dispatch.saw_text = Mock(return_value=False)
         dispatch.open_tab_matches = Mock(return_value=False)
+        dispatch.selection_handoff = Mock(return_value=False)
         with self.assertRaises(RuntimeError):
             dispatch.verify_session_identity()
         dispatch.reveal_lane_row.assert_not_called()

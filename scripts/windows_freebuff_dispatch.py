@@ -11,6 +11,7 @@ import re
 import time
 from difflib import SequenceMatcher
 from ctypes import wintypes
+from datetime import datetime, timezone
 from pathlib import Path
 
 from driver_core import osal, transport
@@ -2888,8 +2889,44 @@ class Dispatch:
         # proof before a refusal.
         if self.open_tab_matches("pinned-open-tab"):
             return
+        if self.selection_handoff():
+            return
         raise RuntimeError("no route and no highlighted sidebar row identified the pinned session "
                            f"({self.label})")
+
+    def selection_handoff(self, step="identity-from-select"):
+        """Take this run's own select proof, for the same lane and only while fresh.
+
+        Measured 2026-11-27: select verified the selection on screen and prepare,
+        seconds later, could not re-derive it from a theme whose selected row is
+        a faint outline rather than a fill. The proof exists; re-deriving it is
+        what fails. The runner records it once per run, and this reads it back
+        only for this lane, only from this run's own directory, and only inside
+        a fifteen-minute window - nothing a stale or different run could supply.
+        """
+        path = Path(self.output).parent / "selection.json"
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError) as error:
+            self.audit.append("escalation", step_id=step, reason=str(error)[:160])
+            return False
+        if str(record.get("thread") or "") != str(self.thread):
+            self.audit.append("escalation", step_id=step, thread=record.get("thread"),
+                              reason="the recorded selection is another lane")
+            return False
+        try:
+            at = datetime.fromisoformat(str(record.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            self.audit.append("escalation", step_id=step, reason="the recorded selection has no time")
+            return False
+        age = (datetime.now(timezone.utc) - at).total_seconds()
+        if not 0 <= age <= 900:
+            self.audit.append("escalation", step_id=step, age=round(age),
+                              reason="the recorded selection is outside its window")
+            return False
+        self.audit.append("verification", step_id=step, thread=self.thread,
+                          source="this run's select phase", age=round(age))
+        return True
 
     def open_tab_matches(self, step="open-tab"):
         """Does the transcript pane's title name this lane?

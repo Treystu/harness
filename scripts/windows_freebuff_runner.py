@@ -319,6 +319,18 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
             raise RuntimeError(f"{phase}: {message}")
         audit.append("verification", step_id=phase, target=thread, passed=True,
                      platform_state=platform_states[-1] if platform_states else None)
+        if phase == "select":
+            # Measured 2026-11-27 (dyn-7227546381, dyn-7227786555, dyn-7228017982):
+            # select proved this lane's selection on screen and prepare, seconds
+            # later, could not re-derive it - this theme paints the selected row
+            # as a faint outline the pixel probe cannot see. The phase that did
+            # the proving records it once, in the run, for the phases that follow;
+            # prepare accepts it only for the same thread and only while it is
+            # fresh, so a stale or foreign run can never vouch for a lane.
+            (output / "selection.json").write_text(json.dumps({
+                "thread": thread, "phase": phase, "passed": True,
+                "at": datetime.now(timezone.utc).isoformat(),
+            }), encoding="utf-8")
         time.sleep(2)
     return True
 
