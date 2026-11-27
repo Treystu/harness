@@ -34,6 +34,22 @@ TRIGGER = re.compile(r"VISION-DISPATCH (dispatch/laptop-driver/inbox/[a-zA-Z0-9_
 FIELDS = {"action", "thread", "text", "expires_at"}
 PHASES = ("search", "query", "select", "prepare", "send")
 
+#: Cold-run budgets, per phase. One flat 65 s deadline killed the whole search
+#: phase mid-census on 2026-11-27 (standing-20261127-coldlane2: six roster scroll
+#: rounds, still advancing, terminated by the parent): the census is the longest
+#: leg by design, so it gets a census-sized budget and the kill names the budget
+#: instead of reporting an anonymous deadline.
+PHASE_TIMEOUTS = {"search": 240, "query": 240, "select": 180,
+                  "prepare": 120, "send": 120}
+DEFAULT_PHASE_TIMEOUT = 90
+
+
+def _phase_deadline(phase, override=None):
+    """The seconds a phase may run: the caller's override, else its own budget."""
+    if override:
+        return float(override)
+    return float(PHASE_TIMEOUTS.get(phase, DEFAULT_PHASE_TIMEOUT))
+
 
 class UncertainDriverExit(RuntimeError):
     """The driver process tree could not be confirmed stopped."""
@@ -255,8 +271,10 @@ def _platform_state_lines(stdout):
     return [line.strip() for line in (stdout or "").splitlines() if line.strip().startswith("Platform state:")]
 
 
-def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=65):
+def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=None):
     for phase in phases:
+        budget = _phase_deadline(phase, timeout)
+        audit.append("verification", step_id=f"phase-budget-{phase}", seconds=budget)
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
         command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
                    str(helper), "-Python", sys.executable, "-Thread", thread, "-Phase", phase,
@@ -264,7 +282,7 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                    **_hidden_subprocess_kwargs())
         try:
-            stdout, stderr = process.communicate(timeout=timeout)
+            stdout, stderr = process.communicate(timeout=budget)
         except subprocess.TimeoutExpired as cause:
             try:
                 ended = subprocess.run(["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
@@ -275,7 +293,9 @@ def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=
                 process.communicate(timeout=10)
             except (OSError, subprocess.TimeoutExpired) as error:
                 raise UncertainDriverExit(f"{phase}: driver tree termination unverified") from error
-            raise RuntimeError(f"{phase}: driver tree terminated after deadline") from cause
+            raise RuntimeError(
+                f"{phase}: driver tree terminated after deadline "
+                f"({budget:g}s budget)") from cause
         platform_states = _platform_state_lines(stdout)
         refused = [line for line in platform_states if line.lower().startswith("platform state: refused")]
         if refused:
@@ -393,7 +413,7 @@ def execute(output, number, mission, digest, bystanders):
             # before/after pixel comparison still records whether it moved.
             t5_before = observe_bystander(output, audit, "before")
         if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False),
-                          timeout=mission.get("phase_timeout", 65)):
+                          timeout=mission.get("phase_timeout")):
             fallback = mission.get("fallback")
             if not fallback:
                 # The child proved the session's identity and then found its turn
