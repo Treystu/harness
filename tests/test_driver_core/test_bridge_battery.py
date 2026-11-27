@@ -139,9 +139,20 @@ class LiveProbeTests(unittest.TestCase):
     def test_a_live_frame_outside_the_window_is_a_failure(self):
         with _root() as directory:
             capture = _reader(directory)
+            # Two reads of one wall clock can land on the same tick, which
+            # would make a zero-width window see an age of exactly zero. This
+            # clock advances on every read, so the frame is read first and
+            # measured strictly later. Every probe shares it, hence the
+            # running value rather than a fixed pair.
+            ticks = {"now": time.time() + 30.0}
+
+            def clock():
+                ticks["now"] += 0.001
+                return ticks["now"]
+
             receipt = bb.run_battery(
                 live=True, capture=capture, root=directory,
-                max_age=0.0, clock=lambda: time.time() + 30.0)
+                max_age=0.0, clock=clock)
             probe = receipt["probes"][0]
             self.assertEqual(probe["state"], bb.FAILED)
             self.assertFalse(probe["evidence"]["fresh"])
