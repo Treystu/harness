@@ -38,19 +38,16 @@ class SnapshotCacheTests(unittest.TestCase):
 
     def test_expired_entries_are_dropped_on_insert(self):
         ui = srv.UiState()
-        with mock.patch.object(srv.time, "time", return_value=1000.0):
-            ui.cached("spend", lambda: 1)
-        with mock.patch.object(srv.time, "time",
-                               return_value=1000.0 + ui.CACHE_TTL + 1):
-            ui.cached("other", lambda: 2)
+        ui.cached("spend", lambda: 1, now=1000.0)
+        ui.cached("other", lambda: 2, now=1000.0 + ui.CACHE_TTL + 1)
         self.assertNotIn("spend", ui._api_cache)
 
     def test_a_fresh_entry_is_served_without_rebuilding(self):
         ui = srv.UiState()
         calls = []
-        with mock.patch.object(srv.time, "time", return_value=1000.0):
-            ui.cached("k", lambda: calls.append(1) or "v")
-            self.assertEqual(ui.cached("k", lambda: calls.append(2)), "v")
+        ui.cached("k", lambda: calls.append(1) or "v", now=1000.0)
+        self.assertEqual(ui.cached("k", lambda: calls.append(2),
+                                   now=1000.0), "v")
         self.assertEqual(calls, [1])
 
 
@@ -154,8 +151,20 @@ class LiveRecoveryTests(unittest.TestCase):
         ui = srv.UiState(history_dir=self._tmp.name)
         self.assertEqual([item["request_id"]
                           for item in ui.recovered_requests()], ["req-live"])
+        # The id only counts while this server is running a request.
+        ui.runs["run-1"] = {"status": "running"}
         ui._on_event({"status": "running", "request_id": "req-live", "seq": 1})
         self.assertEqual(ui.recovered_requests(), [])
+        ui.runs["run-1"]["status"] = "done"
+        ui._on_event({"status": "complete", "request_id": "req-live", "seq": 2})
+        self.assertEqual(len(ui.recovered_requests()), 1)
+
+    def test_a_checkpoint_from_a_stale_lifecycle_stays_visible(self):
+        # A lifecycle that only wrote durable state must not be mistaken for
+        # a live run (the state-report fixtures do exactly this).
+        ui = srv.UiState(history_dir=self._tmp.name)
+        ui._on_event({"status": "running", "request_id": "req-live", "seq": 1})
+        self.assertEqual(len(ui.recovered_requests()), 1)
         ui._on_event({"status": "complete", "request_id": "req-live", "seq": 2})
         self.assertEqual(len(ui.recovered_requests()), 1)
 

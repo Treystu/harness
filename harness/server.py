@@ -1348,11 +1348,15 @@ class UiState:
             self._pair_code_expires_at = 0.0
             return "ok", self.owner_token or self.auth_token
 
-    def cached(self, key, build):
+    def cached(self, key, build, *, now=None):
         """Short-TTL cache for polled read endpoints. Each miss would call
         the live OpenRouter API (and emit a spend_check event), so a 5s
-        dashboard poll without this floods both."""
-        now = time.time()
+        dashboard poll without this floods both.
+
+        ``now`` lets a caller (and a test) supply the moment instead of
+        reaching for the global clock; production callers omit it.
+        """
+        now = time.time() if now is None else float(now)
         with self.lock:
             hit = self._api_cache.get(key)
             if hit and now - hit[0] < self.CACHE_TTL:
@@ -1394,7 +1398,14 @@ class UiState:
             self.events.append(event)
             self.last_seq = event.get("seq", self.last_seq)
             if isinstance(request_id, str) and request_id:
-                if event.get("status") == "running":
+                # Only a request this server is actually running is live:
+                # the id counts while a run in the registry is running, so a
+                # lifecycle used merely to write a checkpoint (a restart
+                # fixture, an older process's evidence) cannot hide itself
+                # from recovery.
+                active = any(run.get("status") == "running"
+                             for run in self.runs.values())
+                if event.get("status") == "running" and active:
                     self._live_requests.add(request_id)
                 else:
                     self._live_requests.discard(request_id)
