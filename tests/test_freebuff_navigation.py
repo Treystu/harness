@@ -933,6 +933,44 @@ class TierPrecheckTests(unittest.TestCase):
     def test_a_reading_with_no_word_at_all_is_unknown_not_paid(self):
         self.assertEqual(dispatch_module.tier_verdict("... :: --"), "unknown")
         self.assertEqual(dispatch_module.tier_verdict("Free"), "free")
+    def test_a_recorded_calibration_file_is_used_when_the_env_is_unset(self):
+        """The watch runs from Task Scheduler: calibration must survive a tick."""
+        import tempfile
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmp:
+            record = _Path(tmp) / "model-chip.json"
+            record.write_text('{"region": [925, 1048, 1185, 1088]}', encoding="utf-8")
+            with patch.object(dispatch_module, "CHIP_CALIBRATION", record):
+                with patch.dict(os.environ, {}, clear=False):
+                    os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
+                    self.assertEqual(dispatch_module.model_chip_region(),
+                                     (925, 1048, 1185, 1088))
+
+    def test_the_env_still_overrides_a_recorded_calibration(self):
+        import tempfile
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmp:
+            record = _Path(tmp) / "model-chip.json"
+            record.write_text('{"region": [1, 2, 3, 4]}', encoding="utf-8")
+            with patch.object(dispatch_module, "CHIP_CALIBRATION", record):
+                with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "10,20,30,40"}):
+                    self.assertEqual(dispatch_module.model_chip_region(), (10, 20, 30, 40))
+
+    def test_a_missing_or_malformed_calibration_leaves_the_tier_unproven(self):
+        import tempfile
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmp:
+            record = _Path(tmp) / "model-chip.json"
+            with patch.object(dispatch_module, "CHIP_CALIBRATION", record):
+                with patch.dict(os.environ, {}, clear=False):
+                    os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
+                    self.assertIsNone(dispatch_module.model_chip_region())
+            record.write_text("not json", encoding="utf-8")
+            with patch.object(dispatch_module, "CHIP_CALIBRATION", record):
+                with patch.dict(os.environ, {}, clear=False):
+                    os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
+                    self.assertIsNone(dispatch_module.model_chip_region())
+
     def test_an_uncalibrated_chip_refuses_before_any_input_is_sent(self):
         """The whole point of the gate: no chip proof, no keystrokes."""
         dispatch = object.__new__(Dispatch)

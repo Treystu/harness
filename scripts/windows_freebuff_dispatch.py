@@ -574,15 +574,44 @@ def tier_verdict(reading):
     return "paid"
 
 
+CHIP_CALIBRATION = Path.home() / ".harness" / "driver-watch" / "model-chip.json"
+
+
+def _calibrated_chip_box():
+    """The install's own chip calibration, if one has been recorded.
+
+    The env var is an override; this file is what survives a scheduled task.
+    The watch runs from Task Scheduler, so a variable set during a session does
+    not reliably reach the task's next tick, and an uncalibrated install refuses
+    every restart by design. A file the child reads at prepare time is seen by
+    the very next tick, which is what makes calibration an act rather than a
+    reboot.
+    """
+    try:
+        raw = CHIP_CALIBRATION.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return ""
+    value = data.get("region") if isinstance(data, dict) else data
+    if isinstance(value, (list, tuple)):
+        return ",".join(str(int(part)) for part in value)
+    return str(value or "").strip()
+
+
 def model_chip_region(default=None):
-    """The model chip's box, from ``HARNESS_FREEBUFF_MODEL_CHIP`` 'l,t,r,b'.
+    """The model chip's box: ``HARNESS_FREEBUFF_MODEL_CHIP``, else the file.
 
     The chip's position is an install fact, not something code may guess: a
     region read off the wrong place would refuse a paid lane or clear a free
-    one, and both failures are silent. Until it is calibrated the gate records
-    the tier as unverified for the run.
+    one, and both failures are silent. Until it is calibrated the gate refuses
+    the restart as tier-unverified.
     """
     raw = os.environ.get("HARNESS_FREEBUFF_MODEL_CHIP", "").strip()
+    if not raw:
+        raw = _calibrated_chip_box()
     if not raw:
         return default
     try:
