@@ -413,9 +413,9 @@ class SendArrowPixelsFirstTests(unittest.TestCase):
 
     def test_the_send_outline_is_located_before_any_model_is_asked(self):
         source = Path(dispatch_module.__file__).read_text(encoding="utf-8")
-        outline = source.index("step_id=\"send-arrow-outline\"")
+        measured = source.index("point = _send_arrow_bbox(frame, region=region)")
         asked = source.index('"verify-send-arrow"')
-        self.assertLess(outline, asked)
+        self.assertLess(measured, asked)
 
 
 class ComposerFocusBeforeClearTests(unittest.TestCase):
