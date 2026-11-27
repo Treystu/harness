@@ -69,25 +69,51 @@ class ServeIdentityTests(unittest.TestCase):
         with mock.patch.object(server_module.osal, "run",
                                side_effect=HarnessError("refused")) as run:
             self.assertEqual(_git_describe(Path(".")), "unknown")
-        run.assert_called_once()
+        run.assert_called()
+
+    def _source_tree(self, describe=(0, "abc123\n")):
+        """A checkout whose repository tracks this package."""
+        root = Path(__file__).resolve().parent.parent
+        return [
+            mock.Mock(returncode=0, stdout=str(root) + "\n"),
+            mock.Mock(returncode=0, stdout="harness/__init__.py\n"),
+            mock.Mock(returncode=describe[0], stdout=describe[1]),
+        ]
 
     def test_a_successful_describe_returns_the_trimmed_commit(self):
-        done = mock.Mock(returncode=0, stdout="abc123\n")
         with mock.patch.object(server_module.osal, "run",
-                               return_value=done) as run:
+                               side_effect=self._source_tree()) as run:
             self.assertEqual(_git_describe(Path(".")), "abc123")
-        self.assertEqual(run.call_args.args[0][0], "git")
+        self.assertEqual(run.call_args_list[0].args[0][0], "git")
+        self.assertIn("ls-files", run.call_args_list[1].args[0])
 
     def test_a_failed_describe_is_unknown(self):
-        done = mock.Mock(returncode=128, stdout="")
         with mock.patch.object(server_module.osal, "run",
-                               return_value=done):
+                               side_effect=self._source_tree((128, ""))):
             self.assertEqual(_git_describe(Path(".")), "unknown")
 
     def test_a_blank_describe_is_unknown(self):
-        done = mock.Mock(returncode=0, stdout="  \n")
         with mock.patch.object(server_module.osal, "run",
-                               return_value=done):
+                               side_effect=self._source_tree((0, "  \n"))):
+            self.assertEqual(_git_describe(Path(".")), "unknown")
+
+    def test_a_repository_that_does_not_track_the_package_is_unknown(self):
+        # #683 finding 19: a wheel inside another project's checkout resolved
+        # to that project's repository, so its commit was reported for code it
+        # does not contain.
+        with mock.patch.object(server_module.osal, "run",
+                               side_effect=[
+                                   mock.Mock(returncode=0,
+                                             stdout=str(Path.cwd()) + "\n"),
+                                   mock.Mock(returncode=1, stdout=""),
+                               ]) as run:
+            self.assertEqual(_git_describe(Path(".")), "unknown")
+        self.assertEqual(len(run.call_args_list), 2)
+
+    def test_a_failed_toplevel_lookup_is_unknown(self):
+        with mock.patch.object(server_module.osal, "run",
+                               return_value=mock.Mock(returncode=128,
+                                                      stdout="")):
             self.assertEqual(_git_describe(Path(".")), "unknown")
 
     def test_the_server_header_names_the_package_version(self):
