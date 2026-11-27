@@ -2854,12 +2854,18 @@ class Dispatch:
             # row; the selection is still the proof, it just has to be in view.
             step_name = "post-send-reveal-lane" if getattr(self, "post_send", False) else "reveal-lane"
             self.reveal_lane_row(step=step_name)
-        if self.selected_label_matches(wait=3):
+        # Measured 2026-11-27 across dyn-7227546381 and dyn-7227786555: the select
+        # phase confirmed this same selection on this same screen, while prepare's
+        # three-second probe reported no highlighted row - this theme paints its
+        # band late and faintly, so the probe needs the time the selection itself
+        # is given elsewhere. A longer window cannot invent a row: the row still
+        # has to match the lane.
+        if self.selected_label_matches(wait=10):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               source="settled sidebar selection")
             return
         if self.allow_navigation and self.navigate_by_session_list():
-            if self.selected_label_matches(wait=3):
+            if self.selected_label_matches(wait=10):
                 self.audit.append("verification", step_id="active-session-row", label=self.label,
                                   source="re-opened from the project session list")
                 return
