@@ -335,6 +335,34 @@ def walking_dispatch(pages, advances):
     return dispatch
 
 
+class ProjectFamilyHeadingTests(unittest.TestCase):
+    """Measured 2026-11-27: Lane 2 sits under "harness CLOUD", bound as "Harness"."""
+
+    def _dispatch(self, headings, label="Lane 2", project="Harness"):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = label
+        dispatch.project = project
+        dispatch.audit = Mock()
+        dispatch.project_of_row = Mock(side_effect=headings)
+        return dispatch
+
+    def test_the_cloud_variant_of_the_bound_project_is_the_same_lane(self):
+        dispatch = self._dispatch(["harness CLOUD"])
+        found = dispatch.candidates_in([{"text": "Lane 2"}], 1, [])
+        self.assertEqual([name for _, name in found], ["Lane 2"])
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("project-family-heading", steps)
+
+    def test_an_exact_heading_still_outranks_the_cloud_variant(self):
+        dispatch = self._dispatch(["harness CLOUD", "Harness"], label="Lane 1", project="Harness")
+        rows = [{"text": "Lane 1"}, {"text": "Lane 1"}]
+        found = dispatch.candidates_in(rows, 1, [])
+        self.assertEqual(len(found), 1)
+
+    def test_an_unrelated_heading_is_never_the_lane(self):
+        dispatch = self._dispatch(["Kalshi-Trader"])
+        self.assertEqual(dispatch.candidates_in([{"text": "Lane 2"}], 1, []), [])
+
 class PanelFirstSearchTests(unittest.TestCase):
     """Measured 2026-11-27: the roster walk can never match a clipped lane."""
 

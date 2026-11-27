@@ -1898,13 +1898,47 @@ class Dispatch:
                           exact=len(found))
         return found
 
+    @staticmethod
+    def _same_project_family(heading, project):
+        """The app keeps a CLOUD and a LOCAL of one project under two headings.
+
+        Measured 2026-11-27 (standing-20261127-coldlane2c): the roster held the
+        row "Lane 2" under "harness CLOUD" while the lane is bound to "Harness",
+        so the strict heading check dropped the only row that is the lane.
+        """
+        if not heading or not project:
+            return False
+        def norm(value):
+            return "".join(character for character in str(value).casefold()
+                           if character.isalnum())
+
+        left, right = norm(heading), norm(project)
+        if not left or not right:
+            return False
+        return left == right or left == right + "cloud" or right == left + "cloud"
+
     def candidates_in(self, rows, page, found):
-        """Collect the rows on one page that could be this lane, by identity."""
+        """Collect the rows on one page that could be this lane, by identity.
+
+        An exact heading outranks the cloud/local variant: when both surfaces
+        carry one lane, the row under the bound heading is the one meant, and the
+        other is left alone rather than turning a known lane into an ambiguity.
+        """
+        exact, family = [], []
         for row in rows:
-            if (self._prefix_matches(row["text"], self.label)
-                    and self.project_of_row(rows, row) == self.project):
-                if all(self._norm(row["text"]) != self._norm(name) for _, name in found):
-                    found.append((page, row["text"]))
+            if not self._prefix_matches(row["text"], self.label):
+                continue
+            heading = self.project_of_row(rows, row)
+            if heading == self.project:
+                exact.append(row)
+            elif self._same_project_family(heading, self.project):
+                family.append(row)
+        for row in (exact or family):
+            if all(self._norm(row["text"]) != self._norm(name) for _, name in found):
+                found.append((page, row["text"]))
+        if not exact and family:
+            self.audit.append("verification", step_id="project-family-heading",
+                              project=self.project, rows=[r["text"] for r in family][:4])
         return found
 
     def narrow_session_list(self, steps=3):
