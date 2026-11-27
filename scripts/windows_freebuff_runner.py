@@ -349,7 +349,13 @@ def observe_bystander(output, audit, phase):
         # gets a short budget so an idle or unreadable lane cannot eat the run.
         # Measured on 7125647656: the probe alone exceeded its deadline and every
         # retry paid it again before the dispatch's own phases began.
-        run_phases(folder, THREAD, audit, ("observe-running",), standing=True, timeout=20)
+        # The probe is several captures (verify the lane, find the Stop square,
+        # read the queue, read the working banner), and the literal 20 s cut it
+        # mid-capture on dyn-7226574169 (measured: killed 20.15 s in, before any
+        # reading). Budgets live in the phase table, so this one does too; the
+        # probe is still best-effort and never blocks the dispatch.
+        run_phases(folder, THREAD, audit, ("observe-running",), standing=True,
+                   timeout=_phase_deadline("observe-running"))
         return True
     except UncertainDriverExit:
         raise

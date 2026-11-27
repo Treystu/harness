@@ -335,6 +335,32 @@ def walking_dispatch(pages, advances):
     return dispatch
 
 
+class SelectionProjectFamilyTests(unittest.TestCase):
+    """Measured 2026-11-27 (dyn-7226574169): the open lane was read as another project."""
+
+    def _dispatch(self, heading):
+        row = {"text": "Ra Lane 2", "x": 118, "x1": 300, "y": 495}
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.settled_roster = Mock(return_value=("frame", [row]))
+        dispatch.highlighted_row = Mock(return_value=row)
+        dispatch.project_of_row = Mock(return_value=heading)
+        return dispatch
+
+    def test_the_cloud_heading_is_the_lane_that_is_open(self):
+        dispatch = self._dispatch("harness CLOUD")
+        self.assertTrue(dispatch.selected_label_matches())
+
+    def test_the_exact_heading_is_still_accepted(self):
+        dispatch = self._dispatch("Harness")
+        self.assertTrue(dispatch.selected_label_matches())
+
+    def test_a_highlighted_row_in_another_project_is_still_refused(self):
+        dispatch = self._dispatch("Kalshi-Trader")
+        self.assertFalse(dispatch.selected_label_matches())
+
 class PickPassTests(unittest.TestCase):
     """Measured 2026-11-27: the pick lost the row the census had resolved."""
 

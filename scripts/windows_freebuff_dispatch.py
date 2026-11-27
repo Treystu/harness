@@ -1449,7 +1449,13 @@ class Dispatch:
             row = self.highlighted_row(frame, rows)
             if row and self.row_matches(row["text"], self.label):
                 project = self.project_of_row(rows, row)
-                if project == self.project:
+                # The lane lives under the cloud/local variant on this box
+                # (measured 2026-11-27, dyn-7226574169: the selected row read
+                # "Ra Lane 2" under "harness CLOUD"). Demanding the exact
+                # heading here rejected the lane that was already open, so the
+                # query phase re-walked the list and refused a live lane. Same
+                # binding as the census: exact heading, then the project family.
+                if project == self.project or self._same_project_family(project, self.project):
                     self.audit.append("verification", step_id="selected-row", row=row["text"],
                                       project=project)
                     return True

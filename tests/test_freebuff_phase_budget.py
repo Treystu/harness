@@ -65,3 +65,15 @@ class PhaseBudgetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ObserveRunningBudgetTests(unittest.TestCase):
+    """Measured on dyn-7226574169: a literal 20 s killed the probe mid-capture."""
+
+    def test_the_probe_takes_its_budget_from_the_table(self):
+        self.assertEqual(runner._phase_deadline("observe-running"),
+                         float(runner.DEFAULT_PHASE_TIMEOUT))
+        self.assertGreaterEqual(runner.DEFAULT_PHASE_TIMEOUT, 60)
+
+    def test_the_runner_does_not_hardcode_the_probe_deadline(self):
+        source = Path(runner.__file__).read_text(encoding="utf-8")
+        self.assertNotIn('("observe-running",), standing=True, timeout=20', source)
