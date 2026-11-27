@@ -554,17 +554,24 @@ def composer_text_verdict(reading):
 FREE_TIER = re.compile(r"\bfree\b|:free\b", re.I)
 
 
+TIER_WORD = re.compile(r"[a-z0-9][a-z0-9.+-]*")
+
+
 def tier_verdict(reading):
     """Classify the session's model chip: 'free', 'paid' or 'unknown'.
 
-    Only an explicit free marker disqualifies; a non-empty reading with no such
-    marker is the seat of record. A blank reading is 'unknown' and is recorded
-    as unverified - never assumed paid and never silently treated as a refusal.
+    An explicit free marker disqualifies. A reading with no recognizable word is
+    'unknown' - OCR noise and a half-rendered chip are not a paid tier - and the
+    gate refuses an unknown reading rather than assuming the seat of record.
     """
     text = " ".join(str(reading or "").split()).casefold()
     if not text:
         return "unknown"
-    return "free" if FREE_TIER.search(text) else "paid"
+    if FREE_TIER.search(text):
+        return "free"
+    if not any(len(token) >= 3 for token in TIER_WORD.findall(text)):
+        return "unknown"
+    return "paid"
 
 
 def model_chip_region(default=None):
@@ -2490,26 +2497,34 @@ class Dispatch:
                  region=region)
 
     def verify_tier(self, frame):
-        """Refuse a restart onto the free tier (A4), from the session's own chip.
+        """Refuse a restart unless the session's own chip reads a paid tier (A4).
 
-        The chip is read before any input and its verdict rides the audit, so a
-        restart that clears this gate says which tier it cleared on. An
-        uncalibrated chip region is recorded as an unverified tier rather than
-        assumed paid - and rather than refused, because a refusal with no
-        reading would park every lane on an install whose chip box is not yet
-        measured. A positive free reading always refuses.
+        Fail-closed by decision: an unreadable tier is not a reason to proceed.
+        A restart that cannot prove where it lands is refused by name, because
+        the failure it prevents - a lane burning its work on a free,
+        rate-limited pool - is silent and expensive, while the refusal is loud,
+        names the missing input, and leaves the run's own capture as the evidence
+        that calibrates the chip box for the next attempt. Only a positive paid
+        reading lets a restart through.
         """
         region = model_chip_region()
         if region is None:
-            self.audit.append("escalation", step_id="tier-unverified",
-                              reason="no model chip region is calibrated on this "
-                                     "install (HARNESS_FREEBUFF_MODEL_CHIP)")
-            return "unknown"
+            self.audit.append(
+                "escalation", step_id="tier-unreadable",
+                reason="no model chip region is calibrated on this install "
+                       "(HARNESS_FREEBUFF_MODEL_CHIP)")
+            raise RuntimeError(
+                "tier-check: the target session's tier cannot be read - no model chip "
+                "region is calibrated (set HARNESS_FREEBUFF_MODEL_CHIP to "
+                "'left,top,right,bottom'); refusing to restart a lane whose tier is "
+                "unknown") from None
         try:
             lines = self.read_lines("tier-chip", frame, region)
         except RuntimeError as error:
-            self.audit.append("escalation", step_id="tier-unverified", reason=str(error))
-            return "unknown"
+            self.audit.append("escalation", step_id="tier-unreadable", reason=str(error))
+            raise RuntimeError(
+                f"tier-check: the model chip could not be read ({error}); refusing to "
+                "restart a lane whose tier is unknown") from None
         reading = " ".join(lines)
         verdict = tier_verdict(reading)
         self.audit.append("verification", step_id="tier-checked", verdict=verdict,
@@ -2518,6 +2533,10 @@ class Dispatch:
             raise RuntimeError(
                 "tier-check: the target session reads as the free tier "
                 f"({reading[:80]!r}); refusing to restart a lane onto it")
+        if verdict != "paid":
+            raise RuntimeError(
+                "tier-check: the model chip read carries no recognizable tier "
+                f"({reading[:80]!r}); refusing to restart a lane whose tier is unknown")
         return verdict
 
     def reveal_lane_row(self, pages=4, step="reveal-lane"):

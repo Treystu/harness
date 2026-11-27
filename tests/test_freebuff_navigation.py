@@ -658,6 +658,7 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
         dispatch.reestablish_if_reloaded = Mock(return_value=False)
         dispatch.settle_view = Mock(return_value=frame)
         dispatch.verify_lane = Mock()
+        dispatch.verify_tier = Mock(return_value="paid")
         dispatch.turn_running = Mock(return_value=False)
         dispatch.locate_exact_text = Mock(return_value=[780, 980])
         dispatch.choose = Mock()
@@ -688,6 +689,7 @@ class FreebuffSessionWalkAndDispatchFixTests(unittest.TestCase):
         dispatch.reestablish_if_reloaded = Mock(return_value=False)
         dispatch.settle_view = Mock(return_value=frame)
         dispatch.verify_lane = Mock()
+        dispatch.verify_tier = Mock(return_value="paid")
         dispatch.turn_running = Mock(return_value=False)
         dispatch.locate_exact_text = Mock(side_effect=RuntimeError("placeholder missing"))
         dispatch.read_lines = Mock(side_effect=[
@@ -892,17 +894,45 @@ class TierPrecheckTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "free tier"):
                 dispatch.verify_tier(Mock())
 
-    def test_an_uncalibrated_chip_is_recorded_as_unverified_not_assumed_paid(self):
+    def test_an_uncalibrated_chip_refuses_the_restart(self):
+        """Fail-closed: no chip box, no proof of tier, no restart."""
         dispatch = object.__new__(Dispatch)
         dispatch.audit = Mock()
         dispatch.read_lines = Mock()
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
-            self.assertEqual(dispatch.verify_tier(Mock()), "unknown")
+            with self.assertRaisesRegex(RuntimeError, "cannot be read"):
+                dispatch.verify_tier(Mock())
         dispatch.read_lines.assert_not_called()
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
-        self.assertIn("tier-unverified", steps)
+        self.assertIn("tier-unreadable", steps)
 
+    def test_a_chip_that_cannot_be_read_at_all_refuses_the_restart(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.audit = Mock()
+        dispatch.read_lines = Mock(side_effect=RuntimeError("OCR refused"))
+        with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40,1560,120"}):
+            with self.assertRaisesRegex(RuntimeError, "could not be read"):
+                dispatch.verify_tier(Mock())
+
+    def test_a_chip_that_reads_as_noise_refuses_the_restart(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.audit = Mock()
+        dispatch.read_lines = Mock(return_value=["...", "- -"])
+        with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40,1560,120"}):
+            with self.assertRaisesRegex(RuntimeError, "no recognizable tier"):
+                dispatch.verify_tier(Mock())
+
+    def test_a_paid_reading_is_the_only_restart_the_gate_lets_through(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.audit = Mock()
+        dispatch.read_lines = Mock(return_value=["DeepSeek V4.1 Flash Slow"])
+        with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40,1560,120"}):
+            self.assertEqual(dispatch.verify_tier(Mock()), "paid")
+
+    def test_a_reading_with_no_word_at_all_is_unknown_not_paid(self):
+        self.assertEqual(dispatch_module.tier_verdict("... :: --"), "unknown")
+        self.assertEqual(dispatch_module.tier_verdict("Free"), "free")
     def test_a_malformed_chip_box_is_refused_rather_than_guessed(self):
         with patch.dict(os.environ, {"HARNESS_FREEBUFF_MODEL_CHIP": "1200,40"}):
             with self.assertRaisesRegex(RuntimeError, "left,top,right,bottom"):

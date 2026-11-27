@@ -1396,6 +1396,7 @@ class SelfRelianceAndComposerCureTests(unittest.TestCase):
         d3.saw_text = Mock(return_value=False)
         d3.frame = Mock(side_effect=["retry_frame", "recovered_frame"])
         d3.verify_lane = Mock()
+        d3.verify_tier = Mock(return_value="paid")
         d3.reloaded = Mock(return_value=True)
         d3.reestablish_if_reloaded = Mock(return_value=True)
         self.assertEqual(d3.verify_draft("initial_frame"), "recovered_frame")
@@ -2045,6 +2046,7 @@ class Step3OvernightAndStandingTests(unittest.TestCase):
         d.audit = Mock()
         d.reestablish_if_reloaded = Mock(return_value=False)
         d.verify_lane = Mock()
+        d.verify_tier = Mock(return_value="paid")
         d.turn_running = Mock(return_value=False)
         d.locate_exact_text = Mock(side_effect=[RuntimeError("no placeholder"), [670, 1020]])
         d.read_lines = Mock(side_effect=[
@@ -2086,6 +2088,7 @@ class Step3OvernightAndStandingTests(unittest.TestCase):
             d2.audit = Mock()
             d2.reestablish_if_reloaded = Mock(return_value=False)
             d2.verify_lane = Mock()
+            d2.verify_tier = Mock(return_value="paid")
             d2.turn_running = Mock(return_value=False)
             d2.locate_exact_text = Mock(side_effect=RuntimeError("no placeholder"))
             d2.read_lines = Mock(side_effect=[[], [], ["Investigate P1 calibration draft in detail"]])
