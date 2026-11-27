@@ -102,6 +102,15 @@ BURN_SESSIONS = {
     "46472fcc": "CivicScope",
     "26646448": "Agensi Lane Queue Executi",
 }
+# Some lanes were created with a friendly name that the app never adopted: it
+# titled the session itself and there is no rename control, so a census can
+# never find the lane by the name the dispatch uses (measured 2026-11-27: Lane 2
+# `9ecc3453` is the row "Carrier Census Verifica-" under the Harness heading,
+# and every pick refused it as absent). The title below is the app's, read from
+# the live sidebar; the label stays the name the dispatch and the receipts use.
+SESSION_TITLES = {
+    "9ecc3453": "Carrier Census Verification Mission",
+}
 # What a lane's own transcript must contain for the app to identify it when its
 # row name cannot (BigEnergyCo has five sessions that all open with its name).
 LANE_MARKERS = {
@@ -971,11 +980,11 @@ class Dispatch:
         self.click(action, params)
 
     def query(self, action, params):
-        if (params["thread"] != self.thread or params["text"] != self.label
+        if (params["thread"] != self.thread or params["text"] != self.session_name
                 or params["control"] != "Search chats field"):
             raise RuntimeError("search parameters differ from the approved session")
         renderer = self.search_renderer
-        for character in self.label:
+        for character in self.session_name:
             if not renderer or self.user.GetAncestor(renderer, 2) != self.require_foreground():
                 raise RuntimeError("the verified search renderer changed")
             if not self.user.PostMessageW(renderer, 0x0102, ord(character), 1):
@@ -1198,6 +1207,16 @@ class Dispatch:
         if len(head) <= 3 and tail:
             forms.add(cls._norm(tail))
         return {item for item in forms if item}
+
+    @property
+    def session_name(self):
+        """The name the app prints for this session: its title, or our label.
+
+        A property rather than a stored field so a lane whose title differs is
+        found by every path that matches or types a name, including the harness
+        doubles that set only ``thread`` and ``label``.
+        """
+        return SESSION_TITLES.get(getattr(self, "thread", None), self.label)
 
     @classmethod
     def row_matches(cls, text, label):
@@ -1490,7 +1509,7 @@ class Dispatch:
             # chat is always the lower of the two rows, so the selection must be
             # the lowest exact title in this project, never the heading.
             exacts = [candidate for candidate in rows
-                      if self.exact_session_title(candidate["text"], self.label)
+                      if self.exact_session_title(candidate["text"], self.session_name)
                       and self.project_of_row(rows, candidate) == self.project]
             lowest = max(exacts, key=lambda candidate: candidate["y"]) if exacts else None
             if row is not None and lowest is not None and row["y"] == lowest["y"]:
@@ -1515,7 +1534,7 @@ class Dispatch:
                 time.sleep(1.2)
                 continue
             row = self.highlighted_row(frame, rows)
-            if row and self.row_matches(row["text"], self.label):
+            if row and self.row_matches(row["text"], self.session_name):
                 project = self.project_of_row(rows, row)
                 # The lane lives under the cloud/local variant on this box
                 # (measured 2026-11-27, dyn-7226574169: the selected row read
@@ -1552,7 +1571,7 @@ class Dispatch:
         for candidate in rows:
             if (candidate.get("x"), candidate.get("y")) == here:
                 continue
-            if self.row_matches(candidate["text"], self.label):
+            if self.row_matches(candidate["text"], self.session_name):
                 return False
         return True
 
@@ -1731,13 +1750,13 @@ class Dispatch:
                     break
                 continue
             seen.append(texts)
-            matches = [row for row in rows if self.row_matches(row["text"], self.label)]
+            matches = [row for row in rows if self.row_matches(row["text"], self.session_name)]
             unrelated = [row["text"] for row in matches
                          if self.project_of_row(rows, row) != self.project]
             if unrelated:
                 self.audit.append("escalation", step_id=f"session-list-foreign-{page}",
                                   rows=unrelated[:6], expected=self.project)
-            scoped, heading = self.session_candidates(rows, self.label, self.project)
+            scoped, heading = self.session_candidates(rows, self.session_name, self.project)
             if not scoped and heading is not None:
                 # A collapsed project shows its heading and no chats; open it
                 # once, then census the same page again.
@@ -1753,7 +1772,7 @@ class Dispatch:
                     self.audit.append("escalation", step_id=f"session-list-open-project-{page}",
                                       reason=str(error))
             exact = [row for row in scoped
-                     if self.exact_session_title(row["text"], self.label)]
+                     if self.exact_session_title(row["text"], self.session_name)]
             if len(exact) == 1:
                 # Click the scoped row itself: the title-only matcher would see
                 # the same-titled row in the other project and refuse.
@@ -1895,7 +1914,7 @@ class Dispatch:
         attempt retypes only into an empty field: text this lane did not put
         there is left alone, never typed over.
         """
-        wanted = self._norm(self.label)
+        wanted = self._norm(self.session_name)
         for attempt in range(1, attempts + 1):
             try:
                 point = self.locate_exact_text(f"narrow-search-field-{attempt}", frame,
@@ -1911,7 +1930,7 @@ class Dispatch:
                      {"control": "Search chats field", "point": point,
                       "size": list(frame.size)})
             self.act(f"narrow-query-{attempt}", QUERY,
-                     {"thread": self.thread, "text": self.label,
+                     {"thread": self.thread, "text": self.session_name,
                       "control": "Search chats field"})
             time.sleep(1.3)
             frame = self.frame(f"narrow-readback-{attempt}")
@@ -1955,8 +1974,8 @@ class Dispatch:
             # Chats that merely OPEN with this name are rivals, not copies of it
             # (measured: five chats open with "SCMessenger", one IS SCMessenger).
             exact = [(page, name) for page, name in found
-                     if name.strip() == self.label.strip()
-                     or self._norm(name.partition(" ")[2] or "") == self._norm(self.label)]
+                     if name.strip() == self.session_name.strip()
+                     or self._norm(name.partition(" ")[2] or "") == self._norm(self.session_name)]
             if len(exact) == 1:
                 self.audit.append("verification", step_id="prefix-exact-wins",
                                   row=exact[0][1], rivals=len(found))
@@ -1978,12 +1997,20 @@ class Dispatch:
         rival chat that opens with the same words; placeholders are not rows.
         Ambiguity is still refused downstream by ``resolve_unique``.
         """
-        want = self._norm(self.label)
+        want = self._norm(self.session_name)
         if not want:
             return found
         for row in rows:
             text = str(row.get("text", "")).strip()
-            if not text or self._norm(text) != want:
+            if not text:
+                continue
+            seen = self._norm(text).rstrip("-")
+            if seen != want and not (len(seen) >= 18 and want.startswith(seen)):
+                # The sidebar clips long titles ("Carrier Census Verifica-",
+                # measured 2026-11-27). Only a SHORTER form of this lane's own
+                # title is that clipping; a longer title that merely opens with
+                # the same words is a different chat and is refused here, so
+                # resolve_unique never sees it as a candidate.
                 continue
             # Every exact row is counted: two rows with one name are two
             # sessions (the app keeps a CLOUD and a LOCAL of one lane), and
@@ -2069,7 +2096,7 @@ class Dispatch:
         """
         exact, family = [], []
         for row in rows:
-            if not self._prefix_matches(row["text"], self.label):
+            if not self._prefix_matches(row["text"], self.session_name):
                 continue
             heading = self.project_of_row(rows, row)
             if heading == self.project:
@@ -2106,7 +2133,7 @@ class Dispatch:
             typed = " ".join(self.read_lines("narrow-field-read", frame, SEARCH_PLACEHOLDER))
         except RuntimeError:
             typed = ""
-        if self._norm(self.label) and self._norm(self.label) in self._norm(typed):
+        if self._norm(self.session_name) and self._norm(self.session_name) in self._norm(typed):
             self.audit.append("verification", step_id="narrow-reused-query",
                               reason="the search field already carries this label")
         else:
@@ -2342,7 +2369,7 @@ class Dispatch:
         identity the app states itself, so an unnamed lane is resolved by
         opening its candidates and reading what the app says it opened.
         """
-        wanted = self._norm(self.label)
+        wanted = self._norm(self.session_name)
         # Opening a candidate types nothing, so this stays available in the
         # select phase; the callers (search and select) are the ones that run
         # before a draft exists, and send never calls it.
@@ -2365,7 +2392,7 @@ class Dispatch:
                 # "SCMessenger Audit L"), so a plain substring test misses the
                 # very rows this path exists to find.
                 if wanted and wanted not in seen_text and not self.row_matches(
-                        row["text"], self.label):
+                        row["text"], self.session_name):
                     continue
                 if seen_text == wanted and self.project_of_row(rows, row) != self.project:
                     # A bare label is also how the app names project headings and
@@ -2688,7 +2715,7 @@ class Dispatch:
                                            SEARCH_PLACEHOLDER_TAIL)
         self.act("focus-search-field", CLICK,
                  {"control": "Search chats field", "point": point, "size": list(frame.size)})
-        self.act("query-session", QUERY, {"thread": self.thread, "text": self.label,
+        self.act("query-session", QUERY, {"thread": self.thread, "text": self.session_name,
                                           "control": "Search chats field"})
         time.sleep(1.4)
         self.frame("freebuff-search-results")

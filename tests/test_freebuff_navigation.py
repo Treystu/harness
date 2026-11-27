@@ -633,13 +633,22 @@ class PanelFirstSearchTests(unittest.TestCase):
         dispatch.click_roster_row = Mock()
         return dispatch
 
-    def test_the_panel_route_clicks_the_exact_row(self):
-        dispatch = self._dispatch([{"text": "Lane 2"},
-                                   {"text": "Lane 2 Waist Composition Mission Brief"}])
+    def test_the_panel_route_clicks_the_apps_own_title(self):
+        # Measured 2026-11-27 from the live sidebar: the row is the app's title,
+        # clipped, and no row anywhere reads "Lane 2".
+        dispatch = self._dispatch([{"text": "Carrier Census Verifica-"},
+                                   {"text": "Carrier Census Verification Review"}])
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             self.assertTrue(dispatch.navigate_by_panel_exact())
         dispatch.click_roster_row.assert_called_once()
-        self.assertEqual(dispatch.click_roster_row.call_args.args[3], "Lane 2")
+        self.assertEqual(dispatch.click_roster_row.call_args.args[3],
+                         "Carrier Census Verifica-")
+
+    def test_the_dispatch_label_is_not_what_the_app_prints(self):
+        dispatch = self._dispatch([{"text": "Carrier Census Verifica-"}])
+        self.assertEqual(dispatch.label, "Lane 2")
+        self.assertEqual(dispatch.session_name, "Carrier Census Verification Mission")
+        self.assertFalse(Dispatch.row_matches("Carrier Census Verifica-", "Lane 2"))
 
     def test_a_panel_without_the_exact_row_falls_through_to_the_census(self):
         dispatch = self._dispatch([{"text": "Lane 2 Waist Composition Mission Brief"}])
