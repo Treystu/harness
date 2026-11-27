@@ -664,13 +664,18 @@ class SimpleActionLaneTests(unittest.TestCase):
             "simple_action_jev_complete", "simple_action_complete",
         ])
 
-    def test_jev_route_choice_other_than_simple_action_sends_no_probe(self):
+    def test_jev_route_choice_other_than_simple_action_still_executes(self):
+        """#805: an overbroad selection declines into the implied workflow."""
         with tempfile.TemporaryDirectory() as tmp:
             agent = AutonomousAgent(
                 settings=_lane_settings(jev_api_key="jev-test",
                                         jev_disabled=False),
                 history_dir=Path(tmp), root_dir=Path(tmp))
-            policy = _site_jev(route_choice="plan")
+            policy = _site_jev(0.999, route_choice="plan")
+            probe = {"ok": True, "http_status": 200, "verdict": "up",
+                     "reason": "'example.com' is up (HTTPS 200)",
+                     "latency_s": 0.4, "host": "example.com",
+                     "url": "https://example.com"}
             with patch("harness.web.preflight_public_site",
                        return_value={"url": "https://example.com",
                                      "host": "example.com", "port": 443,
@@ -680,16 +685,19 @@ class SimpleActionLaneTests(unittest.TestCase):
                  patch("harness.simple_action_lifecycle.jev_face_governor",
                        return_value=MagicMock()), \
                  patch("harness.web.probe_public_site",
-                       side_effect=AssertionError("Jev chose plan; no probe")), \
+                       return_value=probe) as probed, \
                  patch("harness.simple_action_lifecycle.ledger_for",
                        return_value=MagicMock()):
                 result = agent.run_prompt(
                     "is example.com up?", session_id="jev-route-plan",
                     force_conversation=True)
 
-        self.assertEqual(result["status"], "deferred")
-        self.assertIn("no request was sent", result["response"])
-        self.assertEqual(result["jev"]["workflow_tier"], "plan")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["response"], "Yes.")
+        self.assertEqual(probed.call_count, 1)
+        attempt = result["fallback_lattice"]["attempts"][0]
+        self.assertEqual(attempt["choice"], "plan")
+        self.assertEqual(attempt["outcome"], "declined")
 
     def test_keyed_site_preflight_refusal_happens_before_jev(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -755,14 +763,25 @@ class SimpleActionLifecycleBranchTests(unittest.TestCase):
                         "is example.com up?", session_id="s-cancel-route",
                         cancel_check=lambda: True)
 
-    def test_route_outage_defers_without_a_probe(self):
+    def _up(self, **overrides):
+        probe = {"ok": True, "http_status": 200, "verdict": "up",
+                 "reason": "'example.com' is up (HTTPS 200)",
+                 "latency_s": 0.4, "host": "example.com",
+                 "url": "https://example.com"}
+        probe.update(overrides)
+        return probe
+
+    def test_route_outage_runs_the_deterministic_site_check(self):
+        """#805: a route exception is a decline, not a terminal answer."""
         with tempfile.TemporaryDirectory() as tmp:
             agent = self._agent(tmp)
-            policy = MagicMock()
-            policy.evaluate_request_workflow.side_effect = RuntimeError(
-                "route down")
+            policy = _site_jev(0.999)
+            policy.evaluate_request_workflow = MagicMock(
+                side_effect=RuntimeError("route down"))
             with patch("harness.web.preflight_public_site",
                        return_value=self._plan()), \
+                 patch("harness.web.probe_public_site",
+                       return_value=self._up()) as probe, \
                  patch("harness.simple_action_lifecycle.jev_for", return_value=policy), \
                  patch("harness.simple_action_lifecycle.jev_face_governor",
                        return_value=MagicMock()), \
@@ -770,10 +789,20 @@ class SimpleActionLifecycleBranchTests(unittest.TestCase):
                        return_value=MagicMock()):
                 res = agent._run_simple_action_lifecycle(
                     "is example.com up?", session_id="s-route-down")
-        self.assertEqual(res["status"], "deferred")
-        self.assertIn("Jev could not select", res["response"])
-        self.assertEqual(res["defer_reason"],
-                         "Jev workflow selection was unavailable")
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(res["response"], "Yes.")
+        self.assertEqual(probe.call_count, 1)
+        self.assertEqual(probe.call_args[0][0], "https://example.com")
+        self.assertEqual(res["probe"]["http_status"], 200)
+        self.assertEqual(res["cost"], 0.0)
+        self.assertNotIn("retry", res["response"].lower())
+        self.assertNotIn("defer_reason", res)
+        lattice = res["fallback_lattice"]
+        self.assertEqual(lattice["rung"], 2)
+        self.assertEqual(lattice["attempts"][0]["operation"],
+                         "workflow_selection")
+        self.assertEqual(lattice["attempts"][0]["outcome"], "unavailable")
+        self.assertEqual(lattice["attempts"][1]["via"], "probe")
 
     def test_route_cancellation_propagates(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -783,6 +812,8 @@ class SimpleActionLifecycleBranchTests(unittest.TestCase):
                 "route stopped")
             with patch("harness.web.preflight_public_site",
                        return_value=self._plan()), \
+                 patch("harness.web.probe_public_site",
+                       side_effect=AssertionError("cancel means no probe")), \
                  patch("harness.simple_action_lifecycle.jev_for", return_value=policy), \
                  patch("harness.simple_action_lifecycle.jev_face_governor",
                        return_value=MagicMock()), \
@@ -792,21 +823,29 @@ class SimpleActionLifecycleBranchTests(unittest.TestCase):
                     agent._run_simple_action_lifecycle(
                         "is example.com up?", session_id="s-route-cancel")
 
-    def test_non_simple_action_choice_defers_without_a_probe(self):
+    def test_non_simple_action_choice_runs_the_deterministic_check(self):
+        """#805: a non-selection records its reason and then executes."""
         with tempfile.TemporaryDirectory() as tmp:
             agent = self._agent(tmp)
             with patch("harness.web.preflight_public_site",
                        return_value=self._plan()), \
+                 patch("harness.web.probe_public_site",
+                       return_value=self._up()) as probe, \
                  patch("harness.simple_action_lifecycle.jev_for",
-                       return_value=_site_jev(route_choice="needs_tool")), \
+                       return_value=_site_jev(0.999,
+                                              route_choice="needs_tool")), \
                  patch("harness.simple_action_lifecycle.jev_face_governor",
                        return_value=MagicMock()), \
                  patch("harness.simple_action_lifecycle.ledger_for",
                        return_value=MagicMock()):
                 res = agent._run_simple_action_lifecycle(
                     "is example.com up?", session_id="s-other-choice")
-        self.assertEqual(res["status"], "deferred")
-        self.assertIn("did not select the bounded", res["defer_reason"])
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(probe.call_count, 1)
+        attempt = res["fallback_lattice"]["attempts"][0]
+        self.assertEqual(attempt["choice"], "needs_tool")
+        self.assertEqual(attempt["outcome"], "declined")
+        self.assertIn("did not select the bounded", attempt["reason"])
 
     def test_cancel_after_route_selection_aborts_before_probe(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1303,6 +1342,380 @@ evidence-based result.
                          "https://freeoffgridcalculator.com")
         self.assertEqual(res.get("probe", {}).get("http_status"), 403)
         self.assertEqual(res.get("response"), "Yes.")
+
+
+REPO_PROMPT = (
+    'check this repo: "https://github.com/Treystu/solarclock" - And audit to '
+    "ensure it's perfectly accurate. propose any needed enhancements for "
+    "complete accuracy.")
+SITE_PROMPT = REPO_PROMPT.replace("check this repo", "check this site")
+FILE_PROMPT = (
+    "pull this index.html file and verify for any inaccuracies: "
+    "https://github.com/Treystu/solarclock/blob/main/index.html")
+
+_REPO_HTML = """<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Solar Clock</title>
+<script src="https://cdn.example.org/sun.js"></script>
+<img src="http://cdn.example.org/sun.png">
+</head>
+<body><div id="clock"></div><div id="clock"></div>
+<p>Accurate to within 1 second of the Sun's apparent position.</p>
+</body>
+</html>
+"""
+_REPO_JS = "const DEG = 57.2958;\nconst now = new Date();\n"
+_UP = {"ok": True, "http_status": 200, "verdict": "up",
+       "reason": "'github.com' is up (HTTPS 200)", "latency_s": 0.2,
+       "host": "github.com", "url": "https://github.com/Treystu/solarclock"}
+
+
+def _page_plan(url="https://github.com/Treystu/solarclock"):
+    host = url.split("://", 1)[-1].split("/", 1)[0]
+    return {"url": url, "host": host, "port": 443,
+            "path": "/", "addresses": ("140.82.112.3",)}
+
+
+def _repo_seams(*, html=_REPO_HTML, js=_REPO_JS, failing=()):
+    raw = {
+        "https://raw.githubusercontent.com/Treystu/solarclock/main/index.html": html,
+        "https://raw.githubusercontent.com/Treystu/solarclock/main/clock.js": js,
+    }
+
+    def fake_json(url, **_kwargs):
+        if "/git/trees/" in url:
+            return {"tree": [
+                {"path": "index.html", "type": "blob", "size": len(html)},
+                {"path": "clock.js", "type": "blob", "size": len(js)},
+                {"path": "node_modules/skip.js", "type": "blob", "size": 4},
+                {"path": "logo.png", "type": "blob", "size": 4},
+            ]}
+        return {"default_branch": "main", "full_name": "Treystu/solarclock"}
+
+    def fake_text(url, **_kwargs):
+        if url in failing:
+            raise HarnessError(f"acquisition failed for {url}: HTTP 404")
+        if url in raw:
+            return raw[url]
+        raise HarnessError(f"acquisition failed for {url}: HTTP 404")
+
+    return (patch("harness.fallback_lattice._http_get_json",
+                  side_effect=fake_json),
+            patch("harness.fallback_lattice._http_get_text",
+                  side_effect=fake_text))
+
+
+class FallbackLatticeUnitTests(unittest.TestCase):
+    """Target resolution, acquisition and review of rung 2 (#805)."""
+
+    def test_target_shapes_are_resolved_from_the_url(self):
+        from harness.fallback_lattice import parse_target
+
+        repo = parse_target("https://github.com/Treystu/solarclock")
+        self.assertEqual(repo["kind"], "repository")
+        self.assertEqual((repo["owner"], repo["repo"]), ("Treystu", "solarclock"))
+        blob = parse_target(
+            "https://github.com/Treystu/solarclock/blob/main/index.html")
+        self.assertEqual(blob["kind"], "blob")
+        self.assertEqual(blob["revision"], "main")
+        self.assertEqual(blob["path"], "index.html")
+        tree = parse_target("https://github.com/Treystu/solarclock/tree/dev")
+        self.assertEqual((tree["kind"], tree["revision"]), ("repository", "dev"))
+        page = parse_target("https://example.com/a/b")
+        self.assertEqual(page["kind"], "page")
+        self.assertIsNone(parse_target(""))
+        self.assertIsNone(parse_target("not a url"))
+        self.assertEqual(
+            parse_target("https://github.com/onlyowner")["kind"], "page")
+
+    def test_verb_and_object_resolve_together(self):
+        from harness.fallback_lattice import implied_operation
+
+        self.assertEqual(implied_operation(REPO_PROMPT)["operation"],
+                         "inspect_repository")
+        self.assertEqual(implied_operation(FILE_PROMPT)["operation"],
+                         "retrieve_file")
+        # A URL with no verb, a verb with no URL, and a plain page target each
+        # imply no deterministic workflow of their own.
+        self.assertIsNone(implied_operation(
+            "https://github.com/Treystu/solarclock"))
+        self.assertIsNone(implied_operation("check the ledger"))
+        self.assertIsNone(implied_operation("check this site: https://example.com"))
+
+    def test_file_selection_narrows_without_silence(self):
+        from harness.fallback_lattice import _select_files
+
+        tree = {"tree": [
+            {"path": "node_modules/x.js", "type": "blob", "size": 10},
+            {"path": "logo.png", "type": "blob", "size": 10},
+            {"path": "big.js", "type": "blob", "size": 900000},
+            {"path": "clock.js", "type": "blob", "size": 10},
+            {"path": "index.html", "type": "blob", "size": 10},
+            {"path": "docs", "type": "tree"},
+        ]}
+        selected = [entry["path"] for entry in _select_files(tree)]
+        self.assertEqual(selected, ["index.html", "clock.js"])
+
+    def test_repository_acquisition_keeps_revision_and_failures(self):
+        from harness.fallback_lattice import acquire_target, parse_target
+
+        broken = ("https://raw.githubusercontent.com/Treystu/solarclock/main/"
+                  "clock.js")
+        json_patch, text_patch = _repo_seams(failing=(broken,))
+        with json_patch, text_patch:
+            material = acquire_target(
+                parse_target("https://github.com/Treystu/solarclock"))
+        self.assertEqual(material["revision"], "main")
+        self.assertEqual(material["paths_inspected"], ["index.html"])
+        self.assertEqual(material["failures"][0]["path"], "clock.js")
+        self.assertEqual(material["not_retrieved"], ["clock.js"])
+
+    def test_a_failed_acquisition_raises_for_the_lattice_to_record(self):
+        from harness.fallback_lattice import acquire_target, parse_target
+
+        with patch("harness.fallback_lattice._http_get_text",
+                   side_effect=HarnessError("acquisition failed: down")):
+            with self.assertRaises(HarnessError):
+                acquire_target(parse_target(
+                    "https://github.com/Treystu/solarclock/blob/main/index.html"))
+        with self.assertRaises(HarnessError):
+            acquire_target({"kind": "page", "url": "https://example.com"})
+
+    def test_html_review_ties_every_finding_to_its_line(self):
+        from harness.fallback_lattice import review_html
+
+        checks, findings, claims = review_html("index.html", _REPO_HTML)
+        by_check = {finding["check"]: finding for finding in findings}
+        self.assertIn("insecure_resource", by_check)
+        self.assertEqual(by_check["insecure_resource"]["line"], 5)
+        self.assertIn("http://cdn.example.org/sun.png",
+                       by_check["insecure_resource"]["evidence"])
+        self.assertIn("unique_ids", by_check)
+        self.assertEqual(by_check["unique_ids"]["line"], 7)
+        self.assertEqual(by_check["script_integrity"]["line"], 4)
+        self.assertIn("script_integrity", by_check)
+        self.assertIn("viewport", by_check)
+        self.assertEqual(by_check["viewport"]["severity"], "minor")
+        self.assertTrue(any(check["result"] == "pass" for check in checks))
+        self.assertTrue(any("Accurate to within 1 second" in claim["text"]
+                            for claim in claims))
+
+    def test_a_clean_document_passes_its_checks(self):
+        from harness.fallback_lattice import review_html
+
+        clean = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                 '<meta name="viewport" content="width=device-width">'
+                 '<title>Clock</title></head><body><p id="a">ok</p>'
+                 '</body></html>')
+        _checks, findings, claims = review_html("index.html", clean)
+        self.assertEqual(findings, [])
+        self.assertEqual(claims, [])
+
+    def test_script_review_flags_rounded_constants_and_local_time(self):
+        from harness.fallback_lattice import review_script
+
+        _checks, findings, _claims = review_script("clock.js", _REPO_JS)
+        checks = {finding["check"] for finding in findings}
+        self.assertEqual(checks, {"degree_conversion_constant",
+                                  "timezone_explicit"})
+        zone_aware = review_script(
+            "clock.js",
+            "const d = new Date();\nconst t = new Intl.DateTimeFormat();\n")[1]
+        self.assertEqual(zone_aware, [])
+
+    def test_python_review_flags_a_naive_clock_read(self):
+        from harness.fallback_lattice import review_python
+
+        _checks, findings, _ = review_python(
+            "clock.py", "import datetime\nnow = datetime.now()\n")
+        self.assertEqual(findings[0]["check"], "naive_local_time")
+        self.assertEqual(
+            review_python("clock.py",
+                          "import datetime\ndatetime.now(datetime.timezone.utc)")
+            [1], [])
+
+    def test_the_report_names_what_was_not_tested(self):
+        from harness.fallback_lattice import (acquire_target, build_report,
+                                              parse_target, review_material)
+
+        json_patch, text_patch = _repo_seams()
+        with json_patch, text_patch:
+            material = acquire_target(
+                parse_target("https://github.com/Treystu/solarclock"))
+        checks, findings, claims = review_material(material)
+        report = build_report(REPO_PROMPT, material, checks, findings, claims,
+                              reachability=dict(_UP),
+                              narrowing=["clock.js was not retrieved"])
+        self.assertIn("Retrieved Treystu/solarclock at revision main", report)
+        self.assertIn("Reachability observed: the named URL answered HTTP 200",
+                      report)
+        self.assertIn("Coverage narrowed, and why:", report)
+        self.assertIn("Not tested:", report)
+        self.assertIn("Enhancements tied to those findings:", report)
+
+    def test_the_fixed_point_names_every_attempt(self):
+        from harness.fallback_lattice import fixed_point_failure
+
+        target = {"url": "https://github.com/Treystu/solarclock",
+                  "kind": "repository"}
+        result = fixed_point_failure(REPO_PROMPT, target, [
+            {"rung": 2, "operation": "inspect_repository", "via": "api",
+             "error": "acquisition failed: HTTP 502"},
+            {"rung": 3, "operation": "inspect_repository", "via": "page",
+             "error": "web fetch failed: timeout"},
+        ])
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["fixed_point"]["ground"],
+                         "indispensable_input_unavailable")
+        self.assertIn("Attempts made: 2", result["response"])
+        self.assertIn("HTTP 502", result["response"])
+        self.assertIn("Spend: $0.000000", result["response"])
+        self.assertEqual(len(result["fixed_point"]["attempts"]), 2)
+
+
+class FallbackLatticeRoutingTests(unittest.TestCase):
+    """The three owner prompts execute instead of bouncing (#805)."""
+
+    def _agent(self, tmp, **overrides):
+        return AutonomousAgent(settings=_lane_settings(**overrides),
+                               history_dir=Path(tmp), root_dir=None)
+
+    def _run_repo_prompt(self, prompt, session_id):
+        json_patch, text_patch = _repo_seams()
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(tmp)
+            with json_patch, text_patch, \
+                 patch("harness.web.preflight_public_site",
+                       side_effect=lambda url, **kw: _page_plan(url)), \
+                 patch("harness.web.probe_public_site",
+                       return_value=dict(_UP)) as probe:
+                result = agent.run_prompt(
+                    prompt, session_id=session_id, force_conversation=True)
+        return result, probe
+
+    def _assert_audit(self, result):
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["workflow_tier"], "deterministic-acquisition")
+        self.assertEqual(result["revision"], "main")
+        self.assertIn("index.html", result["paths_inspected"])
+        self.assertIn("clock.js", result["paths_inspected"])
+        self.assertEqual(result["cost"], 0.0)
+        self.assertEqual(result["fallback_lattice"]["rung"], 2)
+        self.assertNotIn("Select a workspace folder", result["response"])
+        self.assertNotIn("retry", result["response"].lower())
+        found = {finding["check"] for finding in result["findings"]}
+        self.assertIn("insecure_resource", found)
+        self.assertIn("unique_ids", found)
+        self.assertIn("degree_conversion_constant", found)
+        self.assertIn("Accurate to within 1 second", result["response"])
+
+    def test_repo_audit_prompt_acquires_and_audits(self):
+        result, probe = self._run_repo_prompt(REPO_PROMPT, "p1")
+        self._assert_audit(result)
+        self.assertEqual(probe.call_count, 1)
+        self.assertIn("HTTP 200", result["response"])
+
+    def test_site_check_prompt_on_a_repo_url_takes_an_execution_path(self):
+        result, probe = self._run_repo_prompt(SITE_PROMPT, "p2")
+        self._assert_audit(result)
+        self.assertEqual(probe.call_count, 1)
+
+    def test_file_pull_reads_the_named_file_not_the_page_wrapper(self):
+        seen = []
+        json_patch, text_patch = _repo_seams()
+
+        def recording_text(url, **kwargs):
+            seen.append(url)
+            if url.endswith("/index.html"):
+                return _REPO_HTML
+            raise HarnessError(f"acquisition failed for {url}: HTTP 404")
+
+        policy = MagicMock()
+        policy.evaluate_request_workflow.side_effect = RuntimeError("route down")
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(tmp, jev_api_key="jev-test", jev_disabled=False)
+            with json_patch, text_patch, \
+                 patch("harness.fallback_lattice._http_get_text",
+                       side_effect=recording_text), \
+                 patch("harness.web.preflight_public_site",
+                       side_effect=lambda url, **kw: _page_plan(url)), \
+                 patch("harness.web.probe_public_site",
+                       return_value=dict(_UP)), \
+                 patch("harness.simple_action_lifecycle.jev_for",
+                       return_value=policy), \
+                 patch("harness.simple_action_lifecycle.jev_face_governor",
+                       return_value=MagicMock()), \
+                 patch("harness.simple_action_lifecycle.ledger_for",
+                       return_value=MagicMock()):
+                result = agent.run_prompt(FILE_PROMPT, session_id="p3",
+                                          force_conversation=True)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["workflow_tier"], "deterministic-acquisition")
+        self.assertEqual(result["revision"], "main")
+        self.assertEqual(result["paths_inspected"], ["index.html"])
+        self.assertIn(
+            "https://raw.githubusercontent.com/Treystu/solarclock/main/index.html",
+            seen)
+        self.assertIn("http://cdn.example.org/sun.png", result["response"])
+        self.assertEqual(result["fallback_lattice"]["attempts"][0]["outcome"],
+                         "unavailable")
+
+    def test_a_retrieval_outage_records_a_fixed_point(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(tmp)
+            with patch("harness.fallback_lattice._http_get_json",
+                       side_effect=HarnessError("acquisition failed: HTTP 502")), \
+                 patch("harness.fallback_lattice._fetch_page",
+                       side_effect=HarnessError("web fetch failed: timeout")):
+                result = agent.run_prompt(REPO_PROMPT, session_id="p4")
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["fixed_point"]["ground"],
+                         "indispensable_input_unavailable")
+        self.assertEqual(len(result["fixed_point"]["attempts"]), 2)
+        self.assertIn("Attempts made: 2", result["response"])
+
+    def test_an_alternate_page_keeps_partial_work_with_narrowed_claims(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(tmp)
+            with patch("harness.fallback_lattice._http_get_json",
+                       side_effect=HarnessError("acquisition failed: HTTP 502")), \
+                 patch("harness.fallback_lattice._fetch_page",
+                       return_value={"url": "https://github.com/Treystu/solarclock",
+                                     "title": "solarclock",
+                                     "text": "a hosted page wrapper",
+                                     "fetched_by": "http"}):
+                result = agent.run_prompt(REPO_PROMPT, session_id="p5")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["paths_inspected"], ["(hosted page)"])
+        self.assertIn("hosted page was retrieved, but the named file contents "
+                      "were not", result["response"])
+        self.assertEqual(result["fallback_lattice"]["attempts"][1]["rung"], 3)
+
+    def test_the_answer_lane_returns_a_declined_request_to_the_router(self):
+        json_patch, text_patch = _repo_seams()
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(tmp)
+            with json_patch, text_patch, \
+                 patch("harness.web.preflight_public_site",
+                       side_effect=lambda url, **kw: _page_plan(url)), \
+                 patch("harness.web.probe_public_site", return_value=dict(_UP)):
+                result = agent.run_simple_request(REPO_PROMPT,
+                                                  session_id="decline")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(result["workflow_tier"], "deterministic-acquisition")
+        self.assertNotIn("no-tool answer lane", result["response"])
+
+    def test_a_decline_without_a_target_reaches_the_conversation_lane(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(tmp)
+            handed = {"status": "ok", "response": "conversation lane"}
+            with patch.object(AutonomousAgent, "_run_fallback_conversation",
+                              return_value=handed) as conversation:
+                result = agent.run_simple_request(
+                    "reticulate the splines across the southern hemisphere",
+                    session_id="decline-plain")
+        self.assertIs(result, handed)
+        self.assertEqual(conversation.call_count, 1)
 
 
 if __name__ == "__main__":
