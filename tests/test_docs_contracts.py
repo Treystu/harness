@@ -200,6 +200,23 @@ class RegisterCensusParityTests(unittest.TestCase):
         self.assertEqual(len(numbers), declared, "the enumerated open set must match its declared count")
         self.assertEqual(len(set(numbers)), declared, "a row may not be counted twice")
 
+    def test_unplaced_set_agrees_between_mirror_and_register(self):
+        roadmap = _read("docs/jev-roadmap.md")
+        start = roadmap.index("<!-- BEGIN REGISTER_MIRROR -->")
+        end = roadmap.index("<!-- END REGISTER_MIRROR -->")
+        mirror = roadmap[start:end]
+        census = next(row for row in mirror.splitlines()
+                      if "open issues are filed but not yet placed" in row)
+        declared = int(re.search(r"\*\*(\d+) open issues are filed", census).group(1))
+        listed = mirror[mirror.index(census):mirror.index("With them,", mirror.index(census))]
+        mirror_unplaced = set(re.findall(r"#(\d+)", listed))
+        self.assertEqual(len(mirror_unplaced), declared,
+                         "the mirror must enumerate exactly the unplaced rows it declares")
+        register = roadmap[roadmap.index("naming them as unplaced is not a placement:"):]
+        register_unplaced = set(re.findall(r"#(\d+)", register.split(".", 1)[0]))
+        self.assertEqual(mirror_unplaced, register_unplaced,
+                         "the mirror and the canonical register must name the same unplaced set")
+
     def test_register_placement_arithmetic_and_agents_pointer_agree(self):
         roadmap = _read("docs/jev-roadmap.md")
         line = next(row for row in roadmap.splitlines() if row.startswith("Open set ("))

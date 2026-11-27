@@ -17,12 +17,11 @@ Related design context (not the tracker): [system-one-integration.md](system-one
 ---
 
 <!-- BEGIN REGISTER_MIRROR -->
-## Register mirror - live state, refreshed 2026-11-26 (#295)
+## Register mirror - live state, refreshed 2026-11-27 (#295)
 
-**Generated:** `2026-11-26` at base `main` `4efe51b9` (refresh:
-`gh issue list --state open --limit 400 --json number,state` = 100, plus the search API
-`type:issue is:open` = 99, whose index has not yet caught up on `#745` -- open when
-read, so the list read governs and the delta is named instead of absorbed).
+**Generated:** `2026-11-27` at base `main` `58b0ea5a` (refresh:
+`gh issue list --state open --limit 400 --json number,state` = 43, and the search API
+`type:issue is:open` agrees at 43, so both reads name the same set).
 
 **This block is generated live state; it is not the placement or the order.**
 The **Canonical burndown register - 2026-11-19** below owns both, and every row
@@ -32,24 +31,24 @@ live at this refresh; wave membership is untouched, which is why issues filed
 after 2026-11-17 are counted on the unplaced line below rather than invented
 into a wave.
 
-### Census (2026-11-26, base `main` `4efe51b9`)
+### Census (2026-11-27, base `main` `58b0ea5a`)
 
-- **100 open issues** at base `main` `4efe51b9`, from
-  `gh issue list --state open --limit 400` (`100`); the search API reports `99`
-  because its index has not yet caught up on `#745`, open when read. The list
-  read governs.
+- **43 open issues** at base `main` `58b0ea5a`, from
+  `gh issue list --state open --limit 400` (`43`); the search API
+  `type:issue is:open` agrees at `43`, so both reads name the same set.
 - Across the wave tables below (`W0`-`W10`), **109** tracked issue rows appear:
   **26** `OPEN` and **83** `CLOSED`. The arithmetic reconciles: `109 - 83 = 26`.
-- **74 open issues are filed but not yet placed in a wave**, named here rather
+- **17 open issues are filed but not yet placed in a wave**, named here rather
   than dropped, because placing them is the canon register's taxonomy act and
-  this mirror does not invent a placement: `#649`, `#650`, `#651`, `#652`,
-  `#653`, `#655`, `#684`, `#703`, `#704`, `#722`, and `#725`-`#788` (64 rows).
-  With them, `26 + 74 = 100`, the live count above.
-- **26 rows flipped `OPEN` -> `CLOSED` at this refresh**, each on the GitHub
-  API's answer rather than a claim in this file: `#308`, `#309`, `#311`, `#336`,
-  `#342`, `#344`, `#407`, `#414`, `#418`, `#419`, `#422`, `#432`, `#451`,
-  `#455`, `#467`, `#468`, `#471`, `#472`, `#473`, `#474`, `#481`, `#483`,
-  `#566`, `#568`, `#569`, `#660`.
+  this mirror does not invent a placement: `#652`, `#653`, `#655`, `#684`,
+  `#703`, `#704`, `#722`, `#805`, `#818`, `#819`, `#820`, `#821`, `#822`,
+  `#823`, `#824`, `#825`, `#826`. With them, `26 + 17 = 43`, the live count
+  above.
+- **No tracked wave row flipped `OPEN` -> `CLOSED` at this refresh**: the API
+  still returns all 26 `OPEN` cells above open. What moved is the untracked
+  set. Since the 2026-11-26 census 67 rows closed -- `#649`-`#651` and the #683
+  finding rows `#725`-`#788` -- and 10 were filed (`#805`, `#818`-`#826`), so
+  the open count fell from 100 to 43 while every placed row stayed open.
 - Closed before this refresh, among tracked rows: `#463` (closed
   2026-11-17 per oversight decision tick 400: transport/host, `harness-oc`
   stdio) and `#570` (PR `#592`, `34f4009`), then `#275` (PR `#576`,
@@ -269,13 +268,13 @@ into a wave.
 
 ## Canonical burndown register - 2026-11-19 (#295, sergeant filing)
 
-**Census (two-method, live 2026-11-26):** `gh issue list --state open --limit 400` = **100** open; the search API `type:issue is:open` reports 99 because its index has not yet caught up on `#745`, open when read, so the list read governs. The open set is enumerated in full on the next line, so the count is checkable rather than asserted. The REGISTER_MIRROR above is this register's generated live-state annex: its labels and counts are live at its own base, its wave membership is whatever this section placed, and placement and order stay here. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
+**Census (two-method, live 2026-11-27):** `gh issue list --state open --limit 400` = **43** open; the search API `type:issue is:open` agrees at 43, so both reads name the same set. The open set is enumerated in full on the next line, so the count is checkable rather than asserted. The REGISTER_MIRROR above is this register's generated live-state annex: its labels and counts are live at its own base, its wave membership is whatever this section placed, and placement and order stay here. Plan order: oversight 6975528868, reoptimization 6991208377 (newest governs), end-state 6975509057. `#295` closes LAST (Phase 2 verification). No close keywords in the register PR itself.
 
 **Merge jurisdiction (filing 7002532495 item 2, carried here because this is the register):** Lane 1 merges Phase 1 and Phase 2 lane code on a green rail at the exact head against current main. **RSI adoption and self-modification merges are not lane work** and belong to the outside human seat, gated separately. A merge of that class is never filed as a lane landing and never counted in this register's burn.
 
-Open set (100): 277, 280, 281, 289, 291, 294, 295, 310, 313, 314, 318, 319, 337, 380, 381, 382, 412, 413, 415, 452, 466, 469, 475, 480, 482, 517, 649, 650, 651, 652, 653, 655, 684, 703, 704, 722, 725, 726, 727, 728, 729, 730, 731, 732, 733, 734, 735, 736, 737, 738, 739, 740, 741, 742, 743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760, 761, 762, 763, 764, 765, 766, 767, 768, 769, 770, 771, 772, 773, 774, 775, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787, 788.
+Open set (43): 277, 280, 281, 289, 291, 294, 295, 310, 313, 314, 318, 319, 337, 380, 381, 382, 412, 413, 415, 452, 466, 469, 475, 480, 482, 517, 652, 653, 655, 684, 703, 704, 722, 805, 818, 819, 820, 821, 822, 823, 824, 825, 826.
 
-**Placed versus unplaced (2026-11-26):** the tables below place **26** of the 100 open rows -- Train 0, W1 15 (#277, #280, #281, #289, #291, #310, #313, #314, #318, #319, #337, #380, #381, #382, #517), W2 6 (#412, #413, #415, #466, #469, #475), W3 3 (#452, #480, #482), Tracker 2 (#294, #295). The other **74** were filed after this register's 2026-11-22 census and await the register owner's placement act; naming them as unplaced is not a placement. Eight rows of that 2026-11-22 census closed since: #308, #309, #342, #344, #422, #654, #656, #660. Sixty-eight are new filings: driver #703, #704, #722, gap audit #684, and the #683 finding rows #725-#788. (#343 closed by the operator at 2026-11-22T08:43:02Z with no close comment; the two acceptance lines unbuilt at that close are filed as #660.) (#476 closed as no-change (`7050816622`); #567 closed on the audit reconciliation (`7051047426`; #419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; #468 closed on the W468 verdict at `548c2331`; #471, #472 and #473 closed by PRs #630, #633 and #641; cars 3-4 carry no issue.)
+**Placed versus unplaced (2026-11-27):** the tables below place **26** of the 43 open rows -- Train 0, W1 15 (#277, #280, #281, #289, #291, #310, #313, #314, #318, #319, #337, #380, #381, #382, #517), W2 6 (#412, #413, #415, #466, #469, #475), W3 3 (#452, #480, #482), Tracker 2 (#294, #295). The other **17** were filed after this register's 2026-11-22 census and await the register owner's placement act; naming them as unplaced is not a placement: #652, #653, #655, #684, #703, #704, #722, #805, #818, #819, #820, #821, #822, #823, #824, #825, #826. Since the 2026-11-26 census 67 rows closed -- #649-#651 and the #683 finding rows #725-#788 -- and 10 were filed (#805, #818-#826), so the open count fell from 100 to 43 with every placed row still open. (#343 closed by the operator at 2026-11-22T08:43:02Z with no close comment; the two acceptance lines unbuilt at that close are filed as #660.) (#476 closed as no-change (`7050816622`); #567 closed on the audit reconciliation (`7051047426`; #419 closed pre-train; #407 closed on car-1 receipt `a7ca742e`; #311 closed on car-2 receipt `8187bc3c`; #468 closed on the W468 verdict at `548c2331`; #471, #472 and #473 closed by PRs #630, #633 and #641; cars 3-4 carry no issue.)
 
 ### Train (sergeant, serial, exact green heads)
 
