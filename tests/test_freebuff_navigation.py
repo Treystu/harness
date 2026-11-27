@@ -417,6 +417,28 @@ class ComposerPlaceholderRouteTests(unittest.TestCase):
         self.assertIn("raise RuntimeError", guard)
 
 
+class SessionNameBindingTests(unittest.TestCase):
+    """Measured on dyn-7230285733: search and query picked the row, select did not."""
+
+    def test_no_matcher_is_bound_to_the_dispatch_label(self):
+        source = Path(dispatch_module.__file__).read_text(encoding="utf-8")
+        for matcher in ("row_matches(", "_prefix_matches(", "exact_session_title("):
+            start = 0
+            while True:
+                index = source.find(matcher, start)
+                if index < 0:
+                    break
+                line = source[index:source.find(chr(10), index)]
+                self.assertNotIn("self.label", line, line.strip())
+                start = index + len(matcher)
+
+    def test_a_lane_without_a_title_alias_matches_its_label(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 1"
+        dispatch.thread = "315608d2"
+        self.assertEqual(dispatch.session_name, "Lane 1")
+
+
 class PreSendReanchorTests(unittest.TestCase):
     """Measured on dyn-7229598525: identity outlasted the window, send refused."""
 

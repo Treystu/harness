@@ -2295,7 +2295,7 @@ class Dispatch:
                 break
             seen.append(texts)
             for row in rows:
-                if not self._prefix_matches(row["text"], self.label):
+                if not self._prefix_matches(row["text"], self.session_name):
                     continue
                 if self._norm(row["text"]) in [self._norm(name) for name in hits]:
                     continue
@@ -2604,7 +2604,7 @@ class Dispatch:
         frame = self.ensure_search_closed(self.frame("vision-seat-sidebar"))
         for page in range(1, 7):
             frame, rows = self.settled_roster(f"vision-seat-{page}", SIDEBAR, attempts=4)
-            matches = [row for row in rows if self.row_matches(row["text"], self.label)]
+            matches = [row for row in rows if self.row_matches(row["text"], self.session_name)]
             if len(matches) > 1:
                 raise RuntimeError("more than one visible vision-seat row matched")
             if matches:
@@ -2870,7 +2870,7 @@ class Dispatch:
             except RuntimeError as error:
                 self.audit.append("escalation", step_id=f"{step}-{page}", reason=str(error))
                 continue
-            if (any(self.exact_session_title(row["text"], self.label) for row in rows)
+            if (any(self.exact_session_title(row["text"], self.session_name) for row in rows)
                     or (self.thread != SCM_THREAD and any("y" in row for row in rows)
                         and bool(self.session_candidates(rows, self.label, self.project)[0]))):
                 self.audit.append("verification", step_id=f"{step}-visible",
@@ -2960,7 +2960,7 @@ class Dispatch:
                                   source="re-opened from the project session list")
                 return
         row = self.find_highlighted_row()
-        if row and self.row_matches(row["text"], self.label):
+        if row and self.row_matches(row["text"], self.session_name):
             self.audit.append("verification", step_id="active-session-row", label=self.label,
                               row=row["text"], source="highlight found in the project list")
             return
