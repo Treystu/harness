@@ -546,6 +546,26 @@ class AutonomyLedger(LedgerAnalytics):
         self._seq = last_seq
         self._prev_hash = last_hash
 
+    def require_intact_chain(self, surface):
+        """Refuse work whose evidence this ledger can no longer prove.
+
+        Load sets ``chain_broken`` when a line fails its hash or its shape and
+        quarantines it, and ``verify()`` has always failed closed. Until #825
+        only read-only surfaces consulted that state, so a ledger that had
+        detected tampering still accepted new evidence and work kept
+        dispatching on top of it - which invalidates every promise that rests
+        on the record being provable. The refusal names the first bad sequence
+        and the one action that makes the ledger writable again.
+        """
+        if not getattr(self, "chain_broken", False):
+            return
+        raise HarnessError(
+            "the autonomy ledger's hash chain is broken at seq "
+            f"{getattr(self, 'first_bad_seq', None)!r}: {surface} cannot be "
+            "recorded as evidence on a chain that does not verify. Repair it "
+            "first (`harness ledger repair`; archive the ledger directory "
+            "beforehand, repair unlinks) and retry.")
+
     def append(self, event, task_id=None, **fields):
         entry = {
             "seq": self._seq + 1,
@@ -565,7 +585,13 @@ class AutonomyLedger(LedgerAnalytics):
                 # raced another process's append between the read and the
                 # lock, which is exactly the fork the rebase exists to
                 # prevent.
+                # #825: the single funnel every writer passes through. The
+                # check runs before the rebase so a broken chain refuses
+                # without mutating memory, and again after it so damage this
+                # ledger only now read from disk refuses too.
+                self.require_intact_chain(f"the {event!r} entry")
                 self._rebase_under_lock()
+                self.require_intact_chain(f"the {event!r} entry")
                 if (task_id is not None and event != "offer"
                         and (not isinstance(task_id, str) or not task_id
                              or task_id not in self._offered_task_ids)):

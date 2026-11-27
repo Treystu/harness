@@ -158,6 +158,10 @@ class ApplyEngineMixin:
         retry context, candidate selection, dispatch, merge, preview/write +
         gate -- then gated escalation and the honest terminal assembly.
         Single exit per outcome; every mutation lives in ``state``."""
+        # #825: a dispatch is work whose evidence must be recordable. Refuse it
+        # before consent is minted, so no offer exists for work whose record
+        # could never be trusted.
+        self.ledger.require_intact_chain("this dispatch")
         state = RunState(
             model_requested=req.model,
             rounds=list(req.continuation.get("history") or []),
