@@ -335,6 +335,47 @@ def walking_dispatch(pages, advances):
     return dispatch
 
 
+class PanelFirstSearchTests(unittest.TestCase):
+    """Measured 2026-11-27: the roster walk can never match a clipped lane."""
+
+    def _dispatch(self, rows):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.thread = "9ecc3453"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.narrow_session_list = Mock(return_value=("frame", rows))
+        dispatch.click_roster_row = Mock()
+        return dispatch
+
+    def test_the_panel_route_clicks_the_exact_row(self):
+        dispatch = self._dispatch([{"text": "Lane 2"},
+                                   {"text": "Lane 2 Waist Composition Mission Brief"}])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.navigate_by_panel_exact())
+        dispatch.click_roster_row.assert_called_once()
+        self.assertEqual(dispatch.click_roster_row.call_args.args[3], "Lane 2")
+
+    def test_a_panel_without_the_exact_row_falls_through_to_the_census(self):
+        dispatch = self._dispatch([{"text": "Lane 2 Waist Composition Mission Brief"}])
+        self.assertFalse(dispatch.navigate_by_panel_exact())
+        dispatch.click_roster_row.assert_not_called()
+
+    def test_open_search_consults_the_panel_before_the_roster_walk(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.thread = "9ecc3453"
+        dispatch.standing = False
+        dispatch.audit = Mock()
+        dispatch.window = Mock()
+        dispatch.window.handle = "h"
+        dispatch.window.api.foreground = Mock(return_value="h")
+        dispatch.frame = Mock(return_value="frame")
+        dispatch.require_foreground = Mock()
+        dispatch.navigate_by_panel_exact = Mock(return_value=True)
+        dispatch.navigate_by_session_list = Mock(side_effect=AssertionError("walk"))
+        dispatch.open_search()
+        dispatch.navigate_by_panel_exact.assert_called_once()
+
 class NarrowedPrefixWalkTests(unittest.TestCase):
     """The unique-prefix proof over a search-filtered roster.
 
@@ -396,7 +437,7 @@ class NarrowedPrefixWalkTests(unittest.TestCase):
         dispatch.click_roster_row.assert_called_once()
         self.assertEqual(dispatch.click_roster_row.call_args.args[3], "Lane 1")
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
-        self.assertIn("prefix-exact-wins", steps)
+        self.assertIn("narrow-exact-rows", steps)
 
     def test_an_empty_filtered_roster_is_refused(self):
         dispatch = self._dispatch(rows=[{"text": "Harness"}], typed="Lane 1")
@@ -899,10 +940,12 @@ class TierPrecheckTests(unittest.TestCase):
         dispatch = object.__new__(Dispatch)
         dispatch.audit = Mock()
         dispatch.read_lines = Mock()
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
-            with self.assertRaisesRegex(RuntimeError, "cannot be read"):
-                dispatch.verify_tier(Mock())
+        with patch.object(dispatch_module, "CHIP_CALIBRATION",
+                          Path(tempfile.gettempdir()) / "no-such-model-chip.json"):
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
+                with self.assertRaisesRegex(RuntimeError, "cannot be read"):
+                    dispatch.verify_tier(Mock())
         dispatch.read_lines.assert_not_called()
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
         self.assertIn("tier-unverified", steps)
@@ -933,6 +976,52 @@ class TierPrecheckTests(unittest.TestCase):
     def test_a_reading_with_no_word_at_all_is_unknown_not_paid(self):
         self.assertEqual(dispatch_module.tier_verdict("... :: --"), "unknown")
         self.assertEqual(dispatch_module.tier_verdict("Free"), "free")
+    def test_an_exact_row_wins_in_the_narrowed_panel(self):
+        """Measured 2026-11-27: the "Lane 2" panel held a rival and a placeholder."""
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        rows = [{"text": "Lane 2"},
+                {"text": "Lane 2 Waist Composition Mission Brief"},
+                {"text": "Loading..."}]
+        found = dispatch.exact_label_rows(rows, 1, [])
+        self.assertEqual([name for _, name in found], ["Lane 2"])
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("narrow-exact-rows", steps)
+
+    def test_a_prefix_only_row_is_not_this_lane(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        rows = [{"text": "Lane 20"}, {"text": "Loading..."}]
+        self.assertEqual(dispatch.exact_label_rows(rows, 1, []), [])
+
+    def test_two_exact_rows_stay_ambiguous_and_are_never_guessed(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        rows = [{"text": "Lane 2"}, {"text": "Lane 2"}]
+        found = dispatch.exact_label_rows(rows, 1, [])
+        self.assertEqual(len(found), 2)
+        self.assertIsNone(dispatch.resolve_unique(found))
+
+    def test_the_panel_pick_replaces_the_whole_census(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.narrow_session_list = Mock(return_value=("frame", [
+            {"text": "Lane 2"}, {"text": "Lane 2 Waist Composition Mission Brief"}]))
+        dispatch.click_roster_row = Mock()
+        dispatch._census_prefix_walk = Mock(
+            side_effect=AssertionError("the exhaustive walk must not run"))
+        self.assertTrue(dispatch.navigate_by_unique_prefix(narrow=True))
+        dispatch.click_roster_row.assert_called_once()
+        dispatch._census_prefix_walk.assert_not_called()
+
     def test_a_recorded_calibration_file_is_used_when_the_env_is_unset(self):
         """The watch runs from Task Scheduler: calibration must survive a tick."""
         import tempfile
@@ -981,10 +1070,12 @@ class TierPrecheckTests(unittest.TestCase):
         dispatch.verify_lane = Mock()
         dispatch.act = Mock()
         dispatch.turn_running = Mock(return_value=False)
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
-            with self.assertRaisesRegex(RuntimeError, "^tier-unverified:"):
-                dispatch.prepare_draft()
+        with patch.object(dispatch_module, "CHIP_CALIBRATION",
+                          Path(tempfile.gettempdir()) / "no-such-model-chip.json"):
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("HARNESS_FREEBUFF_MODEL_CHIP", None)
+                with self.assertRaisesRegex(RuntimeError, "^tier-unverified:"):
+                    dispatch.prepare_draft()
         dispatch.act.assert_not_called()
         dispatch.turn_running.assert_not_called()
 

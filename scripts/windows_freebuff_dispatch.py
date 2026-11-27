@@ -1875,6 +1875,29 @@ class Dispatch:
                           row=name, page=page)
         return page, name
 
+    def exact_label_rows(self, rows, page, found):
+        """Candidates in a search-results panel: rows whose text IS the label.
+
+        No project heading exists in the panel, so a prefix match is only a
+        rival chat that opens with the same words; placeholders are not rows.
+        Ambiguity is still refused downstream by ``resolve_unique``.
+        """
+        want = self._norm(self.label)
+        if not want:
+            return found
+        for row in rows:
+            text = str(row.get("text", "")).strip()
+            if not text or self._norm(text) != want:
+                continue
+            # Every exact row is counted: two rows with one name are two
+            # sessions (the app keeps a CLOUD and a LOCAL of one lane), and
+            # collapsing them would be the guess this proof exists to prevent.
+            found.append((page, row["text"]))
+        self.audit.append("verification", step_id="narrow-exact-rows",
+                          label=self.label, rows=[r.get("text", "") for r in rows][:8],
+                          exact=len(found))
+        return found
+
     def candidates_in(self, rows, page, found):
         """Collect the rows on one page that could be this lane, by identity."""
         for row in rows:
@@ -1978,7 +2001,15 @@ class Dispatch:
 
             try:
                 frame, rows = self.narrow_session_list()
-                found = self.candidates_in(rows, 1, found)
+                # The results panel carries no project headings, so the
+                # heading binding the sidebar walk relies on is unavailable
+                # here; identity in the panel is the label itself. Measured
+                # 2026-11-27 on standing-20261127-coldlane2b: the panel for
+                # "Lane 2" held "Lane 2", "Lane 2 Waist Composition Mission
+                # Brief" and "Loading...". The titled chat is a different
+                # session and the placeholder is not a row, so an exact-only
+                # read picks the lane instead of demanding a unique prefix.
+                found = self.exact_label_rows(rows, 1, found)
                 picked = self.resolve_unique(found)
                 if picked is not None:
                     self.click_roster_row("narrow-pick", frame, rows, picked[1])
@@ -2273,6 +2304,13 @@ class Dispatch:
         if self.thread == VISION_THREAD and self.standing:
             self.open_vision_seat()
             return
+        # The panel is three steps and the roster walk is minutes; measured
+        # 2026-11-27 (standing-20261127-coldlane2b) the walk spent the search
+        # phase's whole budget on a lane whose sidebar row is clipped, while the
+        # panel returned "Lane 2" itself. Cheap exact route first; the census
+        # stays the fallback.
+        if self.navigate_by_panel_exact():
+            return
         if self.navigate_by_session_list():
             return
         if self.list_only():
@@ -2282,6 +2320,31 @@ class Dispatch:
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
         self.ensure_search_dialog(frame)
+
+    def navigate_by_panel_exact(self):
+        """Pick the lane from the app's own search panel when it holds the row.
+
+        Measured 2026-11-27: no sidebar row reads "Lane 2" (the app clips it to
+        "Lane 2 Waist Composition Mission Brief"), so the sidebar's exact-row
+        rule can never match this lane, and the search phase spent its entire
+        budget walking to the same conclusion. The search panel returns "Lane 2"
+        as a row of its own, so it is tried first, with the exact-only read, and
+        the exhaustive walk remains the fallback it was written to be.
+        """
+        try:
+            frame, rows = self.narrow_session_list()
+            found = self.exact_label_rows(rows, 1, [])
+            picked = self.resolve_unique(found)
+            if picked is None:
+                return False
+            self.click_roster_row("panel-pick", frame, rows, picked[1])
+            time.sleep(1.2)
+            return True
+        except RuntimeError as error:
+            self.audit.append("escalation", step_id="panel-pick", reason=str(error))
+            if hasattr(self, "ensure_search_closed"):
+                self.ensure_search_closed(self.frame("panel-cleanup"))
+            return False
 
     def ensure_search_dialog(self, frame):
         """Open the session-search dialog, verified, without touching the list.
@@ -2442,6 +2505,8 @@ class Dispatch:
         if self.selected_label_matches():
             self.audit.append("verification", step_id="select-skip",
                               reason="the target row is already the selected session")
+            return
+        if self.navigate_by_panel_exact():
             return
         if self.navigate_by_session_list():
             return
