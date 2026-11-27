@@ -377,6 +377,19 @@ class SelectionProjectFamilyTests(unittest.TestCase):
         dispatch = self._dispatch("Kalshi-Trader")
         self.assertFalse(dispatch.selected_label_matches())
 
+class ComposerFocusBeforeClearTests(unittest.TestCase):
+    """Measured on dyn-7228279746: the clear had no renderer because nothing clicked."""
+
+    def test_the_relay_route_focuses_the_composer_before_clearing_it(self):
+        source = Path(dispatch_module.__file__).read_text(encoding="utf-8")
+        focus = source.index('"focus-machine-composer"')
+        clear = source.index('"clear-machine-composer"')
+        self.assertLess(focus, clear)
+        # The click must name the composer, which is what records the renderer.
+        window = source[focus:clear]
+        self.assertIn("composer", window)
+
+
 class SelectionHandoffTests(unittest.TestCase):
     """Measured 2026-11-27: the select phase proved what prepare could not re-derive."""
 
@@ -1060,9 +1073,11 @@ class ComposerMachineTextGateTests(unittest.TestCase):
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             dispatch.prepare_draft()
         dispatch.relay_composer_text.assert_called_once()
+        # The focus step is the renderer the clear posts to: measured on
+        # dyn-7228279746, the clear had none because nothing had clicked.
         self.assertEqual([c.args[0] for c in dispatch.act.call_args_list],
-                         ["clear-machine-composer", "focus-verified-composer",
-                          "type-continuation"])
+                         ["focus-machine-composer", "clear-machine-composer",
+                          "focus-verified-composer", "type-continuation"])
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
         self.assertIn("composer-machine-text-replaced", steps)
 
@@ -1073,7 +1088,7 @@ class ComposerMachineTextGateTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "survived the clear"):
                 dispatch.prepare_draft()
         self.assertEqual([c.args[0] for c in dispatch.act.call_args_list],
-                         ["clear-machine-composer"])
+                         ["focus-machine-composer", "clear-machine-composer"])
 
     def test_an_unrecognised_draft_still_parks_without_any_input(self):
         dispatch = self._dispatch(["owner module with an owner test"])

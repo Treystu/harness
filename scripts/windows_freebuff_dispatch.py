@@ -3668,6 +3668,19 @@ class Dispatch:
                     # machine text is not an owner draft. Relay it verbatim FIRST,
                     # then dismiss it and keep steering - never park on it.
                     self.relay_composer_text(written, frame)
+                    # The clear posts WM_CHAR backspaces to the renderer a CLICK
+                    # established. With text already in the composer this route
+                    # never clicked, so the renderer was unknown and the clear
+                    # refused (measured 2026-11-27, dyn-7228279746: "the verified
+                    # composer renderer is no longer available" immediately
+                    # before the clear). Focus it exactly as the typing route
+                    # does, then clear.
+                    left, top, right, bottom = COMPOSER_TEXT
+                    self.act("focus-machine-composer", CLICK,
+                             {"control": f"{self.label} composer",
+                              "point": [round((left + right) / 2), round(top + 10)],
+                              "size": list(frame.size)})
+                    time.sleep(0.2)
                     self.act("clear-machine-composer", CLEAR,
                              {"control": f"{self.label} composer"})
                     time.sleep(1.0)
