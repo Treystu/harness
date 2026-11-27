@@ -3629,6 +3629,9 @@ class Dispatch:
                for label in COMPOSER_PLACEHOLDERS):
             self.audit.append("verification", step_id="composer-placeholder-known",
                               reading=reading[:80], route="empty")
+            # Primary evidence, recorded so the empty route does not ask a model
+            # or depend on a hint glyph the composer is not drawing.
+            self._placeholder_confirmed = True
             return None
         if self._norm(self.text) and self._norm(self.text) in reading:
             return "staged"
@@ -3672,6 +3675,16 @@ class Dispatch:
                 return
             written = self.read_lines("composer-written", frame, COMPOSER_TEXT)
             route = self.composer_written_route(written, placeholder)
+            if route is None:
+                # Nothing in the composer and the composer showing its own
+                # placeholder are the same state, and that state is typed into,
+                # not asked about. Measured 2026-11-27 (dyn-7228809373): the
+                # empty composer fell through every primary cue to a 0.45
+                # "stop" guess, which parked a lane that was ready for input.
+                route = "empty"
+                self.audit.append("verification", step_id="composer-route-empty",
+                                  reading=self._norm(" ".join(written))[:80],
+                                  source="the composer's own text")
             if route == "foreign":
                 has_arrow = has_send_arrow_outline(frame)
                 if not has_arrow:
@@ -3772,11 +3785,26 @@ class Dispatch:
                 point = self.locate_exact_text("locate-empty-placeholder", frame, placeholder,
                                                (646, 950, 1260, 1014))
         elif route == "empty":
-            self.yes("verify-empty-editor", frame,
-                     "Is there a small button or badge labeled Tab below the gray text?",
-                     region=(642, 937, 1195, 1048))
-            point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
-            point[1] -= 68
+            if getattr(self, "_placeholder_confirmed", False):
+                # The composer's own placeholder is primary evidence that the
+                # editor is empty. Measured 2026-11-27 (dyn-7228809373): this
+                # route asked a model whether a Tab badge was present and the
+                # 0.45 answer parked a lane that was ready for input; the badge
+                # is not even drawn in this state.
+                self.audit.append("verification", step_id="composer-empty-primary",
+                                  source="the composer's own placeholder")
+                try:
+                    point = self.locate_exact_text("locate-empty-placeholder", frame,
+                                                   self.text, COMPOSER_TEXT)
+                except RuntimeError:
+                    left, top, right, bottom = COMPOSER_TEXT
+                    point = [round((left + right) / 2), round((top + bottom) / 2)]
+            else:
+                self.yes("verify-empty-editor", frame,
+                         "Is there a small button or badge labeled Tab below the gray text?",
+                         region=(642, 937, 1195, 1048))
+                point = self.locate_exact_text("locate-tab-hint", frame, "Tab", (646, 1007, 707, 1051))
+                point[1] -= 68
         else:
             raise RuntimeError(f"composer-route: stopped on {route!r} without typing")
         self.act("focus-verified-composer", CLICK,

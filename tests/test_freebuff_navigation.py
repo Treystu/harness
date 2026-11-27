@@ -1121,6 +1121,18 @@ class ComposerMachineTextGateTests(unittest.TestCase):
         self.assertEqual([c.args[0] for c in dispatch.act.call_args_list],
                          ["focus-machine-composer", "clear-machine-composer"])
 
+    def test_an_empty_composer_is_typed_into_not_put_to_a_verdict(self):
+        """Measured on dyn-7228809373: the empty composer reached a 0.45 stop guess."""
+        dispatch = self._dispatch(["typeamessagesentbeforethequeue"])
+        dispatch.yes = Mock(side_effect=AssertionError("a model verdict was asked for"))
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            dispatch.prepare_draft()
+        dispatch.relay_composer_text.assert_not_called()
+        self.assertEqual([c.args[0] for c in dispatch.act.call_args_list],
+                         ["focus-verified-composer", "type-continuation"])
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("composer-route-empty", steps)
+
     def test_an_unrecognised_draft_still_parks_without_any_input(self):
         dispatch = self._dispatch(["owner module with an owner test"])
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
