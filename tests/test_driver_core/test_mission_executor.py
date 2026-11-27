@@ -8,7 +8,9 @@ not stop the queue.
 """
 import json
 import os
+import shutil
 import tempfile
+import time
 import unittest
 
 from driver_core import mission as ms
@@ -68,7 +70,8 @@ class InboxCase(unittest.TestCase):
         return path
 
     def executor(self, *, execute=None, inbox=None, owner="exec-1",
-                 allowlist=ALLOWED, threshold=mx.READ_BACK_THRESHOLD):
+                 allowlist=ALLOWED, threshold=mx.READ_BACK_THRESHOLD,
+                 clock=None, lease=mx.DEFAULT_LEASE_SECONDS):
         inbox = inbox or self.inbox()
         claims = mx.MissionClaimStore(os.path.join(self.root, "claims.sqlite3"))
         self.executed = []
@@ -80,7 +83,7 @@ class InboxCase(unittest.TestCase):
         return mx.MissionExecutor(
             inbox, claims, allowlist=allowlist,
             execute=execute or default_execute, owner=owner,
-            clock=_clock, threshold=threshold)
+            clock=clock or _clock, threshold=threshold, lease=lease)
 
 
 class ManifestTests(InboxCase):
@@ -161,6 +164,23 @@ class InboxDisciplineTests(InboxCase):
         link = os.path.join(self.root, mx.MISSIONS_DIR, "linked.json")
         try:
             os.symlink(outside, link)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are unavailable on this host")
+        with self.assertRaises(ms.MissionRefused) as caught:
+            self.inbox().pending()
+        self.assertIn("symlink", str(caught.exception))
+
+    def test_a_symlinked_missions_directory_is_refused(self):
+        # #683 finding 27: the file-level check passed because both sides
+        # resolved through the symlink; the directory itself must be inside
+        # the declared root.
+        outside = tempfile.TemporaryDirectory(prefix="mission-outside-")
+        self.addCleanup(outside.cleanup)
+        os.makedirs(os.path.join(self.root, mx.MISSIONS_DIR), exist_ok=True)
+        shutil.rmtree(os.path.join(self.root, mx.MISSIONS_DIR))
+        try:
+            os.symlink(outside.name,
+                       os.path.join(self.root, mx.MISSIONS_DIR))
         except (OSError, NotImplementedError):
             self.skipTest("symlinks are unavailable on this host")
         with self.assertRaises(ms.MissionRefused) as caught:
@@ -382,6 +402,77 @@ class ExecutorTests(InboxCase):
         self.assertEqual(receipt[0]["state"], mx.PARKED)
         self.assertIn("missing required parameter", receipt[0]["detail"])
         self.assertEqual(self.executed, [])
+
+    def test_an_unreadable_payload_is_parked_and_the_queue_continues(self):
+        # #683 finding 26: inbox.read() used to raise before the refusal
+        # handler, so the queue stuck on the same file forever.
+        with open(os.path.join(self.root, mx.MISSIONS_DIR, "m-1.json"),
+                  "w", encoding="utf-8") as handle:
+            handle.write("{not json")
+        self.put(_payload("m-2"))
+        receipts = self.executor().run(2)
+        self.assertEqual([r["state"] for r in receipts],
+                         [mx.PARKED, mx.DONE])
+        self.assertIn("not valid JSON", receipts[0]["detail"])
+        self.assertEqual(receipts[0]["mission_id"], "m-1")
+        self.assertEqual(self.executed, ["m-2"])
+
+
+class LeaseRenewalTests(InboxCase):
+    """#683 finding 24: a claim is renewed for as long as the action runs."""
+
+    def _live_clock(self):
+        base = time.monotonic()
+        return lambda: NOW + (time.monotonic() - base)
+
+    def test_a_long_action_keeps_the_lease_fresh(self):
+        self.put(_payload())
+        clock = self._live_clock()
+        ran = []
+        contender = []
+
+        def other_execute(mission):
+            ran.append(mission["id"])
+            return {"ok": True}
+
+        def long_action(mission):
+            time.sleep(1.2)
+            other = self.executor(execute=other_execute, inbox=self.inbox(),
+                                  owner="exec-2", clock=clock, lease=0.6)
+            contender.append(other.process_next())
+            return {"ok": True}
+
+        receipt = self.executor(execute=long_action, clock=clock,
+                                lease=0.6).process_next()
+        self.assertEqual(receipt["state"], mx.DONE)
+        (waited,) = contender
+        self.assertEqual(waited["state"], "waiting")
+        self.assertEqual(ran, [])
+
+    def test_a_lost_claim_during_execution_parks_the_mission(self):
+        self.put(_payload())
+        clock = self._live_clock()
+        inbox = self.inbox()
+        claims = mx.MissionClaimStore(os.path.join(self.root, "claims.sqlite3"))
+        real_heartbeat = claims.heartbeat
+        calls = []
+
+        def flaky(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                return real_heartbeat(*args, **kwargs)
+            return False, "the claim moved to exec-2"
+
+        claims.heartbeat = flaky
+        executor = mx.MissionExecutor(
+            inbox, claims, allowlist=ALLOWED,
+            execute=lambda mission: time.sleep(0.6) or {"ok": True},
+            owner="exec-1", clock=clock, lease=0.3)
+        receipt = executor.process_next()
+        self.assertEqual(receipt["state"], mx.PARKED)
+        self.assertIn("lost during execution", receipt["detail"])
+        self.assertIn("exec-2", receipt["detail"])
+        self.assertEqual(executor.inbox.pending(), [])
 
 
 if __name__ == "__main__":
