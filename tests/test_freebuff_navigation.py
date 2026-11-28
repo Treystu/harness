@@ -471,7 +471,8 @@ class SessionNameBindingTests(unittest.TestCase):
 
     def test_no_matcher_is_bound_to_the_dispatch_label(self):
         source = Path(dispatch_module.__file__).read_text(encoding="utf-8")
-        for matcher in ("row_matches(", "_prefix_matches(", "exact_session_title("):
+        for matcher in ("row_matches(", "_prefix_matches(", "exact_session_title(",
+                        "session_candidates(", "scoped_row("):
             start = 0
             while True:
                 index = source.find(matcher, start)
@@ -486,6 +487,37 @@ class SessionNameBindingTests(unittest.TestCase):
         dispatch.label = "Lane 1"
         dispatch.thread = "315608d2"
         self.assertEqual(dispatch.session_name, "Lane 1")
+
+
+class ClippedGlyphRivalTests(unittest.TestCase):
+    """Measured on dyn-7232458803: one row, two readings, no pick for 480 s."""
+
+    def test_one_row_read_two_ways_shares_a_form(self):
+        left = Dispatch._row_norm_forms("Carrier Census Verifica\u2022")
+        right = Dispatch._row_norm_forms("Carrier Census Verifica\u00f8")
+        self.assertTrue(left & right)
+
+    def test_two_readings_of_the_clipped_row_are_picked_not_refused(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.thread = "9ecc3453"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.scroll_sidebar_to_top = Mock(return_value="frame")
+        first = [{"text": "B Harness", "y": 96},
+                 {"text": "Carrier Census Verifica\u2022", "y": 520}]
+        second = [{"text": "B Harness", "y": 96},
+                  {"text": "Carrier Census Verifica\u00f8", "y": 520}]
+        dispatch.settled_roster = Mock(side_effect=[("frame", first), ("frame", second)])
+        dispatch.expand_sections = Mock(return_value=("frame", first, []))
+        dispatch.advance_sidebar = Mock(side_effect=[("frame", True), ("frame", False)])
+        dispatch.click_row_by_text = Mock(return_value=True)
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.walk_session_list())
+        dispatch.click_row_by_text.assert_called_once()
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("session-list-clipped-unique", steps)
+        self.assertNotIn("session-list-census", steps)
 
 
 class PreSendReanchorTests(unittest.TestCase):

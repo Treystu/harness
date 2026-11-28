@@ -1206,7 +1206,23 @@ class Dispatch:
         head, _, tail = text.strip().partition(" ")
         if len(head) <= 3 and tail:
             forms.add(cls._norm(tail))
+        # The last character of a clipped title is the least reliable one the
+        # engine reads. One walk censused the same physical row as "Carrier
+        # Census Verifica•" and "Carrier Census Verificaø" (measured
+        # 2026-11-28, dyn-7232458803): _norm drops the bullet but keeps ø, so
+        # that single row counted as two rivals, the exactly-one-rival pick
+        # refused, and send spent its whole 480 s budget walking the list.
+        # A trailing non-ASCII glyph is an artefact of the clip edge, never
+        # part of a name.
+        forms |= {cls._trim_glyph_tail(form) for form in forms if form}
         return {item for item in forms if item}
+
+    @staticmethod
+    def _trim_glyph_tail(form):
+        """Drop trailing non-ASCII characters the engine added at the clip edge."""
+        while form and not form[-1].isascii():
+            form = form[:-1]
+        return form
 
     @property
     def session_name(self):
@@ -1780,7 +1796,7 @@ class Dispatch:
                     time.sleep(1.0)
                     frame, rows = self.settled_roster(f"session-list-{page}-opened", SIDEBAR,
                                                       attempts=4)
-                    scoped, heading = self.session_candidates(rows, self.label, self.project)
+                    scoped, heading = self.session_candidates(rows, self.session_name, self.project)
                     self.audit.append("verification", step_id=f"session-list-open-project-{page}",
                                       opened=True, rows=len(rows))
                 except RuntimeError as error:
@@ -2916,7 +2932,7 @@ class Dispatch:
                 continue
             if (any(self.exact_session_title(row["text"], self.session_name) for row in rows)
                     or (self.thread != SCM_THREAD and any("y" in row for row in rows)
-                        and bool(self.session_candidates(rows, self.label, self.project)[0]))):
+                        and bool(self.session_candidates(rows, self.session_name, self.project)[0]))):
                 self.audit.append("verification", step_id=f"{step}-visible",
                                   page=page, label=self.label)
                 return frame, rows
