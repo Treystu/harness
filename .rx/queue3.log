@@ -1,0 +1,16 @@
+=== 9ecc3453 (u2) 23:23:26 ===
+parked: select: BLOCKED: select-existing-session: 'Lane 2' matched 0 settled rows; roster: ['LANE 2 CONTINUATION - PAR', 'supersedes the LD-031 block,', 'has expired).', 'Your Part 1 census stands as tl', '39 open issues at main 32f8f8']
+STATE: 1
+=== 918dad1a (v2) 23:26:11 ===
+parked: send: BLOCKED: FreeBuff is not the foreground window; held by hwnd 13567164 pid 3712 title 'C:\\Users\\SCM\\AppData\\Local\\Temp\\harness-notepad-venv-20261122\\Scripts\\python.exe'
+STATE: 1
+=== 0319b9f6 (w2) 23:29:59 ===
+parked: query: BLOCKED: the search dialog is not open for the query
+STATE: 1
+=== 0d7e2f37 (x2) 23:34:15 ===
+parked: select: BLOCKED: the verified Search icon outline could not be located
+STATE: 1
+=== 2ae32937 (y2) 23:37:56 ===
+parked: query: BLOCKED: sidebar-top-scroll-3: executor failed: FreeBuff compositor geometry changed after capture
+STATE: 1
+QUEUE-DONE 23:41:35

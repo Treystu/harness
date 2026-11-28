@@ -417,6 +417,31 @@ class ComposerPlaceholderRouteTests(unittest.TestCase):
         self.assertIn("raise RuntimeError", guard)
 
 
+class IdentifyScopedUniqueTests(unittest.TestCase):
+    """Measured 2026-11-28: eight pages of clicks on a row it never accepted."""
+
+    def test_one_title_match_under_the_lane_project_is_the_pick(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.thread = "9ecc3453"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.ensure_search_closed = Mock(return_value="frame")
+        dispatch.scroll_sidebar_to_top = Mock(return_value="frame")
+        dispatch.frame = Mock(return_value="frame")
+        rows = [{"text": "B Harness", "y": 96},
+                {"text": "Carrier Census Verifica-", "y": 520},
+                {"text": "Lane 1", "y": 350}]
+        dispatch.settled_roster = Mock(return_value=("frame", rows))
+        dispatch.click_exact_row = Mock()
+        dispatch.routes = Mock(return_value=[])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.identify_by_route())
+        dispatch.click_exact_row.assert_called_once()
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("identify-scoped-unique", steps)
+
+
 class SidebarTopSettleTests(unittest.TestCase):
     """Measured 2026-11-28: an entire search budget spent scrolling a still list."""
 

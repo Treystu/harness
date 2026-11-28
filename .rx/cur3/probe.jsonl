@@ -1,0 +1,2 @@
+{"at":"2026-11-23T08:27:17.311104+00:00","exact_label":"Search chats","hash":"c4fb90379f3db418eed617931218266d022a3e62b67534c32f22d7db4a47ace1","kind":"extraction","point":[619,197],"previous":"driver-core/audit/v1","seq":0,"source":"windows-ocr","step_id":"probe-search-placeholder"}
+{"at":"2026-11-23T08:27:19.199593+00:00","hash":"20c6b66a1f8f30065bdaec6ee37d0054ccc02a2e8a98eeba5232aac9b17638fb","kind":"extraction","previous":"c4fb90379f3db418eed617931218266d022a3e62b67534c32f22d7db4a47ace1","rows":1,"seq":1,"step_id":"header-roster","texts":["Q Search chats"]}

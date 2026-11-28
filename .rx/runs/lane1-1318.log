@@ -1,0 +1,4 @@
+ITEM restore-7100931819-315608d2-scoped-20261123-1318
+parked: send: BLOCKED: send-once: executor failed: FreeBuff is not the foreground window; held by hwnd 71108550 pid 13564 title 'C:\\Users\\SCM\\AppData\\Local\\Temp\\harness-notepad-venv-20261122\\Scripts\\python.exe'
+STATE 1
+{"post25": "C:\\Users\\SCM\\AppData\\Local\\harness-freebuff-runner\\restore-7100931819-315608d2-scoped-20261123-1318\\post25.png", "size": [1800, 1131], "stop": true, "sha256": "146138b4fe9eff10946c63e2d531680bb347e0058120f58354f82dedcb150cd0"}

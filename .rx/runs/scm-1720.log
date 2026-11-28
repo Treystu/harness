@@ -1,0 +1,4 @@
+ITEM restore-7097835295-2ae32937-scoped-20261123-1720
+parked: prepare: BLOCKED: composer-route: Jev choice 'stop' confidence was 0.53
+STATE 1
+{"post25": "C:\\Users\\SCM\\AppData\\Local\\harness-freebuff-runner\\restore-7097835295-2ae32937-scoped-20261123-1720\\post25.png", "size": [1800, 1131], "stop": false, "sha256": "ed2a86265d658ae1758df37ceac759209bf349c99d05f80e7a70edb493fc41b5"}

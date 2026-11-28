@@ -1,0 +1,16 @@
+=== 315608d2 (l6) 00:37:04 ===
+parked: send: BLOCKED: one send dispatched; the Stop square and exact queue placeholder were not verified
+STATE: 1
+=== 9ecc3453 (u6) 00:40:41 ===
+verified running
+STATE: 0
+=== 0319b9f6 (w6) 00:48:50 ===
+parked: search: BLOCKED: prefix-pick-2: the roster did not settle in 4 censuses; last rows: []
+STATE: 1
+=== 0d7e2f37 (x6) 00:52:10 ===
+parked: search: BLOCKED: the project session list does not hold 'BigEnergyCo' and no candidate exposes this thread's route
+STATE: 1
+=== 2ae32937 (y6) 00:56:16 ===
+parked: search: BLOCKED: the project session list does not hold 'SCMessenger' and no candidate exposes this thread's route
+STATE: 1
+QUEUE-DONE 00:59:43

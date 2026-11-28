@@ -2404,6 +2404,16 @@ class Dispatch:
             if texts in seen:
                 break
             seen.append(texts)
+            # The app prints a long title clipped ("Carrier Census Verifica-"),
+            # so an exact-title test can never accept it and this walk spent eight
+            # pages clicking candidates whose routes the app does not expose at
+            # all (measured 2026-11-28, dyn-7230748580). One row matching this
+            # lane's title under this lane's own project heading is the same proof
+            # the session-list pick uses; two or more is still a refusal.
+            scoped_here = [row for row in rows
+                           if self.project_of_row(rows, row) == self.project
+                           and self.row_matches(row["text"], self.session_name)]
+            unique_scoped = len(scoped_here) == 1
             for index, row in enumerate(rows):
                 seen_text = self._norm(row["text"])
                 # Rows are clipped by the app's own column width (measured:
@@ -2431,15 +2441,18 @@ class Dispatch:
                                       reason=str(error))
                     frame = self.frame(f"identify-{page}-{index}-after")
                     continue
-                if seen_text == wanted:
-                    # The exact title, under this lane's own project heading, is the
+                if seen_text == wanted or (unique_scoped and row in scoped_here):
+                    # The title, under this lane's own project heading, is the
                     # pick: measured 2026-11-24, this walk censused exactly that row
                     # for Kalshi and then read an empty route table, which on this
-                    # app is the usual answer (dead accessibility tree). Exact title
-                    # plus project scope is the same proof the session-list pick uses,
+                    # app is the usual answer (dead accessibility tree). Title plus
+                    # project scope is the same proof the session-list pick uses,
                     # and prepare still re-proves the lane before any input.
-                    self.audit.append("verification", step_id="identify-exact-scoped",
-                                      row=row["text"], project=self.project, page=page)
+                    self.audit.append(
+                        "verification",
+                        step_id="identify-exact-scoped" if seen_text == wanted
+                        else "identify-scoped-unique",
+                        row=row["text"], project=self.project, page=page)
                     return True
                 frame = self.frame(f"identify-{page}-{index}-opened")
                 routes = self.routes()

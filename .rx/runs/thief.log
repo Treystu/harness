@@ -1,0 +1,21 @@
+HIT pid=26896 ppid=3408 name=python.exe at=2026-11-23T13:09:46.1640226-10:00
+  exe=C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe
+  cmd="C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe" -m scripts.windows_freebuff_watch
+  parent=svchost.exe ppid=3408
+  parentcmd=
+HIT pid=4692 ppid=26896 name=python.exe at=2026-11-23T13:09:46.9930484-10:00
+  exe=C:\Python314\python.exe
+  cmd="C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe" -m scripts.windows_freebuff_watch
+  parent=python.exe ppid=26896
+  parentcmd="C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe" -m scripts.windows_freebuff_watch
+HIT pid=25916 ppid=3408 name=python.exe at=2026-11-23T13:11:46.2452939-10:00
+  exe=C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe
+  cmd="C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe" -m scripts.windows_freebuff_watch
+  parent=svchost.exe ppid=3408
+  parentcmd=
+HIT pid=16744 ppid=25916 name=python.exe at=2026-11-23T13:11:46.9629132-10:00
+  exe=C:\Python314\python.exe
+  cmd="C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe" -m scripts.windows_freebuff_watch
+  parent=python.exe ppid=25916
+  parentcmd="C:\Users\SCM\AppData\Local\Temp\harness-notepad-venv-20261122\Scripts\python.exe" -m scripts.windows_freebuff_watch
+WATCH-DONE

@@ -1,0 +1,4 @@
+ITEM restore-7100931819-315608d2-scoped-20261123-1345
+verified running: the session was already in a turn; no input sent
+STATE 1
+{"post25": "C:\\Users\\SCM\\AppData\\Local\\harness-freebuff-runner\\restore-7100931819-315608d2-scoped-20261123-1345\\post25.png", "size": [1800, 1131], "stop": false, "sha256": "bc792b4440a44199a4052e753cd7256fb0da9af10ce080dba0409e4e84bd6447"}
