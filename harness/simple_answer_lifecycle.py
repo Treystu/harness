@@ -114,20 +114,17 @@ class SimpleAnswerLifecycleMixin:
             # evidence; it never grants file, tool, execution, or write scope.
             intent = self._classify_prompt_intent(prompt)
             if not is_simple_answer_request(prompt, intent=intent):
-                reason = "request is outside the stable no-tool answer lane"
-                result = {
-                    "status": "deferred", "intent": intent,
-                    "workflow_tier": "simple-answer", "prompt": prompt,
-                    "response": reason.capitalize() + ".",
-                    "model": None, "cost": 0.0,
-                    "defer_reason": reason,
-                    "next_step": "use the existing specialized or clarification lane",
-                    "simple_request": {"generation_calls": 0},
-                }
-                receipt("deferred", reason=reason, generation_calls=0,
-                        input_tokens=0, output_tokens=0)
-                save_chat_turn(sid, result, self.history_dir)
-                return result
+                # #805: this lane may decline the request, but only the router
+                # may conclude it cannot be completed. Hand the same record
+                # back to the router instead of naming a lane and stopping.
+                emit("simple_request_declined", lane="simple-answer",
+                     intent=intent)
+                return self._route_declined_request(
+                    prompt, sid, cancel_check=cancel_check,
+                    max_tokens=max_tokens, reasoning_effort=reasoning_effort,
+                    token_budget=token_budget,
+                    reason=("the no-tool answer lane declined a request that "
+                            "names its own target"))
             # Clock questions are answered from the machine clock with zero
             # model or Jev calls -- no lookup exists to run.  The answer
             # names its source so it never poses as verified world time.

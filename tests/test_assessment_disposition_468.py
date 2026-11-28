@@ -203,6 +203,21 @@ class AssessCliTraceTests(TestCase):
             self.assertEqual(code, 0)
             self.assertNotIn("trace", json.loads(stdout))
 
+    def test_cli_reports_an_unrecorded_trace_instead_of_a_key_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            payload_path = self._payload_file(directory)
+            ledger_path = os.path.join(directory, "ledger.jsonl")
+            with mock.patch.object(AutonomyLedger, "append",
+                                   side_effect=OSError("disk full")):
+                code, stdout = self._invoke(
+                    ["assess", "--input", payload_path, "--trace-ledger",
+                     ledger_path, "--subject", "spec-cli"])
+            self.assertEqual(code, 2)
+            report = json.loads(stdout)
+            self.assertFalse(report["ok"])
+            self.assertTrue(report["trace"]["unrecorded"])
+            self.assertIn("disk full", report["error"])
+
 
 class ReaderPathTests(TestCase):
     def test_the_reader_reads_a_bare_path_as_its_docstring_promises(self):
@@ -213,6 +228,21 @@ class ReaderPathTests(TestCase):
                 verdict_for_payload(_payload()), subject_id="spec-path")
             rows = read_trace_events(ledger_path, kinds=[DISPOSITION_EVENT])
             self.assertEqual([row["subject_id"] for row in rows], ["spec-path"])
+
+    def test_the_reader_a_bare_path_includes_retained_segments(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger_path = os.path.join(directory, "ledger.jsonl")
+            record_disposition(
+                DecisionTrace(AutonomyLedger(ledger_path)),
+                verdict_for_payload(_payload()), subject_id="spec-old")
+            os.replace(ledger_path,
+                       ledger_path + ".20260202T000000.000000")
+            record_disposition(
+                DecisionTrace(AutonomyLedger(ledger_path)),
+                verdict_for_payload(_payload()), subject_id="spec-new")
+            rows = read_trace_events(ledger_path, kinds=[DISPOSITION_EVENT])
+            self.assertEqual([row["subject_id"] for row in rows],
+                             ["spec-old", "spec-new"])
 
 
 class GateOwnershipTests(TestCase):

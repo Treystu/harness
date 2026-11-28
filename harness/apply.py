@@ -348,6 +348,12 @@ class ApplyEngine(ApplyEngineMixin):
         reasoning = validated["reasoning_effort"]
         backend = validated["backend"]
 
+        # Snapshot the pool as configured for this request BEFORE capability
+        # ordering ranks it and drops catalog-stale ids: the trace's
+        # ``configured_pool`` is the denominator that shows what ordering
+        # removed (row 59).
+        configured_pool = list(kwargs.get("apply_pool")
+                               or self.router.apply_pool)
         ordered, profiles = (self._route_pool(kwargs.get("apply_pool"))
                              if backend == "harness" else (None, None))
         # Historical live behavior: with an informed capability ordering, the
@@ -419,6 +425,7 @@ class ApplyEngine(ApplyEngineMixin):
             reasoning=reasoning, renew=renew,
             allow_escalation=kwargs.get("allow_escalation"), model=model,
             ordered=ordered, profiles=profiles, want_consent=want_consent,
+            configured_pool=configured_pool,
             create=create,
             original=original, task_start_spent=task_start_spent,
             continuation=continuation,

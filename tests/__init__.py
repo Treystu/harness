@@ -39,6 +39,22 @@ LEDGER_ISOLATION_PATH = os.path.join(LEDGER_ISOLATION_DIR, "ledger.jsonl")
 
 os.environ["HARNESS_LEDGER"] = LEDGER_ISOLATION_PATH
 
+#: Operator home and state directory (#656). A test that forgets its own
+#: isolation must still not be able to write the live operator tree, so both
+#: anchors are pinned per process, for the same reason as the ledger path:
+#: ``History`` saves turns and ``remember_turn`` projects them into
+#: ``$HARNESS_CONFIG_DIR/chat_history/conversation_memory.json``, while
+#: ``serve_log.default_log_path()`` resolves under ``$HARNESS_HOME``. Before
+#: this guard the suite appended test fixtures to the operator's real memory:
+#: 434 of its 1163 facts carried fixture temp paths. An ambient
+#: ``HARNESS_CONFIG_DIR`` is deliberately *overridden*, not respected -- a test
+#: run pointed at a live lane's state is the failure, not the intent.
+HOME_ISOLATION_DIR = tempfile.mkdtemp(prefix="harness-test-home-")
+CONFIG_ISOLATION_DIR = os.path.join(HOME_ISOLATION_DIR, "config")
+
+os.environ["HARNESS_HOME"] = os.path.join(HOME_ISOLATION_DIR, "home")
+os.environ["HARNESS_CONFIG_DIR"] = CONFIG_ISOLATION_DIR
+
 #: Provider availability is real cross-run state (harness/availability.py).
 #: Two rules keep the suite hermetic: never resolve the operator's
 #: ~/.config/harness/availability.json, and never let one test's HTTP 402

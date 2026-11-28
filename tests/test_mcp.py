@@ -437,7 +437,7 @@ class McpProtocolTests(unittest.TestCase):
         run_prompt.assert_called_once_with(
             prompt="How many nanometers long is that?", auto_apply=False,
             session_id="mcp-followup", cancel_check=mock.ANY,
-            force_conversation=True)
+            force_conversation=True, web=False)
 
     def test_site_check_delegates_to_shared_agent_lifecycle(self):
         import harness.mcp as mcp_module

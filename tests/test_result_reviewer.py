@@ -67,10 +67,11 @@ class _FakeReviewer:
 
     keyed = True
 
-    def __init__(self, verdicts, *, outage=False, reason=""):
+    def __init__(self, verdicts, *, outage=False, reason="", cost=0.0):
         self.verdicts = verdicts
         self.outage = outage
         self.reason = reason
+        self.cost = cost
         self.calls = []
 
     def evaluate_result_relevance(self, prompt, results, *, site, task_id):
@@ -81,7 +82,7 @@ class _FakeReviewer:
              "probability": None, "reason": "scripted"}
             for item, verdict in zip(results, self.verdicts)],
             "reviewed": not self.outage, "outage": self.outage,
-            "outage_reason": self.reason}
+            "outage_reason": self.reason, "cost": self.cost}
 
 
 class ReviewerPolicyTests(unittest.TestCase):
@@ -256,6 +257,19 @@ class ResultAdmissionTests(unittest.TestCase):
         # The verdict rides on the admitted source for the run record.
         self.assertEqual(out[0]["review"]["verdict"], RESULT_RELEVANT)
 
+    def test_a_billed_review_carries_its_cost_beside_the_sources(self):
+        reviewer = _FakeReviewer(
+            [RESULT_RELEVANT, RESULT_RELEVANT, RESULT_RELEVANT], cost=0.25)
+        out, _emitted = self._review(reviewer, _results())
+        # The shape every consumer reads stays a list; the receipt rides on it.
+        self.assertIsInstance(out, list)
+        self.assertEqual(out.cost, 0.25)
+
+    def test_a_gather_with_nothing_to_review_bills_nothing(self):
+        sources = [{"kind": "search", "ok": False, "note": "offline"}]
+        out, _emitted = self._review(_FakeReviewer([]), sources)
+        self.assertEqual(out.cost, 0.0)
+
     def test_exclusion_keeps_the_snippet_versus_rendered_label(self):
         reviewer = _FakeReviewer([RESULT_RELEVANT, RESULT_REJECTED,
                                   RESULT_RELEVANT])
@@ -306,9 +320,11 @@ class ResultAdmissionTests(unittest.TestCase):
         self.assertEqual(reviewer.calls, [])
         self.assertEqual(sources[0]["review"]["verdict"], RESULT_RELEVANT)
 
-    def test_a_policy_without_the_reviewer_is_reported_and_passes(self):
+    def test_a_policy_without_the_reviewer_withholds_the_results(self):
         out, emitted = self._review(object(), _results())
-        self.assertEqual(len(out), 3)
+        self.assertEqual([item.get("kind") for item in out], ["reviewer"])
+        self.assertFalse(out[0]["ok"])
+        self.assertEqual(out[0]["excluded"], 3)
         unavailable = [call for call in emitted.call_args_list
                        if call.args and call.args[0] == "web_result_review_unavailable"]
         self.assertEqual(unavailable[0].kwargs["reason"], "reviewer_absent")
@@ -399,10 +415,11 @@ class ResultAdmissionTests(unittest.TestCase):
         self.assertTrue(any("EVIDENCE REVIEW: reviewer down" in m["content"]
                             for m in messages if m["role"] == "system"))
 
-    def test_without_a_reviewer_the_sources_pass_and_the_run_says_so(self):
+    def test_without_a_reviewer_the_sources_are_withheld_and_the_run_says_so(self):
         sources = _results()
         out, emitted = self._review(None, sources)
-        self.assertEqual(out, sources)
+        self.assertEqual([item.get("kind") for item in out], ["reviewer"])
+        self.assertTrue(all(not item.get("ok") for item in out))
         self.assertIn("web_result_review_unavailable",
                       [call.args[0] for call in emitted.call_args_list
                        if call.args])

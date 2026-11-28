@@ -1,0 +1,3 @@
+file	bucket	note
+harness/adjudication.py	PROVEN (model)	Full verdict path modelled: adjudicate mapping, aggregate rules 1-5, DEFER missing-context validation (adjudicateChecked), non_jev_fallback. 28 theorems; 313-case kernel differential vs the real Python (DiffTest.lean). Exact only for per-mille inputs in [0,1]; string entry-path validation and confidence_note tally NOT modelled (see Pilot/Adjudication.lean header).
+all other repo files	NOT COVERED	Stated, not implied. Coverage expansion follows bug cost x spec shortness, per the adoption gate packet.

@@ -52,6 +52,63 @@ Harness is a dependency-light Python package with three surfaces:
   real transport the cache and breaker board are shared per process and
   endpoint+key (policies are built per request); an injected transport gets
   private ones, so the breaker is per-`JevPolicy` there.
+- `jev_route.py`: the SITE-2 model-route evaluator family (#309): the
+  query-text view, the cheapest capable declared rung with the
+  confidence-aware escalation floor (`LOW_CONFIDENCE_FLOOR`), and the
+  fail-closed envelope that answers with the code-owned tier heuristic and
+  never invents a rung. Lane choice stays in `evaluate_route`. It receives
+  the `JevPolicy` instance and never imports it at module scope, so
+  dispatch, spend, settlement and ledger semantics stay in the one policy
+  owner.
+- `jev_claims.py`: the JEV-P3 claim-support evaluator family (#309): the
+  optional lean support flags a caller may ask for before a panel judge,
+  advisory only, with an unusable live answer reported as unknown rather
+  than invented, and the `claims_skipped` path when the check is off or the
+  payload is empty. Claims lint stays in `harness.claims`. It receives the
+  `JevPolicy` instance and never imports it at module scope, so dispatch,
+  spend, settlement and ledger semantics stay in the one policy owner.
+- `jev_audit_dimensions.py`: the 4-dimensional self-audit evaluator family
+  (#309): the dimension-text view, the declared-legend resolver with its
+  low-confidence rule, `not_evaluated` for a dimension the run did not
+  measure (never a fabricated zero) and the `bar_95_pass` gate that fails
+  closed on any partial run. The resolver also stays importable from
+  `harness.jev_policy`, where callers import it. It receives the `JevPolicy`
+  instance and never imports it at module scope, so dispatch, spend,
+  settlement and ledger semantics stay in the one policy owner.
+- `jev_phase_completion.py`: the JEV-BAR phase-completion evaluator family
+  (#309): the bounded evidence-text view, the judgment carrying declared
+  axis levels and bucket ids only (an out-of-pack answer is reported,
+  never replaced by a guess) and the fail-closed envelope with the
+  pack-keyword fallback. It receives the `JevPolicy` instance and never
+  imports it at module scope, so dispatch, spend, settlement and ledger
+  semantics stay in the one policy owner.
+- `jev_repo.py`: the JEV-P6 repo-summary evaluator family (#309): the
+  bounded element-text view, the judgment carrying declared axis, score
+  and noul ids only (an out-of-vocabulary answer is reported, never
+  replaced by a guess) and the 0-hallucination envelope with the keyword
+  fallback. It receives the `JevPolicy` instance and never imports it at
+  module scope, so dispatch, spend, settlement and ledger semantics stay
+  in the one policy owner.
+- `jev_log.py`: the JEV-LOG log-item evaluator family (#309): item-text
+  normalization, the judgment bound to operator pack fields and declared
+  score levels only (no invented bucket, path, action or level) and the
+  0-hallucination envelope with the keyword fallback. It receives the
+  `JevPolicy` instance and never imports it at module scope, so dispatch,
+  spend, settlement and ledger semantics stay in the one policy owner.
+- `jev_issue_sort.py`: the JEV-P5 issue-sort evaluator family (#309):
+  issue-text normalization, the combo bound to operator pack fields only
+  (no invented path or action) and the 0-hallucination envelope, with the
+  keyword fallback for unkeyed, transport-failed and out-of-pack answers.
+  It receives the `JevPolicy` instance and never imports it at module
+  scope, so dispatch, spend, settlement and ledger semantics stay in the
+  one policy owner.
+- `jev_scope.py`: the HUL-C mission-scope evaluator family (#309): the
+  typed answer readers, the determination (complete only when verifier,
+  success, scope coverage, claims and the human block all hold; an unkeyed
+  or fallback evaluation can never alone mark complete), the state-facts
+  normalizer and the fail-closed envelope. It receives the `JevPolicy`
+  instance and never imports it at module scope, so dispatch, spend,
+  settlement and ledger semantics stay in the one policy owner.
 - `jev_packs.py`: typed question packs + local heuristics imported by
   `jev_policy` (still one policy owner, never a second client).
 - `jev_completion.py`: owns the phase-completion bar; packs in `jev_packs.py`; policy call via `JevPolicy.evaluate_phase_completion` (site `phase_completion`).
@@ -128,14 +185,19 @@ Harness is a dependency-light Python package with three surfaces:
   the per-stage ceiling (`stage_budget`), the state view
   (`stage_states`), `composition_envelope`, `plan_outcome` and the
   `planning_ladder` (#308).
-- `waist.py`: the plan-lane composition root. It keeps `compose_plan`, the
-  planning loop (`run_planning`/`PlanningOutcome`), single-pass fitting
-  (`chunk_oversized_nodes`: a target past the engine's rewrite cap or
-  output budget becomes ONE node with the `backend: "diff"` hint, while an
+- `plan_chunker.py`: the tier-0 chunking policy owner -- the one-pass output
+  budget (`single_pass_output_tokens`), the word-boundary instruction split,
+  each node's rung read budget (`rung_read_budgets`), range slicing and
+  `chunk_oversized_nodes`: a target past the engine's rewrite cap or output
+  budget becomes ONE node with the `backend: "diff"` hint, while an
   instruction past `MAX_INSTRUCTION_CHARS` or a target larger than the
   rung's declared read budget -- `capability.source_budget_for` -- splits
-  into ordered chunks), per-node routing kwargs (`node_apply_kwargs`) and
-  the ladder resolvers. Callers plan by calling `compose_plan`; the
+  into ordered chunks (#308).
+- `waist.py`: the plan-lane composition root. It keeps `compose_plan`, the
+  planning loop (`run_planning`/`PlanningOutcome`), the single-pass fitting
+  wrapper (`_fit_plan_to_single_pass`, which applies the chunker owner's
+  policy and re-derives node details when the DAG changed), per-node routing
+  kwargs (`node_apply_kwargs`) and the ladder resolvers. Callers plan by calling `compose_plan`; the
   concerns above are owned by their own modules and remain importable from
   the waist for existing callers (`_COMPAT_308`).
 - `worktree.py`: `WorktreeIsolation` -- create/audit/**commit**/merge/discard

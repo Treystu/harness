@@ -361,6 +361,7 @@ window.addEventListener("DOMContentLoaded", () => {
   loadHistory();
   pollSpend();
   pollRoute();
+  fetchIdentity();
   setInterval(pollSpend, 8000);
   setInterval(pollRoute, 15000);
 });
@@ -1613,23 +1614,38 @@ function updateActiveProviderProgress(agentMsg) {
 function renderSimpleMarkdown(text) {
   let html = esc(text);
 
+  // Code segments are held out of the inline passes entirely (#706). They used
+  // to be substituted inline and then a global bold pass ran over the whole
+  // assembled string, so `10 ** e[1]` inside a fence turned into
+  // `10 <strong> e[1] ... </strong>` and copying the code back out lost the
+  // exponent operator. Each segment becomes a token, the inline passes run on
+  // the prose only, and the original segment is restored untouched.
+  const segments = [];
+  const hold = (rendered) => {
+    segments.push(rendered);
+    return `\u0000C${segments.length - 1}\u0000`;
+  };
+
   // Fenced Code Blocks
   html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
-    return `<pre><code>${code.trim()}</code></pre>`;
+    return hold(`<pre><code>${code.trim()}</code></pre>`);
   });
 
   // Inline Code
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+  html = html.replace(/`([^`]+)`/g, (_m, code) => hold(`<code>${code}</code>`));
 
   // Bold
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
 
   // Paragraphs
   const paragraphs = html.split(/\n\n+/);
-  return paragraphs.map(p => {
+  const composed = paragraphs.map(p => {
+    if (/^\u0000C\d+\u0000$/.test(p.trim())) return p.trim();
     if (p.startsWith("<pre>") || p.startsWith("<ul>")) return p;
     return `<p>${p.replace(/\n/g, "<br>")}</p>`;
   }).join("");
+
+  return composed.replace(/\u0000C(\d+)\u0000/g, (_m, index) => segments[Number(index)]);
 }
 
 function renderDiffLines(diffText) {
@@ -1721,6 +1737,38 @@ async function pollRoute() {
     const badge = $("#route-badge");
     if (text) text.textContent = "Route: unavailable";
     if (badge) badge.title = "Routing posture unavailable";
+  }
+}
+
+// Served-code identity (#654): fetch the served version + short commit once
+// on load and render it in the header so an operator can tell which build
+// is serving. Source is the existing /api/status payload; no new endpoint.
+async function fetchIdentity() {
+  const el = $("#server-identity");
+  if (!el) return;
+  try {
+    const data = await api("/api/status");
+    const version = data && data.version ? String(data.version) : "";
+    const commit = data && data.commit ? String(data.commit) : "";
+    if (!version && !commit) return;
+    // `git describe --always --dirty` appends "-dirty" on a tree with
+    // uncommitted changes; slicing it blindly gave "32f8f843-dir". Strip
+    // the flag for the badge, keep the full value in the tooltip.
+    const dirty = commit.endsWith("-dirty");
+    const base = dirty ? commit.slice(0, -6) : commit;
+    // A describe string already carries its tag distance
+    // ("v0.5.1-177-gcdc72fd"); the hash after "-g" is the part that
+    // identifies the commit, so badge that instead of the tag prefix.
+    const described = base.match(/-g([0-9a-f]+)$/);
+    const short = base === "unknown"
+      ? "unknown"
+      : (described ? described[1] : base).slice(0, 12);
+    const badge = short + (dirty ? "*" : "");
+    el.textContent = badge ? (version ? `v${version} · ${badge}` : badge)
+      : (version ? `v${version}` : "");
+    el.title = `Serving harness v${version || "?"} at commit ${base || "?"}${dirty ? " (dirty: uncommitted changes)" : ""}`;
+  } catch (_e) {
+    el.title = "Serving version unavailable";
   }
 }
 

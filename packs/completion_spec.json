@@ -1,0 +1,230 @@
+{
+  "id": "harness-rsi-completion-spec",
+  "version": 1,
+  "frozen": true,
+  "plan_of_record": {
+    "ledger": "dispatch/harness/selfimprove-plan/PLAN.md",
+    "section": "3",
+    "blob": "65302e2d8ffb826c06e7050078ef7f7119f1f476"
+  },
+  "reference_census": {
+    "path": "packs/completion_spec.build0-census.json",
+    "as_of_head": "6602e00df1b995fa994a6f0564b1d45e6cd4ba19",
+    "source": "ledger dispatch/harness/selfimprove-plan/build0/ (BUILD-0-RECEIPT.md + census-artifact.md)",
+    "known_state": {
+      "STATE": "red",
+      "RAIL": "green",
+      "JUDGMENT": "red",
+      "BEHAVIOR": "red",
+      "CENSUS": "red"
+    }
+  },
+  "notes": [
+    "Frozen-zone data (plan section 4). The loop reads this file and never writes it; a bar is added or changed only through the D3 protocol.",
+    "Every bar is an executable check named by `check`, resolved in harness/completion_spec.py; an unknown check refuses the whole spec.",
+    "Bar results are always reported passed-against-full-total. A run that cannot exercise a class is a PARTIAL diagnostic and earns zero exit credit (D5).",
+    "Where a bar measures a decision mechanism it names the mechanism's canonical register home and restates none of its rules."
+  ],
+  "bars": [
+    {
+      "id": "STATE-OPEN-OBLIGATIONS",
+      "class": "STATE",
+      "check": "open_obligations_zero",
+      "threshold": {"kind": "max", "value": 0, "excluding": "operator_hold"},
+      "evidence_type": "census_inventory",
+      "evidence_surface": "GitHub issue API + docs/jev-roadmap.md register (issue rows and non-issue rows)",
+      "p5_element": "p5.inventory.zero_open_obligations_excluding_hold",
+      "description": "Zero open obligations on the plan-of-record inventory, excluding rows in explicit operator hold (named and counted, never worked)."
+    },
+    {
+      "id": "STATE-ISSUE-ROWS",
+      "class": "STATE",
+      "check": "issue_rows_reconciled",
+      "threshold": {"unexplained": 0},
+      "evidence_type": "census_reconciliation",
+      "evidence_surface": "two-method census: GitHub issue API against the roadmap register",
+      "p5_element": "p5.inventory.issue_rows_counted",
+      "description": "The API issue count and the register's issue rows reconcile with receipted closures; no unexplained difference in either direction."
+    },
+    {
+      "id": "STATE-NONISSUE-ROWS",
+      "class": "STATE",
+      "check": "nonissue_rows_reconciled",
+      "threshold": {"unexplained": 0},
+      "evidence_type": "census_reconciliation",
+      "evidence_surface": "docs/jev-roadmap.md non-issue rows (U-C4, Slice 2, Wave 5 items, SELF-IMPROVE)",
+      "p5_element": "p5.inventory.nonissue_rows_counted",
+      "description": "Non-issue obligations live on the register as rows and are counted; a zero-issue census alone is a census defect."
+    },
+    {
+      "id": "STATE-CLOSURE-EVIDENCE",
+      "class": "STATE",
+      "check": "closures_carry_evidence_class",
+      "threshold": {"evidence_classes": ["merged_fix", "measured_result", "disposition", "operator_hold"]},
+      "evidence_type": "closure_log",
+      "evidence_surface": "closure records on the issues/PRs and their #295 receipts",
+      "p5_element": "p5.closure.every_closure_carries_evidence_class",
+      "description": "Every closure in the census carries one of the four evidence classes; an unclassified closure is an open obligation."
+    },
+    {
+      "id": "STATE-REGISTER-CHECKS",
+      "class": "STATE",
+      "check": "register_checks_16_5_pass",
+      "threshold": {"state": "pass"},
+      "evidence_type": "register_checks",
+      "evidence_surface": "docs/jev-roadmap.md register and its #295 census view",
+      "p5_element": "p5.checks.section_16_5",
+      "description": "The P5 plan-of-record section 16.5 register checks are recorded and every one passes."
+    },
+    {
+      "id": "STATE-OPEN-PRS",
+      "class": "STATE",
+      "check": "open_pulls_zero",
+      "threshold": {"kind": "max", "value": 0},
+      "evidence_type": "census_pulls",
+      "evidence_surface": "GitHub pull API, drafts included",
+      "description": "Zero open pull requests at the epoch head; a draft counts."
+    },
+    {
+      "id": "STATE-UNPUSHED-WORK",
+      "class": "STATE",
+      "check": "unpushed_work_zero",
+      "threshold": {"kind": "max", "value": 0},
+      "evidence_type": "git_worktree_state",
+      "evidence_surface": "git status --porcelain -b in every lane clone at the epoch head",
+      "description": "Zero unpushed local work across the fleet's clones; nothing exists until it is pushed."
+    },
+    {
+      "id": "RAIL-BATTERY",
+      "class": "RAIL",
+      "check": "rail_green_or_labelled_interim",
+      "threshold": {"contexts": "all success", "alternative": "LOCAL-labelled interim evidence with a debt entry"},
+      "evidence_type": "circleci_commit_statuses",
+      "evidence_surface": "CircleCI commit statuses at the epoch head, read context by context (a combined status is not evidence)",
+      "description": "The full rail battery is green at the epoch head, or the head carries LOCAL-labelled interim evidence plus a debt entry (P8)."
+    },
+    {
+      "id": "RAIL-DEBT",
+      "class": "RAIL",
+      "check": "rail_debt_current",
+      "threshold": {"required_fields": ["head", "command", "result"], "labelled_local": true},
+      "evidence_type": "rail_debt_list",
+      "evidence_surface": "rail debt entries recorded with the local gate runs they stand in for",
+      "description": "Every head that landed on locally read evidence has a debt entry naming the head, command and result."
+    },
+    {
+      "id": "JUDGMENT-HOUSE-INSTRUMENT",
+      "class": "JUDGMENT",
+      "check": "judgment_bar_pass",
+      "threshold": {"combined_min": 95, "axis_modal_min": 85, "axis_floor": 60, "runs_min": 2, "composite_100": "red_flag"},
+      "evidence_type": "house_instrument_receipt",
+      "evidence_surface": "fixed house instrument (gap-seeking-v1), two runs on successively cured text, never averaged",
+      "description": "House-instrument verification clears combined >= 95 with the modal axis >= 85 and no axis below 60; two runs are reported as distributions, never averaged, and a composite of exactly 100 is a red flag."
+    },
+    {
+      "id": "JUDGMENT-PROBES",
+      "class": "JUDGMENT",
+      "check": "probes_axis_judged",
+      "threshold": {"state": "proven"},
+      "evidence_type": "house_instrument_receipt",
+      "evidence_surface": "planted-probe axis of the same fixed instrument run",
+      "description": "The planted-probe axis is judged and proves every planted defect claim was defeated."
+    },
+    {
+      "id": "JUDGMENT-PHASE-BAR",
+      "class": "JUDGMENT",
+      "check": "phase_bar_pass",
+      "threshold": {"min_score": "jev_completion.PHASE_COMPLETE_MIN_SCORE"},
+      "evidence_type": "phase_bar_receipt",
+      "evidence_surface": "harness jev-phase --all (owner: harness/jev_completion.py)",
+      "description": "The repo's own phase-completion bar is recorded and every declared phase clears it; this bar references the existing bar owner rather than restating its rules."
+    },
+    {
+      "id": "JUDGMENT-CHANGE-SET",
+      "class": "JUDGMENT",
+      "check": "epoch_change_set_judged",
+      "threshold": {"judged": true},
+      "evidence_type": "house_instrument_receipt",
+      "evidence_surface": "instrument run over the epoch's own diff at the candidate head",
+      "description": "The epoch's own change set is judged by the same instrument; an epoch with no change set has nothing to judge."
+    },
+    {
+      "id": "BEHAVIOR-CLI",
+      "class": "BEHAVIOR",
+      "check": "surface_passed",
+      "surface_key": "cli",
+      "threshold": {"state": "pass"},
+      "evidence_type": "scripted_drive",
+      "evidence_surface": "harness CLI driven from a clean worktree at the epoch head",
+      "description": "The CLI surface answers a scripted drive at the epoch head."
+    },
+    {
+      "id": "BEHAVIOR-MCP",
+      "class": "BEHAVIOR",
+      "check": "surface_passed",
+      "surface_key": "mcp",
+      "threshold": {"state": "pass"},
+      "evidence_type": "scripted_drive",
+      "evidence_surface": "MCP stdio server: initialize handshake plus a tool drive",
+      "description": "The MCP surface answers a scripted drive at the epoch head."
+    },
+    {
+      "id": "BEHAVIOR-GUI",
+      "class": "BEHAVIOR",
+      "check": "surface_passed",
+      "surface_key": "gui",
+      "threshold": {"state": "pass"},
+      "evidence_type": "scripted_drive",
+      "evidence_surface": "Harness GUI (Studio web) driven through its loopback service",
+      "description": "The GUI surface answers a scripted drive at the epoch head."
+    },
+    {
+      "id": "BEHAVIOR-STUDIO",
+      "class": "BEHAVIOR",
+      "check": "surface_passed",
+      "surface_key": "studio",
+      "threshold": {"state": "pass"},
+      "evidence_type": "scripted_drive",
+      "evidence_surface": "Studio surface driven through its loopback service",
+      "description": "The Studio surface answers a scripted drive at the epoch head."
+    },
+    {
+      "id": "BEHAVIOR-NEVER-DEFER",
+      "class": "BEHAVIOR",
+      "check": "never_defer_proven",
+      "threshold": {"provider_failure_mid_run": "fails over and completes"},
+      "evidence_type": "scripted_drive",
+      "evidence_surface": "live provider-failure drive on the real surfaces (P1)",
+      "description": "A provider failure mid-run fails over to another working backend and completes; never-defer is proven on the real surfaces."
+    },
+    {
+      "id": "CENSUS-UNIFICATION",
+      "class": "CENSUS",
+      "check": "unification_closed",
+      "threshold": {"closed": true},
+      "evidence_type": "unification_census",
+      "evidence_surface": "product surface unification census (FED-UNIFICATION), every group reconciled or carrying a filed cure",
+      "p5_element": "p5.census.unification_closed",
+      "description": "The unification census is closed: every group is reconciled or carries a filed cure."
+    },
+    {
+      "id": "CENSUS-SELF-CLAIMS",
+      "class": "CENSUS",
+      "check": "self_claims_verified",
+      "threshold": {"verified": "total", "total_min": 1},
+      "evidence_type": "claims_panel",
+      "evidence_surface": "claims panel over the self-claims set extracted from CLI, MCP, GUI, Studio and docs",
+      "description": "Every printed quantity, label and claim extracted into the self-claims set is verified through the claims panel."
+    },
+    {
+      "id": "CENSUS-PLAN-OF-RECORD",
+      "class": "CENSUS",
+      "check": "plan_of_record_single_home",
+      "threshold": {"canonical": "docs/jev-roadmap.md", "census_view": "#295"},
+      "evidence_type": "register_state",
+      "evidence_surface": "docs/jev-roadmap.md as sole plan of record; #295 as the generated census/evidence view",
+      "p5_element": "p5.plan_of_record.single_home_with_generated_view",
+      "description": "Exactly one plan of record holds ordering authority, and the census view is generated from it; a second ordering home fails the bar."
+    }
+  ]
+}

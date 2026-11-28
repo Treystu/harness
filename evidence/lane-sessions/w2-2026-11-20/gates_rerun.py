@@ -1,5 +1,5 @@
-"""Gates for the W468/W469 re-run filings and the intake row: Product Jev first,
-Lucas Gate v2 second. Same shape as gates_turn9.py; reads only local files.
+"""Gates for the W468/W469 re-run filings and the intake row: Lucas Gate v2 first,
+product Jev second. Same shape as gates_turn9.py; reads only local files.
 """
 import json
 import os
@@ -59,8 +59,6 @@ def main():
     out = {}
     for key, (path, action) in ITEMS.items():
         text = path.read_text(encoding="utf-8")
-        verdict, structural = policy.evaluate_decision(
-            action, GOAL, f"W2 turn-11 disposition {key}", site=SITE)
         categories = [
             {"id": cid, "applicable": True, "score": 9.5,
              "category_average": 9.5,
@@ -79,14 +77,16 @@ def main():
                                        "and the code actually read at it."}
                          for k, v in BIAS.items()],
             actual_risk=False, overall_average=9.5)
+        verdict, structural = policy.evaluate_decision(
+            action, GOAL, f"W2 turn-11 disposition {key}", site=SITE)
         out[key] = {
             "product_jev": {
                 "verdict": verdict.get("verdict"),
                 "disposition": verdict.get("disposition"),
                 "margin": verdict.get("margin"),
-                "lead": verdict.get("lead"),
-                "advanced": verdict.get("advanced"),
-                "destructive": verdict.get("destructive"),
+                "lead": verdict.get("disposition_lead"),
+                "advanced": verdict.get("advances_goal"),
+                "destructive": verdict.get("is_destructive"),
                 "supported": structural.get("supported"),
                 "cost": structural.get("cost"),
                 "model": structural.get("model"),
@@ -96,8 +96,8 @@ def main():
                       "artifact_sha256": lucas["artifact_sha256"]},
         }
         print(key, "jev", verdict.get("verdict"),
-              f"lead={verdict.get('lead')} adv={verdict.get('advanced')} "
-              f"destr={verdict.get('destructive')}",
+              f"lead={verdict.get('disposition_lead')} adv={verdict.get('advances_goal')} "
+              f"destr={verdict.get('is_destructive')}",
               "| lucas", lucas["status"])
 
     after = len(ledger.tail(200000))

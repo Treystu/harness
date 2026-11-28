@@ -472,6 +472,38 @@ class DeliverableContentEvidenceTests(unittest.TestCase):
         self.assertIn("artifact truth owns missing files", ev["text"])
 
 
+class RefusalAfterExecutionTests(unittest.TestCase):
+    """#683 finding 17: a later refusal carries the executed rounds with it."""
+
+    def test_a_second_round_refusal_passes_the_executed_rounds(self):
+        plan = {"total_nodes": 1, "total_cost_ceiling": 0.0,
+                "nodes": [{"node_id": "n1", "instruction": "edit",
+                            "target_files": ["earlier.py"]}],
+                "dag": {"nodes": [{"node_id": "n1"}]}}
+        refused_plan = {"status": "refused",
+                        "confirmation": {"reason": "scope too broad"}}
+        seen = []
+
+        def refused(candidate, rounds):
+            seen.append((candidate, rounds))
+            return {"status": "refused"}
+
+        driven = orch.drive(
+            goal="Fix it", target_files=["earlier.py"], initial_plan=plan,
+            root_dir=Path(tempfile.mkdtemp()),
+            plan_round=lambda goal: refused_plan,
+            execute_plan=lambda current: {"n1": {"status": "ok"}},
+            completion_chat=lambda prompt: '{"complete": false, '
+                                          '"remaining": "more"}',
+            emit=lambda *args, **kwargs: None,
+            refused=refused, max_rounds=2)
+        self.assertEqual(driven, {"status": "refused"})
+        (_, rounds), = seen
+        self.assertEqual(len(rounds), 1)
+        self.assertEqual(rounds[0]["round"], 1)
+        self.assertEqual(rounds[0]["targets"], ["earlier.py"])
+
+
 class DriveContentTruthTests(unittest.TestCase):
     def _drive(self, goal, target_files, root, execute_result, chat_fn,
                jev_policy=None, max_rounds=1):

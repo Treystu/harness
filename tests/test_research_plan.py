@@ -7,9 +7,10 @@ network -- search, fetch and the Jev transport are all injected doubles.
 import os
 import tempfile
 import unittest
+from unittest import mock
 
 from harness.config import load_settings
-from harness.errors import HarnessError
+from harness.errors import HarnessError, ProviderUsageUnknown
 from harness.jev import JevEvaluationResult
 from harness.jev_policy import policy_for
 from harness.ledger import AutonomyLedger
@@ -17,11 +18,14 @@ from harness.research_plan import (
     DECISION_ACCEPT,
     DECISION_DECLINE,
     DECISION_UNAVAILABLE,
+    INSUFFICIENT,
     PlanApproval,
     PlanQuery,
     ResearchPlan,
+    _approval_check,
     approval_from_judgment,
     approved_queries,
+    decide_research_plan,
     execute_plan,
     goal_from_prompt,
     goal_urls,
@@ -640,6 +644,60 @@ class PlanProposalTests(unittest.TestCase):
         self.assertEqual(
             goal_urls("https://a.test/x and https://A.test/x"),
             ["https://a.test/x"])
+
+
+class BatchContractTests(unittest.TestCase):
+    """Defensive branches from the #683 burndown batch (#82, #788)."""
+
+    def test_an_approval_check_resolves_an_omitted_now(self):
+        plan = _plan()
+        self.assertTrue(_approval_check(plan, _approval(plan), now=None).ok)
+
+    def test_unknown_provider_usage_propagates_from_the_plan_gate(self):
+        class _Unknown:
+            def evaluate_research_plan(self, state, **kwargs):
+                raise ProviderUsageUnknown("usage unknown")
+
+        with self.assertRaises(ProviderUsageUnknown):
+            decide_research_plan(PROMPT, policy=_Unknown(),
+                                 request_id=REQUEST_ID)
+
+    def test_the_plan_source_budget_truncates_gathered_sources(self):
+        plan = _plan(queries=(
+            PlanQuery("q1", "Rust 1.84 changelog", "read the notes"),
+            PlanQuery("q2", "Rust 1.84 migration", "read the guide"),
+        ), max_sources=1)
+
+        def search(_query):
+            return [{"url": "https://e.example/x", "snippet": "body"}]
+
+        out = execute_plan(plan, _approval(plan), request_id=REQUEST_ID,
+                           prompt=PROMPT, capabilities=("search",),
+                           search_fn=search)
+        self.assertEqual(len(out.sources), 1)
+
+    def test_a_pages_only_plan_with_no_text_is_insufficient(self):
+        url = "https://e.example/a"
+        prompt = "Read https://e.example/a and report the figures"
+        plan = _plan(prompt=prompt, capabilities=("fetch",), queries=(
+            PlanQuery("q1", url, "read the page", url=url),))
+        out = execute_plan(plan, _approval(plan), request_id=REQUEST_ID,
+                           prompt=prompt, capabilities=("fetch",),
+                           fetch_fn=lambda _url: {"ok": True, "url": url,
+                                                  "text": ""})
+        self.assertEqual(out.state, INSUFFICIENT)
+
+    def test_a_default_fetcher_is_bound_to_the_fetch_policy(self):
+        url = "https://e.example/a"
+        prompt = "Read https://e.example/a and report the figures"
+        plan = _plan(prompt=prompt, capabilities=("fetch",), queries=(
+            PlanQuery("q1", url, "read the page", url=url),))
+        with mock.patch("harness.web.fetch_url",
+                        return_value={"ok": True, "text": "page",
+                                      "url": url}) as fetch:
+            gather_web_context(prompt, plan=plan, approval=_approval(plan),
+                               request_id=REQUEST_ID, capabilities=("fetch",))
+        fetch.assert_called_once()
 
 
 if __name__ == "__main__":

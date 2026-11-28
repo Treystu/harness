@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 
 from harness.agent import AutonomousAgent
 from harness.request_intent import classify_prompt_intent
-from harness.history import get_default_history_dir, load_chat_history, save_chat_turn
+from harness.history import (get_default_history_dir, load_chat_checkpoint,
+                             load_chat_history, save_chat_turn)
 from harness.jev import JevEvaluationResult
 from harness.config import (
     DEFAULT_MAX_COST,
@@ -2697,6 +2698,77 @@ class TestDynamicTokenAllocation(unittest.TestCase):
             self.assertFalse(policy.evaluate_answer.called)
             history = load_chat_history("s_hg_script", history_dir=root)
             self.assertEqual(history[-1]["kind"], "script")
+
+    def test_a_changed_instruction_resumes_with_a_fresh_answer_receipt(self):
+        # #776: the answer completed, the review was interrupted, and the
+        # resume changed the instruction so the checkpoint context is rebuilt.
+        # The new generation must dispatch the answer again instead of
+        # replaying the previous generation's completed receipt.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            agent = AutonomousAgent(
+                settings=_lane_settings(panel_pool=("test/answer",),
+                                        judge="test/judge",
+                                        convergence_model=None,
+                                        escalation_pool=()),
+                history_dir=root)
+            resp = {"choices": [{"message": {"content": "An apple is a fruit."},
+                                 "finish_reason": "stop"}],
+                    "usage": {"cost": 0.0}}
+            envelope = {"native": True, "verdict": "pass",
+                        "confidence": {"observed": 0.99, "supported": 0.99},
+                        "supported": 0.99, "is_fallback": False}
+            interrupted = ToolCancelled(usage_unknown=True)
+            interrupted.reserved_cost = 0.0
+            first_policy = MagicMock()
+            first_policy.evaluate_answer.side_effect = interrupted
+            preflight = {"source": "test", "choice": "direct",
+                         "native": False, "cost": 0.0}
+            with patch("harness.hourglass_lifecycle.chat_routed",
+                       return_value=(200, resp)) as answer_call, \
+                 patch("harness.hourglass_lifecycle.policy_for",
+                       return_value=first_policy), \
+                 patch("harness.hourglass_lifecycle.ledger_for",
+                       return_value=MagicMock()), \
+                 patch("harness.hourglass_lifecycle.governor_for",
+                       return_value=(None, MagicMock())):
+                with self.assertRaises(ToolCancelled):
+                    agent.run_hourglass_request(
+                        "explain apples", session_id="s_generation",
+                        request_preflight=preflight)
+            self.assertEqual(answer_call.call_count, 1)
+            checkpoint = load_chat_checkpoint("s_generation", root)
+            self.assertEqual(checkpoint["stage"], "jev_review")
+            self.assertEqual(checkpoint["answer"], "An apple is a fruit.")
+
+            second_policy = MagicMock()
+            second_policy.evaluate_answer.return_value = (
+                MagicMock(), {"cost": 0.0})
+            with patch("harness.hourglass_lifecycle.chat_routed",
+                       return_value=(200, resp)) as resumed_call, \
+                 patch("harness.hourglass_lifecycle.policy_for",
+                       return_value=second_policy), \
+                 patch("harness.hourglass_lifecycle.ledger_for",
+                       return_value=MagicMock()), \
+                 patch("harness.hourglass_lifecycle.governor_for",
+                       return_value=(None, MagicMock())), \
+                 patch.object(agent, "_jev_answer_envelope",
+                              return_value=envelope):
+                result = agent.run_hourglass_request(
+                    "instead explain oranges", session_id="s_generation",
+                    resume_state=checkpoint, request_preflight=preflight)
+            # Two invocations across the pair: the rebuild dispatches round 1.
+            self.assertEqual(resumed_call.call_count, 1)
+            # Both generations' answer receipts remain in the accounting
+            # history under their own keys; only the new one dispatched.
+            usage = agent.lifecycle.load("s_generation")["usage"]
+            answer_keys = sorted(
+                key for key in usage["provider_calls"]
+                if ":chat-answer:" in key)
+            self.assertEqual(len(answer_keys), 2)
+            self.assertTrue(answer_keys[0].endswith(":chat-answer:0:1"))
+            self.assertTrue(answer_keys[1].endswith(":chat-answer:1:1"))
+            self.assertEqual(result.get("response"), "An apple is a fruit.")
 
     def test_handle_conversation_rotates_when_allocated_tokens_exhausted(self):
         with tempfile.TemporaryDirectory() as tmp:
