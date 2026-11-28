@@ -234,6 +234,96 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
         self.assertEqual(code, 400)
         self.assertIn("unsupported driver-watch action", err["error"])
 
+    def test_a_pinned_runtime_home_is_materialized_and_executed_instead_of_the_dev_tree(self):
+        """G4: the tick executes committed code copied out of the dev tree, so an
+        edit in progress there is never the watch's input (12 refusals 2026-11-27)."""
+        import importlib.util
+
+        res = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp)
+        spec = importlib.util.spec_from_file_location("test_run_watch_pin", res["runner"])
+        mod = importlib.util.module_from_spec(spec)
+        scripts = Path(self.tmp) / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (scripts / "__init__.py").write_text("", encoding="utf-8")
+        (scripts / "windows_freebuff_watch.py").write_text(
+            "def main():\n    print('DEV TREE RAN')\n    return 0\n", encoding="utf-8")
+        (scripts / "driver_runtime_home.py").write_text(FAKE_PRODUCER, encoding="utf-8")
+        home_root = Path(self.tmp) / "homes"
+        with patch.dict(os.environ, {
+            "HARNESS_DRIVER_WATCH_DIR": str(self.watch_dir),
+            "HARNESS_DRIVER_LOG_PATH": str(self.log_path),
+            "HARNESS_DRIVER_RUNTIME_HOME": str(home_root),
+        }):
+            spec.loader.exec_module(mod)
+            (self.watch_dir / "control.json").write_text(
+                json.dumps({"enabled": True, "paused": False, "driver_root": self.tmp}),
+                encoding="utf-8")
+            for key in [k for k in sys.modules if k == "scripts" or k.startswith("scripts.")]:
+                del sys.modules[key]
+            with patch.object(mod, "_git_head", return_value="b" * 40):
+                self.assertEqual(mod.run_tick(force=True), 0)
+        status_json = json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))
+        self.assertEqual(status_json["runtime_state"], "pinned")
+        self.assertEqual(status_json["head_sha"], "b" * 40)
+        self.assertEqual(status_json["runtime_home"], str(home_root / ("b" * 12)))
+        log = self.log_path.read_text(encoding="utf-8")
+        self.assertIn("PINNED HOME RAN", log)
+        self.assertNotIn("DEV TREE RAN", log)
+
+    def test_a_checkout_without_the_producer_reports_unavailable_and_keeps_working(self):
+        import importlib.util
+
+        res = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp)
+        spec = importlib.util.spec_from_file_location("test_run_watch_pinless", res["runner"])
+        mod = importlib.util.module_from_spec(spec)
+        scripts = Path(self.tmp) / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (scripts / "__init__.py").write_text("", encoding="utf-8")
+        (scripts / "windows_freebuff_watch.py").write_text(
+            "def main():\n    print('DEV TREE RAN')\n    return 0\n", encoding="utf-8")
+        with patch.dict(os.environ, {
+            "HARNESS_DRIVER_WATCH_DIR": str(self.watch_dir),
+            "HARNESS_DRIVER_LOG_PATH": str(self.log_path),
+            "HARNESS_DRIVER_RUNTIME_HOME": str(Path(self.tmp) / "homes"),
+        }):
+            spec.loader.exec_module(mod)
+            (self.watch_dir / "control.json").write_text(
+                json.dumps({"enabled": True, "paused": False, "driver_root": self.tmp}),
+                encoding="utf-8")
+            for key in [k for k in sys.modules if k == "scripts" or k.startswith("scripts.")]:
+                del sys.modules[key]
+            with patch.object(mod, "_git_head", return_value="c" * 40):
+                self.assertEqual(mod.run_tick(force=True), 0)
+        status_json = json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))
+        self.assertEqual(status_json["runtime_state"], "unavailable")
+        self.assertIn("driver_runtime_home.py", status_json["runtime_detail"])
+        self.assertIn("DEV TREE RAN", self.log_path.read_text(encoding="utf-8"))
+
+
+FAKE_PRODUCER = "\n".join([
+    "import json",
+    "from pathlib import Path",
+    "",
+    "def read_pin(home):",
+    "    path = Path(home) / '.runtime-pin.json'",
+    "    if not path.is_file():",
+    "        return None",
+    "    return json.loads(path.read_text(encoding='utf-8'))",
+    "",
+    "def verify(home, pin=None):",
+    "    return True, 'fake'",
+    "",
+    "def install(source, home, sha=None):",
+    "    scripts = Path(home) / 'scripts'",
+    "    scripts.mkdir(parents=True, exist_ok=True)",
+    "    (scripts / '__init__.py').write_text('', encoding='utf-8')",
+    "    watch = 'def main():\\n    print(\"PINNED HOME RAN\")\\n    return 0\\n'",
+    "    (scripts / 'windows_freebuff_watch.py').write_text(watch, encoding='utf-8')",
+    "    pin = {'sha': sha or 'b' * 40, 'manifest': {}}",
+    "    (Path(home) / '.runtime-pin.json').write_text(json.dumps(pin), encoding='utf-8')",
+    "    return pin",
+]) + "\n"
+
 
 if __name__ == "__main__":
     unittest.main()
