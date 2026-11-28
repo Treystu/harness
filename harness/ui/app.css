@@ -300,6 +300,40 @@ header {
   font-size: 12px;
 }
 
+/* #830 slice 3: run-limits popover. Wider than the cap popover because its
+   rows carry a label, a number input and the range (or the pin) note. */
+.settings-popover {
+  width: 360px;
+  right: 0;
+  left: auto;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 1fr 88px;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.settings-row .cap-label {
+  min-width: 0;
+}
+
+.settings-row input[type="number"] {
+  width: 88px;
+}
+
+.settings-range,
+.settings-lock {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.settings-lock {
+  color: var(--amber, #d79a3b);
+}
+
 .cap-title {
   font-weight: 600;
   margin-bottom: 8px;
