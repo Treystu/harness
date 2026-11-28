@@ -1,4 +1,0 @@
-ITEM restore-7097835295-2ae32937-scoped-20261123-1640
-parked: prepare: driver_core.errors.OsalError: GetWindowTextLengthW failed for window 51709752 (Win32 error 1400)
-STATE 1
-{"post25": "C:\\Users\\SCM\\AppData\\Local\\harness-freebuff-runner\\restore-7097835295-2ae32937-scoped-20261123-1640\\post25.png", "size": [1800, 1131], "stop": true, "sha256": "846d742ba16c16165bd2ccca9b4686eda88f53e4863999a64c912dcf88354e98"}
