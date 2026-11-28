@@ -1603,6 +1603,21 @@ class _ArrowFrame:
         return _ArrowCrop(self.size)
 
 
+class ParkedDispatchIsTerminalTests(unittest.TestCase):
+    """Measured 2026-11-28 10:26 on #843: one dispatch parked six times in 32 s."""
+
+    def test_a_claimed_dispatch_is_settled(self):
+        self.assertTrue(watch.claim_settled({"claim-dyn-1-a.json"}, "dyn-1-a"))
+
+    def test_a_parked_dispatch_is_settled(self):
+        known = {"parked-dyn-1-a-no-prompt-registered.json"}
+        self.assertTrue(watch.claim_settled(known, "dyn-1-a"))
+
+    def test_a_dispatch_with_nothing_recorded_is_still_claimable(self):
+        self.assertFalse(watch.claim_settled({"claim-dyn-2-b.json"}, "dyn-1-a"))
+        self.assertFalse(watch.claim_settled(None, "dyn-1-a"))
+
+
 class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
     """Ask 2 incremental ETag 304 polling, back-to-back drain, 3-timestamp SLA, and staged carriers."""
 

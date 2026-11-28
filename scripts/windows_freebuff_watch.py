@@ -973,6 +973,22 @@ def episode_closed(comments, comment, parsed):
     return False
 
 
+def claim_settled(known, item):
+    """Has this dispatch already been claimed, parked or resulted?
+
+    A park is terminal for the scan that saw it, but the claim gate only tested
+    for ``claim-<item>.json``, so a parked dispatch stayed claimable forever and
+    was parked again on every scan. The #684 comment cap hid that loop for as
+    long as every post failed; the moment the queue rolled over and posts began
+    to land, the same dispatch was parked six times in 32 s (measured
+    2026-11-28 10:26 on #843), and a newer dispatch behind it never got a turn.
+    """
+    names = {str(name) for name in known or ()}
+    if f"claim-{item}.json" in names:
+        return True
+    return any(name.startswith(f"parked-{item}-") for name in names)
+
+
 def filed_on_issue(comments, dispatch_id):
     """Has this dispatch already been acked or resulted on the issue?
 
@@ -1431,8 +1447,8 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         thread = parsed["thread"]
         item = f"dyn-{cid}-{thread}"
         claim = f"claim-{item}.json"
-        if claim in known:
-            # At-most-once stands: a claimed dispatch is never re-run by this
+        if claim_settled(known, item):
+            # At-most-once stands: a claimed or parked dispatch is never re-run by this
             # watch. Product Jev escalated the one-shot auto-retry draft
             # (advances 0.52, destructive 0.21, confidence 0.31), so retry
             # authority is oversight's to grant, not this code's to assume.
