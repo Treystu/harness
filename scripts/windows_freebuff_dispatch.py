@@ -2557,13 +2557,21 @@ class Dispatch:
         # phase's whole budget on a lane whose sidebar row is clipped, while the
         # panel returned "Lane 2" itself. Cheap exact route first; the census
         # stays the fallback.
+        # The census-bound prefix pick goes first. It is the route that actually
+        # selects a lane whose row the app prints clipped: measured five times on
+        # 2026-11-28 (dyn-7230285733 search and query; dyn-7231960038 search, query
+        # and select), while the page-by-page walk ahead of it burned whole phase
+        # budgets - the send phase of dyn-7231960038 reached page twelve and
+        # parked without ever sending. The panel and the walk stay as fallbacks
+        # for lanes whose row the app prints in full.
+        if self.navigate_by_unique_prefix():
+            return
         if self.navigate_by_panel_exact():
             return
         if self.navigate_by_session_list():
             return
         if self.list_only():
-            if (self.navigate_by_unique_prefix() or self.identify_by_content()
-                    or self.identify_by_route()):
+            if (self.identify_by_content() or self.identify_by_route()):
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
@@ -2754,13 +2762,21 @@ class Dispatch:
             self.audit.append("verification", step_id="select-skip",
                               reason="the target row is already the selected session")
             return
+        # The census-bound prefix pick goes first. It is the route that actually
+        # selects a lane whose row the app prints clipped: measured five times on
+        # 2026-11-28 (dyn-7230285733 search and query; dyn-7231960038 search, query
+        # and select), while the page-by-page walk ahead of it burned whole phase
+        # budgets - the send phase of dyn-7231960038 reached page twelve and
+        # parked without ever sending. The panel and the walk stay as fallbacks
+        # for lanes whose row the app prints in full.
+        if self.navigate_by_unique_prefix():
+            return
         if self.navigate_by_panel_exact():
             return
         if self.navigate_by_session_list():
             return
         if self.list_only():
-            if (self.navigate_by_unique_prefix() or self.identify_by_content()
-                    or self.identify_by_route()):
+            if (self.identify_by_content() or self.identify_by_route()):
                 return
             raise RuntimeError(f"the project session list does not hold {self.label!r} "
                                "and no candidate exposes this thread's route")
