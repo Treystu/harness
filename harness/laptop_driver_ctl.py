@@ -237,13 +237,32 @@ def pinned_runtime_root(driver_root: str) -> tuple[str, str, str, str]:
     return str(home), "pinned", "", str(pin.get("sha") or sha)
 
 
+def _dispatch_issue(control: dict) -> str:
+    """The queue the driver is actually posting to, for alerts too.
+
+    ``control.json`` keeps the id that was live at install time; the queue file
+    is what the runner and the watch read, and it moves when #684's ceiling is
+    hit or oversight designates a successor. An alert sent to the install-time
+    id would answer 403 exactly when a failure needs reporting.
+    """
+    raw = os.environ.get("HARNESS_FREEBUFF_QUEUE_STATE", "").strip()
+    target = Path(raw) if raw else Path.home() / ".harness" / "driver-watch" / "queue.json"
+    try:
+        current = int(json.loads(target.read_text(encoding="utf-8")).get("current"))
+    except (OSError, ValueError, TypeError, AttributeError):
+        current = 0
+    if current > 0:
+        return str(current)
+    return str(control.get("dispatch_issue") or 684)
+
+
 def _emit_failure_alert(control: dict, exit_code: int, error_text: str, failures: int) -> bool:
     if os.environ.get("HARNESS_DRIVER_WATCH_NO_ALERT", "").strip():
         return False
     if not control.get("alert_on_failure", True):
         return False
     repo = str(control.get("repo") or "Treystu/harness")
-    issue = str(control.get("dispatch_issue") or 684)
+    issue = _dispatch_issue(control)
     msg = (
         f"Vision watch service failure alert (self-heal monitor): "
         f"exit_code={exit_code}, consecutive_failures={failures}, "
