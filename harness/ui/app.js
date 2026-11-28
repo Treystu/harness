@@ -2007,6 +2007,9 @@ function renderLimitFields() {
     const range = ranges[key] || [];
     const lo = range[0];
     const hi = range[1];
+    // ``step`` is the server's (third element); the local fallback only
+    // covers a server that publishes bounds without it.
+    const step = range.length > 2 ? String(range[2]) : limitStep(lo, hi);
     const isPinned = Object.prototype.hasOwnProperty.call(pinned, key);
     const note = isPinned
       ? `locked · ${pinned[key]} (environment wins)`
@@ -2023,7 +2026,7 @@ function renderLimitFields() {
       name: key,
       min: String(lo),
       max: String(hi),
-      step: limitStep(lo, hi),
+      step,
       value: s[key] === undefined || s[key] === null ? "" : String(s[key]),
     });
     if (isPinned) input.disabled = true;

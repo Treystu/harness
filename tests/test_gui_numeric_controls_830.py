@@ -27,6 +27,7 @@ from harness.config import (
     GUI_WRITABLE_SETTINGS,
     _ENV_NAMES,
     env_pinned_settings,
+    gui_numeric_range_rows,
     load_settings,
     update_config,
 )
@@ -94,8 +95,18 @@ class SettingsViewPublishesControlsTests(unittest.TestCase):
         surfaced = view.get("gui_numeric_ranges") or {}
         self.assertEqual(set(surfaced), set(GUI_NUMERIC_RANGES))
         for key, (lo, hi) in GUI_NUMERIC_RANGES.items():
-            self.assertEqual(surfaced[key], [lo, hi], key)
+            step = 1 if (isinstance(lo, int) and isinstance(hi, int)
+                         and not isinstance(lo, bool)) else 0.01
+            # bounds AND step are server facts, so a control cannot disagree
+            self.assertEqual(surfaced[key], [lo, hi, step], key)
         self.assertIsInstance(view.get("env_pinned"), dict)
+
+    def test_the_step_is_published_with_each_range(self):
+        rows = gui_numeric_range_rows()
+        self.assertEqual(set(rows), set(GUI_NUMERIC_RANGES))
+        for key, row in rows.items():
+            self.assertEqual(len(row), 3, key)
+            self.assertIn(row[2], (1, 0.01), key)
 
     def test_a_pinned_key_is_reported_with_its_variable_name(self):
         saved = os.environ.get("HARNESS_MAX_TOKENS")

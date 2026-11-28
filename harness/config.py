@@ -1199,6 +1199,23 @@ def env_pinned_settings():
     return {key: env for key, env in sorted(_ENV_NAMES.items())
             if os.environ.get(env) is not None}
 
+
+def gui_numeric_range_rows():
+    """The pane's numeric metadata: key -> ``[lo, hi, step]``.
+
+    The step is derived here, next to the bounds, rather than in the browser:
+    an integer-bounded key steps by 1 and a fractional one by 0.01. Publishing
+    it means the control's ``step`` is a server fact, so a client cannot
+    disagree with the server about it and drift silently.
+    """
+    rows = {}
+    for key, (lo, hi) in GUI_NUMERIC_RANGES.items():
+        integral = (isinstance(lo, int) and isinstance(hi, int)
+                    and not isinstance(lo, bool) and not isinstance(hi, bool))
+        rows[key] = [lo, hi, 1 if integral else 0.01]
+    return rows
+
+
 # A pinned model id is data, never free text. Anything with whitespace, a
 # control character, or JSON-ish punctuation is rejected rather than being
 # coerced to a string and written into the operator's config file.
