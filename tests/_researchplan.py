@@ -46,6 +46,12 @@ class AcceptingPlanPolicy:
             "query_verdicts": [True] * count,
         }
 
+    def evaluate_result_relevance(self, prompt, results, *, site, task_id):
+        """The same double stands in for the shared result reviewer."""
+        return None, {"results": [
+            {"url": str(item.get("url") or ""), "verdict": "relevant"}
+            for item in results]}
+
 
 def declined_plan(prompt, request_id="req-1"):
     """A plan whose native judgment declined, with a complete query review."""

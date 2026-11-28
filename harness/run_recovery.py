@@ -129,8 +129,16 @@ def classify(payload: Optional[Dict[str, object]], *, age_seconds: float
                 "reason": "the candidate was refused and consent must be "
                           "renewed before dispatch",
             }
+        # Honor the lifecycle's persisted resumability flag for deferred
+        # requests (#32): a deferred request is only resumable when
+        # data.resumable is true, even though its stage is 'terminal'.
+        if status == "deferred":
+            data = payload.get("data")
+            resumable = bool(isinstance(data, dict) and data.get("resumable"))
+        else:
+            resumable = bool(payload.get("stage"))
         return {
-            "state": "interrupted", "resumable": bool(payload.get("stage")),
+            "state": "interrupted", "resumable": resumable,
             "reason": "no live owner: the process that started it is gone",
         }
     return {"state": "unknown", "resumable": False,

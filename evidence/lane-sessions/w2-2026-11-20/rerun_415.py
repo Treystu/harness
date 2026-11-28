@@ -67,7 +67,7 @@ out["run_id"] = run_id
 final = None
 deadline = time.time() + 900
 while time.time() < deadline:
-    st, body = req("/api/runs/" + run_id)
+    st, body = req("/api/runs/" + run_id + "/result")
     doc = jload(body) or {}
     run = doc.get("run", doc)
     status = str(run.get("status") or "")

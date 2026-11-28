@@ -15,6 +15,8 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import osal, provision as pv
+from harness import provision_approval as ppa
+from harness import provision_plan as pp
 from harness.ledger import AutonomyLedger
 from tests.test_provision import (LINUX, FakeJev, FakeRunner, TempRootCase,
                                   fake_which, mutating_plan, step, which_of)
@@ -80,7 +82,7 @@ class CmdSyntaxAndShimTests(HardeningCase):
         plan = pv.Plan("g", [step(id="n", argv=("npm", "--version"))],
                        self.root, "x", "x", True)
         runner = FakeRunner()
-        report = pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        report = pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                  ledger=self.ledger, runner=runner,
                                  dry_run=False, which=lambda name: shim)
         self.assertEqual(runner.calls, [])
@@ -175,7 +177,7 @@ class ExecutableTests(HardeningCase):
                         os.path.join(sub, "python.exe")):  # cwd and below it
             runner = FakeRunner()
             report = pv.execute_plan(
-                plan, pv.ApprovalGate(), policy=self.policy,
+                plan, ppa.ApprovalGate(), policy=self.policy,
                 ledger=self.ledger, runner=runner, dry_run=False,
                 which=lambda name, f=planted: f)
             self.assertEqual(runner.calls, [], msg=planted)
@@ -183,7 +185,7 @@ class ExecutableTests(HardeningCase):
         # a relative which() result is refused outright
         runner = FakeRunner()
         report = pv.execute_plan(
-            plan, pv.ApprovalGate(), policy=self.policy, ledger=self.ledger,
+            plan, ppa.ApprovalGate(), policy=self.policy, ledger=self.ledger,
             runner=runner, dry_run=False, which=lambda name: "bin/python")
         self.assertEqual(runner.calls, [])
         self.assertIn("relative path", report.results[0].stderr)
@@ -191,7 +193,7 @@ class ExecutableTests(HardeningCase):
     def test_executor_fails_a_step_whose_program_is_not_on_path(self):
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
         runner = FakeRunner()
-        report = pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        report = pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                  ledger=self.ledger, runner=runner,
                                  dry_run=False, which=lambda name: None)
         self.assertEqual(report.outcome, pv.FAILED)
@@ -201,7 +203,7 @@ class ExecutableTests(HardeningCase):
     def test_executor_runs_the_resolved_path_not_the_bare_name(self):
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
         runner = FakeRunner()
-        pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                         ledger=self.ledger, runner=runner, dry_run=False,
                         which=fake_which)
         self.assertEqual(runner.calls[0]["resolved"][0], fake_which("python"))
@@ -321,27 +323,27 @@ class PlanIdentityTests(HardeningCase):
         flagged = pv.Plan("g", steps, self.root, "x", "x", True,
                           review_required=True)
         self.assertNotEqual(plain.digest, flagged.digest)
-        rebuilt = pv.plan_from_dict(flagged.to_dict())
+        rebuilt = pp.plan_from_dict(flagged.to_dict())
         self.assertTrue(rebuilt.review_required)
         self.assertEqual(rebuilt.digest, flagged.digest)
         with self.assertRaises(pv.ProvisionError):
-            pv.ApprovalGate().approve_plan(rebuilt, "a")
-        gate = pv.ApprovalGate()
+            ppa.ApprovalGate().approve_plan(rebuilt, "a")
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plain, "a")
         self.assertIsNone(gate.resolve(flagged, flagged.steps[0]))
         # a missing or malformed flag counts as flagged; only a real False clears
         stripped = flagged.to_dict()
         del stripped["review_required"]
-        self.assertTrue(pv.plan_from_dict(stripped).review_required)
-        self.assertTrue(pv.plan_from_dict(
+        self.assertTrue(pp.plan_from_dict(stripped).review_required)
+        self.assertTrue(pp.plan_from_dict(
             dict(flagged.to_dict(), review_required="no")).review_required)
-        self.assertFalse(pv.plan_from_dict(
+        self.assertFalse(pp.plan_from_dict(
             dict(plain.to_dict(), review_required=False)).review_required)
-        self.assertEqual(pv.plan_from_dict(
+        self.assertEqual(pp.plan_from_dict(
             dict(flagged.to_dict(), review={"a": 1})).review, {"a": 1})
 
     def test_gate_records_cannot_be_edited_by_callers(self):
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(mutating_plan(self.root), "a")
         self.assertIsInstance(gate.records, tuple)
         with self.assertRaises(AttributeError):
@@ -357,7 +359,7 @@ class AuditAndExecutionTests(HardeningCase):
         for bad in (None, 0, 1, "", "no", [], "false"):
             runner = FakeRunner()
             with self.assertRaises(pv.ProvisionError, msg=repr(bad)):
-                pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+                pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                 ledger=self.ledger, runner=runner, dry_run=bad,
                                 which=fake_which)
             self.assertEqual(runner.calls, [])
@@ -372,7 +374,7 @@ class AuditAndExecutionTests(HardeningCase):
 
         plan = pv.Plan("g", [step(id="a"), step(id="b")], self.root, "x", "x",
                        True)
-        pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                         ledger=self.ledger, runner=runner, dry_run=False,
                         which=fake_which)
         self.assertEqual(seen[0], ["provision_plan", "provision_step_start"])
@@ -384,7 +386,7 @@ class AuditAndExecutionTests(HardeningCase):
         runner = FakeRunner()
         plan = pv.Plan("g", [step(id="a"), step(id="b")], self.root, "x", "x", True)
         report = pv.execute_plan(
-            plan, pv.ApprovalGate(), policy=self.policy,
+            plan, ppa.ApprovalGate(), policy=self.policy,
             ledger=FailingLedger(self.tmp, "provision_step_start"),
             runner=runner, dry_run=False, which=fake_which)
         self.assertEqual(runner.calls, [])
@@ -409,7 +411,7 @@ class AuditAndExecutionTests(HardeningCase):
     def test_a_runner_that_raises_anything_is_a_failed_step(self):
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
         report = pv.execute_plan(
-            plan, pv.ApprovalGate(), policy=self.policy, ledger=self.ledger,
+            plan, ppa.ApprovalGate(), policy=self.policy, ledger=self.ledger,
             runner=FakeRunner({("python",): RuntimeError("boom")}),
             dry_run=False, which=fake_which)
         self.assertEqual(report.outcome, pv.FAILED)
@@ -423,7 +425,7 @@ class AuditAndExecutionTests(HardeningCase):
                  "PYTHONPATH": "/evil", "PYTHONSTARTUP": "/evil.py"}
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
         runner = FakeRunner()
-        pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                         ledger=self.ledger, runner=runner, dry_run=False,
                         which=fake_which, environ=dirty)
         env = runner.calls[0]["env"]

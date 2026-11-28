@@ -30,6 +30,12 @@ class TypeUnitsTests(unittest.TestCase):
         self.assertEqual(type_units("sha256:02f80742cbc8"),
                          [("unicode", ord(c)) for c in "sha256:02f80742cbc8"])
 
+    def test_a_character_above_the_bmp_is_two_units(self):
+        """#683 finding 21: the batch carries UTF-16 units, so an astral
+        character is its surrogate pair rather than a refusal."""
+        self.assertEqual(type_units("𝄞"),
+                         [("unicode", 0xD834), ("unicode", 0xDD1E)])
+
 
 if __name__ == "__main__":
     unittest.main()

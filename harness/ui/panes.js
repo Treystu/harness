@@ -973,6 +973,31 @@ async function renderDriver(root) {
   );
   root.append(pipeline);
 
+  // Laptop Driver Watch operator control card (GitHub oversight dispatch)
+  const watchPill = $("span", { id: "driver-watch-pill", class: "driver-status-pill pill-warn" }, "checking...");
+  const watchMeta = $("p", { id: "driver-watch-meta", class: "muted small", style: "margin: 0.4rem 0;" }, "Loading laptop watch state...");
+  const watchCard = $("section", { id: "driver-watch-card", class: "pane-section" },
+    $("div", { style: "display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;" },
+      $("h3", { style: "margin:0;" }, "Laptop Driver Watch"), watchPill),
+    watchMeta);
+  const paintWatch = (data) => {
+    const st = data.state || "unknown";
+    const ok = st === "running" || st === "idle_watching";
+    watchPill.className = `driver-status-pill ${ok ? "pill-good" : "pill-warn"}`;
+    watchPill.textContent = st;
+    watchMeta.textContent = `task=${data.task_state || "n/a"} | popup=${data.legacy_popup_state || "n/a"} | last=${data.last_run || "none"} | sha=${(data.head_sha || "").slice(0, 8) || "none"}`;
+  };
+  const refreshWatch = async () => paintWatch(await api("/api/driver/watch/status"));
+  const sendWatch = async (action) => paintWatch(await postJson("/api/driver/watch/control", { action }));
+  watchCard.append($("div", { style: "display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.4rem;" },
+    $("button", { id: "btn-watch-start", class: "pane-fetch", type: "button", onclick: () => sendWatch("start") }, "Start"),
+    $("button", { id: "btn-watch-pause", class: "pane-fetch", type: "button", onclick: () => sendWatch("pause") }, "Pause"),
+    $("button", { id: "btn-watch-resume", class: "pane-fetch", type: "button", onclick: () => sendWatch("resume") }, "Resume"),
+    $("button", { id: "btn-watch-stop", class: "pane-fetch", type: "button", onclick: () => sendWatch("stop") }, "Stop"),
+    $("button", { id: "btn-watch-refresh", class: "pane-fetch", type: "button", onclick: refreshWatch }, "Refresh")));
+  root.append(watchCard);
+  refreshWatch().catch((e) => { watchMeta.textContent = `Watch status error: ${e.message}`; });
+
   // Section 2: Unified Multi-Step Request Driver
   const driveSec = $("section", { class: "pane-section" }, $("h3", {}, "Jev Driver — Multi-Step Request Engine"));
   const driveForm = $("form", { class: "driver-form" });

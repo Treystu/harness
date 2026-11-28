@@ -1,0 +1,17 @@
+{
+  "lucas": {
+    "status": "pass",
+    "artifact_sha256": "a159d581cd1594d16dc28e71fb028f4af846455f4b4e3b2d7c593b292d082401"
+  },
+  "product_jev": {
+    "verdict": "escalate",
+    "disposition": "escalate",
+    "supported": 0.16,
+    "margin": 0.2,
+    "model": "jev-1.14.0"
+  },
+  "_meta": {
+    "artifact": "evidence/lane-sessions/lane1-2026-11-22/filings/684-claim-scan-diagnosis.md",
+    "site": "684"
+  }
+}

@@ -17,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import osal, provision as pv
+from harness import provision_approval as ppa
+from harness import provision_plan as pp
 from harness.ledger import AutonomyLedger
 from tests.test_provision import (FAKE_BIN, FakeRunner, TempRootCase, fake_which,
                                   mutating_plan, step, which_of)
@@ -42,7 +44,7 @@ def make_dir_link(testcase, link, target):
 class PrivateWorkingDirectoryTests(HardeningCase):
     def run_one(self, plan, **kw):
         runner = kw.pop("runner", FakeRunner())
-        return pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        return pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                ledger=self.ledger, runner=runner,
                                dry_run=False, which=fake_which, **kw), runner
 
@@ -102,13 +104,13 @@ class PrivateWorkingDirectoryTests(HardeningCase):
         policy = pv.ProvisionPolicy(approved_roots=(ghost,))
         plan = pv.Plan("g", [step()], ghost, "x", "x", True)
         with self.assertRaises(pv.ProvisionError) as ctx:
-            pv.execute_plan(plan, pv.ApprovalGate(), policy=policy,
+            pv.execute_plan(plan, ppa.ApprovalGate(), policy=policy,
                             ledger=self.ledger, runner=FakeRunner(),
                             dry_run=False, which=fake_which)
         self.assertIn("does not exist", str(ctx.exception))
         with self.assertRaises(pv.ProvisionError) as ctx:
             pv.execute_plan(pv.Plan("g", [step()], "", "x", "x", True),
-                            pv.ApprovalGate(), policy=pv.ProvisionPolicy(),
+                            ppa.ApprovalGate(), policy=pv.ProvisionPolicy(),
                             ledger=self.ledger, runner=FakeRunner(),
                             dry_run=False, which=fake_which)
         self.assertIn("approved root", str(ctx.exception))
@@ -119,7 +121,7 @@ class PrivateWorkingDirectoryTests(HardeningCase):
         policy = pv.ProvisionPolicy(approved_roots=(other, self.root))
         runner = FakeRunner()
         pv.execute_plan(pv.Plan("g", [step()], self.work(), "x", "x", True),
-                        pv.ApprovalGate(), policy=policy, ledger=self.ledger,
+                        ppa.ApprovalGate(), policy=policy, ledger=self.ledger,
                         runner=runner, dry_run=False, which=fake_which)
         self.assertTrue(osal.is_within(runner.calls[0]["cwd"], self.root))
 
@@ -227,7 +229,7 @@ class RevalidationTests(HardeningCase):
             return real(st, policy)
 
         with mock.patch.object(pv, "validate_step", counting):
-            pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+            pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                             ledger=self.ledger, runner=FakeRunner(),
                             dry_run=False, which=fake_which)
         # once per step in validate_plan, once more right before each ran
@@ -243,7 +245,7 @@ class RevalidationTests(HardeningCase):
                                        "--target", target, "requests"),
                          pv.MUTATING, "installs", "delete", True)]
         plan = pv.Plan("g", steps, self.root, "x", "x", True)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "me")
         calls = []
 
@@ -282,7 +284,7 @@ class RevalidationTests(HardeningCase):
 class LedgerAndApprovalTests(HardeningCase):
     def test_no_ledger_entry_means_no_approval(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate(FailingLedger(self.tmp, "provision_approval"))
+        gate = ppa.ApprovalGate(FailingLedger(self.tmp, "provision_approval"))
         with self.assertRaises(OSError):
             gate.approve_plan(plan, "me")
         self.assertEqual(gate.records, ())
@@ -300,7 +302,7 @@ class LedgerAndApprovalTests(HardeningCase):
         for stand_in in (Null(), None, [], object()):
             runner = FakeRunner()
             with self.assertRaises(pv.ProvisionError, msg=repr(stand_in)):
-                pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+                pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                 ledger=stand_in, runner=runner, dry_run=False,
                                 which=fake_which)
             self.assertEqual(runner.calls, [])
@@ -317,7 +319,7 @@ class LedgerAndApprovalTests(HardeningCase):
         runner = FakeRunner()
         with self.assertRaises(pv.ProvisionError) as ctx:
             pv.execute_plan(pv.Plan("g", [step()], self.root, "x", "x", True),
-                            pv.ApprovalGate(), policy=self.policy, ledger=broken,
+                            ppa.ApprovalGate(), policy=self.policy, ledger=broken,
                             runner=runner, dry_run=False, which=fake_which)
         self.assertIn("hash chain", str(ctx.exception))
         self.assertEqual(runner.calls, [])
@@ -327,7 +329,7 @@ class LedgerAndApprovalTests(HardeningCase):
             pv.Step("mk", "make", ("mkdir", self.work()), pv.MUTATING,
                     "creates", "delete the dir"),
             step(id="after")], self.root, "x", "x", True)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "me")
         runner = FakeRunner()
         report = pv.execute_plan(
@@ -347,7 +349,7 @@ class LedgerAndApprovalTests(HardeningCase):
     def test_a_ledger_that_cannot_write_the_end_entry_marks_the_audit_failed(self):
         report = pv.execute_plan(
             pv.Plan("g", [step()], self.root, "x", "x", True),
-            pv.ApprovalGate(), policy=self.policy,
+            ppa.ApprovalGate(), policy=self.policy,
             ledger=FailingLedger(self.tmp, "provision_end"),
             runner=FakeRunner(), dry_run=False, which=fake_which)
         self.assertTrue(report.audit_failed)
@@ -445,7 +447,7 @@ class UnsafeTextTests(HardeningCase):
             pv.MUTATING, "creates" + esc + "[1A" + esc + "[2K", "undo\r\nDigest: 0")
         plan = pv.Plan("goal\rDigest: 000", [forged], self.root, "re\ncipe",
                        "s\u202ee", True, ("note\nnote2",))
-        text = pv.render_plan(plan)
+        text = pp.render_plan(plan)
         # 5 header lines + 4 for the one step + 1 note: nothing forged a line
         self.assertEqual(len(text.splitlines()), 10, msg=repr(text))
         for char in (esc, "\r", "\u202e", "\u200b"):
@@ -636,7 +638,7 @@ class ChurnGuardsTests(TempRootCase):
 
     def test_dry_run_still_creates_no_private_directory(self):
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
-        pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                         runner=FakeRunner())
         self.assertEqual(os.listdir(self.root), [])
 

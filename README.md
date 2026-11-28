@@ -90,7 +90,7 @@ that and its hard guarantees:
    more than the token math says it will.
 2. **Pre-flight cost ceiling.** Worst-case cost is computed against live
    per-token pricing *before* any network call and compared to the ceiling
-   (default 2¢/call, hard max 10¢). Exceeding it refuses the run.
+   (default $0.05/call, hard max $1.00). Exceeding it refuses the run.
 3. **BYOK handling, learned per account.** Spend on a BYOK route is invisible
    to the tracked key's balance. `mistralai/` and `anthropic/` are hard-blocked
    (P0). Any other org-prefix observed routing via BYOK is *learned* into

@@ -22,32 +22,31 @@ origin wins. The operator tree (`main`) may lag; reconcile before trusting STATU
 
 ## Current mission (generated pointer - do not hand-edit)
 
-**Generated:** 2026-11-17 at `origin/main` `8ae3346`, from a two-method live read
-(`gh issue list --state open --limit 400` = 60; search API `type:issue is:open` = 60).
-Regenerate this block in the same act that updates the register mirror in
+**Generated:** 2026-11-27 at `origin/main` `58b0ea5a`, from a two-method live read
+(`gh issue list --state open --limit 400` = 43; search API `type:issue is:open`
+agrees at 43).
+Regenerate this block in the same act that refreshes the canonical register in
 [docs/jev-roadmap.md](docs/jev-roadmap.md); if the two disagree, the register wins
 and this block is regenerated, never hand-edited. Every change, including this
 block, goes through a reviewed PR with local gates and green CI; one phase PR at
 a time; never push directly to `main`.
 
-**The open set.** Issue #295 is the live queue; the register mirror in
-`docs/jev-roadmap.md` is its generated count and order. **60 open issues**, of
-which **54 are placed** in a wave and **6 are filed but not yet placed**
-(`#573`, `#574`, `#579`, `#585`, `#587`, `#588`).
+**The open set.** Issue #295 is the live queue; the **Canonical burndown register -
+2026-11-19** section in `docs/jev-roadmap.md` owns its count, placement and order,
+and the register mirror under it is that register's generated live-state annex.
+**43 open issues**, of which **26 are placed** in the register's tables and **17 are
+filed but not yet placed** (ports #655, security #652, #653, #805, gap audit #684,
+driver #703, #704, #722 and #818-#826); placing them is the register owner's taxonomy
+act, so this block names them as unplaced rather than inventing a wave.
 
-| Wave | Placed open |
+| Register section | Placed open |
 |---|---|
-| W0 - Rail and gate truth | 0 |
-| W1 - Active queue | 0 |
-| W2 - Verification and surface truth | 10 |
-| W3 - Driver and perception | 5 |
-| W4 - Project execution envelope | 0 |
-| W5 - Research and retrieval | 3 |
-| W6 - Spend, routing and calibration | 10 |
-| W7 - Structure and scoped defects | 8 |
-| W8 - Champion Audit program | 11 |
-| W9 - Tracking and low priority | 5 |
-| W10 - Mode, proposals and parked (owner) | 2 |
+| Train | 0 |
+| W1 - defects + Cluster E deliverables | 15 |
+| W2 - verification + Champion program | 6 |
+| W3 - parked (owner-present tails) | 3 |
+| Tracker / blocked | 2 |
+| Filed, not yet placed | 17 |
 
 **Canon rows are a different unit and are not in the counts above.** The `HV-*` /
 `EV-*` / `DRV-*` / `GAP-*` / `DF-*` families live in the roadmap's own tables:

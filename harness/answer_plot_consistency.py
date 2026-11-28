@@ -108,6 +108,7 @@ def promises_scale_comparison(text: str) -> bool:
 @dataclass
 class _Scale:
     axes: str
+    axis: str
     scale: str
     cond: Dict[str, bool]
     lineno: int
@@ -132,8 +133,14 @@ class _Collector:
         self.titles: List[_Title] = []
         self.power_ticks = False
         self.plain_bar_positions: List[str] = []
+        #: Names assigned a list comprehension of powers of ten, so a bar
+        #: drawn at those positions is not reported against power ticks
+        #: (#683 finding 28).
+        self.power_positions: set = set()
         self.text_anchors: List[Tuple[int, object, Optional[str]]] = []
         self.walks = 0
+        #: Bar positions whose values are known to be plain numbers.
+        self.confirmed_plain_bars: List[str] = []
 
     # -- helpers --
 
@@ -156,6 +163,13 @@ class _Collector:
             bound = aliases.get(node.id)
             if bound and bound[0] == "flag" and bound[1] in self.flags:
                 return bound[1], True
+        if isinstance(node, ast.Attribute):
+            # #683 finding 29: the standard `args = parser.parse_args()` /
+            # `if args.log:` toggle was unresolved, so both branches were
+            # collected with identical conditions and a correct toggle
+            # produced contradictory findings.
+            if node.attr in self.flags:
+                return node.attr, True
         return None
 
     def _bound_axes(self, node: ast.AST,
@@ -203,8 +217,9 @@ class _Collector:
         if func.attr in _SCALE_SETTERS and call.args:
             first = call.args[0]
             if isinstance(first, ast.Constant) and isinstance(first.value, str):
-                self.scales.append(
-                    _Scale(axes, first.value.lower(), dict(cond), call.lineno))
+                self.scales.append(_Scale(
+                    axes, "x" if func.attr == "set_xscale" else "y",
+                    first.value.lower(), dict(cond), call.lineno))
         elif func.attr == "set_title" and call.args:
             first = call.args[0]
             if isinstance(first, ast.Constant) and isinstance(first.value, str):
@@ -214,9 +229,14 @@ class _Collector:
             if self._has_power(call.args[0]):
                 self.power_ticks = True
         elif func.attr == "bar" and call.args:
+            # Only a position whose values are known to be plain is evidence
+            # of a unit mismatch (#683 finding 28). A name bound to powers of
+            # ten is not, and an unresolved name is left alone.
             first = call.args[0]
-            if isinstance(first, ast.Name):
-                self.plain_bar_positions.append(first.id)
+            if (isinstance(first, ast.Name)
+                    and first.id in self.plain_bar_positions
+                    and first.id not in self.power_positions):
+                self.confirmed_plain_bars.append(first.id)
         elif func.attr == "text":
             value = call.args[1] if len(call.args) > 1 else None
             va = None
@@ -272,6 +292,12 @@ class _Collector:
                     else_cond[name] = not truth
                     self.walk(node.body, body_cond, aliases)
                     self.walk(node.orelse, else_cond, aliases)
+                elif isinstance(node.test, ast.Attribute):
+                    # An attribute toggle this collector does not know is an
+                    # alternative, not a simultaneous execution: asserting a
+                    # contradiction across both branches is exactly the
+                    # unsupported finding #683 finding 29 reported.
+                    continue
                 else:
                     self.walk(node.body, cond, aliases)
                     self.walk(node.orelse, cond, aliases)
@@ -293,10 +319,14 @@ class _Collector:
             if isinstance(node, ast.Assign):
                 self._record_axes_assignment(node)
                 value = node.value
-                if (isinstance(value, ast.ListComp) and isinstance(value.elt, ast.Name)
-                        and isinstance(node.targets[0], ast.Name)
-                        and not self._has_power(value)):
-                    self.plain_bar_positions.append(node.targets[0].id)
+                if (isinstance(value, ast.ListComp)
+                        and isinstance(node.targets[0], ast.Name)):
+                    if self._has_power(value):
+                        self.power_positions.add(node.targets[0].id)
+                    else:
+                        # Any comprehension without a power expression yields
+                        # values that are not powers of ten.
+                        self.plain_bar_positions.append(node.targets[0].id)
                 continue
             if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
                 self._record_call(node.value, cond, aliases)
@@ -383,26 +413,38 @@ def analyse_script(code: str, *, first_line: int = 1,
                 wanted = "linear"
             if wanted is None:
                 continue
+            # The effective scale is the last consistent setter per axis, not
+            # every setter: an axis initialised linear and later switched to
+            # log presents as log, and a "Log scale" title is correct
+            # (#683 finding 30). A title that names no dimension is
+            # consistent when either axis carries it.
+            effective = {"x": ("linear", None), "y": ("linear", None)}
             for scale in collector.scales:
-                if scale.axes != title.axes or not _consistent(scale.cond, state):
+                if (scale.axes != title.axes
+                        or not _consistent(scale.cond, state)):
                     continue
-                if scale.scale == wanted:
-                    continue
-                findings.append(PlotFinding(
-                    "panel-title",
-                    'panel `{}` is titled "{}" but `{}.set_xscale("{}")` runs '
-                    "in {} -- the title and the axis disagree".format(
-                        title.axes, title.text, scale.axes, scale.scale,
-                        label),
-                    line_of(scale.lineno)))
-                break
+                effective[scale.axis] = (scale.scale, scale.lineno)
+            if wanted in (value for value, _lineno in effective.values()):
+                continue
+            derived = ", ".join("{}={}".format(axis, value)
+                                for axis, (value, _lineno)
+                                in sorted(effective.items()))
+            source_line = next((lineno for _value, lineno
+                                in effective.values() if lineno), None)
+            findings.append(PlotFinding(
+                "panel-title",
+                'panel `{}` is titled "{}" but its final scales in {} are '
+                "{} -- the title and the axis disagree".format(
+                    title.axes, title.text, label, derived),
+                line_of(source_line or title.lineno)))
 
     # (2) the promised comparison vs what the default state actually draws.
     if promise and len(collector.axes) >= 2:
         scales: Dict[str, str] = {}
         for axes in collector.axes:
             assigned = [s for s in collector.scales
-                        if s.axes == axes and _consistent(s.cond, default_state)]
+                        if s.axes == axes and s.axis == "x"
+                        and _consistent(s.cond, default_state)]
             scales[axes] = assigned[-1].scale if assigned else "linear"
         if len(set(scales.values())) == 1:
             findings.append(PlotFinding(
@@ -416,7 +458,7 @@ def analyse_script(code: str, *, first_line: int = 1,
 
     # (3) tick units vs the positions the bars are drawn at.
     if collector.power_ticks:
-        for name in collector.plain_bar_positions:
+        for name in collector.confirmed_plain_bars:
             findings.append(PlotFinding(
                 "tick-units",
                 "ticks are set to powers of ten (`10 ** k`) while the bars are "

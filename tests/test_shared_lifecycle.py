@@ -22,6 +22,7 @@ from harness.lifecycle import (
     validate_lifecycle_state,
 )
 from harness import provision as pv
+from harness import provision_approval as ppa
 from harness.jev_policy import JevPolicy
 from harness.ledger import AutonomyLedger
 from harness.server import run_driver_task
@@ -945,7 +946,7 @@ class SharedLaneBehaviorTests(unittest.TestCase):
             policy = pv.policy_for_probe(probe, [str(root)])
             plan = pv.plan_provision("provision ruff==0.6.1", probe,
                                      policy=policy)
-            gate = pv.ApprovalGate()
+            gate = ppa.ApprovalGate()
             gate.approve_plan(plan, "operator-test")
             ledger = AutonomyLedger(str(Path(tmp) / "provision-ledger.jsonl"))
             runner = FakeRunner()

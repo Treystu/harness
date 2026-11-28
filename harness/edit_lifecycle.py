@@ -24,7 +24,12 @@ from .jev_policy import JevPolicy, aggregate_structural, policy_for
 from .lifecycle import adapter_for, review_probability
 from .orchestrator import MAX_ORCH_ROUNDS, drive
 from .prompts import MAX_FILE_LINES
-from .repo_scope import discover_verification_gate, enumerate_repo_files
+from .repo_scope import (
+    discover_target_files,
+    discover_verification_gate,
+    enumerate_repo_files,
+    pasted_absolute_path,
+)
 from .results import SUCCESS_STATUSES, model_envelope
 from .session import (
     apply_session, attest_model_for, ensure_offered_task_id, governor_for,
@@ -130,7 +135,27 @@ class AutoEditLifecycleMixin:
             auto_apply = True
 
         prior_plan = None
-        if past_turns and is_exec_directive:
+        # #707: a file the CURRENT prompt names outranks a past turn's
+        # target_files. This used to be decided the other way round, so an
+        # operator who pasted a new path in an execution directive kept editing
+        # the previous plan's file on every iteration of the edit loop.
+        # Discovery here is the local, explicit-name pass -- no model call, so
+        # an ordinary "execute the plan" directive costs exactly what it did --
+        # and the full triage stays a fallback further down.
+        if not target_files:
+            target_files = discover_target_files(prompt, self.root_dir)
+        if not target_files:
+            # #707: an absolute path the operator pasted is the target even
+            # when it lives outside the workspace -- including the recorded
+            # case, a script on the Desktop. Discovery above resolves inside
+            # the workspace, so it cannot see one; without this the run fell
+            # back to the stale plan and silently edited the wrong file
+            # instead of stopping at the workspace gate that names the path.
+            pasted = pasted_absolute_path(prompt)
+            if pasted:
+                target_files = [pasted]
+
+        if past_turns and is_exec_directive and not target_files:
             for turn in reversed(past_turns):
                 if isinstance(turn, dict):
                     if turn.get("dag") and turn.get("target_files"):
@@ -189,8 +214,12 @@ class AutoEditLifecycleMixin:
                 prompt, session_id=session_id, cancel_check=cancel_check)
             if generated.get("status") in ("ok", "deferred"):
                 return generated
-            return self._handle_conversation(
-                prompt, session_id, cancel_check)
+            # #705: the chat lane can defer straight back into this lane, so
+            # the fallback spends the shared handoff budget; past it the chat
+            # lane refuses to escalate, which is what ends the pair.
+            with self._handler_handoff():
+                return self._handle_conversation(
+                    prompt, session_id, cancel_check)
 
         if root_dir is None:
             # The plan reaches a file operation but no workspace is selected:
@@ -762,8 +791,9 @@ class AutoEditLifecycleMixin:
             execute_plan=execute_plan,
             completion_chat=lambda prompt_text: self._orchestrator_chat_fn(gov)(prompt_text),
             emit=emit, cancel_check=cancel_check,
-            refused=lambda refused_plan: self._refused_edit(
-                refused_plan, prompt, target_files, session_id))
+            refused=lambda refused_plan, prior_rounds=None: self._refused_edit(
+                refused_plan, prompt, target_files, session_id,
+                prior_rounds=prior_rounds))
         if use_jev_completion:
             drive_kwargs.update(jev_policy=plan_policy,
                                 jev_completion_threshold=0.99)

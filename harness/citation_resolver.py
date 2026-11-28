@@ -134,10 +134,16 @@ def crossref_metadata(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     containers = message.get("container-title") or ()
     venue = str(containers[0]) if isinstance(containers, (list, tuple)) and containers \
         else (str(containers) if isinstance(containers, str) else "")
-    subtype = str(message.get("subtype") or message.get("type") or "").lower()
-    if subtype in ("posted-content", "preprint"):
+    parent_type = str(message.get("type") or "").lower()
+    subtype = str(message.get("subtype") or "").lower()
+    if parent_type in ("posted-content", "preprint"):
+        # Posted content is never formally published, whatever its subtype
+        # (preprint, working paper, ...). Testing the subtype first stamped a
+        # posted-content record with a non-preprint subtype as published (#73).
         version = "preprint"
-    elif subtype:
+    elif subtype in ("posted-content", "preprint"):
+        version = "preprint"
+    elif subtype or parent_type:
         version = "published"
     else:
         version = ""
@@ -200,6 +206,29 @@ def audit_report_citations(report: Any, *, resolver: Any = _UNSET,
         resolver=active,
         semantic_by_claim=report.get("semantic_by_claim") or {},
     )
+    # The audit can only assess the claims it was handed. If the report's
+    # claims section names an id that ``citation_claims`` omits, that claim was
+    # never assessed -- leave it unresolved and refuse the report-level label
+    # rather than certifying a report whose own claims escaped review (row 75).
+    assessed = {
+        str(raw.get("claim_id") or raw.get("id"))
+        for raw in (report.get("citation_claims") or [])
+        if isinstance(raw, Mapping) and (raw.get("claim_id") or raw.get("id"))
+    }
+    unassessed = [
+        str(raw.get("claim_id") or raw.get("id"))
+        for raw in (report.get("claims") or [])
+        if isinstance(raw, Mapping) and (raw.get("claim_id") or raw.get("id"))
+        and str(raw.get("claim_id") or raw.get("id")) not in assessed
+    ]
+    if unassessed:
+        audit["unresolved"] = list(audit.get("unresolved") or []) + [
+            {"kind": "claim", "id": claim_id, "status": "not_verifiable",
+             "reasons": ["no citation assessment covers this claim"]}
+            for claim_id in unassessed]
+        audit["unassessed_claims"] = unassessed
+        audit["citation_verified"] = False
+        audit["ok"] = False
     # State which half answered, so a reader can tell a registry refusal from
     # an injected answer without guessing.
     audit["resolver"] = ("crossref" if use_default or isinstance(

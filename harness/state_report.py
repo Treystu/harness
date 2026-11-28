@@ -140,6 +140,16 @@ class BackendMonitor:
                 "detail": _short(_scrub(check.get("detail"), self._secrets)),
                 "next_action": "",
             }
+        if status == "UNKNOWN":
+            return {
+                "state": BACKEND_UNKNOWN,
+                "endpoint": self._endpoint,
+                "checked_at": _iso(now),
+                "last_ok_at": _iso(self._last_ok_at),
+                "error": None,
+                "detail": _short(_scrub(check.get("detail"), self._secrets)),
+                "next_action": _short(check.get("next") or ""),
+            }
         return {
             "state": BACKEND_UNREACHABLE,
             "endpoint": self._endpoint,
@@ -164,15 +174,22 @@ class BackendMonitor:
 
 
 def report_requests(records: Iterable[Dict[str, Any]],
-                    backend: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                    backend: Optional[Dict[str, Any]], *,
+                    confirmed_ids: Optional[Iterable[str]] = None
+                    ) -> List[Dict[str, Any]]:
     """Attach the backend's confidence to each durable request record.
 
     The rule the issue asks for: with the backend unreachable, a request that
     was not already recorded as final is reported ``unknown``. A final state
     the checkpoint itself wrote stays visible (calling it unknown would be a
     lie in the other direction) but is never marked backend-confirmed.
+
+    ``confirmed_ids`` names the requests a request-specific read actually
+    reconciled with the backend. The generic probe proves connectivity only,
+    so a reachable backend alone never marks a record confirmed (#35).
     """
     reachable = str((backend or {}).get("state") or "") == BACKEND_OK
+    evidenced = {str(item) for item in (confirmed_ids or ()) if str(item)}
     out: List[Dict[str, Any]] = []
     for record in records:
         durable = str(record.get("durable_state")
@@ -190,12 +207,18 @@ def report_requests(records: Iterable[Dict[str, Any]],
             reason = ("the backend could not be reached, so this request's "
                       "state is not confirmed")
         moment = record.get("updated_at")
+        # Confirmation requires request-specific evidence, which the generic
+        # backend probe does not obtain (#35). Keep it false unless such
+        # evidence is supplied, while preserving the durable checkpoint state
+        # and the independently reported backend reachability.
+        identity = str(record.get("request_id") or record.get("id") or "")
+        confirmed = bool(identity and identity in evidenced)
         out.append({
             "id": record.get("id"),
             "request_id": record.get("request_id") or record.get("id"),
             "state": state,
             "durable_state": durable,
-            "confirmed": reachable,
+            "confirmed": confirmed,
             "reason": reason,
             "prompt": record.get("prompt") or "",
             "resumable": resumable,

@@ -59,7 +59,10 @@ harness = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff>=0.6", "build>=1.2", "twine>=5"]
+# Pillow is a dev dependency, not a runtime one: the pixel-geometry tests read
+# real images (`_send_arrow_bbox`), so without it two of them error on the rail
+# (measured 2026-11-28) instead of measuring the control they are about.
+dev = ["ruff>=0.6", "build>=1.2", "twine>=5", "pillow>=10"]
 local-fit-train = ["numpy", "onnx; python_version >= '3.10'", "onnxruntime"]
 desktop = ["pywebview>=5"]
 # Page renderer: a bot-protected or JS-only public page is opened once in a

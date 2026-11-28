@@ -1,0 +1,122 @@
+[
+ {
+  "pr": 536,
+  "pr_title": "[jev] One label for a locally-computed fallback judgment (#332)",
+  "priority": "P2",
+  "file": "harness/jev_policy.py",
+  "title": "Use the same fallback identity in the returned audit report",
+  "url": "https://github.com/Treystu/harness/pull/536#discussion_r4576748027",
+  "discussion": "4576748027",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Use the same fallback identity in the returned audit report**\n\nFor an unkeyed audit (or a keyed policy without a governor), this change records `local-heuristic` through `_account`, but the returned dictionary still uses `\"model\": model or model_name` at line 3508 and therefore reports the configured evaluator, typically `jev-latest`. Reproducing the unkeyed path yields `returned model: jev-latest` and `accounted model: local-heuristic` for the same judgment. This introduces disagreement between the ledger and the audit report and leaves the report-label mismatch this commit intends to fix. Populate the returned model from `fallback_result.model` so both representations agree while preserving explicitly supplied live model identities.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 536,
+  "pr_title": "[jev] One label for a locally-computed fallback judgment (#332)",
+  "priority": "P2",
+  "file": "harness/jev.py",
+  "title": "Preserve the provider identity on billed HTTP fallbacks",
+  "url": "https://github.com/Treystu/harness/pull/536#discussion_r4576844086",
+  "discussion": "4576844086",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve the provider identity on billed HTTP fallbacks**\n\nWhen a keyed request ends with a non-200 response other than 401/422 and carries billable usage, this relabels the paid call as `local-heuristic`. In `JevEvaluator.evaluate`, the HTTP fallback branch calls `local(\"http_fallback\")` and subsequently restores positive cost and tokens without restoring the provider model; `_account` then records that local identity in the ledger. For example, a 503 response with `usage={\"input_tokens\": 100, \"retry_cost\": 0.001}` now returns `model=\"local-heuristic\"` with positive cost. Preserve the provider identity when attaching billed usage, while retaining the new label for genuinely unbilled local judgments.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 546,
+  "pr_title": "[plan] A failed decomposition keeps its output and is repaired before degradatio",
+  "priority": "P2",
+  "file": "harness/waist.py",
+  "title": "Preserve escaped apostrophes when repairing single-quoted strings",
+  "url": "https://github.com/Treystu/harness/pull/546#discussion_r4577018884",
+  "discussion": "4577018884",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve escaped apostrophes when repairing single-quoted strings**\n\nWhen a single-quoted response includes an escaped apostrophe and a JSON literal such as `null`, `ast.literal_eval` fails and this replacement silently changes the string's contents: `\\'` becomes `\\\"`, which JSON decodes as a double quote. For example, a node with instruction `Preserve don\\'t in the message` and `local_gate: null` is now accepted with instruction `Preserve don\"t in the message`; the parent commit rejects it instead. Because the resulting instruction is passed to the code-writing executor, this can produce an incorrect edit rather than retrying the malformed response. Use quote-aware conversion that preserves string contents, or reject ambiguous inputs.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 547,
+  "pr_title": "never-defer cluster: fail over, select by availability, repair instead of deferr",
+  "priority": "P1",
+  "file": "harness/chat.py",
+  "title": "Propagate backend identity through the HTTP transport",
+  "url": "https://github.com/Treystu/harness/pull/547#discussion_r4577050808",
+  "discussion": "4577050808",
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Propagate backend identity through the HTTP transport**\n\nWith the production `HttpTransport`, a 402 raises inside `_http.py` before execution reaches this model-aware classification. Both `post` and `post_once` still call `raise_for_provider_spend_limit` without a model and check the latch without a model. Consequently, the first refusal records `model=None`, and subsequent calls to other providers or free routes remain blocked by the whole-run latch. This is reproducible with a mocked HTTP 402 through the real transport; the new tests bypass it by constructing model-tagged exceptions directly. Thread backend identity through the transport's classification and latch checks so the added failover paths can actually dispatch.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 547,
+  "pr_title": "never-defer cluster: fail over, select by availability, repair instead of deferr",
+  "priority": "P2",
+  "file": "harness/events.py",
+  "title": "Preserve the refusal cause when reconstructing a latched error",
+  "url": "https://github.com/Treystu/harness/pull/547#discussion_r4577050812",
+  "discussion": "4577050812",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve the refusal cause when reconstructing a latched error**\n\nWhen a model has a latched `route_or_model_restriction` refusal and a subsequent call checks that same model, the reconstructed exception omits `cause`, so `ProviderSpendLimitError` defaults it to `account_funding`. The new availability handlers then persist this as a provider-wide funding failure, excluding otherwise usable paid models for the ledger TTL instead of excluding only the restricted model. Forward the stored cause when raising the latched error.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 547,
+  "pr_title": "never-defer cluster: fail over, select by availability, repair instead of deferr",
+  "priority": "P2",
+  "file": "harness/lifecycle.py",
+  "title": "Replay the refused retry receipt rather than the original call",
+  "url": "https://github.com/Treystu/harness/pull/547#discussion_r4577050816",
+  "discussion": "4577050816",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Replay the refused retry receipt rather than the original call**\n\nIf an original call has unknown usage, an explicitly authorized retry creates a `:retry:1` receipt. When that retry receives a provider refusal, this branch clears `previous` but leaves `call_id` pointing to the original unknown call. The following `provider_started` therefore returns false and raises the unknown-completion error without invoking the next backend, even with `retry_unknown=True`. Select the refused retry's ID, or allocate a new retry ID, before starting the replay so resumed requests can recover from this sequence.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 548,
+  "pr_title": "fix(availability,audit): cross-provider local_pool failover on 402 + environment",
+  "priority": "P1",
+  "file": "harness/session.py",
+  "title": "Preserve an explicitly configured zero Fireworks budget",
+  "url": "https://github.com/Treystu/harness/pull/548#discussion_r4581273497",
+  "discussion": "4581273497",
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Preserve an explicitly configured zero Fireworks budget**\n\nWhen an operator explicitly sets `HARNESS_FIREWORKS_BUDGET_USD=0` while retaining a Fireworks key, this condition silently replaces that spending prohibition with the entire run budget. `SpendGovernor.assert_fireworks_budget()` explicitly defines zero as refusing every Fireworks call, but a session with `max_cost=0.15` now permits nonzero Fireworks spending despite that configured cap. Distinguish an unspecified budget from an explicitly configured zero before automatically arming failover.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 548,
+  "pr_title": "fix(availability,audit): cross-provider local_pool failover on 402 + environment",
+  "priority": "P2",
+  "file": "harness/conversation_lifecycle.py",
+  "title": "Forward configured backend credentials to failover dispatch",
+  "url": "https://github.com/Treystu/harness/pull/548#discussion_r4581273501",
+  "discussion": "4581273501",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Forward configured backend credentials to failover dispatch**\n\nWhen a direct-backend key is supplied through settings/config rather than an environment variable or key file, `load_settings()` includes that backend in `local_pool`, but the conversation lane's `chat_routed()` call does not receive `self.settings` or the backend key. Its credential fallback only checks key files and environment variables, so the newly selected fallback fails with a missing-key error despite having a configured credential. For example, an OpenRouter funding refusal followed by a Fireworks fallback with only `settings.fireworks_key` configured still ends in deferral. Forward the settings or backend credentials when dispatching these fallback models; the hourglass dispatch has the same omission.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 564,
+  "pr_title": "Slice 3F: MCP 33-tool annotations and description-agreement lint (#335)",
+  "priority": "P2",
+  "file": "harness/mcp_schemas.py",
+  "title": "Mark driver_step as an open-world tool",
+  "url": "https://github.com/Treystu/harness/pull/564#discussion_r4595209063",
+  "discussion": "4595209063",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Mark driver_step as an open-world tool**\n\nWith a configured, keyed driver service, `driver_step` sends captured state to external model services: `Driver._run_step()` invokes the extraction pool and `self.jev.decide()`, whose implementation in `driver_core/jev_client.py` calls the TypeSafe endpoint with the state. Declaring `openWorldHint=False` therefore incorrectly advertises a closed-world operation to MCP clients, potentially misleading their tool-selection and confirmation policies about external data transmission. Set this hint to `True` and update the corresponding catalog expectation in the annotation test.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 576,
+  "pr_title": "feat(hul): dossier lessons L4, L5, L6, L11, L12 \u2014 declined-candidate memory, cos",
+  "priority": "P2",
+  "file": "harness/hul_decision.py",
+  "title": "Track phase spend separately from total mission spend",
+  "url": "https://github.com/Treystu/harness/pull/576#discussion_r4595485019",
+  "discussion": "4595485019",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Track phase spend separately from total mission spend**\n\nFor missions progressing through multiple phases, a single `spent` value cannot enforce both the per-phase cap and the mission remainder. If it is cumulative mission spend, completing survey at its 20-unit cap makes `phase_budget(\"build\", spent=20, total_budget=100, per_phase_cap=20)` return zero despite build having spent nothing. If callers instead supply current-phase spend, earlier phases' expenditure is ignored when enforcing the mission total. Accept separate phase and mission spend values and calculate the remaining allowance from both.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 576,
+  "pr_title": "feat(hul): dossier lessons L4, L5, L6, L11, L12 \u2014 declined-candidate memory, cos",
+  "priority": "P2",
+  "file": "harness/hul_decision.py",
+  "title": "Check scope against the normalized decision input",
+  "url": "https://github.com/Treystu/harness/pull/576#discussion_r4595485026",
+  "discussion": "4595485026",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Check scope against the normalized decision input**\n\nWhen a valid decision contains surrounding whitespace in its skill or label, `validate_decision` strips that whitespace, but this check extracts the target again from the original payload. Consequently, a decision with `input={\"skill\": \" parser \"}` is refused against `may_write=[\"parser\"]`, while passing the same decision through `validate_decision` before calling this function allows it. Read the target from `normalised[\"input\"]` so scope enforcement uses the same namespace that the validated run will execute.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 577,
+  "pr_title": "fix(audit): a declared level below min_confidence is not a judgment (#295)",
+  "priority": "P2",
+  "file": "harness/jev_policy.py",
+  "title": "Preserve low-confidence declarations in whole-call fallbacks",
+  "url": "https://github.com/Treystu/harness/pull/577#discussion_r4595696648",
+  "discussion": "4595696648",
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve low-confidence declarations in whole-call fallbacks**\n\nWhen every evaluated dimension has a matched declaration below the confidence floor (including a partial run evaluating just one uncertain dimension), `any_dim_valid` remains false and the existing whole-call fallback discards the newly constructed `dim_results`. That fallback rebuilds dimensions with `heuristic_audit_dimensions`, losing `live_level`, `live_level_confidence`, and `heuristic_low_confidence`, and incorrectly reports the declarations as `unmatched`. Reproducing the new bimodal fixture across all four dimensions returns only plain heuristic results, so the live claims this change promises to retain cannot be audited. Preserve the resolved dimension metadata when marking the overall call as a fallback, and cover this path through `evaluate_audit_dimensions` rather than only testing the resolver.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ }
+]

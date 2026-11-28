@@ -1,0 +1,134 @@
+[
+ {
+  "pr": 618,
+  "pr_title": "feat(ledger): signed reversible compaction replaces size-only eviction (#336)",
+  "priority": "P1",
+  "file": "harness/ledger.py",
+  "title": "Prevent checkpoint appends from recursively compacting their source",
+  "url": "https://github.com/Treystu/harness/pull/618#discussion_r4617725782",
+  "row": 37,
+  "discussion": 4617725782,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Prevent checkpoint appends from recursively compacting their source**\n\nIf appending a compaction checkpoint triggers rotation, `append()` synchronously starts another sweep before the outer `compact_segment()` reaches its source-file replacement. The nested sweep therefore finds the same original eligible rows and compacts them again. A sufficiently large checkpoint\u2014possible with many alternating coverage runs\u2014can trigger rotation on every iteration, producing duplicate archives/checkpoints until `RecursionError` aborts the original append. This is reproducible with a reduced rotation threshold. Suppress or defer rotation-triggered compaction while a compaction transaction is already in progress.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 618,
+  "pr_title": "feat(ledger): signed reversible compaction replaces size-only eviction (#336)",
+  "priority": "P2",
+  "file": "harness/ledger.py",
+  "title": "Refresh citation pins under synchronization before compaction",
+  "url": "https://github.com/Treystu/harness/pull/618#discussion_r4617725796",
+  "row": 38,
+  "discussion": 4617725796,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Refresh citation pins under synchronization before compaction**\n\nWhen two ledger instances are open, a citation appended by one does not update the other's `citation_pins`, which is populated only during initialization and that instance's own `pin_citation()` calls. A later sweep by the older instance therefore deletes the cited row despite its committed citation; a fresh loader retains the citation but cannot resolve its target. Refresh pins from committed citation records and synchronize eligibility evaluation through the segment switch with citation writes, rather than passing this stale instance-local set.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 618,
+  "pr_title": "feat(ledger): signed reversible compaction replaces size-only eviction (#336)",
+  "priority": "P2",
+  "file": "harness/ledger_canary.py",
+  "title": "Connect the canary due predicate to a production execution loop",
+  "url": "https://github.com/Treystu/harness/pull/618#discussion_r4617725806",
+  "row": 39,
+  "discussion": 4617725806,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Connect the canary due predicate to a production execution loop**\n\nOn a fresh install or an idle running service, none of the advertised startup, daily, or six-hour-staleness triggers actually executes canaries. Repository-wide searches for `should_run_canaries`, `run_canaries`, and `LedgerSweeper` show only definitions, the ledger's manual wrapper, and tests; no application lifecycle or scheduler calls this predicate or runs the probes automatically. Consequently normal operation never accrues the promised health evidence. Wire the due check and probe execution into the relevant startup and periodic lifecycle.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Enforce eligibility before issuing a token voucher",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137026",
+  "row": 40,
+  "discussion": 4621137026,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Enforce eligibility before issuing a token voucher**\n\nA client can obtain vouchers for arbitrarily many tokens because `voucher()` accepts only a caller-supplied string, without checking a credential or its derivation for the model and round. I verified that copying one report, replacing its eligibility block with ten arbitrary tokens signed by this issuer, and submitting those copies publishes all four metrics. No additional credentials are needed. The issuer must enforce one eligible token per credential/model/round rather than relying on clients to call `eligibility_token()` honestly.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Keep individual reports' shares with independent holders",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137043",
+  "row": 41,
+  "discussion": 4621137043,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Keep individual reports' shares with independent holders**\n\nEvery submission sends all three shares together to the same intake, and `validate_submission()` immediately reconstructs the individual statistics with `open_payload(shares)`. `PublicPublisher.accept()` then retains that complete reconstructable vector under the contributor's token, even for a one-operator cohort. Thus the receiving service can read individual cost, usage and outcome totals before any publication floor is met; splitting values inside one payload provides no secure-aggregation protection. Distribute shares to independent holders and reconstruct only qualifying cohort aggregates instead.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Apply the publication floor separately to each metric",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137052",
+  "row": 42,
+  "discussion": 4621137052,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Apply the publication floor separately to each metric**\n\nWhen ten operators submit reports but only one has latency observations, `seal()` passes all ten contributors as `operators`, so this check publishes that single operator's mean latency and labels its cohort as ten operators. I reproduced this with nine reports lacking `latency_ms`. Count contributors with eligible observations separately for each metric, and restrict receipt totals accordingly: the current receipt includes every statistic in every published cell, so merely suppressing the latency cell would still expose its totals through the calls receipt.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Authenticate the evidence claim before accepting statistics",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137064",
+  "row": 43,
+  "discussion": 4621137064,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Authenticate the evidence claim before accepting statistics**\n\nAn eligible contributor can replace the shared statistics, recompute the unkeyed commitment and `stats_digest`, and leave the evidence claim unchanged; intake accepts the altered values because `chain_verified` is only a caller-controlled boolean and `evidence_digest` is never verified against anything. I confirmed that a report with 103 successes out of three tasks passes validation. This permits arbitrary poisoning of figures advertised as verified, even if operator uniqueness is fixed. Require a verifiable evidence-to-statistics proof or trusted attestation, and enforce the statistic bounds and consistency constraints at intake.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Count actual terminal failure events in the success denominator",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137074",
+  "row": 44,
+  "discussion": 4621137074,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Count actual terminal failure events in the success denominator**\n\nFor real apply runs, `ApplyGate.terminal_failure()` in `harness/apply_gate.py` records an `abort` with reason `verify rounds exhausted`, not a `complete` with status `failed` or `error`. This branch therefore excludes failed runs from the task denominator while retaining their model-call costs. An operator with both successful and failed runs can report a 100% success rate, and an operator with only failed runs cannot contribute at all. Include the existing terminal failure events, with appropriate task attribution, rather than relying on the synthetic failure shape used by the new tests.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P2",
+  "file": "harness/public_share.py",
+  "title": "Recheck the queued report's consent period before retrying",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137086",
+  "row": 45,
+  "discussion": 4621137086,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Recheck the queued report's consent period before retrying**\n\nIf a report is queued and `enable()` starts a new consent period before the retry, `upload_pending()` sends the old-period report because it checks only whether sharing is currently enabled. I reproduced this by enabling, building and queueing a report, enabling again, and calling `upload_pending()`, which returned `sent: 1`. The direct `handoff()` path rejects this same report, and the documented contract explicitly refuses older-period queued work. Apply the period comparison here as well and discard mismatched reports before invoking the transport.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 620,
+  "pr_title": "test(ci): gate the optional local-fit train/export path (#311)",
+  "priority": "P2",
+  "file": "tests/test_local_fit_optional_ci_311.py",
+  "title": "Check tracked fixture files rather than local directory existence",
+  "url": "https://github.com/Treystu/harness/pull/620#discussion_r4625632390",
+  "row": 46,
+  "discussion": 4625632390,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Check tracked fixture files rather than local directory existence**\n\nOn a developer checkout containing the legitimate, gitignored `audits/scmessenger/_runs/` artifacts, this assertion fails the default test suite even though no fixture has been committed. The existing extraction tests explicitly support that directory being present (`tests/test_local_fit_extract.py`), so its presence is not an invalid repository state. I reproduced the failure by creating an empty `_runs` directory and running this test. Check whether fixture files are tracked, or retain only the ignore-rule assertion, instead of requiring developers to remove their local audit data.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 622,
+  "pr_title": "docs(register): canonical burndown register 2026-11-18, one row per open issue +",
+  "priority": "P1",
+  "file": "docs/jev-roadmap.md",
+  "title": "Refresh the authoritative mirror instead of adding a second register",
+  "url": "https://github.com/Treystu/harness/pull/622#discussion_r4628005985",
+  "row": 47,
+  "discussion": 4628005985,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Refresh the authoritative mirror instead of adding a second register**\n\nThe new 41-issue register sits outside `REGISTER_MIRROR`, but the roadmap introduction still explicitly makes that mirror\u2014not subsequent tables\u2014the live count and execution order. `AGENTS.md` likewise directs incoming agents to the unchanged 60-issue mirror, and `RegisterMirrorParityTests` only examines the marked section. Consequently, this refresh leaves the authoritative entry points advertising the old queue, including #407 and #311 as OPEN despite their CLOSED dispositions here. Update the existing mirror and regenerate the mission pointer together so readers and contract checks consume the refreshed register rather than a competing plan.\n\nAGENTS.md reference: [AGENTS.md:L27-L29](https://github.com/Treystu/harness/blob/0f9532e24b6029d8ddbc48e9885f56a17e558184/AGENTS.md#L27-L29)\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 625,
+  "pr_title": "driver: run the bridge hand and wire probe 1 through the bus (#480)",
+  "priority": "P2",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Isolate hermetic probes from the running hand's ledger",
+  "url": "https://github.com/Treystu/harness/pull/625#discussion_r4625689371",
+  "row": 48,
+  "discussion": 4625689371,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Isolate hermetic probes from the running hand's ledger**\n\nWith the hand running as instructed, passing its shared root into `run_battery` also sends probes 2\u20136 to that live ledger. Those probes instantiate their own `CaptureHand` objects and call `poll_once()`, so the live hand can consume their synthetic requests first, refuse them for missing grants, or race their result writes. Running the full battery with a polling hand reproduced incorrect probe failures and a `FileNotFoundError` during concurrent result writes. Keep probe 1 on the shared ledger, but run the hermetic probes in a separate temporary root.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ }
+]

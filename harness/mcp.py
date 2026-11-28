@@ -31,6 +31,7 @@ from typing import Any, Dict, cast
 
 from . import __version__
 from . import events as _events
+from . import provision_plan as _provision_plan
 from . import script as _script
 from . import trust as trust_policy
 from .agent import AutonomousAgent
@@ -687,11 +688,15 @@ class McpServer:
             settings = self.settings or load_settings()
             session_id = (validate_mcp_task_id(args.get("session_id"))
                           if args.get("session_id") is not None else None)
+            # #342: the web flag is capability only. The shared plan owner
+            # proposes one ResearchPlan and native Jev judges it before any
+            # search or fetch; the returned record is the gate receipt.
+            web = validate_mcp_bool(args.get("web", False), "web")
             agent = AutonomousAgent(settings=settings,
                                     transport=self.transport)
             return agent.run_prompt(
                 prompt=prompt, auto_apply=False, session_id=session_id,
-                cancel_check=cancel_check, force_conversation=True)
+                cancel_check=cancel_check, force_conversation=True, web=web)
 
         if name == "site_check":
             prompt = validate_mcp_prompt(args.get("prompt"))
@@ -1602,7 +1607,7 @@ class McpServer:
             policy = pv.policy_for_probe(probe, [str(root)])
             plan = pv.plan_provision(goal, probe, policy=policy)
             res = plan.to_dict()
-            res["rendered"] = pv.render_plan(plan)
+            res["rendered"] = _provision_plan.render_plan(plan)
             return res
         if name == "repo_cards":
             from . import repo_cards as rc
@@ -1829,7 +1834,11 @@ def main(argv=None):  # pragma: no cover - thin wiring; exercised via smoke test
     ledger = composition.ledger_for(settings, caller="mcp")
     composition.pre_run_warning(governor=governor, ledger=ledger,
                                 use_free=settings.use_free)
-    router = composition.router_for(settings)
+    # #683 row 68: the router is handed the run's own ledger, so an MCP
+    # apply/verify rotation writes its ``router.rotation`` row into the same
+    # trace family every other event of that run reaches. The serve path
+    # already assembles it this way; this entry omitted the argument.
+    router = composition.router_for(settings, ledger=ledger)
     engine = composition.engine_for(settings, api_key, governor, ledger, router)
     McpServer(
         transport=transport, api_key=api_key, governor=governor, ledger=ledger,

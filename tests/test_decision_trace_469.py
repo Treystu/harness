@@ -6,6 +6,7 @@ ledger file and its retained segments. These tests pin the writer/reader
 contract, the identity fields an audit joins on, the window manifest, and the
 narrow fail-closed clause (audit-enabled entry points only).
 """
+import hashlib
 import json
 import os
 import tempfile
@@ -355,6 +356,35 @@ class WindowPinningTests(unittest.TestCase):
                              ["pass outcomes before the producer landed"])
             self.assertEqual(manifest["coverage"],
                              {"campaign.event": "enabled 2026-11-19"})
+
+    def test_a_pinned_window_seals_segment_contents_against_later_appends(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = _ledger(directory)
+            trace = DecisionTrace(ledger)
+            trace.record("campaign.event", subject_id="campaign-a",
+                         payload={"campaign_event": "pass_admitted"})
+            out = os.path.join(directory, "windows", "469.json")
+            manifest = pin_window(
+                ledger, brief="469", revision="frozen-2026-11-18",
+                selector="campaigns named in the brief's population",
+                unit_ids=["campaign-a"], out_path=out)
+            segment = manifest["segments"][0]
+            with open(segment["snapshot"], "rb") as handle:
+                sealed = handle.read()
+            self.assertEqual(hashlib.sha256(sealed).hexdigest(),
+                             segment["sha256"])
+            self.assertEqual(segment["path"], os.path.basename(ledger.path))
+
+            # One ordinary append after the pin: the sealed copy stays exactly
+            # the pinned bytes, while the mutable active file no longer does.
+            trace.record("campaign.event", subject_id="campaign-b",
+                         payload={"campaign_event": "pass_admitted"})
+            with open(segment["snapshot"], "rb") as handle:
+                self.assertEqual(handle.read(), sealed)
+            with open(ledger.path, "rb") as handle:
+                live = handle.read()
+            self.assertNotEqual(hashlib.sha256(live).hexdigest(),
+                                segment["sha256"])
 
     def test_manifest_requires_the_window_identity(self):
         with tempfile.TemporaryDirectory() as directory:

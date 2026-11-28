@@ -7,6 +7,8 @@ def main():
     port = int(sys.argv[1])
     config_dir = sys.argv[2]
     os.environ["HARNESS_CONFIG_DIR"] = config_dir
+    os.environ["HARNESS_DRIVER_WATCH_DIR"] = os.path.join(config_dir, "driver-watch")
+    os.environ["HARNESS_DRIVER_WATCH_NO_SCHEDULER"] = "1"
     for key in (
         "OPENROUTER_API_KEY",
         "JEV_API_KEY",

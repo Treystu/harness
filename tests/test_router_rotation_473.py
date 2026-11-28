@@ -140,6 +140,48 @@ class OneHomeTests(unittest.TestCase):
         self.assertTrue(read_rotations(ledger))
 
 
+class McpAssemblyTests(unittest.TestCase):
+    """#683 row 68: the MCP entry hands the router the run's own ledger."""
+
+    def test_the_mcp_entry_passes_its_ledger_to_the_router(self):
+        from unittest import mock
+
+        from harness import mcp, session
+        from harness.config import load_settings
+
+        td, ledger = _ledger()
+        self.addCleanup(td.cleanup)
+        settings = load_settings({"panel": [P1], "judge": JUDGE,
+                                  "apply_model": P1})
+        captured = {}
+
+        class _Server:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            def serve_forever(self):
+                return None
+
+        with mock.patch.object(mcp, "load_settings", return_value=settings), \
+                mock.patch.object(mcp, "McpServer", _Server), \
+                mock.patch.object(mcp, "resolve_hourglass", return_value=None), \
+                mock.patch.object(session, "HttpTransport"), \
+                mock.patch.object(session, "governor_for",
+                                  return_value=("key", mock.Mock())), \
+                mock.patch.object(session, "ledger_for", return_value=ledger), \
+                mock.patch.object(session, "pre_run_warning"), \
+                mock.patch.object(session, "engine_for",
+                                  return_value=mock.Mock()):
+            self.assertIsNone(mcp.main([]))
+
+        router = captured["router"]
+        self.assertIsNotNone(router.trace)
+        self.assertIs(router.trace.ledger, ledger)
+        router.note_model_result(P2, ok=False)
+        router.apply_pool
+        self.assertTrue(read_rotations(ledger))
+
+
 class LegacyToleranceTests(unittest.TestCase):
     def test_a_ledger_written_before_473_reads_as_no_rotations(self):
         td, ledger = _ledger()

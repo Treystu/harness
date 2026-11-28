@@ -116,12 +116,25 @@ class JevLedgerSpendTests(unittest.TestCase):
                              jev_policy=policy, default_require_consent=False,
                              default_renew_consent=False)
 
-        # A task ceiling below the Jev worst-case must refuse preflight.
+        # A task ceiling below the Jev worst-case excludes every candidate.
+        # #805 spend-allowance ruling: the named terminal state is
+        # SPEND-BLOCKED (an impossibility with evidence), never a bare
+        # refusal of the task on the first candidate that did not fit.
         with self.assertRaises(HarnessError) as ctx:
             engine.apply_edit(file_path=target, instruction="edit x",
                               task_max_cost=0.000001, require_consent=False,
                               renew_consent=False)
-        self.assertIn("exceeds --task-max-cost", str(ctx.exception))
+        self.assertIn("SPEND-BLOCKED", str(ctx.exception))
+        excluded = [e for e in ledger.entries()
+                    if e["event"] == "model_result"
+                    and e.get("status") == "excluded"]
+        self.assertEqual(len(excluded), 1)
+        self.assertEqual(excluded[0]["reason"], "spend_preflight")
+        self.assertEqual(excluded[0]["model"], "apply/model")
+        self.assertEqual(excluded[0]["cost"], 0.0)
+        self.assertGreater(excluded[0]["jev_component"], 0.0)
+        self.assertGreater(excluded[0]["worst_case"],
+                           excluded[0]["task_max_cost"])
 
         # With sufficient budget and governor having preflight_jev, line 315 executes
         from unittest import mock
@@ -168,13 +181,16 @@ class JevLedgerSpendTests(unittest.TestCase):
                              jev_policy=policy, default_require_consent=False,
                              default_renew_consent=False)
 
-        # 1. A task ceiling below the Jev reserve refuses during escalation.
+        # 1. A task ceiling below the Jev reserve excludes the candidate
+        # before its first call (#805 spend-allowance ruling): the task is
+        # SPEND-BLOCKED with the rejected estimate on the record.
         with self.assertRaises(HarnessError) as ctx:
             engine.apply_edit(file_path=target, instruction="edit x",
                               verify_cmd="python -c exit(1)", max_rounds=1,
                               task_max_cost=0.000001, require_consent=False,
                               renew_consent=False)
-        self.assertIn("exceeds --task-max-cost", str(ctx.exception))
+        self.assertIn("SPEND-BLOCKED", str(ctx.exception))
+        self.assertIn("apply/model", str(ctx.exception))
 
         # 2. When task_max_cost is sufficient (0.060), lines 623-625, 631-632 execute
         spend_transport2 = FakeTransport(
@@ -338,6 +354,147 @@ class JevLedgerSpendTests(unittest.TestCase):
         self.assertEqual(JevPolicy._completion_state_text(12345), "12345")
 
 
+class SpendAdmissionTests(unittest.TestCase):
+    """#805 spend-allowance ruling: worst-case admission EXCLUDES a candidate
+    before its first call instead of refusing the task; the task is
+    SPEND-BLOCKED only once every affordable candidate is excluded, and a
+    narrower completion keeps the exclusion on the record."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def _ledger(self):
+        return AutonomyLedger(os.path.join(self.tmp.name, "ledger.jsonl"))
+
+    @staticmethod
+    def _jev_reply():
+        return {"model": "jev-test",
+                "answers": {"instruction_matches": {"type": "noul", "noul": 0.95}},
+                "usage": {"input_tokens": 100, "output_tokens": 2}}
+
+    def _engine(self, models, router, ledger, posts):
+        from harness.apply import ApplyEngine
+
+        settings = load_settings({"jev_api_key": "jev-key"})
+        transport = FakeTransport(models=models, posts=posts)
+        governor = SpendGovernor(transport, "sk-test", max_cost=1.0)
+        policy = policy_for(
+            settings,
+            transport=FakeTransport(posts=[self._jev_reply() for _ in range(6)]),
+            governor=governor, ledger=ledger)
+        engine = ApplyEngine(transport, "k", governor, ledger, router,
+                             jev_policy=policy, default_require_consent=False,
+                             default_renew_consent=False)
+        return engine, transport, governor
+
+    @staticmethod
+    def _target(tmp, name="target.py"):
+        path = os.path.join(tmp.name, name)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("x = 1\n")
+        return path
+
+    def _excluded(self, ledger):
+        return [e for e in ledger.entries()
+                if e["event"] == "model_result"
+                and e.get("status") == "excluded"]
+
+    def test_an_over_budget_candidate_is_excluded_and_a_cheaper_one_completes(self):
+        from harness.router import Router
+        from tests._fake import comp
+
+        ledger = self._ledger()
+        models = [m("expensive/model", prompt="0.001", completion="0.001"),
+                  m("cheap/model", prompt="0", completion="0"),
+                  m("jev-test", prompt="0", completion="0")]
+        # apply_pool keeps the primary first, then the cheaper candidate.
+        router = Router(["cheap/model"], "jev-test", "expensive/model")
+        engine, transport, governor = self._engine(
+            models, router, ledger, [comp("def x(): pass\n")])
+
+        cap = 0.001
+        result = engine.apply_edit(file_path=self._target(self.tmp),
+                                   instruction="edit x",
+                                   verify_cmd="python -c pass",
+                                   task_max_cost=cap, require_consent=False,
+                                   renew_consent=False)
+
+        self.assertIn(result["status"], ("ok", "preview"))
+        excluded = self._excluded(ledger)
+        self.assertEqual([e["model"] for e in excluded], ["expensive/model"])
+        self.assertEqual(excluded[0]["reason"], "spend_preflight")
+        self.assertEqual(excluded[0]["cost"], 0.0)
+        self.assertGreater(excluded[0]["estimate"], 0.0)
+        self.assertGreater(excluded[0]["worst_case"], cap)
+        # The narrower candidate ran, and the exclusion did not spend anything.
+        served = [e for e in ledger.entries()
+                  if e["event"] == "model_result"
+                  and e.get("model") == "cheap/model"]
+        self.assertTrue(served)
+        self.assertNotIn("excluded", [e.get("status") for e in served])
+        self.assertLess(governor.spent, cap)
+        # No chat call was ever made for the excluded candidate.
+        called = [call[2].get("model") for call in transport.calls
+                  if call[0] == "POST"]
+        self.assertNotIn("expensive/model", called)
+
+    def test_the_excluded_candidate_is_not_retried_in_a_later_round(self):
+        from harness.router import Router
+        from tests._fake import comp
+
+        ledger = self._ledger()
+        models = [m("expensive/model", prompt="0.001", completion="0.001"),
+                  m("cheap/model", prompt="0", completion="0"),
+                  m("jev-test", prompt="0", completion="0")]
+        router = Router(["cheap/model"], "jev-test", "expensive/model")
+        engine, transport, governor = self._engine(
+            models, router, ledger, [comp("x = 2\n"), comp("x = 3\n")])
+
+        cap = 0.001
+        engine.apply_edit(file_path=self._target(self.tmp, "rounds.py"),
+                          instruction="edit x",
+                          verify_cmd="python -c exit(1)", max_rounds=2,
+                          task_max_cost=cap, require_consent=False,
+                          renew_consent=False)
+
+        # Excluded once, never re-admitted: the set carries across rounds.
+        self.assertEqual([e["model"] for e in self._excluded(ledger)],
+                         ["expensive/model"])
+        called = [call[2].get("model") for call in transport.calls
+                  if call[0] == "POST"]
+        self.assertNotIn("expensive/model", called)
+
+    def test_an_unaffordable_escalation_rung_is_excluded_not_refused(self):
+        from harness.jev import jev_cost
+        from harness.jev_policy import JEV_MAX_INPUT_TOKENS
+        from harness.router import Router
+        from tests._fake import comp
+
+        ledger = self._ledger()
+        models = [m("apply/model", prompt="0", completion="0"),
+                  m("esc/model", prompt="0", completion="0"),
+                  m("jev-test", prompt="0", completion="0")]
+        router = Router(["apply/model"], "jev-test", "apply/model",
+                        allow_escalation=True, escalation_model="esc/model")
+        engine, _transport, _governor = self._engine(
+            models, router, ledger, [comp("def x(): pass\n")])
+
+        cap = jev_cost(JEV_MAX_INPUT_TOKENS)
+        result = engine.apply_edit(file_path=self._target(self.tmp, "esc.py"),
+                                   instruction="edit x",
+                                   verify_cmd="python -c exit(1)", max_rounds=1,
+                                   task_max_cost=cap, require_consent=False,
+                                   renew_consent=False)
+
+        # The run narrows to the rung it already reached rather than refusing
+        # the task, and the exclusion is on the record.
+        self.assertNotEqual(result["status"], "ok")
+        excluded = self._excluded(ledger)
+        self.assertEqual([e["model"] for e in excluded], ["esc/model"])
+        self.assertEqual(excluded[0]["reason"], "spend_preflight")
+        self.assertEqual(excluded[0]["cost"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
-

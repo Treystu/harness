@@ -25,6 +25,31 @@ def _canon(entry):
     return json.dumps(entry, sort_keys=True, separators=(",", ":"))
 
 
+def require_intact_chain(ledger, surface):
+    """Refuse work whose evidence ``ledger`` can no longer prove (#825).
+
+    Load sets ``chain_broken`` when a line fails its hash or its shape and
+    quarantines it, and ``verify()`` has always failed closed. Until now only
+    read-only surfaces consulted that state, so a ledger that had detected
+    tampering still accepted new evidence and work kept dispatching on top of
+    it - which invalidates every promise resting on the record being provable.
+    The refusal names the first bad sequence and the one action that makes the
+    ledger writable again.
+
+    Module-level so the dispatch path can ask the question of whatever ledger a
+    caller supplied: a duck-typed stand-in without the state simply has nothing
+    broken to report, while a real ledger's state is always consulted.
+    """
+    if not getattr(ledger, "chain_broken", False):
+        return
+    raise HarnessError(
+        "the autonomy ledger's hash chain is broken at seq "
+        f"{getattr(ledger, 'first_bad_seq', None)!r}: {surface} cannot be "
+        "recorded as evidence on a chain that does not verify. Repair it "
+        "first (`harness ledger repair`; archive the ledger directory "
+        "beforehand, repair unlinks) and retry.")
+
+
 LEDGER_MAX_BYTES = 10 * 1024 * 1024  # rotate the JSONL at 10 MB
 LEDGER_KEEP_ROTATIONS = 3
 # Matches ONLY the suffix _rotate_if_needed writes -- "%Y%m%dT%H%M%S.%f"
@@ -61,6 +86,9 @@ class AutonomyLedger(LedgerAnalytics):
         self._seq = 0
         self._prev_hash = None
         self._segmented = False
+        # Reentrancy guard: suppress rotation-triggered compaction while a
+        # compaction transaction is already in progress (#37).
+        self._compacting = False
         # Count of corrupt/torn lines skipped at load (audit #8b: must exist
         # as a real attribute on every instance, clean load included).
         self.quarantined = 0
@@ -406,11 +434,50 @@ class AutonomyLedger(LedgerAnalytics):
         return compaction.crosses_gap(previous.get("seq"),
                                       previous.get("hash"), entry, runs)
 
+    def _refresh_citation_pins(self):
+        """Re-derive citation pins from every retained segment on disk.
+
+        ``citation_pins`` was populated only at load and by this instance's
+        own ``pin_citation`` calls, so a citation another open instance
+        appended was invisible here. A sweep from the older instance then
+        deleted a cited row. Re-reading the segments before a sweep, and for
+        every entry the rebase picks up, keeps the pin set honest (#683 row 38).
+        """
+        pins = set(self.citation_pins)
+        for source_path in self._ledger_paths():
+            try:
+                with open(source_path, encoding="utf-8") as stream:
+                    for line in stream:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            entry = json.loads(line)
+                        except (ValueError, TypeError):
+                            continue
+                        if (not isinstance(entry, dict)
+                                or entry.get("event") != "citation"
+                                or entry.get("target_seq") is None):
+                            continue
+                        pins.add((entry["target_seq"],
+                                  str(entry.get("target_hash"))))
+            except OSError:
+                continue
+        self.citation_pins = pins
+        return pins
+
     def sweep_compaction(self, segments=None):
         """Evaluate old sealed segments; compaction is the only way out."""
-        targets = (self._rotated_paths()[:-LEDGER_KEEP_ROTATIONS]
-                   if segments is None else list(segments))
-        return [self._compact_old_segment(path) for path in targets]
+        if self._compacting:
+            return []
+        self._compacting = True
+        try:
+            self._refresh_citation_pins()
+            targets = (self._rotated_paths()[:-LEDGER_KEEP_ROTATIONS]
+                       if segments is None else list(segments))
+            return [self._compact_old_segment(path) for path in targets]
+        finally:
+            self._compacting = False
 
     def _compact_old_segment(self, path):
         """Archive, checkpoint and switch one segment -- or leave it intact."""
@@ -489,12 +556,24 @@ class AutonomyLedger(LedgerAnalytics):
                             if (entry.get("event") == "offer"
                                     and isinstance(entry.get("task_id"), str)):
                                 self._offered_task_ids.add(entry["task_id"])
+                            if (entry.get("event") == "citation"
+                                    and entry.get("target_seq") is not None):
+                                # Another instance's citation must pin here too,
+                                # or this instance's next sweep deletes a row
+                                # the ledger has already relied on.
+                                self.citation_pins.add((
+                                    entry["target_seq"],
+                                    str(entry.get("target_hash"))))
                             last_seq = entry["seq"]
                             last_hash = entry["hash"]
             except OSError:
                 continue
         self._seq = last_seq
         self._prev_hash = last_hash
+
+    def require_intact_chain(self, surface):
+        """Refuse work whose evidence this ledger can no longer prove."""
+        require_intact_chain(self, surface)
 
     def append(self, event, task_id=None, **fields):
         entry = {
@@ -515,7 +594,13 @@ class AutonomyLedger(LedgerAnalytics):
                 # raced another process's append between the read and the
                 # lock, which is exactly the fork the rebase exists to
                 # prevent.
+                # #825: the single funnel every writer passes through. The
+                # check runs before the rebase so a broken chain refuses
+                # without mutating memory, and again after it so damage this
+                # ledger only now read from disk refuses too.
+                self.require_intact_chain(f"the {event!r} entry")
                 self._rebase_under_lock()
+                self.require_intact_chain(f"the {event!r} entry")
                 if (task_id is not None and event != "offer"
                         and (not isinstance(task_id, str) or not task_id
                              or task_id not in self._offered_task_ids)):
@@ -534,8 +619,12 @@ class AutonomyLedger(LedgerAnalytics):
                 # line whose predecessor is not loaded by a fresh instance.
                 self._persist(_canon(body))
                 old_segments = self._rotate_if_needed()
-        if old_segments:
-            self.sweep_compaction(old_segments)
+        if old_segments and not self._compacting:
+            self._compacting = True
+            try:
+                self.sweep_compaction(old_segments)
+            finally:
+                self._compacting = False
         return body
 
     def entries(self):

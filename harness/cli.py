@@ -35,6 +35,9 @@ from .jev_assessment import (AssessmentError, parse_payload_json,
                              record_disposition, verdict_for_payload)
 from .ledger import AutonomyLedger
 from . import provision as _pv
+from .provision_approval import ApprovalGate as _ApprovalGate
+from .provision_plan import plan_from_dict as _plan_from_dict
+from .provision_plan import render_plan as _render_plan
 from . import refine as _refine
 from . import repo_cards as _rc
 from . import script as _script
@@ -53,6 +56,16 @@ from .config import (
     resolve_hourglass,
 )
 from .endpoint_pricing import load_fireworks_endpoints
+from .completion_spec import BAR_CLASSES, run_spec_file
+from .epoch_workspace import run_epoch_workspace
+from .self_filing import (
+    DEFAULT_LEDGER,
+    SEAT_TAG,
+    GhTransport,
+    file_test_epoch,
+    render_package,
+    render_receipt,
+)
 from .errors import HarnessError
 from .ledger_sweep import run_daily_sweep, state_path
 from .lifecycle import LifecycleCoordinator
@@ -950,9 +963,12 @@ def _cmd_ask(opts, settings):
     """CLI face over the same conversational owner used by the GUI."""
     prompt = " ".join(opts.prompt).strip()
     agent = AutonomousAgent(settings=settings)
+    # #342: --web grants capability only. The shared plan owner proposes and
+    # has native Jev judge one ResearchPlan before any search or fetch, and the
+    # result carries the gate receipt so the CLI shows what was decided.
     result = agent.run_prompt(
         prompt=prompt, auto_apply=False, session_id=opts.session_id,
-        force_conversation=True)
+        force_conversation=True, web=bool(getattr(opts, "web", False)))
     _emit(result, opts.out)
     code = terminal_exit_code(result.get("status"))
     if code:
@@ -1835,6 +1851,114 @@ def _cmd_jev_phase(opts, settings):
             f"< {result['min_score']} or hard gates failed — do not mark complete")
 
 
+def _cmd_completion_spec(opts, settings):
+    """Dry-run the frozen RSI completion spec over a recorded census (Build 1).
+
+    Bars are data: this face only loads the spec, runs its named checks against
+    the census and reports passed-against-full-total with every red bar named.
+    A run that cannot exercise a class is labelled PARTIAL and earns no credit.
+    """
+    board = run_spec_file(
+        opts.repo_root,
+        census_path=opts.census,
+        spec_path=getattr(opts, "spec", None),
+    )
+    summary = board["summary"]
+    if not getattr(opts, "json", False):
+        for name in BAR_CLASSES:
+            bucket = board["classes"][name]
+            eprint(f"{name}: {bucket['state']} ({bucket['passed']}/{bucket['total']})")
+        eprint(f"{summary['label']} verdict={summary['verdict']} "
+               f"passed={summary['passed']}/{summary['total']} credit={summary['credit']}")
+        if summary["red_bars"]:
+            eprint("red: " + ", ".join(summary["red_bars"]))
+        if summary["unrun_bars"]:
+            eprint("unrun: " + ", ".join(summary["unrun_bars"]))
+    _emit(board, opts.out, force_json=getattr(opts, "json", False))
+    if getattr(opts, "require_green", False) and not summary["credit"]:
+        raise HarnessError(
+            "completion spec is not fully green: red="
+            + (", ".join(summary["red_bars"]) or "-")
+            + "; unrun=" + (", ".join(summary["unrun_bars"]) or "-"))
+    return board
+
+
+def _cmd_epoch_workspace(opts, settings):
+    """Create, publish and discard one throwaway epoch workspace (Build 2).
+
+    The clone is created from the named SHA, its first commit is pushed to the
+    iteration branch, the epoch PR opens as a draft at that commit, and the
+    clone is discarded last - only after the work is on canonical.
+    """
+    receipt = run_epoch_workspace(
+        opts.epoch,
+        opts.head,
+        remote=opts.remote,
+        root=opts.root,
+        base=opts.base,
+        repo=getattr(opts, "repo", None),
+        pr_title=getattr(opts, "pr_title", None),
+        pr_body=getattr(opts, "pr_body", None),
+        first_commit_file=getattr(opts, "first_commit_file", None),
+        first_commit_message=getattr(opts, "first_commit_message", None),
+        discard=getattr(opts, "discard", False),
+    )
+    if not getattr(opts, "json", False):
+        eprint(f"epoch: {receipt['epoch']} branch={receipt['branch']}")
+        eprint(f"head: {receipt['head_sha']}")
+        eprint(f"clone: {receipt['path']}")
+        eprint("pushed: " + ("yes" if receipt["pushed"] else "no"))
+        eprint("pr: " + (receipt["pr_url"] or "-"))
+        eprint("discarded: " + ("yes" if receipt["discarded"] else "no"))
+    _emit(receipt, opts.out, force_json=getattr(opts, "json", False))
+    return receipt
+
+
+def _self_filing_transport():
+    """The tracker poster. A seam for tests; production posts through ``gh``."""
+    return GhTransport()
+
+
+def _cmd_self_filing(opts, settings):
+    """File one epoch package and one receipt to the tracker bus (Build 3).
+
+    Append-only and read-back verified: the module has no edit, delete or close
+    verb, and a filing counts only when the tracker returns the exact body that
+    was sent. ``--dry-run`` renders both records without touching the tracker.
+    """
+    package = json.loads(Path(opts.package).read_text(encoding="utf-8"))
+    receipt = json.loads(Path(opts.receipt).read_text(encoding="utf-8"))
+    seat = getattr(opts, "seat", None) or SEAT_TAG
+    if getattr(opts, "dry_run", False):
+        result = {
+            "seat": seat,
+            "epoch": opts.epoch,
+            "epoch_sha": opts.epoch_sha,
+            "bus": int(opts.bus),
+            "package": render_package(package, seat=seat, epoch=opts.epoch,
+                                      epoch_sha=opts.epoch_sha),
+            "receipt": render_receipt(receipt, seat=seat, epoch=opts.epoch),
+            "dry_run": True,
+        }
+    else:
+        result = file_test_epoch(
+            _self_filing_transport(), opts.repo, epoch=opts.epoch,
+            epoch_sha=opts.epoch_sha,
+            bus=int(opts.bus), package=package, receipt=receipt,
+            ledger_path=getattr(opts, "ledger", None) or DEFAULT_LEDGER, seat=seat)
+        result["dry_run"] = False
+    if not getattr(opts, "json", False):
+        eprint(f"seat: {result['seat']} epoch: {result['epoch']} bus: {result['bus']}")
+        if result["dry_run"]:
+            eprint("dry run: nothing filed")
+        else:
+            eprint(f"package: {result['package']['url']}")
+            eprint(f"receipt: {result['receipt']['url']}")
+            eprint("verified: " + ("yes" if result["verified"] else "no"))
+    _emit(result, opts.out, force_json=getattr(opts, "json", False))
+    return result
+
+
 def _cmd_jev_vision_assessment(opts, settings):
     """Run the bounded HV-0 vision assessment or a no-dispatch preflight."""
     state = build_vision_assessment_state(opts.repo_root)
@@ -1940,7 +2064,7 @@ def _cmd_provision(opts, settings):
         probe = _pv.probe_host()
         policy = _pv.policy_for_probe(probe, [root])
         plan = _pv.plan_provision(opts.goal, probe, policy=policy)
-        rendered = _pv.render_plan(plan)
+        rendered = _render_plan(plan)
         res = plan.to_dict()
         res["rendered"] = rendered
         if not getattr(opts, "json", False) and not getattr(opts, "quiet", False):
@@ -1956,14 +2080,14 @@ def _cmd_provision(opts, settings):
         except Exception as exc:
             raise HarnessError(f"failed to read plan JSON: {exc}") from exc
         try:
-            plan = _pv.plan_from_dict(raw)
+            plan = _plan_from_dict(raw)
         except Exception as exc:
             raise HarnessError(f"malformed plan JSON: {exc}") from exc
         probe = _pv.probe_host()
         policy = _pv.policy_for_probe(probe, [plan.root])
         _pv.validate_plan(plan, policy)
         dry_run = bool(getattr(opts, "dry_run", True))
-        gate = _pv.ApprovalGate()
+        gate = _ApprovalGate()
         if getattr(opts, "approve_all", False):
             gate.record(
                 plan,
@@ -2141,6 +2265,17 @@ def _cmd_assess(opts, settings):
                 spec_ref="cli.assess")
         except (AssessmentError, ValueError, OSError, TraceError) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, sort_keys=True))
+            sys.exit(2)
+        if entry.get("unrecorded"):
+            # A failed append returns an ``unrecorded`` result with no event
+            # id. Report that as this command's JSON error and exit 2 instead
+            # of raising KeyError on the missing field (row 54).
+            print(json.dumps({
+                "ok": False,
+                "error": ("the decision trace was not recorded: "
+                          + str(entry.get("error") or "unknown")),
+                "trace": {"ledger": ledger_path, "unrecorded": True},
+            }, sort_keys=True))
             sys.exit(2)
         report["trace"] = {"ledger": ledger_path,
                            "event_id": entry["event_id"],
@@ -2336,6 +2471,9 @@ _DISPATCH = {
     "rankings": _cmd_rankings,
     "economics": _cmd_economics,
     "jev-phase": _cmd_jev_phase,
+    "completion-spec": _cmd_completion_spec,
+    "epoch-workspace": _cmd_epoch_workspace,
+    "self-filing": _cmd_self_filing,
     "jev-vision-assessment": _cmd_jev_vision_assessment,
     "jev-freeze": _cmd_jev_freeze,
     "mission": _cmd_mission,
@@ -2394,6 +2532,9 @@ def main(argv=None):
         # with no provider credentials -- waiting for work is not a keyed act.
         from .queue_bus import run_cli as _queue_cli
         return _queue_cli(args[1:])
+    if args[:1] == ["driver-watch"]:
+        from .laptop_driver_ctl import run_cli as _driver_watch_cli
+        return _driver_watch_cli(args[1:])
     ap = build_parser()
     opts = ap.parse_args(args)
     apply_output_flags(opts)

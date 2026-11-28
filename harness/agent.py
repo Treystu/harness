@@ -8,6 +8,7 @@ from .chat_lifecycle import ChatLifecycleMixin
 from .config import Settings, load_settings
 from .edit_lifecycle import AutoEditLifecycleMixin
 from .execution_stages import ExecutionStageMixin
+from .fallback_lattice import FallbackLatticeMixin
 from .lifecycle import LifecycleCoordinator
 from .request_router import RequestRoutingMixin
 from .simple_action_lifecycle import SimpleActionLifecycleMixin
@@ -18,6 +19,7 @@ __all__ = ["AutonomousAgent"]
 
 class AutonomousAgent(
     RequestRoutingMixin,
+    FallbackLatticeMixin,
     SimpleActionLifecycleMixin,
     ChatLifecycleMixin,
     AutoEditLifecycleMixin,

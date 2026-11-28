@@ -1,4 +1,4 @@
-"""Gate for the #413 disposition: Product Jev first, Lucas Gate v2 second."""
+"""Gate for the #413 disposition: Lucas Gate v2 first, product Jev second."""
 import json
 import os
 import pathlib
@@ -35,8 +35,6 @@ def main():
     print("keyed:", policy.keyed)
     before = len(ledger.tail(200000))
     text = PATH.read_text(encoding="utf-8")
-    verdict, structural = policy.evaluate_decision(
-        ACTION, GOAL, "W2 turn-9 disposition 413", site=SITE)
     categories = [
         {"id": cid, "applicable": True, "score": 9.5, "category_average": 9.5,
          "evidence": "The filing quotes the observed step records verbatim, "
@@ -53,6 +51,8 @@ def main():
                                    "the probes actually executed."}
                      for k, v in BIAS.items()],
         actual_risk=False, overall_average=9.5)
+    verdict, structural = policy.evaluate_decision(
+        ACTION, GOAL, "W2 turn-9 disposition 413", site=SITE)
     after = len(ledger.tail(200000))
     seqs = [r.get("seq") for r in ledger.tail(5) if r.get("event") == "jev_eval"]
     out = {"product_jev": {"verdict": verdict.get("verdict"),
