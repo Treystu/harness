@@ -1639,7 +1639,10 @@ class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
             watch._POLL_STATS["requests"] = 0
             watch._POLL_STATS["conditional_304s"] = 0
             try:
-                with patch.dict("os.environ", {"HARNESS_DRIVER_MONITOR_STATE": str(state_path)}), \
+                with patch.dict("os.environ", {
+                        "HARNESS_DRIVER_MONITOR_STATE": str(state_path),
+                        # A unit test must never rotate or post on the real queue.
+                        "HARNESS_FREEBUFF_QUEUE_STATE": str(Path(tmp) / "queue.json")}), \
                         patch.object(watch, "_http_get_conditional", side_effect=fake_conditional):
                     first = watch._sync_issue_comments(since_floor="2026-11-24T00:20:00Z")
                     self.assertEqual([item["id"] for item in first], [7158410813, 7158410915])
@@ -1656,8 +1659,10 @@ class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
                     # pause_requested reuses the 304 cache without issuing non-conditional calls.
                     self.assertEqual(watch.pause_requested(), 7158410915)
                     self.assertEqual(watch._POLL_STATS["conditional_304s"], 2)
-                    with patch.object(watch, "api", return_value={"id": 999}):
+                    with patch.object(watch, "post_queue_comment",
+                                      return_value={"id": 999}) as posted:
                         watch.issue_comment("test invalidates etag")
+                    posted.assert_called_once()
                     saved = json.loads(state_path.read_text(encoding="utf-8"))
                     self.assertIsNone(saved["comments_etag"])
                     self.assertEqual(saved["comments_watermark"], "2026-11-25T09:29:53Z")

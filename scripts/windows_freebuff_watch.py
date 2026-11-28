@@ -18,15 +18,16 @@ from pathlib import Path
 from driver_core.audit import AuditLog
 
 from . import driver_runtime_home
+from . import freebuff_queue
 from . import standing_prompts
 from .windows_freebuff_dispatch import (
     BURN_SESSIONS, CONTINUATION, DISK_THREAD, SCM_THREAD, SESSIONS, THREAD, VISION_THREAD,
 )
 from .windows_freebuff_runner import (
-    BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit,
+    BRANCH, LEDGER, OWNER_ID, UncertainDriverExit,
     _hidden_subprocess_kwargs as _runner_hidden_kwargs,
     api as _DEFAULT_RUNNER_API,
-    approved, execute,
+    approved, execute, post_queue_comment, queue_endpoints,
 )
 api = _DEFAULT_RUNNER_API
 
@@ -179,7 +180,8 @@ _ORIG_HTTP_CONDITIONAL = _http_get_conditional
 
 
 def issue_comment(message):
-    response = api(ISSUE, method="POST", body={"body": message})
+    """Post to the live queue, rolling over when that queue is comment-capped."""
+    response = post_queue_comment(message)
     _clear_comments_etag()
     return response
 
@@ -199,7 +201,7 @@ def validate_receipts():
         _POLL_STATS["requests"] += 1
         receipt = api(f"repos/Treystu/harness/issues/comments/{number}")
         if (not owner(receipt) or not receipt["body"].startswith(heading)
-                or not receipt["issue_url"].casefold().endswith("/treystu/harness/issues/684")):
+                or not freebuff_queue.comment_belongs_to_queue(receipt)):
             raise RuntimeError(f"oversight receipt {number} did not match")
         receipts[number] = receipt
     if _monitor_enabled():
@@ -235,23 +237,33 @@ def _sync_issue_comments(since_floor=DYNAMIC_SINCE):
     """Fetch #684 comments incrementally with ?since=<watermark> + ETag 304 caching."""
     if not _monitor_enabled():
         comments = []
-        page = 1
-        while True:
-            _POLL_STATS["requests"] += 1
-            batch = api(f"{ISSUE}?since={since_floor}&per_page=100&page={page}")
-            comments.extend(batch)
-            if len(batch) < 100:
-                break
-            page += 1
+        for endpoint in queue_endpoints():
+            page = 1
+            while True:
+                _POLL_STATS["requests"] += 1
+                batch = api(f"{endpoint}?since={since_floor}&per_page=100&page={page}")
+                comments.extend(batch)
+                if len(batch) < 100:
+                    break
+                page += 1
         return comments
 
     state = _load_monitor_state()
     cache = state.get("comments_by_id") if isinstance(state.get("comments_by_id"), dict) else {}
     watermark = state.get("comments_watermark") or min(SINCE, DYNAMIC_SINCE)
     etag = state.get("comments_etag") if cache else None
+    live, *historical = queue_endpoints()
 
-    first, first_etag = api_conditional(f"{ISSUE}?since={watermark}&per_page=100&page=1", etag=etag)
+    first, first_etag = api_conditional(f"{live}?since={watermark}&per_page=100&page=1", etag=etag)
     if first is _NOT_MODIFIED:
+        # A queue that rolled over after the last tick still has to be read, or
+        # the first dispatch filed on it stays invisible until the live queue
+        # happens to change too (#684 went read-only at GitHub's comment cap).
+        for endpoint in historical:
+            for item in api(f"{endpoint}?since={watermark}&per_page=100&page=1"):
+                if item.get("id") is not None:
+                    cache[str(item["id"])] = _compact_comment(item)
+        state["comments_by_id"] = cache
         floor_dt = _parse_iso(since_floor)
         return [
             item for item in cache.values()
@@ -262,8 +274,12 @@ def _sync_issue_comments(since_floor=DYNAMIC_SINCE):
     page = 1
     while len(batches[-1]) >= 100:
         page += 1
-        more, _ = api_conditional(f"{ISSUE}?since={watermark}&per_page=100&page={page}")
+        more, _ = api_conditional(f"{live}?since={watermark}&per_page=100&page={page}")
         batches.append(more)
+    for endpoint in historical:
+        for item in api(f"{endpoint}?since={watermark}&per_page=100&page=1"):
+            if item.get("id") is not None:
+                cache[str(item["id"])] = _compact_comment(item)
 
     new_watermark = watermark
     changed_watermark = False

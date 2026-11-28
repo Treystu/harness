@@ -23,8 +23,12 @@ from .windows_freebuff_dispatch import (
     CONTINUATION, DISK_THREAD, QUEUE_PLACEHOLDER, QUEUE_REGION, THREAD, Dispatch,
 )
 from .windows_notepad_window import WindowsWindowScreen
+from . import freebuff_queue
 
-ISSUE = "repos/Treystu/harness/issues/684/comments"
+#: The live dispatch queue endpoint. Resolved through the one queue module, so
+#: a rolled-over queue is picked up by the next process instead of a literal
+#: being edited here (#684 reached GitHub's 2,500-comment ceiling on 2026-11-28).
+ISSUE = freebuff_queue.comments_endpoint(freebuff_queue.queue_id())
 LEDGER = "repos/Treystu/slow-lane-ledger"
 BRANCH = "laptop-vision-20261122"
 OWNER_ID = 6300031
@@ -145,11 +149,41 @@ def approved(comment, now):
     return mission, digest
 
 
+def queue_endpoints():
+    """Every queue this driver reads: the live queue first, then its history."""
+    return freebuff_queue.endpoints()
+
+
+def post_queue_comment(body):
+    """Post to the live dispatch queue, rolling over when it is comment-capped.
+
+    #684 stopped accepting comments at GitHub's 2,500-comment ceiling, so a POST
+    that fails on the cap must move the queue rather than end the tick: the
+    mapping is recorded and the comment lands on the replacement.
+    """
+    def _post(issue, text):
+        response = api(freebuff_queue.comments_endpoint(issue), method="POST",
+                       body={"body": text})
+        echoed = dict(response or {})
+        echoed["queue_issue"] = int(issue)
+        return echoed
+
+    return freebuff_queue.post(body, post_to=_post)
+
+
+def recent_queue_comments(since, per_page=100):
+    """Dispatch comments across every queue this driver reads, live queue first."""
+    comments = []
+    for endpoint in queue_endpoints():
+        comments.extend(api(f"{endpoint}?since={since}&per_page={per_page}"))
+    return comments
+
+
 def one_shot_dispatch():
     comment = api(f"repos/Treystu/harness/issues/comments/{DEMO_COMMENT}")
     digest = hashlib.sha256(comment["body"].encode("utf-8")).hexdigest()
     if (comment["id"] != DEMO_COMMENT or comment["user"]["id"] != OWNER_ID
-            or comment["issue_url"] != "https://api.github.com/repos/Treystu/harness/issues/684"
+            or not freebuff_queue.comment_belongs_to_queue(comment)
             or digest != DEMO_SHA256):
         raise RuntimeError("the one-shot oversight comment failed identity or content verification")
     return {"thread": THREAD, "fallback": DISK_THREAD}, digest
@@ -257,12 +291,12 @@ def reconcile_demo(output):
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
          str(Path(__file__).with_name("windows_ocr_exact.ps1")), "-Path", str(png), "-Label", QUEUE_PLACEHOLDER],
         check=True, timeout=10, capture_output=True, **_hidden_subprocess_kwargs())
-    receipt = api(ISSUE, method="POST", body={"body": (
+    receipt = post_queue_comment((
         f"T8 reconciled #{DEMO_COMMENT}: one exact OCR-verified send to `{THREAD}`. "
         "Archived PNG hashes match the sealed trace. Stop changed false→true, exact queue placeholder verified, "
         "and both bystander RGB comparisons are identical. Read-only reconciliation. "
         f"[Original runner trace](https://github.com/Treystu/slow-lane-ledger/blob/{BRANCH}/"
-        f"dispatch/laptop-driver/evidence/t8/{output.name}/runner.jsonl).")})
+        f"dispatch/laptop-driver/evidence/t8/{output.name}/runner.jsonl)."))
     print(receipt["html_url"])
     return 0
 
@@ -409,7 +443,8 @@ def execute(output, number, mission, digest, bystanders):
     dispatch_id = mission.get("dispatch", number)
     ack_timing = f" (filed {filed_at}, claimed {claimed_at})" if filed_at else f" (claimed {claimed_at})"
     if not mission.get("skip_pre_ack"):
-        api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}{ack_timing}."})
+        post_queue_comment(f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, "
+                           f"receipt {number}{ack_timing}.")
     # G13: the typed text is the lane's registered prompt, byte for byte. It is
     # handed to the child as a file so a newline or a quote in a prompt cannot
     # be rewritten by a shell, and so the evidence holds the exact bytes the
@@ -511,9 +546,9 @@ def execute(output, number, mission, digest, bystanders):
             if mission.get("skip_pre_ack")
             else f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}."
         )
-        api(ISSUE, method="POST", body={"body": (
+        post_queue_comment(
             f"{prefix} Evidence: "
-            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note + latency_note)})
+            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note + latency_note)
     print(state)
     if uncertain:
         raise uncertain
@@ -624,7 +659,7 @@ def main():
     deadline = time.monotonic() + args.wait
     seen = set()
     while True:
-        for comment in api(f"{ISSUE}?since={args.since}&per_page=100"):
+        for comment in recent_queue_comments(args.since):
             number = comment["id"]
             execution = args.state / str(number)
             if number in seen or execution.exists():
@@ -633,7 +668,7 @@ def main():
             try:
                 result = approved(comment, datetime.now(timezone.utc))
             except (RuntimeError, KeyError, ValueError, TypeError) as error:
-                api(ISSUE, method="POST", body={"body": f"T8 refused #{number}: {error}"})
+                post_queue_comment(f"T8 refused #{number}: {error}")
                 continue
             if result is None:
                 continue
