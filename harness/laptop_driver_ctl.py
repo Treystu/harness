@@ -217,12 +217,21 @@ def pinned_runtime_root(driver_root: str) -> tuple[str, str, str, str]:
     if module is None:
         return (driver_root, "unavailable",
                 "driver checkout carries no scripts/driver_runtime_home.py", sha)
+    # G13: the standing-prompt registry is pinned INTO the home, so the claim
+    # path reads a lane's continuation from these bytes and a registration
+    # change takes effect without a new driver commit.
+    raw_registry = os.environ.get("HARNESS_DRIVER_REGISTRY_DIR", "").strip()
+    registry = (Path(raw_registry) if raw_registry
+                else Path(driver_root) / "dispatch" / "laptop-driver" / "standing-prompts")
+    registry_arg = registry if registry.is_dir() else None
     home = home_root / sha[:12]
     try:
         pin = module.read_pin(home)
         if pin and module.verify(home, pin)[0]:
+            if registry_arg is not None:
+                pin = module.refresh_registry(home, registry_arg)
             return str(home), "pinned", "", str(pin.get("sha") or sha)
-        pin = module.install(Path(driver_root), home, sha=sha)
+        pin = module.install(Path(driver_root), home, sha=sha, registry=registry_arg)
     except Exception as exc:
         return driver_root, "unavailable", f"{type(exc).__name__}: {exc}", sha
     return str(home), "pinned", "", str(pin.get("sha") or sha)

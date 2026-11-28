@@ -18,6 +18,7 @@ from pathlib import Path
 from driver_core.audit import AuditLog
 
 from . import driver_runtime_home
+from . import standing_prompts
 from .windows_freebuff_dispatch import (
     BURN_SESSIONS, CONTINUATION, DISK_THREAD, SCM_THREAD, SESSIONS, THREAD, VISION_THREAD,
 )
@@ -1456,6 +1457,22 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
             issue_comment(f"Vision watch #{cid} / `antigravity`: {status}. FreeBuff remains active.")
             return True
         require_driver_runtime()
+        # G13: the continuation is the lane's registered prompt, read from the
+        # pinned runtime home at dispatch time. An unregistered lane parks here,
+        # before any input exists - never a bare "continue in full" improvised
+        # in its place.
+        try:
+            prompt = standing_prompts.resolve(runtime_root(), SESSIONS[thread][0])
+        except standing_prompts.PromptMissing as error:
+            parked_name = f"parked-{item}-{error.reason}.json"
+            checkpoint(parked_name, {"dispatch": cid, "thread": thread, "lane": error.lane,
+                                     "state": f"parked: {error.reason}", "detail": error.detail})
+            if isinstance(known, set):
+                known.add(parked_name)
+            issue_comment(
+                f"Vision watch #{cid} / `{thread}` parked: {error.reason} - {error.detail}. "
+                "No input was sent; a continuation text is never improvised.")
+            return True
         age_s = _age_seconds(parsed, now)
         if not desktop_idle():
             if age_s > 300:
@@ -1480,6 +1497,10 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
                 "standing": True,
                 "filed_at": parsed.get("filed_at") or "",
                 "phase_timeout": dynamic_phase_timeout(item),
+                "text": prompt["text"],
+                "prompt_sha256": prompt["sha256"],
+                "prompt_file": prompt["file"],
+                "prompt_lane": prompt["lane"],
             }
             if parsed.get("mode") == "staged-resume":
                 mission["phases"] = ("search", "query", "select", "vision-resume")
@@ -1494,7 +1515,8 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         finally:
             _clear_comments_etag()
         result_name = f"result-{item}.json"
-        checkpoint(result_name, {"dispatch": cid, "thread": thread, "state": status})
+        checkpoint(result_name, {"dispatch": cid, "thread": thread, "state": status,
+                                 "prompt_sha256": prompt["sha256"], "prompt_file": prompt["file"]})
         if isinstance(known, set):
             known.add(result_name)
         return True

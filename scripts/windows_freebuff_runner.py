@@ -271,14 +271,15 @@ def _platform_state_lines(stdout):
     return [line.strip() for line in (stdout or "").splitlines() if line.strip().startswith("Platform state:")]
 
 
-def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=None):
+def run_phases(output, thread, audit, phases=PHASES, *, standing=False, timeout=None, text_file=None):
     for phase in phases:
         budget = _phase_deadline(phase, timeout)
         audit.append("verification", step_id=f"phase-budget-{phase}", seconds=budget)
         helper = Path(__file__).with_name("windows_freebuff_runner_action.ps1")
         command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
                    str(helper), "-Python", sys.executable, "-Thread", thread, "-Phase", phase,
-                   "-Evidence", str(output / phase), *(["-Standing"] if standing else [])]
+                   "-Evidence", str(output / phase), *(["-Standing"] if standing else []),
+                   *(["-TextFile", str(text_file)] if text_file else [])]
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                                    **_hidden_subprocess_kwargs())
         try:
@@ -402,11 +403,25 @@ def execute(output, number, mission, digest, bystanders):
     claimed_at = _utc_iso_now()
     filed_at = str(mission.get("filed_at") or "").strip()
     audit.append("decision", step_id="claim", comment=number, thread=mission["thread"],
-                 blob=digest, filed_at=filed_at or None, claimed_at=claimed_at)
+                 blob=digest, filed_at=filed_at or None, claimed_at=claimed_at,
+                 **({k: mission[k] for k in ("prompt_sha256", "prompt_file")
+                     if mission.get(k)}))
     dispatch_id = mission.get("dispatch", number)
     ack_timing = f" (filed {filed_at}, claimed {claimed_at})" if filed_at else f" (claimed {claimed_at})"
     if not mission.get("skip_pre_ack"):
         api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}{ack_timing}."})
+    # G13: the typed text is the lane's registered prompt, byte for byte. It is
+    # handed to the child as a file so a newline or a quote in a prompt cannot
+    # be rewritten by a shell, and so the evidence holds the exact bytes the
+    # verdict's prompt_sha256 names.
+    text_file = None
+    if mission.get("text"):
+        text_file = output / "prompt.txt"
+        text_file.write_bytes(str(mission["text"]).encode("utf-8"))
+        audit.append("decision", step_id="prompt-delivered",
+                     prompt_file=mission.get("prompt_file"),
+                     prompt_sha256=mission.get("prompt_sha256"),
+                     bytes=len(text_file.read_bytes()))
     state = "verified running"
     windows = []
     before = {}
@@ -431,7 +446,7 @@ def execute(output, number, mission, digest, bystanders):
             # before/after pixel comparison still records whether it moved.
             t5_before = observe_bystander(output, audit, "before")
         if not run_phases(output, mission["thread"], audit, phases, standing=mission.get("standing", False),
-                          timeout=mission.get("phase_timeout")):
+                          timeout=mission.get("phase_timeout"), text_file=text_file):
             fallback = mission.get("fallback")
             if not fallback:
                 # The child proved the session's identity and then found its turn
@@ -478,7 +493,9 @@ def execute(output, number, mission, digest, bystanders):
                 audit.append("escalation", step_id="after", reason=str(error))
         if (output / "foreign-staged-send-only.json").is_file() and state == "verified running":
             state = "verified running (send-only; foreign staged draft preserved)"
-        audit.append("verification", step_id="result", state=state)
+        audit.append("verification", step_id="result", state=state,
+                     **({k: mission[k] for k in ("prompt_sha256", "prompt_file")
+                         if mission.get(k)}))
         note = ""
         try:
             links = publish(output, number)

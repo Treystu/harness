@@ -1,6 +1,7 @@
 """Tests for the FreeBuff watch, runner, and SCM project census."""
 
 from datetime import datetime, timezone
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -58,6 +59,23 @@ def runtime_present():
     against a controlled probe.
     """
     return patch.object(watch.importlib.util, "find_spec", lambda name: object())
+
+
+def pinned_home(tmp_path, *lanes):
+    """A pinned runtime home carrying one registered steer per lane (G13).
+
+    The claim path reads a lane's continuation from the pinned home rather than
+    improvising one, so a test that expects a claim to execute has to register
+    its lane exactly as production does. The text is written as bytes: the
+    verdict carries the prompt's sha256 over those bytes.
+    """
+    home = Path(tmp_path) / "runtime-home"
+    prompts = home / "registry" / "standing-prompts"
+    prompts.mkdir(parents=True, exist_ok=True)
+    for lane in lanes:
+        stem = watch.standing_prompts.lane_slug(lane)
+        (prompts / f"{stem}.md").write_bytes(f"STEER {lane}\n".encode("utf-8"))
+    return home
 
 
 class _Surface:
@@ -990,9 +1008,11 @@ class FreebuffWatchTests(unittest.TestCase):
                      body=("RESTART DISPATCH — Lane 1, episode L1-STOP-1014\n"
                            'Runner action requested: restart with "continue in full".\n'))
         with tempfile.TemporaryDirectory() as tmp:
+            home = pinned_home(tmp, watch.SESSIONS[watch.THREAD][0])
             write = Mock()
             execute = Mock(return_value=0)
-            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp,
+                                           "HARNESS_DRIVER_RUNTIME_ROOT": str(home)}), \
                  patch.object(watch, "api", return_value=[older, newer]), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
@@ -1077,10 +1097,12 @@ class FreebuffWatchTests(unittest.TestCase):
             },
         ]
         with tempfile.TemporaryDirectory() as tmp:
+            home = pinned_home(tmp, watch.SESSIONS[watch.SCM_THREAD][0])
             write = Mock()
             posted = Mock()
             execute = Mock(return_value=0)
-            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp,
+                                           "HARNESS_DRIVER_RUNTIME_ROOT": str(home)}), \
                  patch.object(watch, "api", return_value=comments), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
@@ -1091,9 +1113,14 @@ class FreebuffWatchTests(unittest.TestCase):
                  runtime_present(), \
                  patch.object(watch, "execute", execute):
                 self.assertTrue(watch.poll_dynamic_dispatches({"claim-dyn-990002-antigravity.json"}, now=now))
-            self.assertEqual(execute.call_args.args[2]["thread"], watch.SCM_THREAD)
+            mission = execute.call_args.args[2]
+            self.assertEqual(mission["thread"], watch.SCM_THREAD)
+            self.assertEqual(mission["text"], "STEER SCMessenger\n")
+            self.assertEqual(mission["prompt_file"], "scmessenger.md")
             self.assertEqual(write.call_args_list[0].args[0], "claim-dyn-990003-2ae32937.json")
             self.assertEqual(write.call_args_list[1].args[0], "result-dyn-990003-2ae32937.json")
+            self.assertEqual(write.call_args_list[1].args[1]["prompt_sha256"],
+                             hashlib.sha256(b"STEER SCMessenger\n").hexdigest())
 
     def test_a_claimed_dispatch_is_never_re_run_by_the_watch(self):
         """At-most-once under the cutover: after the Lane 1 claim parked at the
@@ -1442,7 +1469,9 @@ class SelfRelianceAndComposerCureTests(unittest.TestCase):
         posted = Mock()
         execute = Mock(return_value=0)
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+            home = pinned_home(tmp, watch.SESSIONS[watch.THREAD][0])
+            runtime_env = {"LOCALAPPDATA": tmp, "HARNESS_DRIVER_RUNTIME_ROOT": str(home)}
+            with patch.dict("os.environ", runtime_env), \
                  patch.object(watch, "api", return_value=[comment]), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
@@ -1457,7 +1486,7 @@ class SelfRelianceAndComposerCureTests(unittest.TestCase):
             self.assertFalse(any(n.startswith("claim-dyn-") for n in known))
             self.assertTrue(any(n.startswith("foreground-blocked-") for n in known))
             self.assertIn("Windows Security", posted.call_args.args[0])
-            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+            with patch.dict("os.environ", runtime_env), \
                  patch.object(watch, "api", return_value=[comment]), \
                  patch.object(watch, "guard_approval", Mock()), \
                  patch.object(watch, "desktop_idle", lambda: True), \
@@ -1736,7 +1765,9 @@ class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
         known = set()
         posted = []
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+            home = pinned_home(tmp, *(watch.SESSIONS[t][0] for t in ("0d7e2f37", watch.THREAD)))
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp,
+                                           "HARNESS_DRIVER_RUNTIME_ROOT": str(home)}), \
                     patch.object(watch, "api", return_value=comments), \
                     patch.object(watch, "guard_approval", Mock()), \
                     patch.object(watch, "desktop_idle", lambda: True), \
@@ -1774,7 +1805,9 @@ class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
         known = {"claim-dyn-7158000001-2ae32937.json"}
         posted = []
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict("os.environ", {"LOCALAPPDATA": tmp}), \
+            home = pinned_home(tmp, *(watch.SESSIONS[t][0] for t in ("2ae32937", watch.THREAD)))
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp,
+                                           "HARNESS_DRIVER_RUNTIME_ROOT": str(home)}), \
                     patch.object(watch, "api", return_value=comments), \
                     patch.object(watch, "guard_approval", Mock()), \
                     patch.object(watch, "desktop_idle", lambda: False), \
@@ -2379,3 +2412,54 @@ class PinnedRuntimeHomeTests(unittest.TestCase):
             self.assertEqual(home_mod.verify(Path(tmp) / "home"), (True, "matches the pin"))
             with patch.dict("os.environ", {"HARNESS_DRIVER_RUNTIME_ROOT": str(Path(tmp) / "home")}):
                 self.assertEqual(watch.worktree_head(), sha)
+
+
+class StandingPromptRegistryClaimTests(unittest.TestCase):
+    """G13's two claim-path obligations, at the seam that decides them."""
+
+    def test_an_unregistered_lane_parks_named_and_no_input_is_sent(self):
+        now = datetime(2026, 11, 28, 5, 0, tzinfo=timezone.utc)
+        comment = {
+            "id": 995801,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-28T04:55:00Z",
+            "body": "RESTART DISPATCH\nLane: Lane 1\nAction for the runner: \"continue in full\"",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pinned_home(tmp)  # a pinned home with no prompt registered
+            write = Mock()
+            posted = Mock()
+            execute = Mock()
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp,
+                                           "HARNESS_DRIVER_RUNTIME_ROOT": str(home)}), \
+                 patch.object(watch, "api", return_value=[comment]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=None), \
+                 patch.object(watch, "checkpoint", write), \
+                 patch.object(watch, "issue_comment", posted), \
+                 patch.object(watch, "advance_cursor", Mock()), \
+                 runtime_present(), \
+                 patch.object(watch, "execute", execute):
+                self.assertTrue(watch.poll_dynamic_dispatches(set(), now=now))
+        execute.assert_not_called()
+        names = [call.args[0] for call in write.call_args_list]
+        self.assertEqual(names, ["parked-dyn-995801-315608d2-no-prompt-registered.json"])
+        self.assertEqual(write.call_args.args[1]["state"], "parked: no-prompt-registered")
+        self.assertIn("no-prompt-registered", posted.call_args.args[0])
+        self.assertIn("No input was sent", posted.call_args.args[0])
+
+    def test_the_prompt_file_reaches_the_child_and_the_verdict_carries_its_sha(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            audit = AuditLog(output / "runner.jsonl")
+            prompt = output / "prompt.txt"
+            prompt.write_bytes(b"registered steer\n")
+            fake = Mock(returncode=0)
+            fake.communicate.return_value = ("", "")
+            with patch.object(runner.subprocess, "Popen", return_value=fake) as popen:
+                self.assertTrue(runner.run_phases(output, watch.THREAD, audit, ("send",),
+                                                  standing=True, text_file=prompt))
+            command = popen.call_args.args[0]
+            self.assertIn("-TextFile", command)
+            self.assertEqual(command[command.index("-TextFile") + 1], str(prompt))
