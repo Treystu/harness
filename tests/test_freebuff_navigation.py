@@ -517,7 +517,7 @@ def _pillow_available():
 
 
 @unittest.skipUnless(_pillow_available(),
-                     "Pillow is not installed, so the send-arrow pixel geometry cannot be measured")
+                     "deps: Pillow (dev extra) is not installed, so the pixel geometry is unmeasurable")
 class SendArrowLightThemeTests(unittest.TestCase):
     """Measured on dyn-7229334626: a white control on a white page."""
 
