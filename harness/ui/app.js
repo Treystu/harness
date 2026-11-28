@@ -537,6 +537,30 @@ function setupHeaderControls() {
     });
   }
 
+  // #830 slice 3: run-limits popover. Same open/close/escape behaviour as
+  // the cap popover, and the same rule that the server's response is the
+  // truth the fields re-render from.
+  const limitsBtn = $("#btn-settings");
+  const limitsPop = $("#settings-popover");
+  if (limitsBtn && limitsPop) {
+    limitsBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (limitsPop.hidden) openSettingsPopover();
+      else closeSettingsPopover();
+    });
+    const saveBtn = $("#settings-save");
+    if (saveBtn) saveBtn.addEventListener("click", saveLimits);
+    document.addEventListener("click", (ev) => {
+      if (!limitsPop.hidden && !limitsPop.contains(ev.target)
+          && !limitsBtn.contains(ev.target)) {
+        closeSettingsPopover();
+      }
+    });
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape" && !limitsPop.hidden) closeSettingsPopover();
+    });
+  }
+
 
   $("#btn-new-chat").addEventListener("click", () => {
     sessionId = "sess_" + Math.random().toString(36).slice(2, 10);
@@ -1921,6 +1945,146 @@ async function saveWebAllowlist() {
     });
     backendSettings = data.settings || backendSettings;
     closeWebPopover();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.hidden = false;
+  }
+}
+
+// ---- run-limits popover (#830 slice 3) -----------------------------------
+// The numeric run limits (tokens, panelists, rotations, tool timeout) are
+// edited here through POST /api/settings. The bounds each control renders
+// come from the server's own loader ranges (``gui_numeric_ranges`` in the
+// settings view), never from a client-side copy, so a control can never offer
+// a value the server would refuse. A key whose environment variable is set
+// is rendered locked: the loader gives the environment precedence, so an edit
+// there cannot win and the control says so instead of pretending.
+const LIMIT_LABELS = {
+  max_tokens: "Max tokens (answer)",
+  apply_max_tokens: "Max tokens (apply)",
+  reasoning_token_budget: "Reasoning token budget (fraction)",
+  max_panelists: "Panelists",
+  max_rotations: "Rotations",
+  max_orch_rounds: "Orchestrator rounds",
+  mcp_tool_timeout: "MCP tool timeout (s)",
+  fireworks_budget_usd: "Fireworks budget ($)",
+  meta_budget_usd: "Meta budget ($)",
+  max_cost: "Run cost ceiling ($)",
+  task_max_cost: "Per-task cost ceiling ($)",
+  token_budget_input: "Token budget (input)",
+  token_budget_output: "Token budget (output)",
+  min_confidence: "Minimum confidence (0–1)",
+};
+
+function mk(tag, props, text) {
+  const node = document.createElement(tag);
+  Object.entries(props || {}).forEach(([k, v]) => {
+    if (k === "class") node.className = v;
+    else node.setAttribute(k, v);
+  });
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function limitStep(lo, hi) {
+  return Number.isInteger(lo) && Number.isInteger(hi) ? "1" : "0.01";
+}
+
+function renderLimitFields() {
+  const host = $("#settings-numeric-fields");
+  if (!host) return;
+  const s = backendSettings || {};
+  const ranges = s.gui_numeric_ranges || {};
+  const pinned = s.env_pinned || {};
+  const keys = Object.keys(ranges);
+  host.replaceChildren();
+  if (!keys.length) {
+    host.append(mk("div", { class: "dim" },
+      "The server did not report any editable limits."));
+    return;
+  }
+  keys.forEach((key) => {
+    const range = ranges[key] || [];
+    const lo = range[0];
+    const hi = range[1];
+    const isPinned = Object.prototype.hasOwnProperty.call(pinned, key);
+    const note = isPinned
+      ? `locked · ${pinned[key]} (environment wins)`
+      : `${lo}–${hi}`;
+    const row = mk("div", { class: "cap-row settings-row" });
+    const label = mk("label", {
+      class: "cap-label",
+      for: `setting-${key}`,
+      title: note,
+    }, LIMIT_LABELS[key] || key);
+    const input = mk("input", {
+      type: "number",
+      id: `setting-${key}`,
+      name: key,
+      min: String(lo),
+      max: String(hi),
+      step: limitStep(lo, hi),
+      value: s[key] === undefined || s[key] === null ? "" : String(s[key]),
+    });
+    if (isPinned) input.disabled = true;
+    const badge = mk("span", {
+      class: isPinned ? "settings-lock" : "settings-range",
+    }, note);
+    row.append(label, input, badge);
+    host.append(row);
+  });
+}
+
+function openSettingsPopover() {
+  const pop = $("#settings-popover");
+  if (!pop) return;
+  $("#settings-error").hidden = true;
+  renderLimitFields();
+  pop.hidden = false;
+}
+
+function closeSettingsPopover() {
+  const pop = $("#settings-popover");
+  if (pop) pop.hidden = true;
+}
+
+async function saveLimits() {
+  const errEl = $("#settings-error");
+  errEl.hidden = true;
+  const host = $("#settings-numeric-fields");
+  if (!host) return;
+  const body = {};
+  let bad = null;
+  host.querySelectorAll("input[name]").forEach((input) => {
+    if (input.disabled) return;
+    const raw = String(input.value || "").trim();
+    if (!raw) return;
+    const v = Number(raw);
+    if (!Number.isFinite(v)) {
+      bad = (LIMIT_LABELS[input.name] || input.name) + " must be a number";
+      return;
+    }
+    body[input.name] = v;
+  });
+  if (bad) {
+    errEl.textContent = bad;
+    errEl.hidden = false;
+    return;
+  }
+  if (!Object.keys(body).length) {
+    errEl.textContent = "Nothing to save (every limit is locked or blank)";
+    errEl.hidden = false;
+    return;
+  }
+  try {
+    const data = await api("/api/settings", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    // Re-render from what the server actually persisted, not from the
+    // values this client hoped for.
+    backendSettings = data.settings || backendSettings;
+    renderLimitFields();
   } catch (e) {
     errEl.textContent = e.message;
     errEl.hidden = false;

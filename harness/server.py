@@ -44,8 +44,9 @@ from .agent import AutonomousAgent
 from .request_intent import classify_prompt_intent
 import harness.history as _history
 from .batch import BatchOptions
-from .config import (HARD_MAX_COST, HARD_TASK_MAX_COST, load_settings,
-                     resolve_api_key, update_config)
+from .config import (GUI_NUMERIC_RANGES, HARD_MAX_COST, HARD_TASK_MAX_COST,
+                     env_pinned_settings, load_settings, resolve_api_key,
+                     update_config)
 from .errors import HarnessError, ToolCancelled
 from .jev_policy import flush_all_fallbacks
 from . import osal
@@ -1530,6 +1531,13 @@ def _settings_view():
         # presence only; the label is never echoed (audit #9b rule)
         d["expect_key_label"] = None
         d["expect_key_label_present"] = True
+    # #830 slice 3: the settings surface renders a control per writable
+    # numeric key from the loader's own bounds, and shows a key whose
+    # environment variable is set as locked with the winning value instead of
+    # offering an edit the loader would silently override.
+    d["gui_numeric_ranges"] = {key: [lo, hi] for key, (lo, hi)
+                               in GUI_NUMERIC_RANGES.items()}
+    d["env_pinned"] = env_pinned_settings()
     return d
 
 

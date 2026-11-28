@@ -1156,6 +1156,49 @@ GUI_READ_ONLY_SETTINGS = frozenset({
     "use_local_pool",
 })
 
+
+# #830 slice 3: the validated range of every GUI-writable numeric key, so the
+# settings surface renders a control whose bounds are the bounds the loader
+# actually enforces (``load_settings``' ``_num`` calls). The census test pins
+# this table against real loader behaviour at both edges, so a range change in
+# the loader without a table change fails the suite rather than shipping a
+# control that offers a value the server will refuse.
+GUI_NUMERIC_RANGES = {
+    "max_tokens": (64, 200000),
+    "apply_max_tokens": (64, 200000),
+    "reasoning_token_budget": (0.05, 1.0),
+    "max_panelists": (1, 10),
+    "max_rotations": (0, 20),
+    "max_orch_rounds": (1, 20),
+    "mcp_tool_timeout": (60, 7200),
+    # Provider spend envelopes: writable since the first runtime allow-list,
+    # but never rendered, so the pane could not reach them (#830 slice 3).
+    "fireworks_budget_usd": (0.0, 1_000_000.0),
+    "meta_budget_usd": (0.0, 1_000_000.0),
+    # Ceilings and budgets the loader already bounds; max_cost keeps its
+    # header control as well, and both read back from the same server view.
+    "max_cost": (0, HARD_MAX_COST),
+    "task_max_cost": (0, HARD_TASK_MAX_COST),
+    "token_budget_input": (1024, HARD_TOKEN_BUDGET_INPUT),
+    "token_budget_output": (256, HARD_TOKEN_BUDGET_OUTPUT),
+    "min_confidence": (0.0, 1.0),
+}
+
+
+def env_pinned_settings():
+    """Which known settings an environment variable currently pins.
+
+    ``load_settings`` gives the environment precedence over config.json, so a
+    GUI write to a pinned key is accepted and then silently overridden by the
+    loader. The settings surface must therefore say *that* rather than offer
+    an edit that cannot win: this maps key -> env var name for every known
+    key whose env var is set in this process. Values are never returned; only
+    the pin's existence and the variable's name, which is public config
+    vocabulary, not a secret.
+    """
+    return {key: env for key, env in sorted(_ENV_NAMES.items())
+            if os.environ.get(env) is not None}
+
 # A pinned model id is data, never free text. Anything with whitespace, a
 # control character, or JSON-ish punctuation is rejected rather than being
 # coerced to a string and written into the operator's config file.

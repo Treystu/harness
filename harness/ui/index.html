@@ -111,7 +111,23 @@
       <button type="button" id="btn-auth-toggle" class="mode-badge auth-badge" title="Connect this browser or pair another one">
         <span id="auth-icon">🔒</span> <span id="auth-text">Auth</span>
       </button>
+      <button type="button" id="btn-settings" class="mode-badge settings-badge" title="Edit run limits (tokens, panelists, rotations, timeouts)">
+        <span id="settings-icon">⚙</span> <span id="settings-text">Limits</span>
+      </button>
       <span id="server-identity" class="server-identity" title="Serving version/commit">…</span>
+    </div>
+
+    <!-- #830: numeric run limits. Each control's bounds come from the
+         server's own loader ranges; a key pinned by an environment variable
+         is rendered locked with the value that actually wins. -->
+    <div class="cap-popover settings-popover" id="settings-popover" hidden>
+      <div class="cap-title">Run limits</div>
+      <div id="settings-numeric-fields"></div>
+      <div class="cap-row">
+        <button type="button" id="settings-save" class="cap-save">Save</button>
+      </div>
+      <div class="cap-error" id="settings-error" hidden></div>
+      <div class="cap-hint">Bounds are the server's own validated ranges; a value outside them is refused. Keys pinned by an environment variable are locked and show the value that wins.</div>
     </div>
   </header>
 
