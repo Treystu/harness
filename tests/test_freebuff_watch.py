@@ -2310,3 +2310,72 @@ class CheckpointIdempotenceTests(unittest.TestCase):
                 patch.object(watch, "_monitor_enabled", Mock(return_value=False)):
             with self.assertRaises(RuntimeError):
                 watch.checkpoint("skip-dyn-2-lane.json", {"dispatch": 2})
+
+
+class PinnedRuntimeHomeTests(unittest.TestCase):
+    """G4: the watch executes a pinned home, so dev-tree dirtiness is not input.
+
+    Twelve ticks refused on 2026-11-27 with "uncommitted changes under scripts/
+    in the driver worktree" - each one a lane editing the cure it was about to
+    test in the tree the watch runs from. The gate now reads the executing
+    tree's own pin instead of the dev checkout's git state.
+    """
+
+    def _home(self, tmp_path, *, sha="a" * 40):
+        from scripts import driver_runtime_home as home_mod
+        root = Path(tmp_path) / "runtime"
+        (root / "scripts").mkdir(parents=True)
+        (root / "driver_core").mkdir(parents=True)
+        (root / "scripts" / "windows_freebuff_watch.py").write_text("# watch\n", encoding="utf-8")
+        (root / "driver_core" / "__init__.py").write_text("# core\n", encoding="utf-8")
+        home_mod.write_pin(root, sha, source="test")
+        return root
+
+    def test_a_pinned_home_runs_without_reading_the_dev_worktree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._home(tmp)
+            with patch.dict("os.environ", {"HARNESS_DRIVER_RUNTIME_ROOT": str(root)}), \
+                 patch.object(watch, "_head_pair") as head_pair:
+                self.assertEqual(watch.worktree_head(refresh=True), "a" * 40)
+            head_pair.assert_not_called()
+
+    def test_a_byte_drifting_from_the_pin_refuses_by_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._home(tmp)
+            (root / "scripts" / "windows_freebuff_watch.py").write_text("# edited\n", encoding="utf-8")
+            with patch.dict("os.environ", {"HARNESS_DRIVER_RUNTIME_ROOT": str(root)}):
+                self.assertIsNone(watch.worktree_head(refresh=True))
+                detail = watch.head_refusal_detail()
+            self.assertIn("does not match its pin", detail)
+            self.assertIn("scripts/windows_freebuff_watch.py", detail)
+
+    def test_install_pins_committed_bytes_and_ignores_a_dirty_source(self):
+        import shutil
+        import subprocess
+
+        if shutil.which("git") is None:
+            self.skipTest("git is required to materialize a runtime home")
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "dev"
+            (source / "scripts").mkdir(parents=True)
+            (source / "driver_core").mkdir(parents=True)
+            (source / "scripts" / "windows_freebuff_watch.py").write_text("# committed\n", encoding="utf-8")
+            (source / "driver_core" / "__init__.py").write_text("# committed\n", encoding="utf-8")
+            for args in (("init", "-q"), ("add", "-A"), ("-c", "user.email=ci@example.invalid",
+                                                          "-c", "user.name=ci", "commit", "-qm", "base")):
+                subprocess.run(["git", "-C", str(source), *args], check=True,
+                               capture_output=True, text=True)
+            sha = subprocess.run(["git", "-C", str(source), "rev-parse", "HEAD"], check=True,
+                                 capture_output=True, text=True).stdout.strip()
+            # The dev tree is dirty in exactly the way that used to refuse every tick.
+            (source / "scripts" / "windows_freebuff_watch.py").write_text("# uncommitted\n", encoding="utf-8")
+
+            from scripts import driver_runtime_home as home_mod
+            pinned = home_mod.install(source, Path(tmp) / "home")
+
+            self.assertEqual(pinned["sha"], sha)
+            installed = (Path(tmp) / "home" / "scripts" / "windows_freebuff_watch.py").read_text(encoding="utf-8")
+            self.assertEqual(installed, "# committed\n")
+            self.assertEqual(home_mod.verify(Path(tmp) / "home"), (True, "matches the pin"))
+            with patch.dict("os.environ", {"HARNESS_DRIVER_RUNTIME_ROOT": str(Path(tmp) / "home")}):
+                self.assertEqual(watch.worktree_head(), sha)

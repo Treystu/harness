@@ -17,6 +17,7 @@ from pathlib import Path
 
 from driver_core.audit import AuditLog
 
+from . import driver_runtime_home
 from .windows_freebuff_dispatch import (
     BURN_SESSIONS, CONTINUATION, DISK_THREAD, SCM_THREAD, SESSIONS, THREAD, VISION_THREAD,
 )
@@ -414,12 +415,46 @@ def local_control_state():
     }
 
 
-def _head_pair():
+def runtime_root():
+    """The tree whose code this watch executes (G4: pinned runtime home).
+
+    Unset, the home is the checkout this module was imported from - the old
+    behaviour. Set, the watch runs from a materialized home that carries its
+    own pin, and the dev worktree's git state is not read at all.
+    """
+    raw = os.environ.get("HARNESS_DRIVER_RUNTIME_ROOT", "").strip()
+    if raw:
+        return Path(raw)
+    return WORKTREE
+
+
+def _runtime_pin(root=None):
+    try:
+        return driver_runtime_home.read_pin(root or runtime_root())
+    except Exception:
+        return None
+
+
+def _pinned_head():
+    """The pin's commit when the executing bytes are exactly the pinned bytes."""
+    root = runtime_root()
+    pin = _runtime_pin(root)
+    if not pin:
+        return None
+    ok, _detail = driver_runtime_home.verify(root, pin)
+    if not ok:
+        return None
+    sha = str(pin.get("sha") or "").strip()
+    return sha or None
+
+
+def _head_pair(root=None):
     """``(status, head, upstream)`` for the worktree, read without touching the network."""
-    if subprocess.run(["git", "diff", "--quiet", "HEAD", "--", "scripts"],
-                      cwd=WORKTREE, timeout=5, check=False, **_hidden_subprocess_kwargs()).returncode:
+    root = Path(root) if root is not None else runtime_root()
+    if subprocess.run(["git", "diff", "--quiet", "HEAD", "--", *driver_runtime_home.RUNTIME_PATHS],
+                      cwd=root, timeout=5, check=False, **_hidden_subprocess_kwargs()).returncode:
         return "dirty-scripts", "", ""
-    result = subprocess.run(["git", "rev-parse", "HEAD", "@{upstream}"], cwd=WORKTREE,
+    result = subprocess.run(["git", "rev-parse", "HEAD", "@{upstream}"], cwd=root,
                             capture_output=True, text=True, timeout=5, check=False,
                             **_hidden_subprocess_kwargs())
     heads = result.stdout.splitlines()
@@ -438,19 +473,22 @@ def refresh_upstream():
     healthy run in ``driver-watch.log``.
     """
     result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
-                            cwd=WORKTREE, capture_output=True, text=True, timeout=5, check=False,
+                            cwd=runtime_root(), capture_output=True, text=True, timeout=5, check=False,
                             **_hidden_subprocess_kwargs())
     ref = result.stdout.strip()
     if result.returncode != 0 or "/" not in ref:
         return False
     remote, branch = ref.split("/", 1)
     fetched = subprocess.run(["git", "fetch", "--quiet", "--no-tags", remote, branch],
-                             cwd=WORKTREE, capture_output=True, text=True, timeout=60, check=False,
+                             cwd=runtime_root(), capture_output=True, text=True, timeout=60, check=False,
                              **_hidden_subprocess_kwargs())
     return fetched.returncode == 0
 
 
 def worktree_head(*, refresh=False):
+    pinned = _pinned_head()
+    if pinned:
+        return pinned
     status, head, upstream = _head_pair()
     if status == "ok" and head == upstream:
         return head
@@ -463,6 +501,15 @@ def worktree_head(*, refresh=False):
 
 def head_refusal_detail():
     """Name why the worktree gate refused, so the filing is actionable."""
+    root = runtime_root()
+    pin = _runtime_pin(root)
+    if pin:
+        ok, detail = driver_runtime_home.verify(root, pin)
+        if not ok:
+            return (f"the pinned runtime home does not match its pin "
+                    f"{(pin.get('sha') or '')[:8]}: {detail}")
+        return (f"the pinned runtime home names {(pin.get('sha') or '')[:8]} "
+                f"but the code does not verify against it")
     status, head, upstream = _head_pair()
     if status == "dirty-scripts":
         return "uncommitted changes under scripts/ in the driver worktree"
