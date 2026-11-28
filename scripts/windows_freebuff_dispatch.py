@@ -1673,15 +1673,33 @@ class Dispatch:
             return False
 
     def scroll_sidebar_to_top(self, steps=25):
-        """Reach the top of the project list, proven by two identical rosters."""
+        """Reach the top of the project list, proven by two censuses that agree.
+
+        Settling is about where the rows ARE, not how the OCR reads them: on a
+        stationary list the engine alternates icons and truncations, so text
+        equality can never settle. Measured 2026-11-28 on dyn-7230559860, this
+        loop spent an entire 480 s search budget scrolling a list that had
+        already stopped moving, and the claim parked without searching at all.
+        The roster settle already compares geometry (b4f2e40); this does too.
+        """
         previous = None
+        previous_identity = None
         frame = self.frame("sidebar-top-0")
         for attempt in range(1, steps + 1):
             rows = self.read_roster(f"sidebar-top-{attempt}", frame, SIDEBAR)
-            current = tuple(self._norm(row["text"]) for row in rows)
-            if current and current == previous:
+            current = tuple(round(row["y"] / 2) for row in rows)
+            # In reading order, not as a sorted set: one row's text slip
+            # ("B Harness" re-read as "Harness") otherwise reorders the set, and
+            # two censuses of one still list never compare equal.
+            identity = tuple(self._norm(row["text"]) for row in rows)
+            if (rows and previous is not None and same_rows(previous, current)
+                    and previous_identity is not None
+                    and self.identities_compatible(previous_identity, identity)):
+                self.audit.append("verification", step_id="sidebar-top-settled",
+                                  rows=len(rows), censuses=attempt, settled_by="geometry")
                 return frame
             previous = current
+            previous_identity = identity
             if not self.scroll_by(f"sidebar-top-scroll-{attempt}", frame, [196, 600], 1200):
                 frame = self.frame(f"sidebar-top-{attempt}-recapture")
                 continue

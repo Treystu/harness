@@ -417,6 +417,29 @@ class ComposerPlaceholderRouteTests(unittest.TestCase):
         self.assertIn("raise RuntimeError", guard)
 
 
+class SidebarTopSettleTests(unittest.TestCase):
+    """Measured 2026-11-28: an entire search budget spent scrolling a still list."""
+
+    def _dispatch(self, readings):
+        dispatch = object.__new__(Dispatch)
+        dispatch.audit = Mock()
+        dispatch.frame = Mock(return_value="frame")
+        dispatch.scroll_by = Mock(return_value=True)
+        dispatch.read_roster = Mock(side_effect=[
+            [{"text": text, "y": 100 + index * 60} for index, text in enumerate(reading)]
+            for reading in readings])
+        return dispatch
+
+    def test_a_still_list_settles_while_its_text_alternates(self):
+        # The same three stationary rows, read two ways: text can never match.
+        dispatch = self._dispatch([["B Harness", "Lane 1", "Carrier Census Verifica-"],
+                                   ["Harness", "Lane 1", "Carrier Census Verificat"],
+                                   ["Harness", "Lane 1", "Carrier Census Verificat"]])
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            dispatch.scroll_sidebar_to_top(steps=4)
+        self.assertLessEqual(dispatch.scroll_by.call_count, 1)
+
+
 class SessionNameBindingTests(unittest.TestCase):
     """Measured on dyn-7230285733: search and query picked the row, select did not."""
 
