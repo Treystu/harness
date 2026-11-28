@@ -6,6 +6,8 @@ or filed. These tests pin the cure: one source for the id, a roll-over instead
 of an unrecoverable error, and reads that keep resolving work filed on the
 previous queue.
 """
+import contextlib
+import io
 import json
 import os
 import unittest
@@ -161,6 +163,54 @@ class OutstandingWorkTests(_StateDir, unittest.TestCase):
         queue.record_rotation(908, 684, CAP_ERROR)
         foreign = {"id": 2, "issue_url": "https://api.github.com/repos/Treystu/harness/issues/1"}
         self.assertFalse(queue.comment_belongs_to_queue(foreign))
+
+
+class RetargetTests(_StateDir, unittest.TestCase):
+    """An oversight-designated queue is authoritative and does not orphan work."""
+
+    def test_a_designated_queue_becomes_live_and_the_previous_one_stays_readable(self):
+        self.record(843, history=[684])
+        queue.retarget(844, "oversight successor to #684")
+        self.assertEqual(queue.queue_id(), 844)
+        self.assertEqual(queue.queue_ids(), [844, 843, 684])
+        on_843 = {"id": 3, "issue_url": "https://api.github.com/repos/Treystu/harness/issues/843"}
+        self.assertTrue(queue.comment_belongs_to_queue(on_843))
+        self.assertIn("retargeted", json.loads(self.path.read_text(encoding="utf-8"))["reason"])
+
+    def test_a_retarget_refuses_a_non_issue_number_and_leaves_the_file_alone(self):
+        self.record(843, history=[684])
+        for bad in ("abc", 0, -4, None):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                queue.retarget(bad, "bad")
+            self.assertEqual(queue.queue_id(), 843)
+
+    def test_the_cli_prints_the_mapping_it_recorded(self):
+        self.record(843, history=[684])
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(queue.main(["--state", str(self.path), "--retarget", "844",
+                                         "--reason", "oversight chose #844"]), 0)
+        printed = json.loads(buffer.getvalue())
+        self.assertEqual(printed["current"], 844)
+        self.assertEqual(printed["history"], [843, 684])
+        self.assertEqual(queue.queue_id(), 844)
+
+    def test_the_watch_wrapper_alerts_the_queue_it_posts_to(self):
+        """control.json keeps the install-time id; an alert must not go there."""
+        import importlib.util
+        import tempfile
+        self.record(844, history=[843, 684])
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "run-watch.py"
+            source.write_text(ctl._RUN_WATCH_PY, encoding="utf-8")
+            spec = importlib.util.spec_from_file_location("generated_run_watch", source)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            completed = mock.Mock(returncode=0)
+            with mock.patch.object(module.subprocess, "run", return_value=completed) as run:
+                with mock.patch.dict(os.environ, {"HARNESS_DRIVER_WATCH_NO_ALERT": ""}):
+                    self.assertTrue(module._emit_failure_alert({"dispatch_issue": 684}, 1, "boom", 2))
+        self.assertEqual(run.call_args.args[0][3], "844")
 
 
 class StateFileTests(_StateDir, unittest.TestCase):

@@ -153,6 +153,27 @@ def record_rotation(new_issue, old_issue, reason, path=None):
     return updated
 
 
+def retarget(issue, reason="", path=None):
+    """Designate ``issue`` the live queue, keeping every earlier one readable.
+
+    Roll-over happens by itself when a POST is capped; oversight can also name
+    the successor channel (2026-11-28: #844 succeeded #684, after the automatic
+    roll-over had already chosen #843). A designation is authoritative -- the
+    previous live queue moves to ``history`` with the rest, so a dispatch or
+    receipt filed there keeps resolving instead of becoming invisible.
+    """
+    try:
+        number = int(issue)
+    except (TypeError, ValueError):
+        raise ValueError(f"a queue is an issue number, not {issue!r}") from None
+    if number <= 0:
+        raise ValueError(f"a queue is an issue number, not {issue!r}")
+    state = load(path)
+    if number == state["current"]:
+        return state
+    return record_rotation(number, state["current"], f"retargeted: {reason}".strip(": "), path)
+
+
 def _utc_now():
     from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -237,3 +258,25 @@ def post(body, *, post_to, path=None, locate=None, create=None):
             replacement = (create or create_replacement)(state["current"], str(error))
         record_rotation(replacement, state["current"], str(error), path)
         return post_to(int(replacement), body)
+
+
+def main(argv=None):
+    """Designate or print the queue mapping; the printed state is the read-back."""
+    import argparse
+    parser = argparse.ArgumentParser(
+        prog="freebuff_queue",
+        description="Show or set the Freebuff lane dispatch queue issue.")
+    parser.add_argument("--state", default=None, help="queue.json to read/write")
+    parser.add_argument("--retarget", type=int, default=None, metavar="ISSUE",
+                        help="designate ISSUE the live queue")
+    parser.add_argument("--reason", default="", help="why the queue moved; recorded")
+    args = parser.parse_args(argv)
+    if args.retarget is not None:
+        retarget(args.retarget, args.reason, args.state)
+    state = load(args.state)
+    print(json.dumps(state, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
