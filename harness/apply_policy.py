@@ -111,7 +111,8 @@ class ApplyEngineMixin:
             "rank": ranks.get(model_id),
             "status": status,
         }
-        for key in ("error", "http_status", "reason", "round"):
+        for key in ("error", "http_status", "reason", "round",
+                    "worst_case", "task_max_cost"):
             value = fields.get(key)
             if value is not None:
                 payload[key] = value
@@ -151,6 +152,80 @@ class ApplyEngineMixin:
         if self.governor.spent - req.task_start_spent > req.task_max_cost:
             raise HarnessError(
                 f"actual task cost would exceed --task-max-cost ${req.task_max_cost:.6f}; refusing")
+
+    # ---------------- spend admission -------------------------------------
+
+    @staticmethod
+    def _next_candidate(state):
+        """The next candidate this round may still call: not already failed,
+        not deferred on capability grounds, and not excluded by spend
+        admission."""
+        return next(
+            (m_ for m_ in state.candidates
+             if m_ not in state.failed_models
+             and m_ not in state.deferred_models
+             and m_ not in state.excluded_models),
+            None)
+
+    def _preflight_exclusion(self, req, state, model_id, *, slots, estimate,
+                             jev_component):
+        """Exclude ONE candidate whose worst case exceeds the remaining task
+        allowance, without refusing the task (#805 spend-allowance ruling).
+
+        Admission is decided by the worst case, so an over-budget candidate
+        never reaches a model call. The remedy is a narrower, split or
+        different candidate -- not a looser test and not a bare refusal: only
+        when every affordable candidate is exhausted does the task become
+        SPEND-BLOCKED. The record carries what the measurement owes: the
+        rejected estimate, its Jev component, and the balance it was tested
+        against.
+        """
+        remaining = float(self.governor.spent) - float(req.task_start_spent)
+        worst_case = remaining + float(estimate) + float(jev_component)
+        record = {
+            "model": model_id,
+            "round": state.round_no,
+            "slots": slots,
+            "estimate": round(float(estimate), 6),
+            "jev_component": round(float(jev_component), 6),
+            "remaining": round(remaining, 6),
+            "task_max_cost": round(float(req.task_max_cost), 6),
+            "worst_case": round(worst_case, 6),
+        }
+        # Durable measurement trail: an excluded candidate is a recorded row
+        # (zero cost -- no model was called), distinct from a failed attempt.
+        self.ledger.append(
+            "model_result", task_id=req.task_id, event_note="apply",
+            model=model_id, task_type="code", json_expected=False, json_ok=None,
+            status="excluded", cost=0.0, tracked_cost=0.0, backend=req.backend,
+            reason="spend_preflight", round=state.round_no,
+            estimate=record["estimate"], jev_component=record["jev_component"],
+            remaining=record["remaining"], worst_case=record["worst_case"],
+            task_max_cost=record["task_max_cost"])
+        self._record_attempt(req, model_id, "excluded", {
+            "reason": "spend_preflight", "round": state.round_no,
+            "worst_case": record["worst_case"],
+            "task_max_cost": record["task_max_cost"]})
+        _events.emit("spend_preflight", task_id=req.task_id, model=model_id,
+                     round=state.round_no, worst_case=record["worst_case"],
+                     task_max_cost=record["task_max_cost"])
+        return record
+
+    def _spend_blocked(self, req, exclusions):
+        """Name the task SPEND-BLOCKED (a named impossibility under the
+        fixed-point standard): every affordable candidate was excluded by
+        worst-case admission and no narrower one remained. Never a bare
+        bounce -- the message names each excluded candidate and its
+        worst case so the operator can narrow, split or raise the allowance."""
+        tested = "; ".join(
+            f"{record['model']} worst-case ${record['worst_case']:.6f}"
+            for record in exclusions)
+        spent = float(self.governor.spent) - float(req.task_start_spent)
+        return HarnessError(
+            f"SPEND-BLOCKED: every affordable candidate's worst case exceeds "
+            f"--task-max-cost ${float(req.task_max_cost):.6f} "
+            f"(task spend ${spent:.6f}); excluded: {tested}. "
+            f"Narrow or split the task, or raise --task-max-cost.")
 
     # ---------------- orchestration ---------------------------------------
 
@@ -199,8 +274,7 @@ class ApplyEngineMixin:
                 break
 
             state.candidates = self._candidate_models(req)
-            attempt_model = next(
-                (m_ for m_ in state.candidates if m_ not in state.failed_models), None)
+            attempt_model = self._next_candidate(state)
             if attempt_model is None:
                 # Pool exhausted (e.g. the cheap tier saturated with 429s):
                 # the escalation ladder may still have rungs -- walk it or
@@ -412,9 +486,18 @@ class ApplyEngineMixin:
                 jev_worst = jev_cost(JEV_MAX_INPUT_TOKENS)
             if (self.governor.spent - req.task_start_spent
                     + per_call_estimate + jev_worst > req.task_max_cost):
-                raise HarnessError(
-                    f"task worst-case ${self.governor.spent - req.task_start_spent + per_call_estimate + jev_worst:.6f} "
-                    f"exceeds --task-max-cost ${req.task_max_cost:.6f}. Refusing.")
+                # #805 spend-allowance ruling: an over-budget CANDIDATE is
+                # excluded before its first call and the round narrows to the
+                # next candidate that still fits the remaining balance. The
+                # task is only SPEND-BLOCKED once every candidate is excluded.
+                outcome.exclusions.append(self._preflight_exclusion(
+                    req, state, attempt_model, slots=slots,
+                    estimate=per_call_estimate, jev_component=jev_worst))
+                state.excluded_models.add(attempt_model)
+                attempt_model = self._next_candidate(state)
+                if attempt_model is None:
+                    raise self._spend_blocked(req, outcome.exclusions)
+                continue
             if jev_worst > 0.0 and hasattr(self.governor, "preflight_jev"):
                 self.governor.preflight_jev(JEV_MAX_INPUT_TOKENS, label="apply_candidate")
             # This reservation is made immediately before every candidate,
@@ -582,10 +665,7 @@ class ApplyEngineMixin:
                             break
             if state.rotations > req.max_rot:
                 break
-            attempt_model = next(
-                (m_ for m_ in state.candidates
-                 if m_ not in state.failed_models and m_ not in state.deferred_models),
-                None)
+            attempt_model = self._next_candidate(state)
         outcome.model = attempt_model
         return outcome
 
@@ -804,9 +884,15 @@ class ApplyEngineMixin:
             jev_worst = jev_cost(JEV_MAX_INPUT_TOKENS)
         if (self.governor.spent - req.task_start_spent
                 + esc_estimate + jev_worst > req.task_max_cost):
-            raise HarnessError(
-                f"task worst-case ${self.governor.spent - req.task_start_spent + esc_estimate + jev_worst:.6f} "
-                f"exceeds --task-max-cost ${req.task_max_cost:.6f}. Refusing.")
+            # #805 spend-allowance ruling: an unaffordable escalation rung is
+            # EXCLUDED, and the task narrows to finishing on the rung it
+            # already reached. The exclusion stays auditable, so a narrower
+            # completion is never mistaken for a full one.
+            self._preflight_exclusion(req, state, esc["model"],
+                                      slots=esc_slots, estimate=esc_estimate,
+                                      jev_component=jev_worst)
+            state.excluded_models.add(esc["model"])
+            return None
         if jev_worst > 0.0 and hasattr(self.governor, "preflight_jev"):
             self.governor.preflight_jev(JEV_MAX_INPUT_TOKENS, label="apply_escalation")
         self.governor.preflight(
