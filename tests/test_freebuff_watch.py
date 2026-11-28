@@ -2524,3 +2524,31 @@ class StandingPromptRegistryClaimTests(unittest.TestCase):
         self.assertIsInstance(result["pickup_seconds"], int)
         self.assertGreaterEqual(result["pickup_seconds"], 0)
         self.assertEqual(result["execution_seconds"], 0)
+
+
+class DispatchIssueLockTests(unittest.TestCase):
+    """#684 hit the 2500-comment cap; a verdict must still be filed somewhere."""
+
+    def test_a_locked_dispatch_issue_files_the_same_verdict_on_the_tracker(self):
+        locked = RuntimeError("GitHub POST failed for repos/Treystu/harness/issues/684/comments: "
+                              "Commenting is disabled on issues with more than 2500 comments")
+        calls = []
+
+        def fake_api(endpoint, *, method="GET", body=None, attempts=3):
+            calls.append((endpoint, body["body"]))
+            if len(calls) == 1:
+                raise locked
+            return {"id": 1}
+
+        with patch.object(runner, "api", side_effect=fake_api):
+            runner.post_comment("Vision watch ack #1 / `lane`: claimed now; executing now.")
+        self.assertEqual(calls[0][0], runner.ISSUE)
+        self.assertEqual(calls[1][0], runner.FALLBACK_ISSUE)
+        self.assertIn("Vision watch ack #1", calls[1][1])
+        self.assertIn("Filed on #295", calls[1][1])
+        self.assertIn("more than 2500 comments", calls[1][1])
+
+    def test_an_unrelated_post_failure_is_not_swallowed(self):
+        with patch.object(runner, "api", side_effect=RuntimeError("GitHub POST failed for x: HTTP 500")):
+            with self.assertRaises(RuntimeError):
+                runner.post_comment("Vision watch result #2: verified running.")

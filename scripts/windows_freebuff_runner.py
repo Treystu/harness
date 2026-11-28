@@ -121,6 +121,35 @@ def api(endpoint, *, method="GET", body=None, attempts=3):
     raise last_error
 
 
+FALLBACK_ISSUE = "repos/Treystu/harness/issues/295/comments"
+
+
+def _comments_locked(error):
+    """GitHub's 2500-comment cap, named the way its refusal reads."""
+    text = str(error).casefold()
+    return "more than 2500 comments" in text or "commenting is disabled" in text
+
+
+def post_comment(body):
+    """File a verdict on the dispatch issue, falling back when it is locked.
+
+    Measured 2026-11-28T04:17Z: #684 took its last comment, and GitHub now
+    refuses new ones there (HTTP 403, "more than 2500 comments"). A claim ack,
+    park or result that cannot be filed on #684 must still be filed - otherwise
+    a lock silently swallows the very verdicts pickup discipline exists to
+    make auditable - so the same text goes to the status tracker with the
+    origin named. At-most-once is unaffected: claims are guarded by their
+    checkpoint, not by this comment.
+    """
+    try:
+        return api(ISSUE, method="POST", body={"body": body})
+    except RuntimeError as error:
+        if not _comments_locked(error):
+            raise
+        return api(FALLBACK_ISSUE, method="POST", body={
+            "body": f"{body}\n\nFiled on #295: #684 refused new comments ({error})."})
+
+
 def approved(comment, now):
     match = TRIGGER.fullmatch((comment.get("body") or "").lstrip("\ufeff").strip())
     if comment.get("user", {}).get("id") != OWNER_ID or not match:
@@ -257,12 +286,12 @@ def reconcile_demo(output):
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-File",
          str(Path(__file__).with_name("windows_ocr_exact.ps1")), "-Path", str(png), "-Label", QUEUE_PLACEHOLDER],
         check=True, timeout=10, capture_output=True, **_hidden_subprocess_kwargs())
-    receipt = api(ISSUE, method="POST", body={"body": (
+    receipt = post_comment(
         f"T8 reconciled #{DEMO_COMMENT}: one exact OCR-verified send to `{THREAD}`. "
         "Archived PNG hashes match the sealed trace. Stop changed false→true, exact queue placeholder verified, "
         "and both bystander RGB comparisons are identical. Read-only reconciliation. "
         f"[Original runner trace](https://github.com/Treystu/slow-lane-ledger/blob/{BRANCH}/"
-        f"dispatch/laptop-driver/evidence/t8/{output.name}/runner.jsonl).")})
+        f"dispatch/laptop-driver/evidence/t8/{output.name}/runner.jsonl).")
     print(receipt["html_url"])
     return 0
 
@@ -409,7 +438,7 @@ def execute(output, number, mission, digest, bystanders):
     dispatch_id = mission.get("dispatch", number)
     ack_timing = f" (filed {filed_at}, claimed {claimed_at})" if filed_at else f" (claimed {claimed_at})"
     if not mission.get("skip_pre_ack"):
-        api(ISSUE, method="POST", body={"body": f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}{ack_timing}."})
+        post_comment(f"Vision restart ack #{dispatch_id}: `{mission['thread']}`, receipt {number}{ack_timing}.")
     # G13: the typed text is the lane's registered prompt, byte for byte. It is
     # handed to the child as a file so a newline or a quote in a prompt cannot
     # be rewritten by a shell, and so the evidence holds the exact bytes the
@@ -511,9 +540,9 @@ def execute(output, number, mission, digest, bystanders):
             if mission.get("skip_pre_ack")
             else f"Vision restart result #{dispatch_id} / `{mission['thread']}`: {state}."
         )
-        api(ISSUE, method="POST", body={"body": (
+        post_comment(
             f"{prefix} Evidence: "
-            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note + latency_note)})
+            + " ".join(f"[{index}]({url})" for index, url in enumerate(links, start=1)) + note + latency_note)
     print(state)
     if uncertain:
         raise uncertain

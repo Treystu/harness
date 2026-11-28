@@ -26,7 +26,7 @@ from .windows_freebuff_runner import (
     BRANCH, ISSUE, LEDGER, OWNER_ID, UncertainDriverExit,
     _hidden_subprocess_kwargs as _runner_hidden_kwargs,
     api as _DEFAULT_RUNNER_API,
-    approved, execute,
+    approved, execute, post_comment,
 )
 api = _DEFAULT_RUNNER_API
 
@@ -179,7 +179,10 @@ _ORIG_HTTP_CONDITIONAL = _http_get_conditional
 
 
 def issue_comment(message):
-    response = api(ISSUE, method="POST", body={"body": message})
+    # post_comment falls back to #295 when #684 is comment-locked (2500 cap,
+    # reached 2026-11-28T04:17Z), so a locked dispatch issue cannot swallow a
+    # claim ack, a named park or a result verdict.
+    response = post_comment(message)
     _clear_comments_etag()
     return response
 
