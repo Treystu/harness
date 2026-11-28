@@ -726,7 +726,7 @@ class PanelFirstSearchTests(unittest.TestCase):
         self.assertFalse(dispatch.navigate_by_panel_exact())
         dispatch.click_roster_row.assert_not_called()
 
-    def test_open_search_consults_the_panel_before_the_roster_walk(self):
+    def _search_dispatch(self):
         dispatch = object.__new__(Dispatch)
         dispatch.thread = "9ecc3453"
         dispatch.standing = False
@@ -736,14 +736,32 @@ class PanelFirstSearchTests(unittest.TestCase):
         dispatch.window.api.foreground = Mock(return_value="h")
         dispatch.frame = Mock(return_value="frame")
         dispatch.require_foreground = Mock()
-        dispatch.navigate_by_panel_exact = Mock(return_value=True)
         dispatch.navigate_by_session_list = Mock(side_effect=AssertionError("walk"))
         dispatch.scroll_sidebar_to_top = Mock(return_value="frame")
+        return dispatch
+
+    def test_open_search_tries_the_prefix_pick_before_the_panel(self):
+        # Measured 2026-11-28: the prefix pick is the route that actually selects
+        # a clipped row (five picks across three claims); the panel and the walk
+        # are fallbacks behind it.
+        dispatch = self._search_dispatch()
+        dispatch.navigate_by_unique_prefix = Mock(return_value=False)
+        dispatch.navigate_by_panel_exact = Mock(return_value=True)
         dispatch.open_search()
+        dispatch.navigate_by_unique_prefix.assert_called_once()
         dispatch.navigate_by_panel_exact.assert_called_once()
+        dispatch.navigate_by_session_list.assert_not_called()
         # Measured on dyn-7227021046: from the state the previous claim left
         # behind, the panel route was unavailable, so the phase must reset first.
         dispatch.scroll_sidebar_to_top.assert_called_once()
+
+    def test_a_pick_stops_the_route_choice(self):
+        dispatch = self._search_dispatch()
+        dispatch.navigate_by_unique_prefix = Mock(return_value=True)
+        dispatch.navigate_by_panel_exact = Mock(return_value=True)
+        dispatch.open_search()
+        dispatch.navigate_by_panel_exact.assert_not_called()
+        dispatch.navigate_by_session_list.assert_not_called()
 
 class NarrowedPrefixWalkTests(unittest.TestCase):
     """The unique-prefix proof over a search-filtered roster.
