@@ -1486,6 +1486,36 @@ class Dispatch:
         return best[1] if best else None
 
     @classmethod
+    def clipped_row(cls, text, label):
+        """Is this row the lane's own title, cut off by the sidebar edge?
+
+        The app clips at whatever width it has, and the engine then misreads the
+        last letter of the cut: the same row reads "Carrier Census Verificav" on
+        one page and "Carrier Census Verifica" on the next. Both are shorter
+        readings of THIS title, so similarity over the clipped window is the
+        test, not a literal prefix. A different chat that merely opens with the
+        name ("SCMessenger Audit Lar" for "SCMessenger") is longer than the
+        name and is refused by the length bound.
+        """
+        wanted = cls._norm(label)
+        seen = cls._norm(text)
+        if not wanted or len(seen) < 10 or len(seen) >= len(wanted):
+            return False
+        return SequenceMatcher(None, seen, wanted[:len(seen)]).ratio() >= 0.9
+
+    @classmethod
+    def same_clipped_row(cls, left, right, label):
+        """Two readings of ONE clipped title, not two chats that share an opening."""
+        if not (cls.clipped_row(left, label) and cls.clipped_row(right, label)):
+            return False
+        first, second = cls._norm(left), cls._norm(right)
+        if first == second:
+            return True
+        if abs(len(first) - len(second)) > 2:
+            return False
+        return SequenceMatcher(None, first, second).ratio() >= 0.9
+
+    @classmethod
     def exact_session_title(cls, text, label):
         """Is this row's title exactly the lane, not a heading or a rival?
 
@@ -1804,6 +1834,17 @@ class Dispatch:
                                       reason=str(error))
             exact = [row for row in scoped
                      if self.exact_session_title(row["text"], self.session_name)]
+            if not exact and len(scoped) == 1 and self.clipped_row(scoped[0]["text"],
+                                                                   self.session_name):
+                # One row under this lane's own project, carrying a clipped form of
+                # this lane's title: that is the lane, not a rival. Measured
+                # 2026-11-28 on #7238092443: "Carrier Census Verificav" was on the
+                # first page while the walk held its later readings as separate
+                # chats, scrolled seventeen pages and refused at the end.
+                self.click_exact_row(f"session-list-clipped-pick-{page}", frame, scoped[0])
+                self.audit.append("verification", step_id=f"session-list-clipped-pick-{page}",
+                                  row=scoped[0]["text"], project=self.project, clipped=True)
+                return True
             if len(exact) == 1:
                 # Click the scoped row itself: the title-only matcher would see
                 # the same-titled row in the other project and refuse.
@@ -1813,7 +1854,9 @@ class Dispatch:
                 return True
             for row in (() if exact else scoped):
                 forms = self._row_norm_forms(row["text"])
-                if any(forms & self._row_norm_forms(item["text"]) for item in rivals):
+                if any(forms & self._row_norm_forms(item["text"])
+                       or self.same_clipped_row(row["text"], item["text"], self.session_name)
+                       for item in rivals):
                     continue
                 rivals.append(row)
             if len(scoped) > 1 and not exact:
@@ -2375,7 +2418,8 @@ class Dispatch:
                 rows = self.read_roster(f"pick-{page}-single", frame, SIDEBAR)
             row = next(
                 (item for item in rows
-                 if (self._row_norm_forms(item["text"]) & target_forms)
+                 if ((self._row_norm_forms(item["text"]) & target_forms)
+                     or self.same_clipped_row(item["text"], name, self.session_name))
                  and (not proj or "y" not in item or self.project_of_row(rows, item) in {None, proj})),
                 None,
             )

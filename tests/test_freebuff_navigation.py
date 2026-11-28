@@ -497,6 +497,36 @@ class ClippedGlyphRivalTests(unittest.TestCase):
         right = Dispatch._row_norm_forms("Carrier Census Verifica\u00f8")
         self.assertTrue(left & right)
 
+    def test_a_row_and_its_shorter_reading_are_one_row(self):
+        self.assertTrue(Dispatch.same_clipped_row(
+            "Carrier Census Verificav", "Carrier Census Verifica",
+            "Carrier Census Verification Mission"))
+        self.assertTrue(Dispatch.clipped_row(
+            "Carrier Census Verificav", "Carrier Census Verification Mission"))
+
+    def test_a_different_chat_sharing_the_prefix_is_not_the_same_row(self):
+        self.assertFalse(Dispatch.same_clipped_row(
+            "SCMessenger Audit Lar", "SCMessenger Fresh Re", "SCMessenger"))
+        self.assertFalse(Dispatch.same_clipped_row("Lane 1", "Lane 12", "Lane 1"))
+
+    def test_a_sole_clipped_row_under_the_lane_project_is_picked_on_sight(self):
+        dispatch = object.__new__(Dispatch)
+        dispatch.label = "Lane 2"
+        dispatch.thread = "9ecc3453"
+        dispatch.project = "Harness"
+        dispatch.audit = Mock()
+        dispatch.scroll_sidebar_to_top = Mock(return_value="frame")
+        rows = [{"text": "Projects", "y": 60}, {"text": "B Harness", "y": 96},
+                {"text": "Lane 1", "y": 300},
+                {"text": "Carrier Census Verificav", "y": 520}]
+        dispatch.settled_roster = Mock(return_value=("frame", rows))
+        dispatch.click_exact_row = Mock()
+        with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
+            self.assertTrue(dispatch.walk_session_list())
+        dispatch.click_exact_row.assert_called_once()
+        steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
+        self.assertIn("session-list-clipped-pick-1", steps)
+
     def test_two_readings_of_the_clipped_row_are_picked_not_refused(self):
         dispatch = object.__new__(Dispatch)
         dispatch.label = "Lane 2"
@@ -512,11 +542,17 @@ class ClippedGlyphRivalTests(unittest.TestCase):
         dispatch.expand_sections = Mock(return_value=("frame", first, []))
         dispatch.advance_sidebar = Mock(side_effect=[("frame", True), ("frame", False)])
         dispatch.click_row_by_text = Mock(return_value=True)
+        dispatch.click_exact_row = Mock()
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             self.assertTrue(dispatch.walk_session_list())
-        dispatch.click_row_by_text.assert_called_once()
+        # The sole scoped clipped row is picked on sight, so the walk never
+        # reaches the end-of-list fallback; what matters is that it picked and
+        # did not refuse the row as absent.
+        self.assertTrue(dispatch.click_row_by_text.called or dispatch.click_exact_row.called)
         steps = [c.kwargs.get("step_id") for c in dispatch.audit.append.call_args_list]
-        self.assertIn("session-list-clipped-unique", steps)
+        self.assertTrue(any(str(step).startswith(("session-list-clipped-pick",
+                                                  "session-list-clipped-unique"))
+                            for step in steps), steps)
         self.assertNotIn("session-list-census", steps)
 
 

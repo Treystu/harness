@@ -1997,7 +1997,12 @@ class LiveNavigationCureTests(unittest.TestCase):
             ok = d.walk_session_list(pages=5)
         self.assertTrue(ok)
         d.click_exact_row.assert_called_once()
-        self.assertEqual(d.click_exact_row.call_args.args[2]["text"], "Ra Agensi Lane Queue E")
+        # A sole clipped row is now picked on sight, so page 9's reading (which
+        # carries the status glyph) is as valid a pick as page 10's; what must
+        # hold is that the pick is THIS lane and nothing else.
+        picked = d.click_exact_row.call_args.args[2]["text"]
+        self.assertTrue(Dispatch.row_matches(picked, d.label), picked)
+        self.assertIn(picked, {"Ra Agensi Lane Queue E", "Agensi Lane Queue E"})
 
     def test_identify_by_route_closes_search_before_scrolling_to_top(self):
         order = []
