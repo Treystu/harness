@@ -1,4 +1,4 @@
-"""Gates for the turn-17 CANON-1 map. Product Jev first, Lucas second."""
+"""Gates for the turn-17 CANON-1 map. Lucas Gate v2 first, product Jev second."""
 import json
 import os
 import pathlib
@@ -43,8 +43,6 @@ def main():
     out = {}
     for key, (path, action) in ITEMS.items():
         text = path.read_text(encoding="utf-8")
-        verdict, structural = policy.evaluate_decision(
-            action, GOAL, f"W2 turn-17 CANON-1 inventory {key}", site=SITE)
         categories = [
             {"id": cid, "applicable": True, "score": 9.5, "category_average": 9.5,
              "evidence": "Every row quotes the brief's own clause, every site was "
@@ -61,14 +59,16 @@ def main():
                                        "text and to symbol lookups at one SHA."}
                          for k, v in BIAS.items()],
             actual_risk=False, overall_average=9.5)
+        verdict, structural = policy.evaluate_decision(
+            action, GOAL, f"W2 turn-17 CANON-1 inventory {key}", site=SITE)
         out[key] = {
             "product_jev": {
                 "verdict": verdict.get("verdict"),
                 "disposition": verdict.get("disposition"),
                 "margin": verdict.get("margin"),
-                "lead": verdict.get("lead"),
-                "advanced": verdict.get("advanced"),
-                "destructive": verdict.get("destructive"),
+                "lead": verdict.get("disposition_lead"),
+                "advanced": verdict.get("advances_goal"),
+                "destructive": verdict.get("is_destructive"),
                 "supported": structural.get("supported"),
                 "cost": structural.get("cost"),
                 "model": structural.get("model"),
@@ -78,7 +78,7 @@ def main():
                       "artifact_sha256": lucas["artifact_sha256"]},
         }
         print(key, "jev", verdict.get("verdict"),
-              "lead=%s destr=%s" % (verdict.get("lead"), verdict.get("destructive")),
+              "lead=%s destr=%s" % (verdict.get("disposition_lead"), verdict.get("is_destructive")),
               "| lucas", lucas["status"])
 
     after = len(ledger.tail(200000))

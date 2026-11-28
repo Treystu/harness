@@ -2019,8 +2019,8 @@ class JevPolicy:
             structural.update({"results": verdicts, "reviewed": True,
                                "outage": False})
             return reviewed, structural
-        except (ToolCancelled, ProviderUsageUnknown):
-            self._release(reservation)
+        except (ToolCancelled, ProviderUsageUnknown) as exc:
+            self._settle_cancelled(reservation, exc)
             raise
         except ProviderSpendLimitError as exc:
             self._release_after_provider_limit(

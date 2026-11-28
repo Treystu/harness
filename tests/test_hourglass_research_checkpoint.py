@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 from harness.agent import AutonomousAgent
 from harness.config import load_settings
 from harness.jev import JevEvaluationResult
+from harness.web import ReviewedSources
 from tests._researchplan import accepted_plan, declined_plan
 
 
@@ -129,6 +130,21 @@ class HourglassRetrievalSeamTests(_AgentCase):
         self.assertIs(gather.call_args.kwargs["approval"], approval)
         self.assertEqual(gather.call_args.kwargs["request_id"], "req-1")
         self.assertIn("WEB EVIDENCE", context)
+
+    def test_a_billed_review_cost_survives_context_intake(self):
+        prompt = "what is new in python"
+        plan, approval = accepted_plan(prompt)
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = self._agent(tmp)
+            reviewed = ReviewedSources(
+                [{"kind": "search", "ok": True, "text": "body"}], cost=0.25)
+            with patch.object(agent, "_gather_web_context",
+                              return_value=reviewed):
+                _context, _files, _brief, sources = (
+                    agent._hourglass_request_context(
+                        prompt, web=True, plan=plan, approval=approval,
+                        request_id="req-1"))
+        self.assertEqual(sources.cost, 0.25)
 
     def test_the_renderer_runs_only_for_a_url_the_plan_names(self):
         prompt = "audit this site https://example.test"

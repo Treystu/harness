@@ -177,6 +177,57 @@ def _git_head(driver_root: str) -> str:
     return res.stdout.strip() if res.returncode == 0 else ""
 
 
+def _runtime_home_module(driver_root: str):
+    """The G4 producer from the driver checkout, or ``None`` when absent.
+
+    The producer lives on the driver branch, so a checkout that predates it
+    must keep working: the tick then runs from the driver root exactly as it
+    did before and the status names why the pinned home was not built.
+    """
+    path = Path(driver_root) / "scripts" / "driver_runtime_home.py"
+    if not path.is_file():
+        return None
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("harness_driver_runtime_home", str(path))
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        return None
+    return module
+
+
+def pinned_runtime_root(driver_root: str) -> tuple[str, str, str, str]:
+    """``(root, state, detail, sha)`` for the tree this tick executes (G4).
+
+    The watch runs the code pinned at the driver checkout's HEAD, copied out of
+    the dev tree, so an uncommitted edit there is never its input - the twelve
+    refusals of 2026-11-27 were exactly that input. A home that already carries
+    a verified pin at this HEAD is reused instead of rebuilt.
+    """
+    raw_home = os.environ.get("HARNESS_DRIVER_RUNTIME_HOME", "").strip()
+    home_root = Path(raw_home) if raw_home else (WATCH_DIR / "runtime")
+    sha = _git_head(driver_root)
+    if not sha:
+        return driver_root, "unavailable", "driver_root has no readable HEAD", ""
+    module = _runtime_home_module(driver_root)
+    if module is None:
+        return (driver_root, "unavailable",
+                "driver checkout carries no scripts/driver_runtime_home.py", sha)
+    home = home_root / sha[:12]
+    try:
+        pin = module.read_pin(home)
+        if pin and module.verify(home, pin)[0]:
+            return str(home), "pinned", "", str(pin.get("sha") or sha)
+        pin = module.install(Path(driver_root), home, sha=sha)
+    except Exception as exc:
+        return driver_root, "unavailable", f"{type(exc).__name__}: {exc}", sha
+    return str(home), "pinned", "", str(pin.get("sha") or sha)
+
+
 def _emit_failure_alert(control: dict, exit_code: int, error_text: str, failures: int) -> bool:
     if os.environ.get("HARNESS_DRIVER_WATCH_NO_ALERT", "").strip():
         return False
@@ -276,10 +327,12 @@ def run_tick(*, force: bool = False, echo: bool = False) -> int:
 
             _install_hidden_subprocess_default()
             os.environ["HARNESS_DRIVER_CONTROL_FILE"] = str(CONTROL_PATH)
-            if driver_root not in sys.path:
-                sys.path.insert(0, driver_root)
-            os.chdir(driver_root)
-            head_sha = _git_head(driver_root)
+            execute_root, runtime_state, runtime_detail, head_sha = pinned_runtime_root(driver_root)
+            os.environ["HARNESS_DRIVER_RUNTIME_ROOT"] = execute_root
+            for entry in (driver_root, execute_root):
+                if entry not in sys.path:
+                    sys.path.insert(0, entry)
+            os.chdir(execute_root)
 
             _atomic_write_json(STATUS_PATH, {
                 "state": "running_tick",
@@ -287,6 +340,9 @@ def run_tick(*, force: bool = False, echo: bool = False) -> int:
                 "paused": paused,
                 "driver_root": driver_root,
                 "head_sha": head_sha,
+                "runtime_home": execute_root,
+                "runtime_state": runtime_state,
+                "runtime_detail": runtime_detail,
                 "pid": os.getpid(),
                 "last_run": now,
                 "exit_code": None,
@@ -342,6 +398,9 @@ def run_tick(*, force: bool = False, echo: bool = False) -> int:
                 "paused": paused,
                 "driver_root": driver_root,
                 "head_sha": head_sha,
+                "runtime_home": execute_root,
+                "runtime_state": runtime_state,
+                "runtime_detail": runtime_detail,
                 "pid": os.getpid(),
                 "last_run": finished,
                 "exit_code": exit_code,
@@ -556,6 +615,9 @@ def driver_watch_status() -> dict:
         "pid": tick.get("pid"),
         "consecutive_failures": int(tick.get("consecutive_failures") or 0),
         "head_sha": tick.get("head_sha") or "",
+        "runtime_home": tick.get("runtime_home") or "",
+        "runtime_state": tick.get("runtime_state") or "unknown",
+        "runtime_detail": tick.get("runtime_detail") or "",
         "last_error": tick.get("last_error") or "",
         "control_file": str(control_path()),
         "log_tail": _log_tail(),

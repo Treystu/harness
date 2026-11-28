@@ -812,6 +812,70 @@ def build_parser():
     pjphase.add_argument("--json", action="store_true", help="emit raw JSON only")
     _add_output_flags(pjphase)
 
+    pspec = sub.add_parser(
+        "completion-spec",
+        help="Run the frozen RSI completion spec (bars as data, five classes) "
+             "against a recorded census; a dry run names every red bar")
+    pspec.add_argument("--census", required=True,
+                       help="recorded census JSON to run the spec against")
+    pspec.add_argument("--spec", default=None,
+                       help="spec JSON path override (default packs/completion_spec.json)")
+    pspec.add_argument("--repo-root", default=".",
+                       help="repo root containing packs/completion_spec.json")
+    pspec.add_argument("--require-green", action="store_true",
+                       help="exit 1 unless every bar passes and the run earns credit")
+    pspec.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pspec)
+
+    pews = sub.add_parser(
+        "epoch-workspace",
+        help="Create one throwaway RSI epoch workspace: clone from the named SHA, "
+             "push the epoch's first commit, open the draft epoch PR, discard")
+    pews.add_argument("--epoch", required=True,
+                      help="epoch slug (lowercase letters, digits, dashes)")
+    pews.add_argument("--head", required=True,
+                      help="epoch head: the full 40-character commit SHA to clone")
+    pews.add_argument("--remote", required=True,
+                      help="git remote URL or path the epoch clone is created from")
+    pews.add_argument("--root", default="tmp/rsi-epochs",
+                      help="directory the throwaway clones live under")
+    pews.add_argument("--base", default="main",
+                      help="base branch the epoch PR targets (default main)")
+    pews.add_argument("--repo", default=None,
+                      help="owner/name the draft epoch PR is opened against")
+    pews.add_argument("--pr-title", dest="pr_title", default=None,
+                      help="draft epoch PR title")
+    pews.add_argument("--pr-body", dest="pr_body", default=None,
+                      help="file holding the draft epoch PR body")
+    pews.add_argument("--first-commit-file", dest="first_commit_file", default=None,
+                      help="path the epoch's first commit adds (epoch marker)")
+    pews.add_argument("--first-commit-message", dest="first_commit_message",
+                      default=None, help="message for the epoch's first commit")
+    pews.add_argument("--discard", action="store_true",
+                      help="remove the clone after its work is pushed (and the PR opened)")
+    pews.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(pews)
+
+    psf = sub.add_parser(
+        "self-filing",
+        help="File one RSI epoch package and one receipt to the tracker bus, "
+             "append-only and verified by read-back (--dry-run renders only)")
+    psf.add_argument("--repo", required=True, help="owner/name the bus lives in")
+    psf.add_argument("--bus", required=True, type=int,
+                     help="tracker issue number the records ride as comments")
+    psf.add_argument("--epoch", required=True, help="epoch name these records belong to")
+    psf.add_argument("--epoch-sha", dest="epoch_sha", required=True,
+                     help="full 40-character head SHA the epoch pinned to")
+    psf.add_argument("--package", required=True, help="package record JSON path")
+    psf.add_argument("--receipt", required=True, help="receipt record JSON path")
+    psf.add_argument("--ledger", default=None,
+                     help="loop ledger path (default tmp/rsi-epochs/self-filing-ledger.json)")
+    psf.add_argument("--seat", default=None, help="seat tag (default rsi-epoch)")
+    psf.add_argument("--dry-run", dest="dry_run", action="store_true",
+                     help="render both records and file nothing")
+    psf.add_argument("--json", action="store_true", help="emit raw JSON only")
+    _add_output_flags(psf)
+
     pvision = sub.add_parser(
         "jev-vision-assessment",
         help="Assess the Hourglass vision with one bounded, typed Jev request")

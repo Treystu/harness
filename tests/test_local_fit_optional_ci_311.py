@@ -6,6 +6,7 @@ gate's rules without needing the extras themselves.
 """
 import io
 import json
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -242,8 +243,19 @@ class ContractTests(unittest.TestCase):
         self.assertIn("python -m harness.local_fit.optional_ci", config)
 
     def test_the_audit_fixture_the_old_suites_read_is_not_committed(self):
-        """Why the job runs a deterministic suite instead of the old ones."""
-        self.assertFalse((ROOT / "audits" / "scmessenger" / "_runs").is_dir())
+        """Why the job runs a deterministic suite instead of the old ones.
+
+        The assertion is about committed fixtures, not about a directory: a
+        developer checkout legitimately holds the gitignored run artifacts
+        (``tests/test_local_fit_extract.py`` supports them being present), so
+        testing existence would fail the default suite on a valid tree.
+        """
+        tracked = subprocess.run(
+            ["git", "ls-files", "--", "audits/scmessenger/_runs"],
+            cwd=str(ROOT), capture_output=True, text=True)
+        if tracked.returncode == 0:
+            self.assertEqual(tracked.stdout.strip(), "",
+                             "no audit-run fixture may be committed")
         self.assertIn("audits/scmessenger/_runs/",
                       (ROOT / ".gitignore").read_text(encoding="utf-8"))
 

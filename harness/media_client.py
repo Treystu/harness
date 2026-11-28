@@ -136,9 +136,15 @@ double), ``body`` its raw bytes. A generic 401 with no body is ``unknown``:
     if _MEDIA_PROBE_KEYS & set(payload):
         return "media"
     if "error" in payload or "detail" in payload:
-        # The service's own note, e.g. its credential challenge. A bare 401
-        # with no body is not this case and stays unidentified.
-        return "media"
+        # Only a note that names this service's own credential counts as its
+        # challenge. A generic JSON error (``{"detail": "Not Found"}`` from
+        # an unrelated loopback service) must stay unknown, or the adapter
+        # would treat it as proof and send X-Media-Token to it (#683
+        # finding 23). A bare 401 with no body is equally unidentified.
+        note = str(payload.get("error") or payload.get("detail") or "").lower()
+        if "media" in note or "x-media-token" in note:
+            return "media"
+        return "unknown"
     return "unknown"
 
 

@@ -512,11 +512,22 @@ class MediaEndpointIdentityTests(unittest.TestCase):
         self.assertTrue(any("owner-secret" in str(h) for h in opener.headers[1:]))
 
     def test_the_media_credential_challenge_is_recognized(self):
-        challenge = _http_error(401, {"error": "sign in required"})
+        # #683 finding 23: the challenge identifies the service only when it
+        # names the media credential; a generic "sign in required" does not.
+        challenge = _http_error(401, {"error": "X-Media-Token required"})
         job = {"id": "job-2", "status": "succeeded", "kind": "image"}
         adapter, opener = self._adapter([challenge, job])
         self.assertEqual(adapter.image("x", wait=False)["status"], "succeeded")
         self.assertEqual(len(opener.calls), 2)
+
+    def test_a_generic_json_error_sends_no_token(self):
+        generic = _http_error(404, {"detail": "Not Found"})
+        adapter, opener = self._adapter([generic])
+        with self.assertRaises(MediaUnavailable) as raised:
+            adapter.image("a cabin")
+        self.assertIn("did not identify", str(raised.exception))
+        self.assertEqual(opener.calls, [("GET", self.BASE + "/v1/balance")])
+        self.assertFalse(any("owner-secret" in str(h) for h in opener.headers))
 
     def test_an_unreachable_endpoint_still_says_how_to_start_it(self):
         adapter, opener = self._adapter([urllib.error.URLError("refused")])
@@ -550,7 +561,14 @@ class MediaEndpointIdentityTests(unittest.TestCase):
             ({}, b"<html>Harness UI</html>", "harness-ui"),
             ({}, b'{"balance": 2.0}', "media"),
             ({}, b'[{"jobs": 1}]', "media"),
-            (None, '{"detail": "sign in"}', "media"),
+            # #683 finding 23: a generic JSON error names nothing media-
+            # specific, so it cannot identify the service.
+            (None, '{"detail": "sign in"}', "unknown"),
+            (None, '{"detail": "Not Found"}', "unknown"),
+            (None, '{"error": "invalid request"}', "unknown"),
+            # The service's own credential challenge still identifies it.
+            (None, '{"detail": "X-Media-Token required"}', "media"),
+            (None, '{"error": "media token missing"}', "media"),
             ({}, b"[]", "unknown"),
             ({}, b"3", "unknown"),
             ({}, b'{"unrelated": 1}', "unknown"),

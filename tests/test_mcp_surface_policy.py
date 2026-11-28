@@ -272,6 +272,9 @@ class AnnotationPolicyTests(unittest.TestCase):
             "spend_status", "plan_and_execute", "issue_sort", "source_audit",
             "route_query", "continue_work", "script_run", "log_judgment",
             "dogfood", "host_provision_plan", "flush_run",
+            # #683 finding 9: a keyed driver service sends captured state to
+            # external model services, so the tool is open-world.
+            "driver_step",
         }
 
         self.assertEqual(

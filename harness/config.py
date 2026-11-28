@@ -937,7 +937,20 @@ def _as_bool(value):
 
 
 def _split_list(value):
-    return [x.strip() for x in value.split(",") if x.strip()]
+    """Split a comma string into a clean list; pass lists through unchanged.
+
+    config.json persists lists as JSON lists, so a load -- or an
+    ``update_config`` validate-before-write round trip -- hands back a list,
+    not the comma string the env var carried. Stringifying it first (the old
+    ``_split_list(str(...))`` call sites) corrupted every item with
+    bracket/quote characters: ``[]`` came back as ``['[]']`` (caught by the
+    #830 census round-trip test). Lists pass through item-by-item; anything
+    else keeps the old comma-split behavior exactly.
+    """
+    if isinstance(value, (list, tuple)):
+        return [x.strip() for x in value
+                if isinstance(x, str) and x.strip()]
+    return [x.strip() for x in str(value).split(",") if x.strip()]
 
 
 def _dedup(seq):
@@ -974,11 +987,20 @@ class Settings:
                   meta_enabled=False, use_meta=False, meta_key="",
                   meta_budget_usd=0.0, groq_key="", cerebras_key="",
                   local_pool=None, use_local_pool=False,
-                  max_orch_rounds=3):
+                  max_orch_rounds=3, fireworks_budget_explicit=None):
         self.use_free = use_free
         self.openrouter_enabled = bool(openrouter_enabled)
         self.fireworks_enabled = bool(fireworks_enabled or use_fireworks)
         self.fireworks_budget_usd = float(fireworks_budget_usd)
+        # Whether the operator actually set the Fireworks budget (#683
+        # finding 7): an explicit zero is a prohibition, not "unset", so the
+        # session cannot substitute the whole run budget for it. Callers that
+        # construct Settings directly get the intuitive reading -- a positive
+        # value was set, a zero was not -- and load_settings records what the
+        # environment/config file actually carried.
+        if fireworks_budget_explicit is None:
+            fireworks_budget_explicit = self.fireworks_budget_usd > 0.0
+        self.fireworks_budget_explicit = bool(fireworks_budget_explicit)
         self.meta_enabled = bool(meta_enabled or use_meta)
         self.meta_budget_usd = float(meta_budget_usd)
         if not (self.openrouter_enabled or self.fireworks_enabled
@@ -1109,6 +1131,56 @@ class Settings:
 # so the write allow-list and the freeze face cannot drift apart.
 JEV_FREEZE_KEYS = ("jev_model", "min_confidence")
 
+
+# #830: GUI classification of every settings key. The three sets below must
+# partition ``_ENV_NAMES`` exactly -- a key added to the map without a
+# classification here fails the census test
+# (tests/test_gui_settings_census_830.py). ``update_config`` enforces
+# ``GUI_WRITABLE_SETTINGS`` as its allow-list, so the map and the
+# enforcement cannot drift apart: widening GUI write access is exactly
+# moving a key into the writable set, key class by key class.
+GUI_WRITABLE_SETTINGS = frozenset({
+    "use_free", "allow_escalation", "max_cost", "task_max_cost",
+    "hourglass_stages", "token_budget_input", "token_budget_output",
+    "openrouter_enabled", "fireworks_enabled", "fireworks_budget_usd",
+    "meta_enabled", "meta_budget_usd",
+    "fetch_allowlist_enabled", "fetch_allowlist_hosts",
+    # #830 slice 2 (numeric class): every key here is range-validated
+    # fail-closed by the loader's ``_num`` (int-cast + finite bounds), so
+    # the update_config validate-before-write round trip refuses garbage
+    # with no new validation code. Unbounded floats (max_price_*) and
+    # switches stay read-only until their classes land.
+    "max_tokens", "apply_max_tokens", "reasoning_token_budget",
+    "max_panelists", "max_rotations", "max_orch_rounds",
+    "mcp_tool_timeout",
+    *JEV_FREEZE_KEYS,
+})
+# Secrets: presence-only in the GUI read (``_settings_view`` nulls the
+# value and sets a ``<key>_present`` flag, or never exposes the key at
+# all), never echoed, never writable from the GUI.
+GUI_SECRET_SETTINGS = frozenset({
+    "jev_api_key", "mcp_auth_token", "expect_key_label",
+    "fireworks_key", "meta_key", "groq_key", "cerebras_key",
+})
+# Read-only in the GUI pending the #830 slices: model routing and pools,
+# token/price floors, consent defaults, MCP posture, Hourglass switches,
+# and paths/endpoints. Visible via GET /api/settings; POST refuses them
+# with "not runtime-updatable" until their class is deliberately widened.
+GUI_READ_ONLY_SETTINGS = frozenset({
+    "use_fireworks", "use_meta", "model_preset", "trial_model",
+    "panel", "panel_pool", "judge", "judge_top", "convergence_model",
+    "specialist_pool", "apply_model", "apply_pool", "escalation_pool",
+    "escalation_model", "reasoning_effort", "renew_consent",
+    "ledger_path",
+    "default_require_consent", "jev_primary_mode", "mcp_allow_write",
+    "mcp_allow_verify", "mcp_allowed_roots",
+    "frontier_model", "hourglass_confirm", "hourglass_isolate",
+    "hourglass_parallel", "hourglass_require_attestation",
+    "hourglass_decompose", "openrouter_floor_default",
+    "max_price_prompt", "max_price_completion", "jev_endpoint",
+    "use_local_pool",
+})
+
 # A pinned model id is data, never free text. Anything with whitespace, a
 # control character, or JSON-ish punctuation is rejected rather than being
 # coerced to a string and written into the operator's config file.
@@ -1138,12 +1210,7 @@ def update_config(values):
     if unknown:
         raise HarnessError(
             "unknown setting(s): " + ", ".join(sorted(unknown)))
-    allowed = {"use_free", "allow_escalation", "max_cost", "task_max_cost",
-               "hourglass_stages", "token_budget_input", "token_budget_output",
-               "openrouter_enabled", "fireworks_enabled", "fireworks_budget_usd",
-               "meta_enabled", "meta_budget_usd",
-               "fetch_allowlist_enabled", "fetch_allowlist_hosts"}
-    allowed |= set(JEV_FREEZE_KEYS)
+    allowed = set(GUI_WRITABLE_SETTINGS)
     disallowed = set(values) - allowed
     if disallowed:
         raise HarnessError(
@@ -1326,16 +1393,16 @@ def load_settings(overrides=None):
         default_specialist_pool = SPECIALIST_POOL_PAID
         default_escalation_pool = ESCALATION_POOL_PAID
 
-    panel = _split_list(str(get("panel", ",".join(default_panel)))) or default_panel
-    panel_pool = _split_list(str(get("panel_pool", ",".join(panel)))) or panel
+    panel = _split_list(get("panel", ",".join(default_panel))) or default_panel
+    panel_pool = _split_list(get("panel_pool", ",".join(panel))) or panel
     apply_model = str(get("apply_model", default_apply_pool[0]))
-    apply_pool = _split_list(str(get("apply_pool", ",".join(
-        _dedup([apply_model] + default_apply_pool))))) or [apply_model]
+    apply_pool = _split_list(get("apply_pool", ",".join(
+        _dedup([apply_model] + default_apply_pool)))) or [apply_model]
     if trial_model:
         apply_model = trial_model
         apply_pool = _dedup([trial_model] + apply_pool)
     judge_top = str(get("judge_top", default_judge_top))
-    escalation_pool = _split_list(str(get("escalation_pool", ",".join(default_escalation_pool)))) or default_escalation_pool
+    escalation_pool = _split_list(get("escalation_pool", ",".join(default_escalation_pool))) or default_escalation_pool
 
     # -- numeric range validation (fail closed on nonsense) ------------------
     # Cost ceilings are HARD: HARD_MAX_COST / HARD_TASK_MAX_COST are absolute
@@ -1413,7 +1480,7 @@ def load_settings(overrides=None):
         judge=str(get("judge", default_judge)),
         judge_top=judge_top,
         convergence_model=get("convergence_model", None),
-        specialist_pool=_split_list(str(get("specialist_pool", ",".join(default_specialist_pool)))) or default_specialist_pool,
+        specialist_pool=_split_list(get("specialist_pool", ",".join(default_specialist_pool))) or default_specialist_pool,
         apply_model=apply_model,
         apply_pool=apply_pool,
         escalation_pool=escalation_pool,
@@ -1436,9 +1503,9 @@ def load_settings(overrides=None):
         allow_escalation=_as_bool(get("allow_escalation", bool(paid_key))),
         mcp_allow_write=_as_bool(get("mcp_allow_write", False)),
         mcp_allow_verify=_as_bool(get("mcp_allow_verify", False)),
-        mcp_allowed_roots=_split_list(str(get("mcp_allowed_roots", ""))),
-        hourglass_stages=(_split_list(str(get(
-            "hourglass_stages", ",".join(DEFAULT_HOURGLASS_STAGES))))
+        mcp_allowed_roots=_split_list(get("mcp_allowed_roots", "")),
+        hourglass_stages=(_split_list(get(
+            "hourglass_stages", ",".join(DEFAULT_HOURGLASS_STAGES)))
             or None),
         mcp_tool_timeout=int(mcp_tool_timeout),
         mcp_auth_token=get("mcp_auth_token", None) or None,
@@ -1465,7 +1532,15 @@ def load_settings(overrides=None):
         meta_enabled=_as_bool(get("meta_enabled", use_meta)),
         meta_budget_usd=_num("meta_budget_usd", float, 0.0, 1_000_000.0, 0.0),
         fetch_allowlist_enabled=_as_bool(get("fetch_allowlist_enabled", True)),
-        fetch_allowlist_hosts=_split_list(str(get("fetch_allowlist_hosts", ""))),
+        fetch_allowlist_hosts=_split_list(get("fetch_allowlist_hosts", "")),
+        # #683 finding 7: "present and zero" is not "unset". The flag is
+        # recorded from the sources themselves, not from the resolved value,
+        # so an explicit HARNESS_FIREWORKS_BUDGET_USD=0 survives as a
+        # prohibition instead of being read as the default.
+        fireworks_budget_explicit=bool(
+            (overrides and "fireworks_budget_usd" in overrides)
+            or os.environ.get(_ENV_NAMES["fireworks_budget_usd"]) is not None
+            or "fireworks_budget_usd" in cfg),
     )
     if settings.use_meta:
         _enforce_meta_allowlist(settings)

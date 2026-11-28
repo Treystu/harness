@@ -1834,7 +1834,11 @@ def main(argv=None):  # pragma: no cover - thin wiring; exercised via smoke test
     ledger = composition.ledger_for(settings, caller="mcp")
     composition.pre_run_warning(governor=governor, ledger=ledger,
                                 use_free=settings.use_free)
-    router = composition.router_for(settings)
+    # #683 row 68: the router is handed the run's own ledger, so an MCP
+    # apply/verify rotation writes its ``router.rotation`` row into the same
+    # trace family every other event of that run reaches. The serve path
+    # already assembles it this way; this entry omitted the argument.
+    router = composition.router_for(settings, ledger=ledger)
     engine = composition.engine_for(settings, api_key, governor, ledger, router)
     McpServer(
         transport=transport, api_key=api_key, governor=governor, ledger=ledger,

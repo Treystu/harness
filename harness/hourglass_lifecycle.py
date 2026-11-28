@@ -100,6 +100,18 @@ def _request_identity(prompt: str) -> str:
     return " ".join(str(prompt or "").split()).lower()
 
 
+def _chat_receipt_id(request_id: str, generation: int, kind: str,
+                     round_no: int) -> str:
+    """Name an answer/review receipt under its context generation (#776).
+
+    A resume that invalidates the checkpoint context rebuilds it and clears
+    the checkpoint answer, so the new generation must not find the previous
+    generation's completed receipt. Accounting history is untouched: older
+    receipts stay in the lifecycle usage under their own keys.
+    """
+    return f"{request_id}:chat-{kind}:{int(generation)}:{int(round_no)}"
+
+
 class HourglassLifecycleMixin:
     """The Jev-reviewed answer route and its checkpoint helpers."""
 
@@ -936,9 +948,19 @@ class HourglassLifecycleMixin:
                             route_cost, (int, float)) else 0.0),
                     }
 
+                # Bind the provider-call key to the plan as well, so a changed
+                # plan does not replay a cached route decision (#79/#83). With
+                # no plan the key stays the historical one: a persisted
+                # unknown-completion receipt must still suppress a replay
+                # instead of being billed a second time.
+                _plan_tag = (str(getattr(research_plan, "hash", lambda: "")())
+                             if research_plan is not None else "")
+                _route_key = lifecycle_state["request_id"] + ":chat-route-review"
+                if _plan_tag:
+                    _route_key += ":" + _plan_tag
                 route_preflight = self.lifecycle.provider_call(
                     lifecycle_state,
-                    lifecycle_state["request_id"] + ":chat-route-review",
+                    _route_key,
                     evaluate_route_once,
                     cost=lambda value: float(value.get("cost") or 0.0),
                     retry_unknown=True)
@@ -999,13 +1021,23 @@ class HourglassLifecycleMixin:
                 "plan_hash": str(checkpoint.get("approved_plan_hash") or ""),
                 "receipt": checkpoint.get("plan_approval"),
             }
+        # Resolve the remembered target before drafting the plan so the
+        # proposal, approval and execution all bind to one request text.
+        # #786: previously web_prompt was appended after the plan was decided,
+        # causing a request_hash mismatch in execute_plan.
+        _resolved_site = sole_site(memory, session_id=sid)
+        web_prompt = prompt
+        if (_resolved_site and referential(prompt)
+                and not any(fact in prompt.lower()
+                            for fact in (_resolved_site,))):
+            web_prompt = f"{prompt}\nTarget site: https://{_resolved_site}"
         if web and research_plan is None:
             # #342: route choice only proposes retrieval. The plan is proposed
             # here, judged once by native Jev, and only acceptance keeps web
             # on; a decline, an outage or an unkeyed reviewer leaves the lane
             # at zero search, zero fetch and zero renders.
             proposed, approval, plan_record = self._research_plan_decision(
-                prompt, policy=policy,
+                web_prompt, policy=policy,
                 request_id=str(lifecycle_state["request_id"]),
                 task_id=sid, now=(time.time() if saved_plan else None),
                 saved_plan=saved_plan)
@@ -1028,7 +1060,7 @@ class HourglassLifecycleMixin:
             check = validate_plan(
                 research_plan,
                 request_id=str(lifecycle_state["request_id"]),
-                prompt=prompt, capabilities=("search", "fetch"),
+                prompt=web_prompt, capabilities=("search", "fetch"),
                 approval=plan_approval,
                 now=(time.time() if reused_receipt else None))
             checkpoint["research_plan_gate"] = {
@@ -1058,16 +1090,24 @@ class HourglassLifecycleMixin:
                 checkpoint["research_plan_body"] = dict(body())
             # The whole receipt is recorded, not a subset: a later resume can
             # only adopt it if the per-query verdicts and expiry come with it.
+            # Preserve the existing receipt when reusing the same plan without a
+            # replacement approval instead of serializing None over it (#84).
             payload = getattr(plan_approval, "payload", None)
-            checkpoint["plan_approval"] = (
-                dict(payload()) if callable(payload) else {
+            if callable(payload):
+                checkpoint["plan_approval"] = dict(payload())
+            elif plan_approval is None and isinstance(
+                    checkpoint.get("plan_approval"), dict):
+                # keep the previously recorded receipt
+                pass
+            else:
+                checkpoint["plan_approval"] = {
                     "decision": "", "native": False, "plan_hash": "",
                     "request_hash": "", "revision": 0, "consent_id": "",
-                })
+                }
         checkpoint["known_cost"] = round(total_cost, 8)
         checkpoint["web_requested"] = web
         checkpoint["intent"] = intent
-        resolved_site = sole_site(memory, session_id=sid)
+        resolved_site = _resolved_site
         if (route_preflight.get("choice") == "clarify"
                 and bool(route_preflight.get("native"))
                 and resolved_site and referential(prompt)):
@@ -1123,13 +1163,9 @@ class HourglassLifecycleMixin:
             context_tokens = int(checkpoint.get("context_tokens") or 0)
             web_sources = list(checkpoint.get("web_sources") or [])
         else:
-            web_prompt = prompt
-            if resolved_site and referential(prompt) and not any(
-                    fact in prompt.lower() for fact in (resolved_site,)):
-                # A referential follow-up ("same site as before") must search
-                # and fetch the remembered target, not the pronoun.  The
-                # previous turn searched "same" and attached unrelated pages.
-                web_prompt = f"{prompt}\nTarget site: https://{resolved_site}"
+            # web_prompt already resolved above (#786); keep resolved_site
+            # in sync for the site-audit / referential checks below.
+            resolved_site = _resolved_site
             context, file_contents, brief, web_sources = \
                 self._hourglass_request_context(
                     prompt, web=web, workspace=workspace_needed,
@@ -1137,6 +1173,13 @@ class HourglassLifecycleMixin:
                     jev_policy=policy, plan=research_plan,
                     approval=plan_approval,
                     request_id=str(lifecycle_state["request_id"]))
+            # A relevance review billed during context intake is part of this
+            # run's total, so a continuation rebuilding its governor from the
+            # checkpoint does not regain that spend (row 78).
+            web_review_cost = float(
+                getattr(web_sources, "cost", 0.0) or 0.0)
+            total_cost += web_review_cost
+            checkpoint["known_cost"] = round(total_cost, 8)
             context_files = list(file_contents)
             context_tokens = int(brief.estimated_tokens)
             file_hashes = {
@@ -1174,6 +1217,8 @@ class HourglassLifecycleMixin:
                 "request_prompt": prompt,
             })
             if resuming and not reusable:
+                checkpoint["request_generation"] = int(
+                    checkpoint.get("request_generation") or 0) + 1
                 checkpoint["answer"] = None
                 checkpoint["prior"] = None
                 checkpoint["rounds"] = []
@@ -1207,6 +1252,7 @@ class HourglassLifecycleMixin:
                               and checkpoint.get("stage") == "jev_review")
         first_round = max(1, int(checkpoint.get("next_round") or 1)) \
             if resuming else 1
+        generation = int(checkpoint.get("request_generation") or 0)
         jev_structural = None
         previous_envelopes = [
             entry.get("jev") for entry in history
@@ -1258,8 +1304,8 @@ class HourglassLifecycleMixin:
                 try:
                     attempt = self.lifecycle.provider_call(
                         lifecycle_state,
-                        lifecycle_state["request_id"] +
-                        f":chat-answer:{round_no}",
+                        _chat_receipt_id(lifecycle_state["request_id"],
+                                         generation, "answer", round_no),
                         lambda: self._hourglass_answer_once(
                             prompt, context, prior=prior,
                             model_offset=round_no - 1,
@@ -1321,8 +1367,9 @@ class HourglassLifecycleMixin:
                          confidence=None)
                     return proposal
             try:
-                jev_call_id = (lifecycle_state["request_id"] +
-                               f":chat-review:{round_no}")
+                jev_call_id = _chat_receipt_id(
+                    lifecycle_state["request_id"], generation, "review",
+                    round_no)
 
                 def evaluate_answer_once():
                     result, structural = policy.evaluate_answer(

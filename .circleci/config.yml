@@ -211,6 +211,45 @@ jobs:
           name: Scan PR text, diff, credentials, and issue plans
           command: python scripts/driving_hygiene_ci.py
 
+  # ProofGate (Tier 0, PR #800): deterministic receipt check over the PR's
+  # commit range. The receipt is generated in the workspace and archived
+  # as an artifact -- never committed (a committed receipt would have to
+  # claim its own hash). The checker fails empty ranges, any census or
+  # content-hash mismatch, inexact .lean axiom declarations, and
+  # native_decide / sorry equivalents in claimed .lean files.
+  proofgate:
+    executor: python
+    steps:
+      - checkout
+      - run:
+          name: Generate the ProofGate receipt for this range
+          shell: /bin/bash
+          command: |
+            set -euo pipefail
+            git fetch origin +refs/heads/main:refs/remotes/origin/main
+            HEAD_SHA="$(git rev-parse HEAD)"
+            BASE_SHA="$(git merge-base HEAD origin/main || true)"
+            if [ -z "$BASE_SHA" ]; then
+              git fetch --unshallow origin || true
+              git fetch origin +refs/heads/main:refs/remotes/origin/main
+              BASE_SHA="$(git merge-base HEAD origin/main)"
+            fi
+            if [ "$BASE_SHA" = "$HEAD_SHA" ]; then
+              BASE_SHA="$(git rev-parse HEAD~1)"
+            fi
+            echo "proofgate range: $BASE_SHA..$HEAD_SHA"
+            echo "$BASE_SHA" > .proofgate-base
+            echo "$HEAD_SHA" > .proofgate-head
+            python3 tools/proofgate/make_receipt.py . "$BASE_SHA" "$HEAD_SHA" proofgate-receipt.json
+      - store_artifacts:
+          path: proofgate-receipt.json
+      - run:
+          name: ProofGate — verify the receipt against the range
+          shell: /bin/bash
+          command: |
+            set -euo pipefail
+            python3 tools/proofgate/proofgate.py . proofgate-receipt.json "$(cat .proofgate-base)" "$(cat .proofgate-head)"
+
   # #311: the optional local-fit train/export path. The default install has
   # neither numpy, onnx nor onnxruntime, so the train/export tests carry
   # skipUnless guards and every hermetic leg can pass without ever producing
@@ -460,6 +499,9 @@ workflows:
       - driving-hygiene:
           context: github-statuses
           name: "driving-hygiene"
+      - proofgate:
+          context: github-statuses
+          name: "proofgate"
       - local-fit-optional:
           context: github-statuses
           name: "local fit (optional train/export)"
