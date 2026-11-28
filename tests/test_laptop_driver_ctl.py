@@ -31,6 +31,18 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
         })
         env_patch.start()
         self.addCleanup(env_patch.stop)
+        # run_tick inserts the driver root and its pinned home into sys.path and
+        # imports the watch from there. A temp path or a cached scripts package
+        # left behind makes later tests import another tree's modules (measured:
+        # two registry tests failed only under full discovery), so the import
+        # state is restored with the test.
+        self._path_snapshot = list(sys.path)
+        self.addCleanup(self._restore_import_state)
+
+    def _restore_import_state(self):
+        sys.path[:] = self._path_snapshot
+        for key in [k for k in sys.modules if k == "scripts" or k.startswith("scripts.")]:
+            del sys.modules[key]
 
     def test_status_and_state_transitions_start_pause_resume_stop(self):
         initial = laptop_driver_ctl.driver_watch_status()

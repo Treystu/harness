@@ -15,6 +15,7 @@ import unittest
 
 from scripts import driver_runtime_home
 from scripts import standing_prompts as registry
+from scripts import windows_freebuff_dispatch as dispatch
 
 
 def home_with(tmp_path, prompts):
@@ -142,7 +143,6 @@ class DispatchPromptFileTests(unittest.TestCase):
     """The child reads the prompt as bytes, so the typed text is the registered text."""
 
     def test_a_prompt_file_is_read_verbatim(self):
-        from scripts import windows_freebuff_dispatch as dispatch
         body = "CHECK-IN STEER - Lane 1\n\n- a bullet\n- another\n"
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "prompt.txt"
@@ -150,7 +150,6 @@ class DispatchPromptFileTests(unittest.TestCase):
             self.assertEqual(dispatch.read_prompt_file(path), body)
 
     def test_blank_and_undecodable_prompts_are_refused_not_repaired(self):
-        from scripts import windows_freebuff_dispatch as dispatch
         with tempfile.TemporaryDirectory() as tmp:
             blank = Path(tmp) / "blank.txt"
             blank.write_bytes(b"  \n\t\n")
