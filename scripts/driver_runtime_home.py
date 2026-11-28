@@ -34,8 +34,16 @@ import subprocess
 import sys
 import tarfile
 
-RUNTIME_PATHS = ("scripts", "driver_core")
+#: Tracked code copied out of the source checkout at the pinned commit.
+CODE_PATHS = ("scripts", "driver_core")
+#: What the manifest covers: the code plus the registry snapshot (G13), so a
+#: prompt that drifts from its pin refuses instead of being delivered as if it
+#: were the registered text.
+RUNTIME_PATHS = (*CODE_PATHS, "registry")
 PIN_NAME = ".runtime-pin.json"
+#: Registry snapshot layout inside the home, mirroring the ledger.
+REGISTRY_DIR = "registry"
+PROMPTS_DIR = "standing-prompts"
 
 
 def _utc_now() -> str:
@@ -138,15 +146,21 @@ def verify(home: Path, pin: dict | None = None) -> tuple[bool, str]:
     return False, "; ".join(parts)
 
 
-def install(source: Path, home: Path, *, sha: str | None = None) -> dict:
+def install(source: Path, home: Path, *, sha: str | None = None,
+            registry: Path | None = None) -> dict:
     """Materialize tracked code at ``sha`` from ``source`` into ``home``.
 
     Only committed bytes travel: the source is read through ``git archive``,
     so an uncommitted edit in the dev tree cannot reach the runtime home.
+
+    ``registry`` is a directory of ``<lane>.md`` standing prompts (the ledger's
+    ``dispatch/laptop-driver/standing-prompts``). It is copied into the home and
+    covered by the pin, which is what lets the claim path read a lane's prompt
+    FROM THE HOME - the G13 rule - instead of trusting a mutable checkout.
     """
     source, home = Path(source), Path(home)
     resolved = resolve_sha(source, sha)
-    archive = _git(source, "archive", "--format=tar", resolved, *RUNTIME_PATHS, binary=True)
+    archive = _git(source, "archive", "--format=tar", resolved, *CODE_PATHS, binary=True)
     if archive.returncode != 0:
         raise RuntimeError(f"git archive {resolved[:8]} failed: "
                            f"{(archive.stderr or b'').decode('utf-8', 'replace').strip()}")
@@ -163,7 +177,52 @@ def install(source: Path, home: Path, *, sha: str | None = None) -> dict:
             extracted = tar.extractfile(member)
             if extracted is not None:
                 target.write_bytes(extracted.read())
+    if registry is not None:
+        copy_registry(Path(registry), home)
     return write_pin(home, resolved, source=str(source))
+
+
+def copy_registry(source: Path, home: Path) -> list[str]:
+    """Copy ``<source>/*.md`` into the home's registry snapshot; names copied.
+
+    The snapshot is a copy, not a link: the pin covers these bytes, so editing
+    the ledger afterwards cannot change what the driver delivers until the home
+    is refreshed by a new install.
+    """
+    source = Path(source)
+    if not source.is_dir():
+        raise RuntimeError(f"registry directory not found: {source}")
+    target = Path(home) / REGISTRY_DIR / PROMPTS_DIR
+    target.mkdir(parents=True, exist_ok=True)
+    # Removed registration is the deregistration mechanism: a prompt left behind
+    # by an earlier snapshot would keep a removed lane continuable.
+    for stale in target.glob("*.md"):
+        stale.unlink()
+    copied = []
+    for path in sorted(source.glob("*.md")):
+        if not path.is_file():
+            continue
+        (target / path.name).write_bytes(path.read_bytes())
+        copied.append(path.name)
+    if not copied:
+        raise RuntimeError(f"registry directory carries no *.md prompts: {source}")
+    return copied
+
+
+def refresh_registry(home: Path, source: Path) -> dict:
+    """Re-copy the registry snapshot into a pinned home and re-pin the same sha.
+
+    Idempotent on purpose: registration is the ownership mechanism, and a lane
+    added or removed in the ledger must take effect without waiting for the
+    driver's own HEAD to move. The code bytes are untouched - only the registry
+    files and the pin's manifest are rewritten.
+    """
+    home = Path(home)
+    pin = read_pin(home)
+    if not pin:
+        raise RuntimeError(f"{home} carries no pin; install the home before refreshing it")
+    copy_registry(Path(source), home)
+    return write_pin(home, str(pin.get("sha") or ""), source=str(pin.get("source") or ""))
 
 
 def _main(argv: list[str] | None = None) -> int:
@@ -174,11 +233,14 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", default=".", help="Checkout the code is pinned from")
     parser.add_argument("--home", required=True, help="Pinned runtime home directory")
     parser.add_argument("--sha", default=None, help="Commit to pin (default: the source's HEAD)")
+    parser.add_argument("--registry", default=None,
+                        help="Directory of <lane>.md standing prompts to pin into the home")
     parser.add_argument("--json", action="store_true")
     opts = parser.parse_args(argv)
     home = Path(opts.home)
     if opts.action == "install":
-        result = install(Path(opts.source), home, sha=opts.sha)
+        result = install(Path(opts.source), home, sha=opts.sha,
+                         registry=Path(opts.registry) if opts.registry else None)
         payload = {"state": "installed", "home": str(home), "sha": result["sha"],
                    "files": len(result["manifest"])}
     elif opts.action == "manifest":

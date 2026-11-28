@@ -4051,6 +4051,20 @@ class Dispatch:
                           thread=self.thread, working_seconds=working_seconds, sha256=sha256)
 
 
+def read_prompt_file(path):
+    """Read one registered standing prompt as text, refusing blank bytes.
+
+    G13 delivers the registry's text verbatim, so the reader refuses rather
+    than repairing: undecodable bytes raise ``UnicodeDecodeError``, a blank
+    file raises ``ValueError``, and an absent file raises ``OSError``. The
+    caller turns each into a named refusal instead of typing something else.
+    """
+    text = Path(path).read_bytes().decode("utf-8")
+    if not text.strip():
+        raise ValueError("the standing prompt file is empty")
+    return text
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", required=True, type=Path)
@@ -4061,6 +4075,8 @@ def main():
     parser.add_argument("--thread", choices=tuple(SESSIONS), default=THREAD)
     parser.add_argument("--scoped-input", action="store_true")
     parser.add_argument("--standing", action="store_true")
+    parser.add_argument("--text-file", default=None,
+                        help="UTF-8 file carrying the lane's registered standing prompt (G13)")
     args = parser.parse_args()
     key = os.environ.pop("TYPESAFE_API_KEY", "")
     if not key:
@@ -4068,6 +4084,15 @@ def main():
     args.evidence.mkdir()
     dispatch = Dispatch(args.evidence, key, thread=args.thread, scoped_input=args.scoped_input,
                         standing=args.standing)
+    if args.text_file:
+        # G13: the registered prompt replaces the bare continuation the lane
+        # table carries. Every approval check downstream compares to
+        # dispatch.text, so a mismatch still refuses.
+        try:
+            prompt_text = read_prompt_file(args.text_file)
+        except (OSError, UnicodeDecodeError, ValueError) as error:
+            parser.error(f"the standing prompt file could not be read: {error}")
+        dispatch.text = prompt_text
     dispatch.allow_navigation = args.phase in {"prepare", "send", "vision-resume"}
     dispatch.phase = args.phase
     try:

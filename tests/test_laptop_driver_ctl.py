@@ -265,10 +265,53 @@ class LaptopDriverWatchControlTests(unittest.TestCase):
         status_json = json.loads((self.watch_dir / "status.json").read_text(encoding="utf-8"))
         self.assertEqual(status_json["runtime_state"], "pinned")
         self.assertEqual(status_json["head_sha"], "b" * 40)
-        self.assertEqual(status_json["runtime_home"], str(home_root / ("b" * 12)))
+        home = home_root / ("b" * 12)
+        self.assertEqual(status_json["runtime_home"], str(home))
+        # Default registry location does not exist here, so the home is pinned
+        # without one - named as absent rather than guessed at.
+        self.assertEqual((home / "registry-arg.txt").read_text(encoding="utf-8"), "")
         log = self.log_path.read_text(encoding="utf-8")
         self.assertIn("PINNED HOME RAN", log)
         self.assertNotIn("DEV TREE RAN", log)
+
+    def test_the_registry_directory_is_pinned_into_the_home_and_refreshed(self):
+        """G13: the claim path reads prompts from the home, so the controller has
+        to put them there - and a registration change must not need a new commit."""
+        import importlib.util
+
+        res = laptop_driver_ctl.install_laptop_watch(driver_root=self.tmp)
+        spec = importlib.util.spec_from_file_location("test_run_watch_registry", res["runner"])
+        mod = importlib.util.module_from_spec(spec)
+        scripts = Path(self.tmp) / "scripts"
+        scripts.mkdir(parents=True, exist_ok=True)
+        (scripts / "__init__.py").write_text("", encoding="utf-8")
+        (scripts / "windows_freebuff_watch.py").write_text(
+            "def main():\n    print('PINNED HOME RAN')\n    return 0\n", encoding="utf-8")
+        (scripts / "driver_runtime_home.py").write_text(FAKE_PRODUCER, encoding="utf-8")
+        registry = Path(self.tmp) / "ledger-prompts"
+        registry.mkdir()
+        (registry / "lane-1.md").write_bytes(b"steer\n")
+        home_root = Path(self.tmp) / "homes"
+        env = {"HARNESS_DRIVER_WATCH_DIR": str(self.watch_dir),
+               "HARNESS_DRIVER_LOG_PATH": str(self.log_path),
+               "HARNESS_DRIVER_RUNTIME_HOME": str(home_root),
+               "HARNESS_DRIVER_REGISTRY_DIR": str(registry)}
+        with patch.dict(os.environ, env):
+            spec.loader.exec_module(mod)
+            (self.watch_dir / "control.json").write_text(
+                json.dumps({"enabled": True, "paused": False, "driver_root": self.tmp}),
+                encoding="utf-8")
+            for key in [k for k in sys.modules if k == "scripts" or k.startswith("scripts.")]:
+                del sys.modules[key]
+            with patch.object(mod, "_git_head", return_value="d" * 40):
+                self.assertEqual(mod.run_tick(force=True), 0)
+                home = home_root / ("d" * 12)
+                self.assertEqual((home / "registry-arg.txt").read_text(encoding="utf-8"), str(registry))
+                self.assertFalse((home / "registry-refreshed.txt").exists())
+                # A second tick reuses the pin but re-copies the registry, so a
+                # lane added or removed in the ledger takes effect at once.
+                self.assertEqual(mod.run_tick(force=True), 0)
+                self.assertEqual((home / "registry-refreshed.txt").read_text(encoding="utf-8"), str(registry))
 
     def test_a_checkout_without_the_producer_reports_unavailable_and_keeps_working(self):
         import importlib.util
@@ -313,15 +356,20 @@ FAKE_PRODUCER = "\n".join([
     "def verify(home, pin=None):",
     "    return True, 'fake'",
     "",
-    "def install(source, home, sha=None):",
+    "def install(source, home, sha=None, registry=None):",
     "    scripts = Path(home) / 'scripts'",
     "    scripts.mkdir(parents=True, exist_ok=True)",
     "    (scripts / '__init__.py').write_text('', encoding='utf-8')",
     "    watch = 'def main():\\n    print(\"PINNED HOME RAN\")\\n    return 0\\n'",
     "    (scripts / 'windows_freebuff_watch.py').write_text(watch, encoding='utf-8')",
+    "    (Path(home) / 'registry-arg.txt').write_bytes(str(registry or '').encode('utf-8'))",
     "    pin = {'sha': sha or 'b' * 40, 'manifest': {}}",
     "    (Path(home) / '.runtime-pin.json').write_text(json.dumps(pin), encoding='utf-8')",
     "    return pin",
+    "",
+    "def refresh_registry(home, source):",
+    "    (Path(home) / 'registry-refreshed.txt').write_bytes(str(source).encode('utf-8'))",
+    "    return read_pin(home) or {'sha': 'b' * 40}",
 ]) + "\n"
 
 

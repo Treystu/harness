@@ -1,4 +1,4 @@
-param([string]$Python, [string]$Thread, [string]$Phase, [string]$Evidence, [switch]$Standing)
+param([string]$Python, [string]$Thread, [string]$Phase, [string]$Evidence, [switch]$Standing, [string]$TextFile = '')
 $ErrorActionPreference = 'Stop'
 $wrapper = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.codex/bin/typesafe-credential.ps1'
 if ($Phase -eq 'project-census') {
@@ -10,6 +10,7 @@ if ($Phase -eq 'project-census') {
         '--phase', $Phase, '--evidence', $Evidence, '--scoped-input'
     )
     if ($Standing) { $arguments += '--standing' }
+    if ($TextFile) { $arguments += @('--text-file', $TextFile) }
 }
 & $wrapper -Action Run -TrustedChild -FilePath $Python -ArgumentList $arguments
 exit $LASTEXITCODE
