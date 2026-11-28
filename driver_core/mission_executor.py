@@ -44,6 +44,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 
@@ -206,8 +207,23 @@ class MissionInbox:
         return dict(self._manifest)
 
     def _directory(self, name):
+        """One directory inside the declared root, refusing redirection.
+
+        ``os.makedirs`` follows a pre-existing symlink, and the old read-side
+        check only looked at the mission file itself, so a symlinked
+        ``missions/`` made the executor read and remove files outside the
+        declared root. The directory is validated here, once, because receipts
+        and archives use the same helper (#683 finding 27).
+        """
         path = os.path.join(self.root, name)
         os.makedirs(path, exist_ok=True)
+        if os.path.islink(path):
+            raise missions.MissionRefused(
+                f"the inbox directory {name!r} is a symlink; the inbox reads "
+                "and writes only inside its own root")
+        if os.path.dirname(os.path.realpath(path)) != os.path.realpath(self.root):
+            raise missions.MissionRefused(
+                f"the inbox directory {name!r} resolves outside the root")
         return path
 
     def _mission_path(self, filename):
@@ -497,16 +513,29 @@ class MissionExecutor:
 
         Every refusal path files a receipt, parks the file and returns; none of
         them raises out of here, because one bad mission must not stop the
-        queue. The two exceptions are an unreadable inbox (the root is wrong,
+        queue.         The two exceptions are an unreadable inbox (the root is wrong,
         which is not a per-mission condition) and a claim that cannot be
-        closed (the store is unavailable, which is not either).
+        closed (the store is unavailable, which is not either). A token that
+        cannot file receipts is refused up front for the same reason: executing
+        first would leave the claim open and the action replayable (#683
+        finding 25).
         """
+        self.inbox.token.require("read_missions")
+        self.inbox.token.require("write_receipts")
         pending = self.inbox.pending()
         if not pending:
             return None
         filename = pending[0]
-        payload = self.inbox.read(filename)
         started = self.clock()
+        try:
+            payload = self.inbox.read(filename)
+        except missions.MissionRefused as exc:
+            # A malformed, oversized or non-mapping payload used to raise out
+            # of process_next before the refusal handler, so the queue stuck
+            # on the same file instead of parking it and moving on (#683
+            # finding 26). The validated file name is the fallback identity.
+            return self._refuse(filename, {}, filename[:-5], str(exc),
+                                started=started)
         raw_id = payload.get("id")
         mission_id = raw_id if isinstance(raw_id, str) else filename[:-5]
 
@@ -558,12 +587,38 @@ class MissionExecutor:
                               f"the claim was lost before execution: {why}",
                               started=started)
 
+        # A heartbeat before the action is not a lease for the action: an
+        # action longer than the lease became stealable and a second executor
+        # could run the same mission. Renew at a third of the lease for as long
+        # as the action runs, and stop before any receipt is written (#683
+        # finding 24). Short actions still take the single-heartbeat path.
+        stop = threading.Event()
+        lost = []
+        renewer = threading.Thread(
+            target=self._renew_claim,
+            args=(mission["id"], stop, lost),
+            name="mission-lease", daemon=True)
+        renewer.start()
         try:
             evidence = self.execute(mission)
         except Exception as exc:  # a failed action parks; the queue moves on
+            stop.set()
+            renewer.join(timeout=max(1.0, self.lease))
             return self._park(filename, mission,
                               f"the action tier raised: {exc}",
                               started=started)
+        stop.set()
+        renewer.join(timeout=max(1.0, self.lease))
+        if lost:
+            # The claim moved while the action ran; the new holder owns the
+            # mission now, so this executor files the observed loss instead of
+            # claiming a done receipt it cannot close.
+            reason = f"the claim was lost during execution: {lost[0]}"
+            receipt = self._receipt(mission, state=PARKED, detail=reason,
+                                    started=started)
+            self.inbox.write_receipt(receipt)
+            self.inbox.park(filename)
+            return receipt
 
         receipt = self._receipt(
             mission, state=DONE,
@@ -576,6 +631,20 @@ class MissionExecutor:
         self._finish(mission["id"], state=DONE, detail="executed")
         self.inbox.archive(filename)
         return receipt
+
+    def _renew_claim(self, mission_id, stop, lost):
+        """Heartbeat at a third of the lease until the action finishes."""
+        interval = max(0.05, self.lease / 3.0)
+        while not stop.wait(interval):
+            try:
+                held, why = self.claims.heartbeat(mission_id, self.owner,
+                                                 clock=self.clock)
+            except missions.MissionRefused as exc:
+                lost.append(str(exc))
+                return
+            if not held:
+                lost.append(why)
+                return
 
     def _refuse(self, filename, payload, mission_id, reason, *, started,
                 claimed=False):

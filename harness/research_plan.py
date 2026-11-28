@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, replace
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
-from .errors import ToolCancelled
+from .errors import ProviderUsageUnknown, ToolCancelled
 from .events import emit
 
 from .errors import HarnessError
@@ -127,6 +127,49 @@ class ResearchPlan:
 
     def hash(self) -> str:
         return _hash(self.payload())
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> Optional["ResearchPlan"]:
+        """Rebuild a plan from its canonical payload, or ``None``.
+
+        #344: a lane persists ``payload()`` beside the plan hash, so a resume
+        that supplies no plan can still compare the saved route decision with
+        the plan it was actually made under. Only an exact read is usable: a
+        missing field, a wrong type or another schema version returns ``None``
+        and the caller decides again instead of reusing an unread decision.
+        """
+        if not isinstance(payload, dict):
+            return None
+        try:
+            if int(payload["schema_version"]) != SCHEMA_VERSION:
+                return None
+            queries = tuple(
+                PlanQuery(query_id=str(item["query_id"]),
+                          query=str(item["query"]),
+                          purpose=str(item["purpose"]),
+                          url=str(item.get("url") or ""))
+                for item in payload["queries"])
+            return cls(
+                goal=str(payload["goal"]),
+                request_id=str(payload["request_id"]),
+                request_hash=str(payload["request_hash"]),
+                queries=queries,
+                domains=tuple(str(d) for d in payload["domains"]),
+                freshness=str(payload["freshness"]),
+                evidence_requirements=tuple(
+                    str(e) for e in payload["evidence_requirements"]),
+                max_results=int(payload["max_results"]),
+                max_sources=int(payload["max_sources"]),
+                timeout_s=float(payload["timeout_s"]),
+                max_tokens=int(payload["max_tokens"]),
+                max_spend_usd=float(payload["max_spend_usd"]),
+                capabilities=tuple(str(c) for c in payload["capabilities"]),
+                fallback_policy=str(payload["fallback_policy"]),
+                revision=int(payload["revision"]),
+                schema_version=int(payload["schema_version"])
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
 
     def revised(self, **changes: Any) -> "ResearchPlan":
         """A new revision of the same plan; the request binding is kept."""
@@ -328,6 +371,8 @@ def validate_plan(plan: Optional[ResearchPlan], *,
     Returns :class:`PlanCheck`; the first failing condition wins and its code
     names the rule. Callers execute nothing unless this accepts.
     """
+    if now is None:
+        now = time.time()
     if plan is None:
         return PlanCheck.reject("plan_missing", "no research plan was supplied")
     if int(plan.schema_version) != SCHEMA_VERSION:
@@ -382,6 +427,8 @@ def validate_plan(plan: Optional[ResearchPlan], *,
 
 def _approval_check(plan: ResearchPlan, approval: PlanApproval, *,
                     now: Optional[float]) -> PlanCheck:
+    if now is None:
+        now = time.time()
     if not approval.native:
         # An advisory or local preview is not an approval.
         return PlanCheck.reject(
@@ -403,7 +450,7 @@ def _approval_check(plan: ResearchPlan, approval: PlanApproval, *,
             approval.query_verdicts):
         return PlanCheck.reject(
             "approval_incomplete", "the approval does not accept every query")
-    if approval.expires_at and now is not None and float(now) >= float(
+    if approval.expires_at and float(now) >= float(
             approval.expires_at):
         # Consent is request-scoped and does not outlive the turn.
         return PlanCheck.reject(
@@ -475,12 +522,21 @@ def approval_from_judgment(plan: ResearchPlan, judgment: Dict[str, Any],
     decision = str(judgment.get("decision") or DECISION_UNAVAILABLE)
     verdicts = tuple(bool(v) for v in (judgment.get("query_verdicts") or []))
     native = bool(judgment.get("native"))
+    # Preserve the binding fields from the judgment rather than restamping
+    # them from the supplied plan, so a judgment for one plan cannot be
+    # used to authorize a different plan (#80).
+    plan_hash = str(judgment.get("plan_hash") or plan.hash())
+    request_hash = str(judgment.get("request_hash") or plan.request_hash)
+    try:
+        revision = int(judgment.get("revision") or plan.revision)
+    except (TypeError, ValueError):
+        revision = int(plan.revision)
     return PlanApproval(
         decision=decision if native else DECISION_UNAVAILABLE,
         native=native,
-        plan_hash=plan.hash(),
-        request_hash=plan.request_hash,
-        revision=int(plan.revision),
+        plan_hash=plan_hash,
+        request_hash=request_hash,
+        revision=revision,
         confidence=float(judgment.get("confidence") or 0.0),
         consent_id=str(consent_id or ""),
         issued_at=float(issued_at or 0.0),
@@ -583,6 +639,10 @@ def decide_research_plan(
     Returns ``(plan, approval, record)``; ``record`` is the gate's account of
     what happened and is what a lane persists for audit.
     """
+    # Resolve omitted now so consent expiry is always enforced, even when the
+    # caller (or a saved-receipt resume) omits an explicit timestamp.
+    if now is None:
+        now = time.time()
     proposal, why = propose_plan(
         prompt, request_id=request_id, capabilities=capabilities)
     plan_hash = proposal.hash() if proposal is not None else ""
@@ -638,6 +698,8 @@ def decide_research_plan(
             request_hash=proposal.request_hash,
             revision=proposal.revision, task_id=task_id)
     except ToolCancelled:
+        raise
+    except ProviderUsageUnknown:
         raise
     except Exception as exc:  # a reviewer outage never authorizes retrieval
         record.update(state="unavailable",
@@ -736,6 +798,10 @@ def execute_plan(plan: Optional[ResearchPlan],
         sent.append(query.query)
         sources.extend(_search_sources(
             search_fn, query.query, max_results=int(plan.max_results)))
+    # Enforce the accepted plan's aggregate source budget (#82).
+    limit = int(getattr(plan, "max_sources", len(sources)) or len(sources))
+    if limit > 0 and len(sources) > limit:
+        sources = sources[:limit]
     usable = any(s.get("ok") and str(s.get("text") or "").strip()
                  for s in sources)
     if not usable and fetches and not searches:

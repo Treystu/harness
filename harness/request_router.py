@@ -249,6 +249,19 @@ class RequestRoutingMixin:
             emit("chat_quick_reply", reason_code="literal_greeting")
             return result
 
+        # #805: a request that names a repository or file target carries the
+        # deterministic workflow its verb implies (verb and object resolved
+        # together). The router runs it once, before any lane can decline it.
+        # The bounded site-check lane keeps its own selection step, so a bare
+        # site check is not preempted here.
+        if classify_prompt_intent(prompt) != "simple-action":
+            acquired = self._implied_request_workflow(
+                prompt, session_id=sid, cancel_check=cancel_check,
+                reason=("the router resolves a named repository or file "
+                        "target before any lane can decline it"))
+            if acquired is not None:
+                return acquired
+
         if force_conversation:
             # UI chat is conversational by default -- but an edit-intent
             # prompt (mutation verbs / explicit files) in Auto mode is repo
@@ -271,6 +284,15 @@ class RequestRoutingMixin:
                 raise ToolCancelled("Prompt execution was cancelled by user")
             if is_workspace_inspection_request(prompt):
                 if self.root_dir is None:
+                    # #805: a URL target is its own workspace. The router
+                    # acquires the named material instead of asking the user
+                    # to select a folder the request never needed.
+                    acquired = self._implied_request_workflow(
+                        prompt, session_id=sid, cancel_check=cancel_check,
+                        reason=("a URL target supplies its own material; no "
+                                "workspace selection is required"))
+                    if acquired is not None:
+                        return acquired
                     return self._workspace_context_deferred(prompt, sid)
                 return self.run_hourglass_request(
                     prompt,
@@ -360,6 +382,13 @@ class RequestRoutingMixin:
 
         if is_workspace_inspection_request(prompt):
             if self.root_dir is None:
+                # #805: a URL target is its own workspace (see the GUI path).
+                acquired = self._implied_request_workflow(
+                    prompt, session_id=sid, cancel_check=cancel_check,
+                    reason=("a URL target supplies its own material; no "
+                            "workspace selection is required"))
+                if acquired is not None:
+                    return acquired
                 return self._workspace_context_deferred(prompt, sid)
             return self.run_hourglass_request(
                 prompt,

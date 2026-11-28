@@ -14,6 +14,7 @@ import unittest
 from harness.apply_gate import GatePolicy
 from harness.apply_state import ApplyRequest, AttemptOutcome, RunState
 from harness.errors import HarnessError, ToolCancelled
+from harness.jev import LOCAL_HEURISTIC_MODEL, JevEvaluationResult
 from harness.results import _content_diff, _round_entry
 
 
@@ -330,3 +331,66 @@ class EscalationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _Settings:
+    min_confidence = 0.70
+
+
+class _StubJevPolicy:
+    """A policy whose verifier answers with whatever result it was handed."""
+
+    def __init__(self, result):
+        self.settings = _Settings()
+        self.result = result
+
+    def evaluate_candidate(self, original, candidate, instruction, file_path,
+                           task_id=None):
+        return self.result, {"site": "apply", "verdict": self.result.verdict}
+
+
+class FallbackVerdictFenceTests(unittest.TestCase):
+    """#826: a mechanical heuristic must never clear the apply gate."""
+
+    ORIGINAL = "def add(a, b):" + chr(10) + "    return a + b" + chr(10)
+    CHANGED = "def add(a, b):" + chr(10) + "    return a + b + 1" + chr(10)
+
+    def _run(self, tmp, result):
+        path = os.path.join(tmp, "math.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(self.ORIGINAL)
+        ledger = _Ledger()
+        gate = GatePolicy(ledger, _Governor(), jev_policy=_StubJevPolicy(result))
+        req = _request(path)
+        state = _state(self.ORIGINAL)
+        out = gate.apply_candidate(
+            req, state, AttemptOutcome(model_used="m", cost=0.0), self.CHANGED)
+        return out, ledger, path
+
+    def test_a_heuristic_pass_is_refused_as_unverified_and_nothing_is_written(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fallback = JevEvaluationResult(
+                "pass", 0.0, 1.0, {"mechanical_checks": "passed"},
+                ["All local code-owned structural checks passed."],
+                is_fallback=True, model=LOCAL_HEURISTIC_MODEL,
+                fallback_reason="missing_key")
+            out, ledger, path = self._run(tmp, fallback)
+            self.assertEqual(out["status"], "jev_unverified")
+            self.assertEqual(out["verifier"], LOCAL_HEURISTIC_MODEL)
+            self.assertEqual(out["fallback_reason"], "missing_key")
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), self.ORIGINAL)
+            refusals = [e for e in ledger.events if e[0] == "jev_refusal"]
+            self.assertEqual(len(refusals), 1)
+            self.assertEqual(refusals[0][1]["reason_code"], "fallback_unverified")
+            self.assertTrue(refusals[0][1]["is_fallback"])
+            self.assertEqual(refusals[0][1]["fallback_reason"], "missing_key")
+
+    def test_a_live_pass_still_clears_the_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            live = JevEvaluationResult("pass", 0.9, 0.9, {}, ["ok"], model="jev-live")
+            out, _ledger, path = self._run(tmp, live)
+            self.assertNotEqual(out["status"], "jev_unverified")
+            with open(path, encoding="utf-8") as f:
+                self.assertEqual(f.read(), self.CHANGED)
+

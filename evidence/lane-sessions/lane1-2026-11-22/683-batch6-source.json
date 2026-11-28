@@ -1,0 +1,134 @@
+[
+  {
+    "pr": 634,
+    "pr_title": "evidence(sergeant): gate receipts for turns 2026-11-19 (cars 2-5 + CANON-1)",
+    "priority": "P1",
+    "file": "evidence/lane-sessions/sergeant-2026-11-19/gates_620.py",
+    "title": "Run Lucas Gate before the Jev decision evaluation",
+    "url": "https://github.com/Treystu/harness/pull/634#discussion_r4646946203",
+    "row": 61,
+    "discussion": 4646946203,
+    "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Run Lucas Gate before the Jev decision evaluation**\n\nThis driver calls `policy.evaluate_decision` before `run_typed_track`, as do the other gate drivers added here. That reverses the explicit `AGENTS.md` lane requirement, “Lucas Gate v2 first, Jev for decisions/dispositions,” so these receipts do not demonstrate the required gate sequence. Move the Lucas assessment ahead of the Jev call in the drivers and distinguish the historical receipts from evidence produced under the corrected sequence.\n\nAGENTS.md reference: [AGENTS.md:L122-L122](https://github.com/Treystu/harness/blob/f0957d647e60b017ef792b5718cb016a0b277441/AGENTS.md#L122-L122)\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 634,
+    "pr_title": "evidence(sergeant): gate receipts for turns 2026-11-19 (cars 2-5 + CANON-1)",
+    "priority": "P1",
+    "file": "evidence/lane-sessions/sergeant-2026-11-19/gates_624.py",
+    "title": "Bind each receipt to the head actually being assessed",
+    "url": "https://github.com/Treystu/harness/pull/634#discussion_r4646946208",
+    "row": 62,
+    "discussion": 4646946208,
+    "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Bind each receipt to the head actually being assessed**\n\nFor the #624 merge, `ACTION` names head `6c90298b0bb962862567955601fc89e8dc2a4e6a`, but this metadata records the unrelated CANON-1 head `dbb54a7…`; `gates-624.json` contains the same incorrect association. The category evidence also describes CANON-1 rather than #624. This copied provenance occurs in several other drivers, including #627, #631 and #635, making their passes appear backed by another artifact's evidence. Replace the copied head and scorecard evidence with the assessed action's actual provenance so the receipts satisfy `AGENTS.md`'s exact-head verification requirement.\n\nAGENTS.md reference: [AGENTS.md:L122-L122](https://github.com/Treystu/harness/blob/f0957d647e60b017ef792b5718cb016a0b277441/AGENTS.md#L122-L122)\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 634,
+    "pr_title": "evidence(sergeant): gate receipts for turns 2026-11-19 (cars 2-5 + CANON-1)",
+    "priority": "P2",
+    "file": "evidence/lane-sessions/sergeant-2026-11-19/gates_620.py",
+    "title": "Read the decision signals using their returned field names",
+    "url": "https://github.com/Treystu/harness/pull/634#discussion_r4646946218",
+    "row": 63,
+    "discussion": 4646946218,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Read the decision signals using their returned field names**\n\n`evaluate_decision` returns the composed fields `disposition_lead`, `advances_goal` and `is_destructive` (see `harness/jev_packs.py::compose_decision_verdict`), not `lead`, `advanced` and `destructive`. These lookups therefore silently discard all three signals, which is visible as three null values in `gates-620.json` and the other new receipts. Use the actual returned keys when serializing and printing the signals; otherwise reviewers cannot inspect the probabilities and lead underlying the recorded investigate/escalate decisions without finding the separate ledger.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 637,
+    "pr_title": "evidence(w2): turn-11 re-run attempts at 17906e2c",
+    "priority": "P2",
+    "file": "evidence/lane-sessions/w2-2026-11-20/gates-turn15.json",
+    "title": "Regenerate the gate receipt for the committed turn-15 filings",
+    "url": "https://github.com/Treystu/harness/pull/637#discussion_r4633756041",
+    "row": 64,
+    "discussion": 4633756041,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Regenerate the gate receipt for the committed turn-15 filings**\n\nBoth artifact hashes in this receipt differ from the filings committed here: `413-head-currency-t15.md` hashes to `4182bb86…` rather than `7fef1693…`, and `295-status-15.md` hashes to `a1e6b710…` rather than `fd707573…`. `harness/lucas_gate.py` hashes the exact UTF-8 artifact text, so these passes cannot verify the published versions, even though both filings cite this receipt as their gate evidence. Re-run the gates against the final filings, or preserve the exact evaluated versions with their corresponding receipt, so the required per-comment verification is auditable.\n\nAGENTS.md reference: [AGENTS.md:L122-L122](https://github.com/Treystu/harness/blob/29d02a52238dafc2f9a2d0eace8e383792d863f7/AGENTS.md#L122-L122)\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 638,
+    "pr_title": "#475: record per-attempt http_status and timestamps for panel and Jev calls",
+    "priority": "P2",
+    "file": "harness/_http.py",
+    "title": "Preserve wire attempts across chat-level retries",
+    "url": "https://github.com/Treystu/harness/pull/638#discussion_r4635715990",
+    "row": 65,
+    "discussion": 4635715990,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve wire attempts across chat-level retries**\n\nWhen a panel or judge call retries after a reasoning-parameter rejection, `chat.py` invokes `transport.post()` twice inside one `chat_routed()` call. Resetting the collection on every POST discards the first request's attempts before the panel can consume them, so a real `[400, 200]` sequence is persisted as `[200]`, understating attempts and hiding recovered calls. The same problem affects the affordable-budget retry. Initialize the collection at the logical call boundary and preserve it across the constituent POSTs.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 638,
+    "pr_title": "#475: record per-attempt http_status and timestamps for panel and Jev calls",
+    "priority": "P2",
+    "file": "harness/jev.py",
+    "title": "Isolate the strict Jev call from previous wire traces",
+    "url": "https://github.com/Treystu/harness/pull/638#discussion_r4635716001",
+    "row": 66,
+    "discussion": 4635716001,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Isolate the strict Jev call from previous wire traces**\n\nWhen a strict Jev assessment follows an ordinary chat POST in the same context, this `record_call()` can consume the chat request's leftover wire attempts: `HttpTransport.post()` now always populates `_WIRE`, ordinary chat callers do not consume it, and `post_once()` neither resets nor records it. Consequently, `evaluate_vision_assessment()` can persist a `jev_eval` whose summary says HTTP 200 but whose attempt timeline contains an unrelated chat response and timestamps. This is reproducible with a chat POST returning 401 followed by a successful `evaluate_once()`, which records attempt statuses `[401]`. Give the one-attempt transport path its own fresh collection and record its actual attempt.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 639,
+    "pr_title": "docs(intake): file the keyless-vocabulary contract gap (#413)",
+    "priority": "P2",
+    "file": "docs/found-in-use.md",
+    "title": "Verify the vocabulary endpoint before recording a contract gap",
+    "url": "https://github.com/Treystu/harness/pull/639#discussion_r4630286700",
+    "row": 67,
+    "discussion": 4630286700,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Verify the vocabulary endpoint before recording a contract gap**\n\nThe cited probe calls `POST /api/driver/step`, not the keyless vocabulary endpoint. At this commit, `harness/server.py:2557-2570` ignores the supplied `action` field and always invokes `adapter.step()`, so `action: vocabulary` still runs the model-backed decision pipeline. Vocabulary retrieval instead uses `GET /api/driver/vocabulary` (`harness/server.py:1888-1889,2528-2531`), whose implementation in `driver_core/server.py:152-153` returns the vocabulary without making a decision. Consequently, the observed refusal does not establish the contract violation recorded here; correct the probe and disposition before adding this as a distinct open defect under #413.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 641,
+    "pr_title": "#473: record router health and the ordering produced at each rotation",
+    "priority": "P2",
+    "file": "harness/session.py",
+    "title": "Pass the run ledger when assembling the MCP router",
+    "url": "https://github.com/Treystu/harness/pull/641#discussion_r4637149228",
+    "row": 68,
+    "discussion": 4637149228,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Pass the run ledger when assembling the MCP router**\n\nFor runs served through the native MCP entry point, rotation recording remains disabled: `harness/mcp.py:1832` still calls `composition.router_for(settings)` without the ledger it created immediately above. Consequently, the router receives `trace=None`, and MCP apply/verify operations produce no `router.rotation` evidence even though their other events reach the run ledger. Update that production assembly path as well, or attach the trace centrally when `engine_for` receives the router and ledger.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 641,
+    "pr_title": "#473: record router health and the ordering produced at each rotation",
+    "priority": "P2",
+    "file": "harness/router.py",
+    "title": "Normalize ledger paths before calling the trace reader",
+    "url": "https://github.com/Treystu/harness/pull/641#discussion_r4637149234",
+    "row": 69,
+    "discussion": 4637149234,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Normalize ledger paths before calling the trace reader**\n\nCalling the newly documented `read_rotations(\"/path/to/ledger.jsonl\")` API raises `TraceError(\"reader needs a ledger or a path\")` instead of returning rotation rows. The delegated `read_trace_events` implementation passes strings into `_segment_paths`, which only accepts objects exposing `segment_paths()` or `.path`; the new tests exercise only ledger objects. Normalize path inputs to a supported source representation while preserving archived-segment reading, so callers can actually inspect persisted runs using the advertised path interface.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 642,
+    "pr_title": "#476: record each ceiling refusal with the refused call's outcome",
+    "priority": "P2",
+    "file": "harness/spend.py",
+    "title": "Distinguish post-dispatch overruns from calls refused before dispatch",
+    "url": "https://github.com/Treystu/harness/pull/642#discussion_r4636128920",
+    "row": 70,
+    "discussion": 4636128920,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Distinguish post-dispatch overruns from calls refused before dispatch**\n\nWhen `record_actual` rejects a billed response, `_record_refusal` still writes `outcome=\"refused\"`, which this change defines as the call not having run. These calls have already run: `tests/test_spend.py::test_unreserved_inflight_overspend_documented` exercises this case, and `JevPolicy._account` can even retain the paid result after the accounting rejection. Task-scope checks reached from `record_actual` or `reconcile` have the same problem. Distinguish accounting overruns from pre-dispatch refusals so the new trace does not classify executed, billed calls as calls prevented by the ceiling.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 642,
+    "pr_title": "#476: record each ceiling refusal with the refused call's outcome",
+    "priority": "P2",
+    "file": "harness/spend.py",
+    "title": "Include the binding scope's budget in scope-refusal events",
+    "url": "https://github.com/Treystu/harness/pull/642#discussion_r4636128936",
+    "row": 71,
+    "discussion": 4636128936,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include the binding scope's budget in scope-refusal events**\n\nWhen a task allowance rather than the session ceiling rejects a call, only the scope label reaches `_record_refusal`; its structured envelope always contains the global governor's numbers. For example, a $0.02 reservation rejected by a $0.01 task scope under a $1 session records `requested=0.02`, `phase_ceiling=1.0`, and `phase_remaining=1.0`, with no structured scope allowance or scope balances. Consumers replaying or classifying the refusal therefore see an amount that fits the recorded envelope and must parse the rounded human-readable reason to recover the actual constraint. Include the rejecting target's allowance, spent, and outstanding balances in the event.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  },
+  {
+    "pr": 644,
+    "pr_title": "fix(flush): wire the campaign trace writer at the product entry (#469)",
+    "priority": "P2",
+    "file": "harness/flush_loop.py",
+    "title": "Handle trace initialization failures without aborting campaigns",
+    "url": "https://github.com/Treystu/harness/pull/644#discussion_r4647922463",
+    "row": 72,
+    "discussion": 4647922463,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Handle trace initialization failures without aborting campaigns**\n\nIf the configured trace ledger exists but cannot be read (for example, due to permissions or invalid UTF-8), `AutonomyLedger.__init__` raises from `_load()` before the campaign executes. The exception handling in `DecisionTrace.record()` cannot catch this because the writer has not yet been constructed. This makes previously independent campaign replays fail because an optional, non-audit trace sink is unavailable, contrary to the documented fail-open behavior. Handle initialization failures as well as append failures so an unavailable trace ledger does not prevent the campaign from running.\n\nUseful? React with 👍 / 👎.\n\n<!-- codex-code-review-finding:v1 -->"
+  }
+]

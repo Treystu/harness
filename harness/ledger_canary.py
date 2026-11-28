@@ -169,6 +169,45 @@ def _utc_day(moment: float) -> str:
     return datetime.fromtimestamp(moment, timezone.utc).strftime("%Y-%m-%d")
 
 
+def last_canary_run(ledger) -> Optional[float]:
+    """When this ledger last recorded a canary probe, or ``None``.
+
+    The due predicate needs the last run in the ledger's own terms, so no
+    second state file can drift from the rows it schedules.
+    """
+    stamps = [stamp for stamp in (_parse_ts(entry.get("ts"))
+                                  for entry in _rows_of(ledger)
+                                  if entry.get("event") == CANARY_EVENT)
+              if stamp]
+    return max(stamps) if stamps else None
+
+
+def maybe_run_canaries(ledger, *, now: Optional[float] = None,
+                       startup: bool = False,
+                       probes: Optional[Dict[str, Probe]] = None,
+                       mcp_health: Optional[Probe] = None
+                       ) -> Dict[str, Any]:
+    """The production entry point: run the probes only when they are due.
+
+    #683 row 39: the due predicate existed but nothing in normal operation
+    called it, so a fresh install or an idle service accumulated none of the
+    advertised health evidence. Startup and the periodic sweep both call this,
+    which consults the ledger's own last canary row instead of a sidecar.
+    """
+    moment = time.time() if now is None else float(now)
+    due = should_run_canaries(ledger, now=moment, startup=startup,
+                              last_run_epoch=last_canary_run(ledger))
+    if not due["run"]:
+        return {"ran": False, "reasons": due["reasons"],
+                "last_entry_epoch": due["last_entry_epoch"], "outcomes": []}
+    outcomes = run_canaries(ledger, now=moment, probes=probes,
+                            mcp_health=mcp_health,
+                            trigger=",".join(due["reasons"]))
+    return {"ran": True, "reasons": due["reasons"],
+            "last_entry_epoch": due["last_entry_epoch"],
+            "outcomes": outcomes}
+
+
 def evidence_rows(ledger) -> List[Dict[str, Any]]:
     """The one reader for selection, citation, counting and export.
 

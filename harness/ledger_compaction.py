@@ -468,13 +468,53 @@ def gap_runs(checkpoints: Iterable[Dict[str, Any]], key: bytes
 
 def crosses_gap(prev_seq: Optional[int], prev_hash: Optional[str],
                 entry: Dict[str, Any], runs: Sequence[Dict[str, Any]]) -> bool:
-    """A gap is crossed only when a signed run's boundaries match both sides."""
+    """A gap is crossed when contiguous signed runs collectively span it.
+
+    Adjacent eligible rows may have different classification reasons, so
+    ``_coverage_runs`` emits separate runs. Compose consecutive runs whose
+    hash boundaries chain together so valid compaction does not break
+    verification (#36).
+    """
     seq = entry.get("seq")
     if not isinstance(seq, int) or not isinstance(prev_seq, int):
         return False
+    # Single run spanning the whole gap.
     for run in runs:
-        if run["first_seq"] == prev_seq + 1 and run["last_seq"] == seq - 1 \
-                and run["predecessor_hash"] == prev_hash \
-                and run["terminal_hash"] == entry.get("prev_hash"):
+        if (run["first_seq"] == prev_seq + 1
+                and run["last_seq"] == seq - 1
+                and run["predecessor_hash"] == prev_hash
+                and run["terminal_hash"] == entry.get("prev_hash")):
             return True
+    # Compose consecutive runs that collectively span the gap.
+    # Sort runs by first_seq to find contiguous chains.
+    ordered = sorted(runs, key=lambda r: r.get("first_seq") or 0)
+    # Try every starting run.
+    for start_idx in range(len(ordered)):
+        if ordered[start_idx].get("first_seq") != prev_seq + 1:
+            continue
+        if ordered[start_idx].get("predecessor_hash") != prev_hash:
+            continue
+        chain_terminal = ordered[start_idx].get("terminal_hash")
+        chain_last = ordered[start_idx].get("last_seq")
+        if chain_last == seq - 1 and chain_terminal == entry.get("prev_hash"):
+            return True
+        # Extend the chain.
+        consumed = {start_idx}
+        progress = True
+        while progress:
+            progress = False
+            for idx, run in enumerate(ordered):
+                if idx in consumed:
+                    continue
+                if run.get("first_seq") != chain_last + 1:
+                    continue
+                if run.get("predecessor_hash") != chain_terminal:
+                    continue
+                consumed.add(idx)
+                chain_terminal = run.get("terminal_hash")
+                chain_last = run.get("last_seq")
+                progress = True
+                if chain_last == seq - 1 and chain_terminal == entry.get(
+                        "prev_hash"):
+                    return True
     return False

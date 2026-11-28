@@ -432,7 +432,8 @@ def _operator_reason(reason):
     )
 
 
-def render_gate_guard(reason, has_write, *, planned=None, paths=None):
+def render_gate_guard(reason, has_write, *, planned=None, paths=None,
+                      prior_rounds=None):
     """Render one gate-guard block, or ``""`` when there is no write surface.
 
     Blocking behavior is unchanged (#206 non-goal); only what it *says* is
@@ -458,9 +459,37 @@ def render_gate_guard(reason, has_write, *, planned=None, paths=None):
             planned_lines.append("  - `{}`".format(str(entry).strip()))
     if not planned_lines:
         planned_lines = ["  - `{}`".format(p) for p in surface[:8]]
+    # #683 finding 17: the assurance is worth having only if it is true. The
+    # orchestrator executes earlier rounds before a later plan_round refuses,
+    # so name those rounds and what they left written rather than claiming the
+    # whole request wrote nothing.
+    executed = [entry for entry in (prior_rounds or [])
+                if isinstance(entry, dict)]
+    if executed:
+        rounds = ", ".join(str(entry.get("round")) for entry in executed)
+        written = sorted({str(target) for entry in executed
+                          for target in (entry.get("targets") or [])
+                          if str(target).strip()})
+        if written:
+            assurance = (
+                "**Autonomous Waist Gate Guard:** this refused plan was held "
+                "before any file was written for it. Nothing was saved for "
+                "that plan and nothing in it ran. Earlier round(s) {} of this "
+                "run already wrote: {}."
+                .format(rounds, ", ".join("`{}`".format(p) for p in written)))
+        else:
+            assurance = (
+                "**Autonomous Waist Gate Guard:** this refused plan was held "
+                "before any file was written for it. Nothing was saved for "
+                "that plan and nothing in it ran. Earlier round(s) {} of this "
+                "run already executed; their results remain on disk."
+                .format(rounds))
+    else:
+        assurance = (
+            "**Autonomous Waist Gate Guard:** this request was held before "
+            "any file was written. Nothing was saved and nothing ran.")
     lines = [
-        "**Autonomous Waist Gate Guard:** this request was held before any "
-        "file was written. Nothing was saved and nothing ran.",
+        assurance,
         "",
         f"**What is held:** {sentence}.",
     ]

@@ -1,0 +1,714 @@
+[
+ {
+  "pr": 536,
+  "pr_title": "[jev] One label for a locally-computed fallback judgment (#332)",
+  "priority": "P2",
+  "file": "harness/jev_policy.py",
+  "title": "Use the same fallback identity in the returned audit report",
+  "url": "https://github.com/Treystu/harness/pull/536#discussion_r4576748027"
+ },
+ {
+  "pr": 536,
+  "pr_title": "[jev] One label for a locally-computed fallback judgment (#332)",
+  "priority": "P2",
+  "file": "harness/jev.py",
+  "title": "Preserve the provider identity on billed HTTP fallbacks",
+  "url": "https://github.com/Treystu/harness/pull/536#discussion_r4576844086"
+ },
+ {
+  "pr": 546,
+  "pr_title": "[plan] A failed decomposition keeps its output and is repaired before degradatio",
+  "priority": "P2",
+  "file": "harness/waist.py",
+  "title": "Preserve escaped apostrophes when repairing single-quoted strings",
+  "url": "https://github.com/Treystu/harness/pull/546#discussion_r4577018884"
+ },
+ {
+  "pr": 547,
+  "pr_title": "never-defer cluster: fail over, select by availability, repair instead of deferr",
+  "priority": "P1",
+  "file": "harness/chat.py",
+  "title": "Propagate backend identity through the HTTP transport",
+  "url": "https://github.com/Treystu/harness/pull/547#discussion_r4577050808"
+ },
+ {
+  "pr": 547,
+  "pr_title": "never-defer cluster: fail over, select by availability, repair instead of deferr",
+  "priority": "P2",
+  "file": "harness/events.py",
+  "title": "Preserve the refusal cause when reconstructing a latched error",
+  "url": "https://github.com/Treystu/harness/pull/547#discussion_r4577050812"
+ },
+ {
+  "pr": 547,
+  "pr_title": "never-defer cluster: fail over, select by availability, repair instead of deferr",
+  "priority": "P2",
+  "file": "harness/lifecycle.py",
+  "title": "Replay the refused retry receipt rather than the original call",
+  "url": "https://github.com/Treystu/harness/pull/547#discussion_r4577050816"
+ },
+ {
+  "pr": 548,
+  "pr_title": "fix(availability,audit): cross-provider local_pool failover on 402 + environment",
+  "priority": "P1",
+  "file": "harness/session.py",
+  "title": "Preserve an explicitly configured zero Fireworks budget",
+  "url": "https://github.com/Treystu/harness/pull/548#discussion_r4581273497"
+ },
+ {
+  "pr": 548,
+  "pr_title": "fix(availability,audit): cross-provider local_pool failover on 402 + environment",
+  "priority": "P2",
+  "file": "harness/conversation_lifecycle.py",
+  "title": "Forward configured backend credentials to failover dispatch",
+  "url": "https://github.com/Treystu/harness/pull/548#discussion_r4581273501"
+ },
+ {
+  "pr": 564,
+  "pr_title": "Slice 3F: MCP 33-tool annotations and description-agreement lint (#335)",
+  "priority": "P2",
+  "file": "harness/mcp_schemas.py",
+  "title": "Mark driver_step as an open-world tool",
+  "url": "https://github.com/Treystu/harness/pull/564#discussion_r4595209063"
+ },
+ {
+  "pr": 576,
+  "pr_title": "feat(hul): dossier lessons L4, L5, L6, L11, L12 \u2014 declined-candidate memory, cos",
+  "priority": "P2",
+  "file": "harness/hul_decision.py",
+  "title": "Track phase spend separately from total mission spend",
+  "url": "https://github.com/Treystu/harness/pull/576#discussion_r4595485019"
+ },
+ {
+  "pr": 576,
+  "pr_title": "feat(hul): dossier lessons L4, L5, L6, L11, L12 \u2014 declined-candidate memory, cos",
+  "priority": "P2",
+  "file": "harness/hul_decision.py",
+  "title": "Check scope against the normalized decision input",
+  "url": "https://github.com/Treystu/harness/pull/576#discussion_r4595485026"
+ },
+ {
+  "pr": 577,
+  "pr_title": "fix(audit): a declared level below min_confidence is not a judgment (#295)",
+  "priority": "P2",
+  "file": "harness/jev_policy.py",
+  "title": "Preserve low-confidence declarations in whole-call fallbacks",
+  "url": "https://github.com/Treystu/harness/pull/577#discussion_r4595696648"
+ },
+ {
+  "pr": 590,
+  "pr_title": "fix(audit): R13 stops parking on a captured pipe the suite does not own (#583)",
+  "priority": "P1",
+  "file": "audits/self/audit.py",
+  "title": "Update the suite-runner test double for file-based output",
+  "url": "https://github.com/Treystu/harness/pull/590#discussion_r4596881755"
+ },
+ {
+  "pr": 591,
+  "pr_title": "fix(gui): panes render once, show pending state, never park on auth (#586)",
+  "priority": "P2",
+  "file": "harness/ui/panes.js",
+  "title": "Keep the retry render attached to the visible pane",
+  "url": "https://github.com/Treystu/harness/pull/591#discussion_r4596882813"
+ },
+ {
+  "pr": 600,
+  "pr_title": "fix(gui): Proof reads the ledger once and paints as its data lands (#599)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Include retained ledger segments in the cache fingerprint",
+  "url": "https://github.com/Treystu/harness/pull/600#discussion_r4598781974"
+ },
+ {
+  "pr": 600,
+  "pr_title": "fix(gui): Proof reads the ledger once and paints as its data lands (#599)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Evict superseded snapshot cache entries",
+  "url": "https://github.com/Treystu/harness/pull/600#discussion_r4598781981"
+ },
+ {
+  "pr": 601,
+  "pr_title": "fix(guard): a held write names what is held and what it would change (#569)",
+  "priority": "P2",
+  "file": "harness/lifecycle_guards.py",
+  "title": "Scope the no-writes assurance to the refused round",
+  "url": "https://github.com/Treystu/harness/pull/601#discussion_r4599767674"
+ },
+ {
+  "pr": 603,
+  "pr_title": "fix(serve): the UI server owns its request log on disk (#574)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Isolate request handling from log-file write failures",
+  "url": "https://github.com/Treystu/harness/pull/603#discussion_r4601407904"
+ },
+ {
+  "pr": 607,
+  "pr_title": "gui: serve the version and commit on every response (#587)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Verify the package belongs to the repository being identified",
+  "url": "https://github.com/Treystu/harness/pull/607#discussion_r4610143500"
+ },
+ {
+  "pr": 609,
+  "pr_title": "driver: execute the BR6 bridge battery, with the live probe blocked until superv",
+  "priority": "P1",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Isolate synthetic probes from the shared bridge ledger",
+  "url": "https://github.com/Treystu/harness/pull/609#discussion_r4611150287"
+ },
+ {
+  "pr": 610,
+  "pr_title": "driver: native Windows backend for click/type/key/scroll/submit (#481)",
+  "priority": "P1",
+  "file": "driver_core/osal.py",
+  "title": "Use a Unicode-capable input API for literal text",
+  "url": "https://github.com/Treystu/harness/pull/610#discussion_r4611148233"
+ },
+ {
+  "pr": 610,
+  "pr_title": "driver: native Windows backend for click/type/key/scroll/submit (#481)",
+  "priority": "P2",
+  "file": "driver_core/osal.py",
+  "title": "Restrict key shorthand to ASCII letters and digits",
+  "url": "https://github.com/Treystu/harness/pull/610#discussion_r4611148267"
+ },
+ {
+  "pr": 611,
+  "pr_title": "serve/media: one loopback port per service, and refuse the wrong service (#566)",
+  "priority": "P2",
+  "file": "harness/media_client.py",
+  "title": "Require service-specific evidence before accepting JSON errors",
+  "url": "https://github.com/Treystu/harness/pull/611#discussion_r4612690947"
+ },
+ {
+  "pr": 612,
+  "pr_title": "driver: mission executor with claim lease, read-back and scoped inbox (#483)",
+  "priority": "P1",
+  "file": "driver_core/mission_executor.py",
+  "title": "Renew the claim lease while executing an action",
+  "url": "https://github.com/Treystu/harness/pull/612#discussion_r4611145874"
+ },
+ {
+  "pr": 612,
+  "pr_title": "driver: mission executor with claim lease, read-back and scoped inbox (#483)",
+  "priority": "P1",
+  "file": "driver_core/mission_executor.py",
+  "title": "Require receipt-write capability before executing missions",
+  "url": "https://github.com/Treystu/harness/pull/612#discussion_r4611145882"
+ },
+ {
+  "pr": 612,
+  "pr_title": "driver: mission executor with claim lease, read-back and scoped inbox (#483)",
+  "priority": "P2",
+  "file": "driver_core/mission_executor.py",
+  "title": "Handle unreadable mission payloads inside the refusal path",
+  "url": "https://github.com/Treystu/harness/pull/612#discussion_r4611145891"
+ },
+ {
+  "pr": 612,
+  "pr_title": "driver: mission executor with claim lease, read-back and scoped inbox (#483)",
+  "priority": "P2",
+  "file": "driver_core/mission_executor.py",
+  "title": "Validate inbox directories against the declared root",
+  "url": "https://github.com/Treystu/harness/pull/612#discussion_r4611145898"
+ },
+ {
+  "pr": 613,
+  "pr_title": "answer lifecycle: hold a delivered plotting script to its own claims (#568)",
+  "priority": "P2",
+  "file": "harness/answer_plot_consistency.py",
+  "title": "Resolve bar positions before reporting a tick-unit mismatch",
+  "url": "https://github.com/Treystu/harness/pull/613#discussion_r4612926629"
+ },
+ {
+  "pr": 613,
+  "pr_title": "answer lifecycle: hold a delivered plotting script to its own claims (#568)",
+  "priority": "P2",
+  "file": "harness/answer_plot_consistency.py",
+  "title": "Preserve branch conditions for argparse namespace attributes",
+  "url": "https://github.com/Treystu/harness/pull/613#discussion_r4612926649"
+ },
+ {
+  "pr": 613,
+  "pr_title": "answer lifecycle: hold a delivered plotting script to its own claims (#568)",
+  "priority": "P2",
+  "file": "harness/answer_plot_consistency.py",
+  "title": "Compare panel titles against the effective final scale",
+  "url": "https://github.com/Treystu/harness/pull/613#discussion_r4612926663"
+ },
+ {
+  "pr": 614,
+  "pr_title": "serve: a request that outlives its process is recoverable (#418)",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Exclude live requests before classifying checkpoints as recovered",
+  "url": "https://github.com/Treystu/harness/pull/614#discussion_r4617290244"
+ },
+ {
+  "pr": 614,
+  "pr_title": "serve: a request that outlives its process is recoverable (#418)",
+  "priority": "P2",
+  "file": "harness/run_recovery.py",
+  "title": "Honor the lifecycle's resumability flag for deferred requests",
+  "url": "https://github.com/Treystu/harness/pull/614#discussion_r4617290270"
+ },
+ {
+  "pr": 617,
+  "pr_title": "feat(state): separate local health, backend reachability and request state (#419",
+  "priority": "P1",
+  "file": "harness/server.py",
+  "title": "Probe the connected backend rather than a fresh local MCP process",
+  "url": "https://github.com/Treystu/harness/pull/617#discussion_r4621118705"
+ },
+ {
+  "pr": 617,
+  "pr_title": "feat(state): separate local health, backend reachability and request state (#419",
+  "priority": "P2",
+  "file": "harness/server.py",
+  "title": "Supply the configured MCP authentication token to the probe",
+  "url": "https://github.com/Treystu/harness/pull/617#discussion_r4621118718"
+ },
+ {
+  "pr": 617,
+  "pr_title": "feat(state): separate local health, backend reachability and request state (#419",
+  "priority": "P2",
+  "file": "harness/state_report.py",
+  "title": "Require request-specific evidence before marking a state confirmed",
+  "url": "https://github.com/Treystu/harness/pull/617#discussion_r4621118727"
+ },
+ {
+  "pr": 618,
+  "pr_title": "feat(ledger): signed reversible compaction replaces size-only eviction (#336)",
+  "priority": "P1",
+  "file": "harness/ledger_compaction.py",
+  "title": "Allow verification to cross consecutive signed drop runs",
+  "url": "https://github.com/Treystu/harness/pull/618#discussion_r4617725763"
+ },
+ {
+  "pr": 618,
+  "pr_title": "feat(ledger): signed reversible compaction replaces size-only eviction (#336)",
+  "priority": "P1",
+  "file": "harness/ledger.py",
+  "title": "Prevent checkpoint appends from recursively compacting their source",
+  "url": "https://github.com/Treystu/harness/pull/618#discussion_r4617725782"
+ },
+ {
+  "pr": 618,
+  "pr_title": "feat(ledger): signed reversible compaction replaces size-only eviction (#336)",
+  "priority": "P2",
+  "file": "harness/ledger.py",
+  "title": "Refresh citation pins under synchronization before compaction",
+  "url": "https://github.com/Treystu/harness/pull/618#discussion_r4617725796"
+ },
+ {
+  "pr": 618,
+  "pr_title": "feat(ledger): signed reversible compaction replaces size-only eviction (#336)",
+  "priority": "P2",
+  "file": "harness/ledger_canary.py",
+  "title": "Connect the canary due predicate to a production execution loop",
+  "url": "https://github.com/Treystu/harness/pull/618#discussion_r4617725806"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Enforce eligibility before issuing a token voucher",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137026"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Keep individual reports' shares with independent holders",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137043"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Apply the publication floor separately to each metric",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137052"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Authenticate the evidence claim before accepting statistics",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137064"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P1",
+  "file": "harness/public_share.py",
+  "title": "Count actual terminal failure events in the success denominator",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137074"
+ },
+ {
+  "pr": 619,
+  "pr_title": "feat(site): opt-in worldwide model statistics with future-only revocation (#407)",
+  "priority": "P2",
+  "file": "harness/public_share.py",
+  "title": "Recheck the queued report's consent period before retrying",
+  "url": "https://github.com/Treystu/harness/pull/619#discussion_r4621137086"
+ },
+ {
+  "pr": 620,
+  "pr_title": "test(ci): gate the optional local-fit train/export path (#311)",
+  "priority": "P2",
+  "file": "tests/test_local_fit_optional_ci_311.py",
+  "title": "Check tracked fixture files rather than local directory existence",
+  "url": "https://github.com/Treystu/harness/pull/620#discussion_r4625632390"
+ },
+ {
+  "pr": 622,
+  "pr_title": "docs(register): canonical burndown register 2026-11-18, one row per open issue +",
+  "priority": "P1",
+  "file": "docs/jev-roadmap.md",
+  "title": "Refresh the authoritative mirror instead of adding a second register",
+  "url": "https://github.com/Treystu/harness/pull/622#discussion_r4628005985"
+ },
+ {
+  "pr": 625,
+  "pr_title": "driver: run the bridge hand and wire probe 1 through the bus (#480)",
+  "priority": "P2",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Isolate hermetic probes from the running hand's ledger",
+  "url": "https://github.com/Treystu/harness/pull/625#discussion_r4625689371"
+ },
+ {
+  "pr": 625,
+  "pr_title": "driver: run the bridge hand and wire probe 1 through the bus (#480)",
+  "priority": "P2",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Pass the selected freshness window into the live reader",
+  "url": "https://github.com/Treystu/harness/pull/625#discussion_r4625689373"
+ },
+ {
+  "pr": 625,
+  "pr_title": "driver: run the bridge hand and wire probe 1 through the bus (#480)",
+  "priority": "P2",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Include the capture output environment in the live runbook",
+  "url": "https://github.com/Treystu/harness/pull/625#discussion_r4625689385"
+ },
+ {
+  "pr": 627,
+  "pr_title": "feat(trace): one decision_trace family with campaign histories retained (D5-1, #",
+  "priority": "P1",
+  "file": "harness/flush_loop.py",
+  "title": "Wire the durable trace into the campaign entry point",
+  "url": "https://github.com/Treystu/harness/pull/627#discussion_r4627324850"
+ },
+ {
+  "pr": 627,
+  "pr_title": "feat(trace): one decision_trace family with campaign histories retained (D5-1, #",
+  "priority": "P2",
+  "file": "harness/decision_trace.py",
+  "title": "Accept filesystem paths in the trace reader",
+  "url": "https://github.com/Treystu/harness/pull/627#discussion_r4627324858"
+ },
+ {
+  "pr": 627,
+  "pr_title": "feat(trace): one decision_trace family with campaign histories retained (D5-1, #",
+  "priority": "P2",
+  "file": "harness/decision_trace.py",
+  "title": "Preserve immutable segment contents when pinning a window",
+  "url": "https://github.com/Treystu/harness/pull/627#discussion_r4627324870"
+ },
+ {
+  "pr": 628,
+  "pr_title": "feat(assess): persist each assessment's five distributions and disposition (#468",
+  "priority": "P2",
+  "file": "harness/cli.py",
+  "title": "Handle an unrecorded trace before accessing its event ID",
+  "url": "https://github.com/Treystu/harness/pull/628#discussion_r4637150538"
+ },
+ {
+  "pr": 628,
+  "pr_title": "feat(assess): persist each assessment's five distributions and disposition (#468",
+  "priority": "P2",
+  "file": "harness/decision_trace.py",
+  "title": "Include retained segments when reading a ledger path",
+  "url": "https://github.com/Treystu/harness/pull/628#discussion_r4637150541"
+ },
+ {
+  "pr": 629,
+  "pr_title": "evidence(w2): turn-9 verification records at 583120b4",
+  "priority": "P1",
+  "file": "evidence/lane-sessions/w2-2026-11-20/gates_turn9.py",
+  "title": "Run Lucas Gate before the Jev disposition",
+  "url": "https://github.com/Treystu/harness/pull/629#discussion_r4646550830"
+ },
+ {
+  "pr": 629,
+  "pr_title": "evidence(w2): turn-9 verification records at 583120b4",
+  "priority": "P2",
+  "file": "evidence/lane-sessions/w2-2026-11-20/rerun_415.py",
+  "title": "Poll the run result endpoint",
+  "url": "https://github.com/Treystu/harness/pull/629#discussion_r4646550842"
+ },
+ {
+  "pr": 630,
+  "pr_title": "feat(escalation): record start rung, attempted rung and realized pass per attemp",
+  "priority": "P2",
+  "file": "harness/escalation.py",
+  "title": "Record paid attempts that exceed the actual task budget",
+  "url": "https://github.com/Treystu/harness/pull/630#discussion_r4629702101"
+ },
+ {
+  "pr": 633,
+  "pr_title": "feat(routing): record each routed call's candidate pool and attempt order (#472)",
+  "priority": "P2",
+  "file": "harness/apply_policy.py",
+  "title": "Preserve the configured pool before capability ordering",
+  "url": "https://github.com/Treystu/harness/pull/633#discussion_r4637191185"
+ },
+ {
+  "pr": 633,
+  "pr_title": "feat(routing): record each routed call's candidate pool and attempt order (#472)",
+  "priority": "P2",
+  "file": "harness/apply_policy.py",
+  "title": "Record paid BYOK attempts in the routing trace",
+  "url": "https://github.com/Treystu/harness/pull/633#discussion_r4637191190"
+ },
+ {
+  "pr": 634,
+  "pr_title": "evidence(sergeant): gate receipts for turns 2026-11-19 (cars 2-5 + CANON-1)",
+  "priority": "P1",
+  "file": "evidence/lane-sessions/sergeant-2026-11-19/gates_620.py",
+  "title": "Run Lucas Gate before the Jev decision evaluation",
+  "url": "https://github.com/Treystu/harness/pull/634#discussion_r4646946203"
+ },
+ {
+  "pr": 634,
+  "pr_title": "evidence(sergeant): gate receipts for turns 2026-11-19 (cars 2-5 + CANON-1)",
+  "priority": "P1",
+  "file": "evidence/lane-sessions/sergeant-2026-11-19/gates_624.py",
+  "title": "Bind each receipt to the head actually being assessed",
+  "url": "https://github.com/Treystu/harness/pull/634#discussion_r4646946208"
+ },
+ {
+  "pr": 634,
+  "pr_title": "evidence(sergeant): gate receipts for turns 2026-11-19 (cars 2-5 + CANON-1)",
+  "priority": "P2",
+  "file": "evidence/lane-sessions/sergeant-2026-11-19/gates_620.py",
+  "title": "Read the decision signals using their returned field names",
+  "url": "https://github.com/Treystu/harness/pull/634#discussion_r4646946218"
+ },
+ {
+  "pr": 637,
+  "pr_title": "evidence(w2): turn-11 re-run attempts at 17906e2c",
+  "priority": "P2",
+  "file": "evidence/lane-sessions/w2-2026-11-20/gates-turn15.json",
+  "title": "Regenerate the gate receipt for the committed turn-15 filings",
+  "url": "https://github.com/Treystu/harness/pull/637#discussion_r4633756041"
+ },
+ {
+  "pr": 638,
+  "pr_title": "#475: record per-attempt http_status and timestamps for panel and Jev calls",
+  "priority": "P2",
+  "file": "harness/_http.py",
+  "title": "Preserve wire attempts across chat-level retries",
+  "url": "https://github.com/Treystu/harness/pull/638#discussion_r4635715990"
+ },
+ {
+  "pr": 638,
+  "pr_title": "#475: record per-attempt http_status and timestamps for panel and Jev calls",
+  "priority": "P2",
+  "file": "harness/jev.py",
+  "title": "Isolate the strict Jev call from previous wire traces",
+  "url": "https://github.com/Treystu/harness/pull/638#discussion_r4635716001"
+ },
+ {
+  "pr": 639,
+  "pr_title": "docs(intake): file the keyless-vocabulary contract gap (#413)",
+  "priority": "P2",
+  "file": "docs/found-in-use.md",
+  "title": "Verify the vocabulary endpoint before recording a contract gap",
+  "url": "https://github.com/Treystu/harness/pull/639#discussion_r4630286700"
+ },
+ {
+  "pr": 641,
+  "pr_title": "#473: record router health and the ordering produced at each rotation",
+  "priority": "P2",
+  "file": "harness/session.py",
+  "title": "Pass the run ledger when assembling the MCP router",
+  "url": "https://github.com/Treystu/harness/pull/641#discussion_r4637149228"
+ },
+ {
+  "pr": 641,
+  "pr_title": "#473: record router health and the ordering produced at each rotation",
+  "priority": "P2",
+  "file": "harness/router.py",
+  "title": "Normalize ledger paths before calling the trace reader",
+  "url": "https://github.com/Treystu/harness/pull/641#discussion_r4637149234"
+ },
+ {
+  "pr": 642,
+  "pr_title": "#476: record each ceiling refusal with the refused call's outcome",
+  "priority": "P2",
+  "file": "harness/spend.py",
+  "title": "Distinguish post-dispatch overruns from calls refused before dispatch",
+  "url": "https://github.com/Treystu/harness/pull/642#discussion_r4636128920"
+ },
+ {
+  "pr": 642,
+  "pr_title": "#476: record each ceiling refusal with the refused call's outcome",
+  "priority": "P2",
+  "file": "harness/spend.py",
+  "title": "Include the binding scope's budget in scope-refusal events",
+  "url": "https://github.com/Treystu/harness/pull/642#discussion_r4636128936"
+ },
+ {
+  "pr": 644,
+  "pr_title": "fix(flush): wire the campaign trace writer at the product entry (#469)",
+  "priority": "P2",
+  "file": "harness/flush_loop.py",
+  "title": "Handle trace initialization failures without aborting campaigns",
+  "url": "https://github.com/Treystu/harness/pull/644#discussion_r4647922463"
+ },
+ {
+  "pr": 645,
+  "pr_title": "feat(citations): add the DOI registry resolver the citation gate never had (#422",
+  "priority": "P2",
+  "file": "harness/citation_resolver.py",
+  "title": "Preserve unpublished status for posted-content subtypes",
+  "url": "https://github.com/Treystu/harness/pull/645#discussion_r4647990348"
+ },
+ {
+  "pr": 648,
+  "pr_title": "#344: bind resumed context to the current request and its freshness",
+  "priority": "P1",
+  "file": "harness/hourglass_lifecycle.py",
+  "title": "Invalidate provider receipts when restarting with new context",
+  "url": "https://github.com/Treystu/harness/pull/648#discussion_r4648680389"
+ },
+ {
+  "pr": 657,
+  "pr_title": "feat(citations): audit a declared bibliography at the report face (#422)",
+  "priority": "P2",
+  "file": "harness/citation_resolver.py",
+  "title": "Require citation assessments to cover the report's actual claims",
+  "url": "https://github.com/Treystu/harness/pull/657#discussion_r4657065312"
+ },
+ {
+  "pr": 665,
+  "pr_title": "feat(web): shared result reviewer with typed relevance bands (#660)",
+  "priority": "P1",
+  "file": "harness/jev_policy.py",
+  "title": "Preserve billed spend and unknown liability on cancellation",
+  "url": "https://github.com/Treystu/harness/pull/665#discussion_r4658103557"
+ },
+ {
+  "pr": 665,
+  "pr_title": "feat(web): shared result reviewer with typed relevance bands (#660)",
+  "priority": "P2",
+  "file": "harness/web.py",
+  "title": "Fail closed when reviewer initialization fails",
+  "url": "https://github.com/Treystu/harness/pull/665#discussion_r4658103563"
+ },
+ {
+  "pr": 665,
+  "pr_title": "feat(web): shared result reviewer with typed relevance bands (#660)",
+  "priority": "P2",
+  "file": "harness/web.py",
+  "title": "Carry reviewer costs back to the request lifecycle",
+  "url": "https://github.com/Treystu/harness/pull/665#discussion_r4658103569"
+ },
+ {
+  "pr": 667,
+  "pr_title": "fix(hourglass): bind a saved route decision to the request it judged (#344)",
+  "priority": "P1",
+  "file": "harness/hourglass_lifecycle.py",
+  "title": "Bind the provider-call cache key to the rerouted request",
+  "url": "https://github.com/Treystu/harness/pull/667#discussion_r4658634827"
+ },
+ {
+  "pr": 669,
+  "pr_title": "feat(research): shared request-bound ResearchPlan and native review (#342)",
+  "priority": "P1",
+  "file": "harness/research_plan.py",
+  "title": "Preserve the judgment's original plan and request binding",
+  "url": "https://github.com/Treystu/harness/pull/669#discussion_r4658925845"
+ },
+ {
+  "pr": 669,
+  "pr_title": "feat(research): shared request-bound ResearchPlan and native review (#342)",
+  "priority": "P1",
+  "file": "harness/web.py",
+  "title": "Bind the fetch policy before passing the default fetcher",
+  "url": "https://github.com/Treystu/harness/pull/669#discussion_r4658925851"
+ },
+ {
+  "pr": 669,
+  "pr_title": "feat(research): shared request-bound ResearchPlan and native review (#342)",
+  "priority": "P2",
+  "file": "harness/research_plan.py",
+  "title": "Enforce the accepted plan's aggregate source limit",
+  "url": "https://github.com/Treystu/harness/pull/669#discussion_r4658925854"
+ },
+ {
+  "pr": 671,
+  "pr_title": "fix(hourglass): bind a saved route decision to the accepted plan (#344)",
+  "priority": "P2",
+  "file": "harness/hourglass_lifecycle.py",
+  "title": "Invalidate the provider receipt when the plan changes",
+  "url": "https://github.com/Treystu/harness/pull/671#discussion_r4659204089"
+ },
+ {
+  "pr": 671,
+  "pr_title": "fix(hourglass): bind a saved route decision to the accepted plan (#344)",
+  "priority": "P2",
+  "file": "harness/hourglass_lifecycle.py",
+  "title": "Preserve the saved approval when resuming without a new one",
+  "url": "https://github.com/Treystu/harness/pull/671#discussion_r4659204094"
+ },
+ {
+  "pr": 673,
+  "pr_title": "feat(hourglass): propose a research plan and gate retrieval on acceptance (#342)",
+  "priority": "P1",
+  "file": "harness/conversation_lifecycle.py",
+  "title": "Bind the fetch policy before passing the real fetch function",
+  "url": "https://github.com/Treystu/harness/pull/673#discussion_r4659547467"
+ },
+ {
+  "pr": 673,
+  "pr_title": "feat(hourglass): propose a research plan and gate retrieval on acceptance (#342)",
+  "priority": "P2",
+  "file": "harness/hourglass_lifecycle.py",
+  "title": "Keep the request binding unchanged when resolving a remembered site",
+  "url": "https://github.com/Treystu/harness/pull/673#discussion_r4659547472"
+ },
+ {
+  "pr": 675,
+  "pr_title": "feat(chat): gate the conversation lane's retrieval on an accepted plan (#342)",
+  "priority": "P1",
+  "file": "harness/conversation_lifecycle.py",
+  "title": "Bind fetch policy arguments before executing chat plans",
+  "url": "https://github.com/Treystu/harness/pull/675#discussion_r4659935855"
+ },
+ {
+  "pr": 675,
+  "pr_title": "feat(chat): gate the conversation lane's retrieval on an accepted plan (#342)",
+  "priority": "P2",
+  "file": "harness/research_plan.py",
+  "title": "Propagate unknown provider usage instead of treating it as an outage",
+  "url": "https://github.com/Treystu/harness/pull/675#discussion_r4659935859"
+ },
+ {
+  "pr": 677,
+  "pr_title": "feat(hourglass): reuse a recorded plan acceptance on resume (#344)",
+  "priority": "P2",
+  "file": "harness/research_plan.py",
+  "title": "Check receipt expiry when the caller omits now",
+  "url": "https://github.com/Treystu/harness/pull/677#discussion_r4660171273"
+ }
+]

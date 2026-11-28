@@ -178,6 +178,16 @@ test("03 driver studio surface loads from the served UI", async ({ page }) => {
   await page.locator('[data-pane="studio"]').click();
   await page.locator('.subtool-btn[data-pane="driver"]').click();
   await expect(page.locator("#subtool-body h2")).toHaveText("Driver");
+  await expect(page.locator("#driver-watch-card")).toBeVisible();
+  await page.locator("#btn-watch-start").click();
+  await expect(page.locator("#driver-watch-pill")).toContainText("running");
+  await page.locator("#btn-watch-pause").click();
+  await expect(page.locator("#driver-watch-pill")).toContainText("paused");
+  await page.locator("#btn-watch-resume").click();
+  await expect(page.locator("#driver-watch-pill")).toContainText("running");
+  await page.locator("#btn-watch-stop").click();
+  await expect(page.locator("#driver-watch-pill")).toContainText("stopped");
+  await page.locator("#btn-watch-refresh").click();
   await expect(page.getByText("Task Request / Goal")).toBeVisible();
   await expect(page.locator("#subtool-body")).toContainText("Perception & Health");
 });

@@ -1080,12 +1080,13 @@ class CliParserSurfaceTests(unittest.TestCase):
         sub_action = next(a for a in build_parser()._actions
                           if isinstance(a, argparse._SubParsersAction))
         registered = set(sub_action.choices)
-        # `queue` joins the early-intercept faces: it owns local queue state
-        # and must run before settings load, so it is dispatched beside
-        # serve/desktop/media/driver rather than through the keyed table.
+        # `queue` and `driver-watch` join the early-intercept faces: they own
+        # local state and must run before settings load, so they are
+        # dispatched beside serve/desktop/media/driver rather than through the
+        # keyed table.
         self.assertEqual(registered,
                          set(_DISPATCH) | {"serve", "desktop", "media",
-                                           "driver", "queue"})
+                                           "driver", "queue", "driver-watch"})
 
     def test_handler_seams_stay_importable_from_cli(self):
         import harness.cli as cli
@@ -1383,7 +1384,7 @@ class AskCliTests(unittest.TestCase):
         self.assertEqual(json.loads(output.getvalue()), expected)
         run_prompt.assert_called_once_with(
             prompt="what's the answer?", auto_apply=False, session_id="s1",
-            force_conversation=True)
+            force_conversation=True, web=False)
 
 
 class ScriptCommandTests(unittest.TestCase):

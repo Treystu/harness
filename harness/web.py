@@ -767,6 +767,18 @@ def source_label(source: Dict[str, Any]) -> str:
 _REVIEWED_KINDS = ("fetch", "search")
 
 
+class ReviewedSources(list):
+    """The admitted sources plus the reviewer's billed cost (row 78).
+
+    A list keeps every existing consumer's shape; the cost is an attribute so
+    the request lifecycle can accumulate it without a second return channel.
+    """
+
+    def __init__(self, items=(), *, cost: float = 0.0):
+        super().__init__(items)
+        self.cost = float(cost or 0.0)
+
+
 def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
                         site: str = "web-results",
                         task_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -787,19 +799,28 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
     candidates = [s for s in ordered
                   if s.get("ok") and str(s.get("kind") or "") in _REVIEWED_KINDS]
     if not candidates:
-        return ordered
+        return ReviewedSources(ordered)
     for source in candidates:
         if source.get("pinned"):
             source["review"] = {"verdict": "relevant", "probability": 1.0,
                                 "reason": "named by the request"}
     reviewable = [s for s in candidates if not s.get("pinned")]
     if not reviewable:
-        return ordered
+        return ReviewedSources(ordered)
     evaluate = getattr(policy, "evaluate_result_relevance", None)
     if not callable(evaluate):
         emit("web_result_review_unavailable", site=site,
              reason="reviewer_absent", results=len(reviewable))
-        return ordered
+        # Fail closed: withhold the reviewable results and surface an outage
+        # evidence block instead of admitting them unreviewed (#77).
+        out = [s for s in ordered
+               if s.get("pinned") or id(s) not in {id(x) for x in reviewable}]
+        out.append({"kind": "reviewer", "ok": False, "review": "outage",
+                    "excluded": len(reviewable),
+                    "note": ("result reviewer unavailable (reviewer_absent): "
+                             "{} result(s) withheld, not admitted "
+                             "unreviewed".format(len(reviewable)))})
+        return ReviewedSources(out)
     try:
         _result, structural = evaluate(
             prompt, reviewable, site=site, task_id=task_id)
@@ -809,6 +830,9 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
         structural = {"results": [], "outage": True,
                       "outage_reason": "{}: {}".format(
                           type(exc).__name__, exc)}
+    # The policy settles this charge in the governor; the request lifecycle
+    # needs the receipt too, so the cost travels beside the sources (row 78).
+    review_cost = float(structural.get("cost") or 0.0)
     verdicts = list(structural.get("results") or [])
     outage = bool(structural.get("outage"))
     if not verdicts and outage:
@@ -844,7 +868,7 @@ def apply_result_review(prompt: str, sources: List[Dict[str, Any]], policy, *,
                     "note": ("result reviewer unavailable (" + reason + "): "
                              "{} result(s) withheld, not admitted "
                              "unreviewed".format(len(reviewable)))})
-    return out
+    return ReviewedSources(out, cost=review_cost)
 
 
 def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_any_public=False, named_hosts=None, fetch_url_fn=None, search_web_fn=None, find_urls_fn=None, extract_query_fn=None, max_sources=3, plan=None, approval=None, request_id="", capabilities=None, now=None):
@@ -864,14 +888,29 @@ def gather_web_context(prompt: str, *, allowed_hosts=DEFAULT_FETCH_HOSTS, allow_
     if plan is not None:
         from .research_plan import execute_plan
 
+        # #783: bind the fetch policy into the fetch callable so the default
+        # transport (fetch_url, which requires allowed_hosts) receives the
+        # allowlist, the any-public exemption and the named hosts exactly as
+        # the legacy path does. An injected one-argument callable (test double)
+        # is left alone.
+        _fetch = (fetch_url_fn if fetch_url_fn is not None else fetch_url)
+        if _fetch is fetch_url or fetch_url_fn is None:
+            _named = {h.lower() for h in (named_hosts or [])}
+            def _bound_fetch(url):
+                host = (urllib.parse.urlsplit(url).hostname or "").lower()
+                if allow_any_public or host in _named:
+                    return fetch_url(url, allowed_hosts=allowed_hosts,
+                                     allow_any_public=True)
+                return fetch_url(url, allowed_hosts=allowed_hosts)
+            _fetch = _bound_fetch
+
         execution = execute_plan(
             plan, approval, request_id=request_id, prompt=prompt,
             capabilities=(capabilities if capabilities is not None
                           else ("search", "fetch")),
             search_fn=(search_web_fn if search_web_fn is not None
                        else search_web),
-            fetch_fn=(fetch_url_fn if fetch_url_fn is not None
-                      else fetch_url),
+            fetch_fn=_fetch,
             now=now)
         emit("research_plan_executed", state=execution.state,
              search_calls=execution.search_calls,

@@ -393,7 +393,8 @@ class ConfirmPlanTests(_WaistFixture):
 
 
 class ChunkOversizedNodesTests(unittest.TestCase):
-    """The chunking policy (ONE owner: waist.chunk_oversized_nodes).
+    """The chunking policy (ONE owner: plan_chunker.chunk_oversized_nodes,
+    re-exported by the waist for existing callers).
 
     A node that cannot fit one model pass is split into ordered chunks that
     each fit; everything else is untouched.

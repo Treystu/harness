@@ -15,6 +15,8 @@ from unittest import mock
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness import osal, provision as pv
+from harness import provision_approval as ppa
+from harness import provision_plan as pp
 from harness.config import load_settings
 from harness.errors import HarnessError
 from harness.jev import JevEvaluationResult
@@ -254,7 +256,7 @@ class StepTypeTests(unittest.TestCase):
 
     def test_step_from_dict_is_strict(self):
         good = step().to_dict()
-        self.assertEqual(pv.step_from_dict(good), step())
+        self.assertEqual(pp.step_from_dict(good), step())
         for mutate in (
             lambda d: d.update(extra=1),
             lambda d: d.pop("argv"),
@@ -267,9 +269,9 @@ class StepTypeTests(unittest.TestCase):
             data = dict(good)
             mutate(data)
             with self.assertRaises(pv.ProvisionError, msg=repr(data)):
-                pv.step_from_dict(data)
+                pp.step_from_dict(data)
         with self.assertRaises(pv.ProvisionError):
-            pv.step_from_dict(["not", "a", "dict"])
+            pp.step_from_dict(["not", "a", "dict"])
 
     def test_step_digest_tracks_content(self):
         self.assertEqual(step().digest(), step().digest())
@@ -294,10 +296,10 @@ class StepTypeTests(unittest.TestCase):
             "/r", "inventory", "deterministic", True, ("be careful",))
         data = plan.to_dict()
         self.assertEqual(data["digest"], plan.digest)
-        rebuilt = pv.plan_from_dict(data)
+        rebuilt = pp.plan_from_dict(data)
         self.assertEqual(rebuilt.digest, plan.digest)
         self.assertTrue(rebuilt.is_fallback)
-        text = pv.render_plan(plan)
+        text = pp.render_plan(plan)
         self.assertIn("[mutating] [network] s2", text)
         self.assertIn("rollback: delete it", text)
         self.assertIn("note: be careful", text)
@@ -307,8 +309,8 @@ class StepTypeTests(unittest.TestCase):
         for bad in ("x", {"steps": "no"}, {"steps": [], "goal": 1, "root": "r"},
                     {"steps": [{"id": "s"}], "goal": "g", "root": "r"}):
             with self.assertRaises(pv.ProvisionError, msg=repr(bad)):
-                pv.plan_from_dict(bad)
-        bare = pv.plan_from_dict({"steps": [], "goal": "g", "root": "r"})
+                pp.plan_from_dict(bad)
+        bare = pp.plan_from_dict({"steps": [], "goal": "g", "root": "r"})
         self.assertEqual((bare.recipe, bare.source), ("external", "external"))
 
 
@@ -599,13 +601,13 @@ def mutating_plan(root, n=2, irreversible_last=False):
 class ApprovalGateTests(TempRootCase):
     def test_no_record_means_no_consent(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         self.assertIsNone(gate.resolve(plan, plan.steps[0]))
         self.assertIsNone(gate.resolve_or_ask(plan, plan.steps[0]))
 
     def test_plan_approval_covers_mutating_but_never_irreversible(self):
         plan = mutating_plan(self.root, irreversible_last=True)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "alice", "looks right")
         self.assertEqual(gate.resolve(plan, plan.steps[0]).decision, pv.APPROVE)
         self.assertIsNone(gate.resolve(plan, plan.step("inst")))
@@ -614,7 +616,7 @@ class ApprovalGateTests(TempRootCase):
 
     def test_decline_and_defer_are_first_class_records(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.defer_plan(plan, "alice", "not today")
         self.assertEqual(gate.resolve(plan, plan.steps[0]).decision, pv.DEFER)
         gate.decline_plan(plan, "alice", "no")
@@ -629,14 +631,14 @@ class ApprovalGateTests(TempRootCase):
 
     def test_plan_level_decline_beats_step_level_approve(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_step(plan, "mk0", "alice")
         gate.decline_plan(plan, "alice", "changed my mind")
         self.assertEqual(gate.resolve(plan, plan.steps[0]).decision, pv.DECLINE)
 
     def test_approval_is_bound_to_the_plan_digest(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "alice")
         edited = pv.Plan(plan.goal, list(plan.steps) + [pv.Step(
             "extra", "x", ("mkdir", os.path.join(self.root, "x")), pv.MUTATING,
@@ -646,7 +648,7 @@ class ApprovalGateTests(TempRootCase):
 
     def test_step_approval_is_bound_to_the_step_digest(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_step(plan, "mk0", "alice")
         tampered_step = pv.Step("mk0", "make", ("mkdir", os.path.join(self.root, "zz")),
                                 pv.MUTATING, "creates a directory", "delete it")
@@ -654,7 +656,7 @@ class ApprovalGateTests(TempRootCase):
 
     def test_invalid_records_are_refused(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         with self.assertRaises(pv.ProvisionError):
             gate.record(plan, "maybe", approver="alice")
         with self.assertRaises(pv.ProvisionError):
@@ -668,7 +670,7 @@ class ApprovalGateTests(TempRootCase):
     def test_flagged_plans_cannot_be_approved_whole(self):
         plan = pv.Plan("g", mutating_plan(self.root).steps, self.root, "x", "x",
                        True, review_required=True)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         with self.assertRaises(pv.ProvisionError):
             gate.approve_plan(plan, "alice")
         gate.approve_step(plan, "mk0", "alice")  # per-step still possible
@@ -677,7 +679,7 @@ class ApprovalGateTests(TempRootCase):
     def test_every_record_is_ledgered_with_its_own_timestamp_key(self):
         plan = mutating_plan(self.root)
         self.ledger.ensure_offered_task_id("t1", source="test_setup")
-        gate = pv.ApprovalGate(ledger=self.ledger, task_id="t1")
+        gate = ppa.ApprovalGate(ledger=self.ledger, task_id="t1")
         gate.approve_plan(plan, "alice", "ok")
         gate.decline_step(plan, "mk1", "alice", "nope")
         entries = self.events("provision_approval")
@@ -693,7 +695,7 @@ class ApprovalGateTests(TempRootCase):
         step0 = plan.steps[0]
 
         def gate_for(answer):
-            return pv.ApprovalGate(ask=lambda p, s: answer, ask_approver="ui")
+            return ppa.ApprovalGate(ask=lambda p, s: answer, ask_approver="ui")
 
         record = gate_for((pv.APPROVE, "fine")).resolve_or_ask(plan, step0)
         self.assertEqual((record.decision, record.approver), (pv.APPROVE, "ui"))
@@ -709,14 +711,14 @@ class ApprovalGateTests(TempRootCase):
         def boom(p, s):
             raise RuntimeError("ui crashed")
 
-        failed = pv.ApprovalGate(ask=boom).resolve_or_ask(plan, step0)
+        failed = ppa.ApprovalGate(ask=boom).resolve_or_ask(plan, step0)
         self.assertEqual(failed.decision, pv.DEFER)
         self.assertIn("RuntimeError", failed.reason)
 
     def test_existing_record_short_circuits_ask(self):
         plan = mutating_plan(self.root)
         asked = []
-        gate = pv.ApprovalGate(ask=lambda p, s: asked.append(s) or (pv.APPROVE, ""))
+        gate = ppa.ApprovalGate(ask=lambda p, s: asked.append(s) or (pv.APPROVE, ""))
         gate.approve_plan(plan, "alice")
         gate.resolve_or_ask(plan, plan.steps[0])
         self.assertEqual(asked, [])
@@ -740,7 +742,7 @@ class ExecutorTests(TempRootCase):
         target = os.path.join(self.root, "d0")
         plan = mutating_plan(self.root)
         runner = FakeRunner()
-        report = pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        report = pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                  ledger=self.ledger, runner=runner)
         self.assertTrue(report.dry_run)
         self.assertEqual(report.outcome, pv.DRY_RUN)
@@ -755,7 +757,7 @@ class ExecutorTests(TempRootCase):
     def test_dry_run_reports_approval_state_without_asking(self):
         plan = mutating_plan(self.root, irreversible_last=True)
         asked = []
-        gate = pv.ApprovalGate(ask=lambda p, s: asked.append(s))
+        gate = ppa.ApprovalGate(ask=lambda p, s: asked.append(s))
         gate.approve_step(plan, "mk0", "a")
         gate.decline_step(plan, "mk1", "a")
         gate.defer_step(plan, "inst", "a")
@@ -769,13 +771,13 @@ class ExecutorTests(TempRootCase):
 
     def test_dry_run_read_step_needs_no_approval(self):
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
-        report = pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        report = pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                  runner=FakeRunner())
         self.assertIn("approval: not required", report.results[0].note)
 
     def test_real_run_without_approval_executes_nothing(self):
         plan = mutating_plan(self.root)
-        report, runner = self.run_plan(plan, pv.ApprovalGate(), dry_run=False)
+        report, runner = self.run_plan(plan, ppa.ApprovalGate(), dry_run=False)
         self.assertEqual(report.outcome, pv.AWAITING_APPROVAL)
         self.assertTrue(report.resumable)
         self.assertEqual([r.status for r in report.results],
@@ -793,7 +795,7 @@ class ExecutorTests(TempRootCase):
                     pv.MUTATING, "installs", "delete it", requires_network=True),
         ], self.root, "x", "x", True)
         self.ledger.ensure_offered_task_id("t", source="test_setup")
-        gate = pv.ApprovalGate(ledger=self.ledger, task_id="t")
+        gate = ppa.ApprovalGate(ledger=self.ledger, task_id="t")
         gate.approve_plan(plan, "alice")
         report, runner = self.run_plan(plan, gate, dry_run=False)
         self.assertEqual(report.outcome, pv.COMPLETED)
@@ -822,7 +824,7 @@ class ExecutorTests(TempRootCase):
 
     def test_ledger_chain_survives_reload(self):
         plan = mutating_plan(self.root, n=1)
-        gate = pv.ApprovalGate(ledger=self.ledger)
+        gate = ppa.ApprovalGate(ledger=self.ledger)
         gate.approve_plan(plan, "a")
         self.run_plan(plan, gate, dry_run=False)
         reloaded = AutonomyLedger(self.ledger.path)
@@ -839,7 +841,7 @@ class ExecutorTests(TempRootCase):
                     requires_network=True),
             step(id="verify", argv=("python", "--version")),
         ], self.root, "x", "x", True)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "a")
         runner = FakeRunner({("python", "-I", "-m", "pip"):
                              osal.CommandResult(1, "", "no wheel")})
@@ -862,7 +864,7 @@ class ExecutorTests(TempRootCase):
                 (osal.CommandResult(124, "timed out"), "timed out"),
                 (OSError("exec format"), "non-zero exit")):
             runner = FakeRunner({("python",): outcome})
-            report, _ = self.run_plan(plan, pv.ApprovalGate(), dry_run=False,
+            report, _ = self.run_plan(plan, ppa.ApprovalGate(), dry_run=False,
                                       runner=runner)
             self.assertEqual(report.outcome, pv.FAILED)
             self.assertEqual(report.results[0].note, note)
@@ -875,7 +877,7 @@ class ExecutorTests(TempRootCase):
         plan = pv.Plan("g", [pv.Step("mk", "make", ("mkdir", blocker),
                                      pv.MUTATING, "creates", "delete")],
                        self.root, "x", "x", True)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "a")
         report, _ = self.run_plan(plan, gate, dry_run=False)
         self.assertEqual(report.outcome, pv.FAILED)
@@ -883,7 +885,7 @@ class ExecutorTests(TempRootCase):
 
     def test_decline_stops_and_records_the_reason(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate(ledger=self.ledger)
+        gate = ppa.ApprovalGate(ledger=self.ledger)
         gate.approve_step(plan, "mk0", "a")
         gate.decline_step(plan, "mk1", "a", "not that directory")
         report, runner = self.run_plan(plan, gate, dry_run=False)
@@ -902,7 +904,7 @@ class ExecutorTests(TempRootCase):
 
     def test_defer_is_resumable_and_resume_skips_completed_work(self):
         plan = mutating_plan(self.root)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_step(plan, "mk0", "a")
         gate.defer_step(plan, "mk1", "a", "ask me tomorrow")
         first, _ = self.run_plan(plan, gate, dry_run=False)
@@ -918,7 +920,7 @@ class ExecutorTests(TempRootCase):
 
     def test_interactive_ask_approves_during_the_run(self):
         plan = mutating_plan(self.root, n=1)
-        gate = pv.ApprovalGate(ledger=self.ledger,
+        gate = ppa.ApprovalGate(ledger=self.ledger,
                                ask=lambda p, s: (pv.APPROVE, "yes"),
                                ask_approver="card")
         report, _ = self.run_plan(plan, gate, dry_run=False)
@@ -929,13 +931,13 @@ class ExecutorTests(TempRootCase):
     def test_read_step_with_network_still_needs_approval(self):
         plan = pv.Plan("g", [step(id="net", requires_network=True)], self.root,
                        "x", "x", True)
-        report, runner = self.run_plan(plan, pv.ApprovalGate(), dry_run=False)
+        report, runner = self.run_plan(plan, ppa.ApprovalGate(), dry_run=False)
         self.assertEqual(report.outcome, pv.AWAITING_APPROVAL)
         self.assertEqual(runner.calls, [])
 
     def test_read_only_step_runs_without_approval(self):
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
-        report, runner = self.run_plan(plan, pv.ApprovalGate(), dry_run=False)
+        report, runner = self.run_plan(plan, ppa.ApprovalGate(), dry_run=False)
         self.assertEqual(report.outcome, pv.COMPLETED)
         self.assertEqual(len(runner.calls), 1)
         self.assertIsNone(report.results[0].approval)
@@ -944,7 +946,7 @@ class ExecutorTests(TempRootCase):
 
     def test_irreversible_needs_its_own_approval_in_a_real_run(self):
         plan = mutating_plan(self.root, n=1, irreversible_last=True)
-        gate = pv.ApprovalGate()
+        gate = ppa.ApprovalGate()
         gate.approve_plan(plan, "a")
         report, runner = self.run_plan(plan, gate, dry_run=False)
         self.assertEqual(report.outcome, pv.AWAITING_APPROVAL)
@@ -960,7 +962,7 @@ class ExecutorTests(TempRootCase):
         bad = pv.Plan("g", [step(argv=("sudo", "rm", "-rf", "/"))], self.root,
                       "x", "x", True)
         with self.assertRaises(pv.ProvisionError):
-            pv.execute_plan(bad, pv.ApprovalGate(), policy=self.policy,
+            pv.execute_plan(bad, ppa.ApprovalGate(), policy=self.policy,
                             ledger=self.ledger, runner=FakeRunner(),
                             dry_run=False, which=fake_which)
         self.assertEqual(self.ledger.entries(), [])
@@ -970,7 +972,7 @@ class ExecutorTests(TempRootCase):
                                     max_output_chars=10)
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
         runner = FakeRunner(default=osal.CommandResult(0, "x" * 100, ""))
-        report = pv.execute_plan(plan, pv.ApprovalGate(), policy=policy,
+        report = pv.execute_plan(plan, ppa.ApprovalGate(), policy=policy,
                                  ledger=self.ledger, runner=runner,
                                  dry_run=False, which=fake_which)
         self.assertEqual(len(report.results[0].stdout), 100)
@@ -980,12 +982,12 @@ class ExecutorTests(TempRootCase):
 
     def test_a_dry_run_needs_no_ledger_but_a_real_run_refuses_without_one(self):
         plan = pv.Plan("g", [step()], self.root, "x", "x", True)
-        preview = pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+        preview = pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                                   runner=FakeRunner())
         self.assertEqual(preview.outcome, pv.DRY_RUN)
         runner = FakeRunner()
         with self.assertRaises(pv.ProvisionError) as ctx:
-            pv.execute_plan(plan, pv.ApprovalGate(), policy=self.policy,
+            pv.execute_plan(plan, ppa.ApprovalGate(), policy=self.policy,
                             runner=runner, dry_run=False, which=fake_which)
         self.assertIn("ledger", str(ctx.exception))
         self.assertEqual(runner.calls, [])
@@ -997,7 +999,7 @@ class ExecutorTests(TempRootCase):
                        self.root, "x", "x", True)
         policy = pv.ProvisionPolicy(approved_roots=(self.root,),
                                     trusted_executables=(osal.python_exe(),))
-        report = pv.execute_plan(plan, pv.ApprovalGate(), policy=policy,
+        report = pv.execute_plan(plan, ppa.ApprovalGate(), policy=policy,
                                  ledger=self.ledger, dry_run=False)
         self.assertEqual(report.outcome, pv.COMPLETED)
         self.assertIn("Python", report.results[0].stdout + report.results[0].stderr)
@@ -1246,7 +1248,7 @@ class PlannerTests(TempRootCase):
                              jev=FakeJev(noul=noul))
             self.assertTrue(plan.review_required, msg=noul)
             with self.assertRaises(pv.ProvisionError):
-                pv.ApprovalGate().approve_plan(plan, "a")
+                ppa.ApprovalGate().approve_plan(plan, "a")
 
     def test_review_with_unparseable_answers_is_a_fallback(self):
         plan = self.plan(probe=self.probe(managers=("pip",)),
@@ -1395,7 +1397,7 @@ class EndToEndTests(TempRootCase):
         plan = pv.plan_provision("provision ruff==0.6.1", probe,
                                  policy=self.policy)
         runner = FakeRunner()
-        gate = pv.ApprovalGate(ledger=self.ledger, task_id="e2e")
+        gate = ppa.ApprovalGate(ledger=self.ledger, task_id="e2e")
 
         preview = pv.execute_plan(plan, gate, policy=self.policy,
                                   ledger=self.ledger, task_id="e2e",
@@ -1422,7 +1424,7 @@ class EndToEndTests(TempRootCase):
         self.assertEqual(argvs[0][1:4], ["-I", "-m", "venv"])
         self.assertEqual(self.ledger.verify(), (True, None))
         kinds = {e["event"] for e in self.ledger.entries()}
-        self.assertTrue(kinds <= set(pv.PROVISION_EVENTS))
+        self.assertTrue(kinds <= set(pp.PROVISION_EVENTS))
         self.assertTrue(all(e["task_id"] == "e2e" for e in self.ledger.entries()))
 
 

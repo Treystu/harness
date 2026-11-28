@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 from .errors import HarnessError, ToolCancelled
 from .events import emit
+from .fallback_lattice import implied_operation
 from .history import save_chat_turn
 from .session import jev_face_governor, jev_for, ledger_for
 
@@ -57,32 +58,28 @@ class SimpleActionLifecycleMixin:
         except ToolCancelled:
             raise
         except Exception as exc:
+            # #805: a route outage is not a terminal answer. The lifecycle
+            # declines its own workflow; the router-owned record continues
+            # with the deterministic workflow this request implies.
             emit("simple_action_route_unavailable", error_type=type(exc).__name__)
-            result = {
-                "status": "deferred",
-                "intent": "simple-action",
-                "workflow_tier": "simple-action",
-                "prompt": prompt,
-                "response": (
-                    "Inconclusive -- Jev could not select the "
-                    "site-check workflow; no request was sent."
-                ),
-                "model": None,
-                "cost": 0.0,
-                "defer_reason": "Jev workflow selection was unavailable",
-                "next_step": "retry the bounded site-check request",
-                "jev": {"workflow_tier": None, "is_fallback": True},
-            }
-            save_chat_turn(sid, result, self.history_dir)
-            emit("simple_action_complete", status="deferred", reason_code="jev_route_unavailable")
-            return result
+            return self._simple_action_fallthrough(
+                prompt, sid, cancel_check, target, preflight_plan,
+                attempts=[{
+                    "rung": 1, "operation": "workflow_selection",
+                    "via": "jev", "target": target, "outcome": "unavailable",
+                    "error": f"{type(exc).__name__}: {exc}",
+                }],
+                reason=("Jev workflow selection was unavailable; the "
+                        "deterministic site-check workflow ran instead"))
 
         route_answer = (
             route_result.answers.get("workflow_tier")
             if isinstance(route_result.answers, dict)
             else None
         )
-        choice = route_answer.get("choice") if isinstance(route_answer, dict) else None
+        selected = (route_answer.get("choice")
+                    if isinstance(route_answer, dict) else None)
+        choice = selected
         if choice not in {
             "answer",
             "simple-action",
@@ -97,30 +94,23 @@ class SimpleActionLifecycleMixin:
         if cancel_check and cancel_check():
             raise ToolCancelled("Prompt execution was cancelled by user")
         if fallback or choice != "simple-action":
+            # #805: a non-selection is a decline, not a conclusion. Record why
+            # the selected workflow was inadmissible here, then run the
+            # deterministic workflow the request implies.
             reason = (
                 "Jev did not select the bounded site-check workflow"
                 if not fallback
                 else "Jev did not provide a usable workflow choice"
             )
-            result = {
-                "status": "deferred",
-                "intent": "simple-action",
-                "workflow_tier": "simple-action",
-                "prompt": prompt,
-                "response": ("Inconclusive -- " + reason + "; no request was sent."),
-                "model": getattr(route_result, "model", None),
-                "cost": float(getattr(route_result, "cost", 0.0) or 0.0),
-                "defer_reason": reason,
-                "next_step": "rephrase as a single current site-availability check",
-                "jev": {"workflow_tier": choice, "is_fallback": fallback},
-            }
-            save_chat_turn(sid, result, self.history_dir)
-            emit(
-                "simple_action_complete",
-                status="deferred",
-                reason_code="jev_route_not_simple_action",
-            )
-            return result
+            return self._simple_action_fallthrough(
+                prompt, sid, cancel_check, target, preflight_plan,
+                attempts=[{
+                    "rung": 1, "operation": "workflow_selection",
+                    "via": "jev", "target": target, "outcome": "declined",
+                    "choice": selected, "reason": reason,
+                }],
+                reason=(reason + "; the deterministic site-check workflow "
+                        "ran instead"))
         return self.run_simple_action(
             prompt,
             session_id=sid,
@@ -131,6 +121,40 @@ class SimpleActionLifecycleMixin:
             preflight_plan=preflight_plan,
             started=True,
         )
+
+    def _simple_action_fallthrough(self, prompt, session_id, cancel_check,
+                                   target, preflight_plan, *, attempts, reason):
+        """Rungs 2-4 after this bounded lane declined its own workflow.
+
+        A named repository or file target resolves to the deterministic
+        workflow the request implies. Otherwise the deterministic site check
+        runs: the exact target is probed once and its observation is the
+        answer. Either way the receipt keeps the selection attempt ahead of
+        the execution that followed it.
+        """
+        implied = implied_operation(prompt)
+        if implied is not None:
+            result = self._implied_request_workflow(
+                prompt, session_id=session_id, cancel_check=cancel_check,
+                attempts=list(attempts), reason=reason)
+            if result is not None:
+                return result
+        result = self.run_simple_action(
+            prompt, session_id=session_id, cancel_check=cancel_check,
+            preflight_plan=preflight_plan, started=True)
+        result["fallback_lattice"] = {
+            "rung": 2,
+            "operation": "site_check",
+            "reason": reason,
+            "attempts": list(attempts) + [{
+                "rung": 2, "operation": "site_check", "via": "probe",
+                "target": result.get("target"),
+                "outcome": result.get("status"),
+            }],
+        }
+        emit("simple_action_fallthrough", target=result.get("target"),
+             status=result.get("status"))
+        return result
 
     def _simple_action_preflight_refusal(self, prompt, session_id, target, reason):
         try:

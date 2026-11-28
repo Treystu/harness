@@ -1,0 +1,47 @@
+{
+  "413-head-currency": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": 0.51,
+      "advanced": 0.78,
+      "destructive": 0.08,
+      "supported": 0.08,
+      "cost": 2.625e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "4182bb8647b7e52c820ed74d08e0e754ec1a5be05adb2f7f583f39d258fb68a0"
+    }
+  },
+  "295-status-15": {
+    "product_jev": {
+      "verdict": "investigate",
+      "disposition": "proceed",
+      "margin": 0.2,
+      "lead": 0.5499999999999999,
+      "advanced": 0.77,
+      "destructive": 0.07,
+      "supported": 0.07,
+      "cost": 2.5830000000000002e-05,
+      "model": "jev-1.14.0"
+    },
+    "lucas": {
+      "status": "pass",
+      "track": "typed",
+      "reasons": [],
+      "artifact_sha256": "a1e6b710d679e02d83d03b2e3da4b6a61b098320729ceea1fb331e545e8f1c5e"
+    }
+  },
+  "_meta": {
+    "ledger_rows_added": 2,
+    "total_jev_cost_usd": 5.208e-05,
+    "site": "audit_admissibility",
+    "head_under_test": "c8087a4ceded7cc47144c541673a1c2e3c6ea947",
+    "product_identity": "c8087a4ceded7cc47144c541673a1c2e3c6ea947"
+  }
+}

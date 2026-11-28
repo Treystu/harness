@@ -1,0 +1,134 @@
+[
+ {
+  "pr": 625,
+  "pr_title": "driver: run the bridge hand and wire probe 1 through the bus (#480)",
+  "priority": "P2",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Pass the selected freshness window into the live reader",
+  "url": "https://github.com/Treystu/harness/pull/625#discussion_r4625689373",
+  "row": 49,
+  "discussion": 4625689373,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Pass the selected freshness window into the live reader**\n\nWhen an operator supplies a nondefault `--max-age`, the bus backend still applies `DEFAULT_MAX_AGE` because the option is passed only to `run_battery`. `probe_live_capture` then constructs a new envelope dated at receipt time, so its subsequent check cannot enforce the requested age of the original capture. For example, a two-second-old frame can pass `--max-age 1` because the backend accepts it under its five-second default and the probe re-dates it. Conversely, a larger requested window cannot prevent the backend's premature refusal. Thread `args.max_age` through `live_reader` to `bus_capture_backend`.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 625,
+  "pr_title": "driver: run the bridge hand and wire probe 1 through the bus (#480)",
+  "priority": "P2",
+  "file": "driver_core/bridge_battery.py",
+  "title": "Include the capture output environment in the live runbook",
+  "url": "https://github.com/Treystu/harness/pull/625#discussion_r4625689385",
+  "row": 50,
+  "discussion": 4625689385,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include the capture output environment in the live runbook**\n\nIn an interactive Windows session without `DRIVER_SCREEN_OUT` already configured, following these steps cannot produce the advertised live pass. The new hand process uses the default `osal.capture_screen` reader, whose `_capture_windows` implementation returns `DRIVER_SCREEN_OUT is not set; cannot capture` before invoking capture when that variable is absent. Specify setting it to a writable PNG path visible to both processes before starting the hand; sharing the ledger root alone does not configure the frame output.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 627,
+  "pr_title": "feat(trace): one decision_trace family with campaign histories retained (D5-1, #",
+  "priority": "P1",
+  "file": "harness/flush_loop.py",
+  "title": "Wire the durable trace into the campaign entry point",
+  "url": "https://github.com/Treystu/harness/pull/627#discussion_r4627324850",
+  "row": 51,
+  "discussion": 4627324850,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Wire the durable trace into the campaign entry point**\n\nFor campaigns run through the existing production entry point, this branch never executes: `run_campaign` still constructs `EventLedger(chosen_ledger)` without a trace at `harness/flush_loop.py:1262`. Repository-wide search found no production construction of `DecisionTrace` or caller supplying `trace=`; only the new tests enable mirroring. Consequently, real campaign histories remain sidecar-only and are lost when that sidecar is removed, so the campaign-retention behavior advertised by this change is not active. Wire the campaign entry point to the durable ledger rather than requiring an injection that no production caller performs.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 627,
+  "pr_title": "feat(trace): one decision_trace family with campaign histories retained (D5-1, #",
+  "priority": "P2",
+  "file": "harness/decision_trace.py",
+  "title": "Accept filesystem paths in the trace reader",
+  "url": "https://github.com/Treystu/harness/pull/627#discussion_r4627324858",
+  "row": 52,
+  "discussion": 4627324858,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Accept filesystem paths in the trace reader**\n\nWhen a caller passes a ledger filename as documented, `read_trace_events(ledger.path)` immediately raises `TraceError` instead of reading it. Strings and `Path` objects are routed into `_segment_paths`, which only accepts objects exposing `segment_paths()` or `.path`. The corrupt-file test also passes accidentally because this argument error satisfies its broad `TraceError` assertion without opening the file. Normalize filesystem-path inputs before resolving ledger objects and test a valid file through the documented path interface.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 627,
+  "pr_title": "feat(trace): one decision_trace family with campaign histories retained (D5-1, #",
+  "priority": "P2",
+  "file": "harness/decision_trace.py",
+  "title": "Preserve immutable segment contents when pinning a window",
+  "url": "https://github.com/Treystu/harness/pull/627#discussion_r4627324870",
+  "row": 53,
+  "discussion": 4627324870,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve immutable segment contents when pinning a window**\n\nWhen a window includes the active ledger, the manifest hashes a mutable file without retaining its contents. A single ordinary append after `pin_window` returns makes the recorded SHA-256 disagree with that file; rotation subsequently moves those bytes away from the recorded basename. Thus the purportedly pinned evidence set cannot later be recovered and verified from the manifest even during normal operation. Retain an immutable snapshot or sealed segment and record its stable location and hash, rather than merely describing the current active file.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 628,
+  "pr_title": "feat(assess): persist each assessment's five distributions and disposition (#468",
+  "priority": "P2",
+  "file": "harness/cli.py",
+  "title": "Handle an unrecorded trace before accessing its event ID",
+  "url": "https://github.com/Treystu/harness/pull/628#discussion_r4637150538",
+  "row": 54,
+  "discussion": 4637150538,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Handle an unrecorded trace before accessing its event ID**\n\nWhen the ledger append fails, for example because the disk is full or the append lock cannot be acquired, `DecisionTrace.record()` defaults to returning an `unrecorded` result without an `event_id`. This CLI call leaves `audit_enabled=False` and then unconditionally accesses that missing field, producing an uncaught `KeyError` instead of the JSON error and exit code 2 handled above. Reproduced by making `AutonomyLedger._persist` raise `OSError`. Enable fail-closed recording for this explicitly requested write, or handle the `unrecorded` result before constructing the report.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 628,
+  "pr_title": "feat(assess): persist each assessment's five distributions and disposition (#468",
+  "priority": "P2",
+  "file": "harness/decision_trace.py",
+  "title": "Include retained segments when reading a ledger path",
+  "url": "https://github.com/Treystu/harness/pull/628#discussion_r4637150541",
+  "row": 55,
+  "discussion": 4637150541,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include retained segments when reading a ledger path**\n\nWhen a ledger has rotated, the new string-path branch reads only the active file, silently excluding assessments in retained segments despite this reader's documented active-plus-archive behavior. `AutonomyLedger.append()` rotates after persisting the assessment, so an assessment that crosses the 10 MB threshold can already be absent from a path-based read immediately after a successful write. Reproduced with a lowered rotation threshold: `read_trace_events(ledger)` returns the assessment while `read_trace_events(ledger.path)` returns an empty list. Resolve the path through the ledger's existing segment enumeration rather than treating it as a single segment.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 629,
+  "pr_title": "evidence(w2): turn-9 verification records at 583120b4",
+  "priority": "P1",
+  "file": "evidence/lane-sessions/w2-2026-11-20/gates_turn9.py",
+  "title": "Run Lucas Gate before the Jev disposition",
+  "url": "https://github.com/Treystu/harness/pull/629#discussion_r4646550830",
+  "row": 56,
+  "discussion": 4646550830,
+  "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Run Lucas Gate before the Jev disposition**\n\nFor every filing processed here, `policy.evaluate_decision()` runs before `run_typed_track()`, reversing the explicit requirement in `AGENTS.md` that Lucas Gate v2 run first on comments and dispositions. Consequently, these receipts do not demonstrate the repository-mandated gate sequence. Move the Lucas evaluation ahead of the Jev decision; apply the same correction to `gates_413.py`, which repeats this ordering.\n\nAGENTS.md reference: [AGENTS.md:L122-L122](https://github.com/Treystu/harness/blob/f3ab9b8b20028ea5d63e68878ec69846cac6ba22/AGENTS.md#L122-L122)\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 629,
+  "pr_title": "evidence(w2): turn-9 verification records at 583120b4",
+  "priority": "P2",
+  "file": "evidence/lane-sessions/w2-2026-11-20/rerun_415.py",
+  "title": "Poll the run result endpoint",
+  "url": "https://github.com/Treystu/harness/pull/629#discussion_r4646550842",
+  "row": 57,
+  "discussion": 4646550842,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Poll the run result endpoint**\n\nAfter a successful submission, this loop requests `/api/runs/{id}`, but the reviewed `harness/server.py` GET dispatcher only handles `/api/runs` and the `RUN_SUB_RE` subroutes (`result`, `events`, and `cancel`); the bare run URL returns 404. Since the error payload has no run status, the script polls for the full 900 seconds and records `timeout` even when the paid run has already terminated, losing the terminal error and spend evidence this rerun is intended to capture. Request `/api/runs/{id}/result`, as `rerun_415b.py` does.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 630,
+  "pr_title": "feat(escalation): record start rung, attempted rung and realized pass per attemp",
+  "priority": "P2",
+  "file": "harness/escalation.py",
+  "title": "Record paid attempts that exceed the actual task budget",
+  "url": "https://github.com/Treystu/harness/pull/630#discussion_r4629702101",
+  "row": 58,
+  "discussion": 4629702101,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Record paid attempts that exceed the actual task budget**\n\nWhen a rung's reported cost pushes spending over `task_max_cost`, the check at lines 391\u2013394 raises before any `_record_attempt` call. Unlike a preflight refusal, this rung has already called the provider and incurred cost, but it disappears from the new attempt history. Reproducing with a $0.10 task budget and a $0.20 response produces zero trace writes. This leaves the replay/audit population missing budget-overrun attempts and their costs; record a non-passing attempt before propagating that budget error.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 633,
+  "pr_title": "feat(routing): record each routed call's candidate pool and attempt order (#472)",
+  "priority": "P2",
+  "file": "harness/apply_policy.py",
+  "title": "Preserve the configured pool before capability ordering",
+  "url": "https://github.com/Treystu/harness/pull/633#discussion_r4637191185",
+  "row": 59,
+  "discussion": 4637191185,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Preserve the configured pool before capability ordering**\n\nWhen capability-informed routing is active, `_candidate_models` passes `req.ordered` as `pool_order`, but `_prepare` has already populated that value through `_route_pool` and `ordered_pool`, which reorder candidates and remove catalog-stale IDs. Consequently, `configured_pool` records the ranked output rather than the original input, and `dropped` cannot report candidates removed during capability ordering. This loses the denominator needed to compare routing policies on the informed-routing path. Preserve the original request/configured pool before calling the ordering mechanism and use that snapshot here.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ },
+ {
+  "pr": 633,
+  "pr_title": "feat(routing): record each routed call's candidate pool and attempt order (#472)",
+  "priority": "P2",
+  "file": "harness/apply_policy.py",
+  "title": "Record paid BYOK attempts in the routing trace",
+  "url": "https://github.com/Treystu/harness/pull/633#discussion_r4637191190",
+  "row": 60,
+  "discussion": 4637191190,
+  "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Record paid BYOK attempts in the routing trace**\n\nWhen a paid candidate returns `usage.is_byok=true`, `_attempt_round` records its `model_result` directly and rotates without calling `_record_billable`. Placing the only attempt-trace hook here therefore omits that actual attempt: a reproduced primary-BYOK \u2192 fallback-success run contains two `model_result` rows but only the fallback's `routing.attempt`. Consumers reconstructing attempts from the new trace consequently treat the primary as untried and calculate incorrect per-candidate histories. Emit an attempt row on the paid-BYOK branch as well, preserving its existing billing behavior.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.\n\n<!-- codex-code-review-finding:v1 -->"
+ }
+]

@@ -160,11 +160,12 @@ class TaskLaneLifecycleMixin:
     ) -> Dict[str, Any]:
         """Plan host provisioning setup safely without automatic execution."""
         from . import provision as pv
+        from . import provision_plan as pp
         adapter = adapter_for(self.lifecycle, "provisioning")
         state = lifecycle_state or adapter.begin(session_id, prompt)
         prior = state["data"].get("plan")
         if isinstance(prior, dict):
-            plan = pv.plan_from_dict(prior)
+            plan = pp.plan_from_dict(prior)
         else:
             if cancel_check and cancel_check():
                 exc = ToolCancelled("Prompt execution was cancelled by user")
@@ -186,7 +187,7 @@ class TaskLaneLifecycleMixin:
                 prompt, probe, policy=policy, jev=jev_policy,
                 task_id=state["request_id"], lifecycle=self.lifecycle,
                 lifecycle_state=state)
-        rendered = pv.render_plan(plan)
+        rendered = pp.render_plan(plan)
         result = {
             "status": "planned",
             "intent": "provision",

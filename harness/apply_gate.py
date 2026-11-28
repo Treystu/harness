@@ -15,6 +15,7 @@ from . import trust as trust_policy
 from .continuation import bound_gate, gate_id
 from .errors import HarnessError, ToolCancelled
 from .filesafety import _atomic_write, backup_file, file_content_hash
+from .jev import LOCAL_HEURISTIC_MODEL
 from .output import eprint
 from .results import _content_diff, _round_entry, _terminal_result
 
@@ -202,8 +203,32 @@ class GatePolicy:
                 state.current_content, new_content, req.instruction,
                 req.file_path, task_id=req.task_id)
             state.structural = structural
-            if not jev_result.is_passing(getattr(self.jev_policy.settings,
-                                                 "min_confidence", 0.70)):
+            threshold = getattr(self.jev_policy.settings, "min_confidence", 0.70)
+            if jev_result.is_fallback and jev_result.is_passing(threshold):
+                # #826: when live Jev never answered, the local structural
+                # heuristic returns a real "pass" (supported 1.0, confidence
+                # 0.0) from mechanical checks alone. Consuming that as a normal
+                # verdict let the gate clear on mechanics wearing Jev's name, so
+                # a heuristic pass is refused as unverified and the record names
+                # what decided it and why live Jev did not.
+                self.ledger.append(
+                    "jev_refusal", task_id=req.task_id, site="apply",
+                    reason="fallback verdict cannot clear the apply gate",
+                    reason_code="fallback_unverified",
+                    is_fallback=True,
+                    model=jev_result.model or LOCAL_HEURISTIC_MODEL,
+                    fallback_reason=jev_result.fallback_reason,
+                    confidence=jev_result.confidence,
+                    supported=jev_result.supported)
+                return _terminal_result(
+                    "jev_unverified", task_id=req.task_id, rounds=state.rounds,
+                    cost=self.governor.spent, rotations=state.rotations,
+                    backend=req.backend, structural=structural,
+                    file=req.file_path,
+                    fallback_reason=jev_result.fallback_reason,
+                    verifier=jev_result.model or LOCAL_HEURISTIC_MODEL,
+                    diff=_content_diff(state.current_content, new_content))
+            if not jev_result.is_passing(threshold):
                 self.ledger.append("jev_refusal", task_id=req.task_id,
                                    site="apply", reason="structural Jev refusal")
                 return _terminal_result(
