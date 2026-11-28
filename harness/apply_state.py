@@ -65,6 +65,10 @@ class RunState:
     candidates: list = field(default_factory=list)
     failed_models: set = field(default_factory=set)
     deferred_models: dict = field(default_factory=dict)
+    # #805 spend-allowance ruling: candidates whose worst case exceeds the
+    # remaining task allowance are EXCLUDED (never called, never counted as
+    # a failed attempt) so a narrower candidate can still complete the task.
+    excluded_models: set = field(default_factory=set)
     rotations: int = 0
     backup: object = None
     consent_attempts: list = field(default_factory=list)
@@ -93,3 +97,5 @@ class AttemptOutcome:
     resp: object = None
     last_error: object = None
     last_defer_reason: object = None
+    # Preflight exclusions recorded while this round walked its candidates.
+    exclusions: list = field(default_factory=list)
