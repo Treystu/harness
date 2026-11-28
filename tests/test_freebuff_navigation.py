@@ -456,10 +456,11 @@ class SidebarTopSettleTests(unittest.TestCase):
         return dispatch
 
     def test_a_still_list_settles_while_its_text_alternates(self):
-        # The same three stationary rows, read two ways: text can never match.
-        dispatch = self._dispatch([["B Harness", "Lane 1", "Carrier Census Verifica-"],
-                                   ["Harness", "Lane 1", "Carrier Census Verificat"],
-                                   ["Harness", "Lane 1", "Carrier Census Verificat"]])
+        # The same three stationary rows with a live subtitle: text never matches.
+        # A live lane's subtitle changes every census; the rows do not move.
+        dispatch = self._dispatch([["B Harness", "Lane 1 Working for 32s", "Carrier Census Verifica-"],
+                                   ["Harness", "Lane 1 Working for 33s", "Carrier Census Verificat"],
+                                   ["Harness", "Lane 1 Working for 34s", "Carrier Census Verificat"]])
         with patch("scripts.windows_freebuff_dispatch.time.sleep", Mock()):
             dispatch.scroll_sidebar_to_top(steps=4)
         self.assertLessEqual(dispatch.scroll_by.call_count, 1)
