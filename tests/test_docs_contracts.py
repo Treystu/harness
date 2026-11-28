@@ -7,6 +7,7 @@ instructions, and canon register mirror arithmetic.
 import contextlib
 import io
 import json
+import os
 import re
 import unittest
 from pathlib import Path
@@ -25,7 +26,7 @@ class GuiAcceptanceDocsTests(unittest.TestCase):
     def test_ui_acceptance_doc_covers_ports_auth_pairing_and_recovery(self):
         doc = _read("docs/ui-acceptance.md")
         self.assertIn("127.0.0.1:8765", doc)
-        self.assertIn("127.0.0.1:8766", doc)
+        self.assertIn("127.0.0.1:8767", doc)
         self.assertIn("8800", doc)
         self.assertIn("401", doc)
         self.assertIn("200", doc)
@@ -52,7 +53,9 @@ class GuiAcceptanceDocsTests(unittest.TestCase):
         self.assertNotIn("127.0.0.1:8765", serve)
         self.assertIn("127.0.0.1:8765", media)
         self.assertNotIn("127.0.0.1:8767", media)
-        self.assertIn("127.0.0.1:8766", desktop)
+        # #655: desktop runs the same server, so it takes the same port.
+        self.assertIn("127.0.0.1:8767", desktop)
+        self.assertNotIn("8766", doc)
 
     def test_media_doc_states_the_port_map_and_the_ui_mismatch(self):
         doc = _read("docs/media.md")
@@ -69,6 +72,55 @@ class GuiAcceptanceDocsTests(unittest.TestCase):
         self.assertIn("ui-acceptance.md", _read("docs/security.md"))
         self.assertIn("ui-acceptance.md", _read("docs/ui-readiness.md"))
         self.assertIn("docs/ui-acceptance.md", _read("README.md"))
+
+
+class LoopbackUiPortTests(unittest.TestCase):
+    """#655: one owner for the harness UI port, and no stale third default."""
+
+    def test_default_and_override_live_in_one_place(self):
+        from harness import config
+
+        self.assertEqual(config.DEFAULT_UI_PORT, 8767)
+        stripped = {k: v for k, v in os.environ.items()
+                    if k != "HARNESS_UI_PORT"}
+        with mock.patch.dict(os.environ, stripped, clear=True):
+            self.assertEqual(config.ui_port(), 8767)
+        with mock.patch.dict(os.environ, {"HARNESS_UI_PORT": "8899"}):
+            self.assertEqual(config.ui_port(), 8899)
+        for bad in ("", "not-a-port", "0", "70000"):
+            with mock.patch.dict(os.environ, {"HARNESS_UI_PORT": bad}):
+                self.assertEqual(config.ui_port(), 8767)
+
+    def test_make_server_takes_the_one_owner_when_no_port_is_given(self):
+        from harness import server
+
+        with mock.patch.dict(os.environ, {"HARNESS_UI_PORT": "8897"}), \
+                mock.patch.object(server, "UiServer") as httpd, \
+                mock.patch.object(server, "UiState"), \
+                mock.patch.object(server, "BackendMonitor"), \
+                mock.patch.object(server, "serve_identity",
+                                  return_value={"version": "t", "commit": "t"}):
+            server.make_server()
+        address = httpd.call_args[0][0]
+        self.assertEqual(address[1], 8897)
+
+    def test_doctor_reads_the_owner_for_its_gui_port(self):
+        from harness import cli_parser
+
+        with mock.patch.dict(os.environ, {"HARNESS_UI_PORT": "8898"}):
+            parser = cli_parser.build_parser()
+            self.assertEqual(parser.parse_args(["doctor"]).gui_port, 8898)
+
+    def test_serve_and_desktop_carry_no_literal_default(self):
+        for rel in ("harness/server.py", "harness/ui.py"):
+            source = _read(rel)
+            self.assertIn("default=ui_port()", source, rel)
+            self.assertNotIn("default=876", source, rel)
+
+    def test_no_doc_claims_a_separate_desktop_port(self):
+        for rel in ("README.md", "docs/ui-acceptance.md", "docs/security.md",
+                    "docs/ui-readiness.md", "docs/media.md"):
+            self.assertNotIn("8766", _read(rel), rel)
 
 
 class SystemOneClaimAlignmentTests(unittest.TestCase):

@@ -453,7 +453,10 @@ def _minimal_settings():
         jev_disabled=os.environ.get("HARNESS_JEV_DISABLE") == "1")
 
 
-def run_doctor(settings, *, gui_port=8767, config_error=False):
+def run_doctor(settings, *, gui_port=None, config_error=False):
+    if gui_port is None:
+        # #655: the same one owner the serve/desktop entrypoints read.
+        gui_port = config.ui_port()
     dns = check_dns(settings)
     checks = [
         check_python(),

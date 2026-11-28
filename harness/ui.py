@@ -18,6 +18,7 @@ import sys
 import threading
 
 from . import osal
+from .config import ui_port
 from .server import make_server
 from .ui_auth import load_or_create_ui_token, write_ui_handoff
 
@@ -41,7 +42,11 @@ def main(argv=None, *, prog="harness-desktop"):
         prog=prog,
         description="Native desktop window over the harness web UI (loopback).")
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8766)
+    # #655: the desktop shell runs the same server, so it takes the same one
+    # default (harness.config.ui_port) instead of a third stale number.
+    ap.add_argument("--port", type=int, default=ui_port(),
+                    help="loopback UI port (default: %(default)s; "
+                         "HARNESS_UI_PORT sets it for every entrypoint)")
     ap.add_argument("--auth-token", default=None,
                     help="extra session token; persistent owner recovery stays valid")
     ap.add_argument("--browser", action="store_true",

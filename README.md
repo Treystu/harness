@@ -558,11 +558,12 @@ Security posture: loopback bind only (non-loopback Host headers are refused —
 DNS-rebinding guard), token-protected API routes (`/api/status` and all other
 `/api/*` routes return `401` unauthenticated and `200` with `X-Harness-Auth` /
 Bearer auth), and secrets shown as presence-only in the settings view.
-`harness serve` defaults to `127.0.0.1:8767` (`--port` to override);
-`harness-desktop` / `harness desktop` defaults to `127.0.0.1:8766` and reuses
+`harness serve` and `harness-desktop` / `harness desktop` share one loopback
+default, `127.0.0.1:8767`, owned by `harness.config.ui_port()` (`HARNESS_UI_PORT`
+sets it once for both, `--port` overrides per command); the desktop shell reuses
 the persisted owner token via the URL fragment. The media service
-(`media serve`) keeps `127.0.0.1:8765`; `harness serve` moved off that port in
-`#566` so the UI, the desktop window and the media service can run together
+(`media serve`) keeps `127.0.0.1:8765`; the UI moved off that port in `#566` so
+the UI, the desktop window and the media service can run together
 (see [docs/ui-acceptance.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/ui-acceptance.md)
 for the port map). See
 [docs/security.md](https://github.com/Sovereign-Communication/harness/blob/main/docs/security.md),

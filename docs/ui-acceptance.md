@@ -9,23 +9,25 @@ recovery, and loopback serving across `harness serve` and `harness desktop`
 
 | Surface | Default bind / target | Auth requirement | Override |
 |---|---|---|---|
-| `harness serve` (`harness/server.py`, `make_server`) | `127.0.0.1:8767` | Required for all `/api/*` routes (`401` unauthenticated, `200` authenticated) | `--port <port>` (e.g. `--port 8800`) |
-| `harness desktop` / `harness-desktop` (`harness/ui.py`) | `127.0.0.1:8766` | Required for all `/api/*` routes (reuses owner token via URL fragment) | `--port <port>` |
+| `harness serve` (`harness/server.py`, `make_server`) | `127.0.0.1:8767` | Required for all `/api/*` routes (`401` unauthenticated, `200` authenticated) | `--port <port>` (e.g. `--port 8800`) or `HARNESS_UI_PORT` |
+| `harness desktop` / `harness-desktop` (`harness/ui.py`) | `127.0.0.1:8767` | Required for all `/api/*` routes (reuses owner token via URL fragment) | `--port <port>` or `HARNESS_UI_PORT` |
 | External `media serve` (when run separately) | `127.0.0.1:8765` | Optional bearer token (`MEDIA_TOKEN`) | `MEDIA_BASE_URL` or server `--port` |
 
 Key endpoint and default-port facts:
 
-- **Default UI port is `8767`, never `8800`:** `make_server`, `harness serve`
-  and `harness doctor --gui-port` all default to `127.0.0.1:8767` since `#566`.
-  Port `8800` is used only when passed explicitly with `--port 8800`.
-- **`harness desktop` defaults to `127.0.0.1:8766`:** distinct from `8767` so
-  a standalone desktop window does not collide with a running `harness serve`
-  instance.
-- **Each loopback port has one role (`#566`):** `harness serve` owns `8767`,
-  `harness desktop` owns `8766`, and external `media serve` keeps `8765`. All
-  three can run at once. An older or explicitly configured Harness UI still on
-  `8765` is caught by `harness/media_client.py` before a media operation or
-  token is sent (`MediaEndpointMismatch`); move that UI with `--port 8767` (see
+- **One UI port, one owner (`#655`):** `harness.config.ui_port()` holds the
+  single default (`127.0.0.1:8767`); `make_server`, `harness serve`,
+  `harness desktop` and `harness doctor --gui-port` all read it, and
+  `HARNESS_UI_PORT` sets it once for all of them. A `--port` flag overrides it
+  per command. Port `8800` is used only when passed explicitly.
+- **`harness desktop` takes the same port as `harness serve`:** the desktop
+  shell runs the same server, so the two agree. Run one at a time, or give the
+  second instance its own `--port` (for example `--port 8768`).
+- **Media keeps its own port (`#566`):** external `media serve` owns `8765` by
+  design (override with `MEDIA_BASE_URL`), so the UI and the media service can
+  run together. An older or explicitly configured Harness UI still on `8765` is
+  caught by `harness/media_client.py` before a media operation or token is sent
+  (`MediaEndpointMismatch`); move that UI with `--port 8767` (see
   [media.md](media.md)).
 - **`GET /api/status` requires auth (`401` anonymous, `200` authenticated):**
   static shell assets (`/`, `/app.js`, `/app.css`, `/panes.js`, `/panes.css`)

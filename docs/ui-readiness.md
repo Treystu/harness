@@ -4,8 +4,9 @@ What the data layer already gave a UI, what Phase 1 added, and what remains.
 Companion to the UI plan: every Phase 2 surface (web, desktop) consumes only
 what this document certifies. Hermetic tests pin each contract listed here
 (`tests/test_events.py`). For the first-use auth modal, pairing, recovery, and
-loopback port checklist (`harness serve` default `8767`, `harness desktop`
-default `8766`, `/api/status` `401` unauthenticated vs `200` authenticated), see
+loopback port checklist (`harness serve` and `harness desktop` default `8767`
+through `harness.config.ui_port()`, `/api/status` `401` unauthenticated vs `200`
+authenticated), see
 [ui-acceptance.md](ui-acceptance.md).
 
 ## Restart recovery (`#418`)
