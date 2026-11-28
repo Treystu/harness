@@ -1120,6 +1120,14 @@ GUI_WRITABLE_SETTINGS = frozenset({
     "openrouter_enabled", "fireworks_enabled", "fireworks_budget_usd",
     "meta_enabled", "meta_budget_usd",
     "fetch_allowlist_enabled", "fetch_allowlist_hosts",
+    # #830 slice 2 (numeric class): every key here is range-validated
+    # fail-closed by the loader's ``_num`` (int-cast + finite bounds), so
+    # the update_config validate-before-write round trip refuses garbage
+    # with no new validation code. Unbounded floats (max_price_*) and
+    # switches stay read-only until their classes land.
+    "max_tokens", "apply_max_tokens", "reasoning_token_budget",
+    "max_panelists", "max_rotations", "max_orch_rounds",
+    "mcp_tool_timeout",
     *JEV_FREEZE_KEYS,
 })
 # Secrets: presence-only in the GUI read (``_settings_view`` nulls the
@@ -1137,11 +1145,10 @@ GUI_READ_ONLY_SETTINGS = frozenset({
     "use_fireworks", "use_meta", "model_preset", "trial_model",
     "panel", "panel_pool", "judge", "judge_top", "convergence_model",
     "specialist_pool", "apply_model", "apply_pool", "escalation_pool",
-    "escalation_model", "max_tokens", "apply_max_tokens",
-    "reasoning_effort", "reasoning_token_budget", "max_panelists",
-    "max_rotations", "max_orch_rounds", "renew_consent", "ledger_path",
+    "escalation_model", "reasoning_effort", "renew_consent",
+    "ledger_path",
     "default_require_consent", "jev_primary_mode", "mcp_allow_write",
-    "mcp_allow_verify", "mcp_allowed_roots", "mcp_tool_timeout",
+    "mcp_allow_verify", "mcp_allowed_roots",
     "frontier_model", "hourglass_confirm", "hourglass_isolate",
     "hourglass_parallel", "hourglass_require_attestation",
     "hourglass_decompose", "openrouter_floor_default",
