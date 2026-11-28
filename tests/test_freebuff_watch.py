@@ -1028,6 +1028,7 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertEqual([call.args[0] for call in write.call_args_list],
                              ["skip-dyn-7129310215-315608d2.json",
                               "claim-dyn-7145072019-315608d2.json",
+                              "ack-dyn-7145072019-315608d2.json",
                               "result-dyn-7145072019-315608d2.json"])
             self.assertEqual(write.call_args_list[0].args[1]["state"], "superseded")
             self.assertEqual(execute.call_args.args[2]["dispatch"], 7145072019)
@@ -1118,8 +1119,9 @@ class FreebuffWatchTests(unittest.TestCase):
             self.assertEqual(mission["text"], "STEER SCMessenger\n")
             self.assertEqual(mission["prompt_file"], "scmessenger.md")
             self.assertEqual(write.call_args_list[0].args[0], "claim-dyn-990003-2ae32937.json")
-            self.assertEqual(write.call_args_list[1].args[0], "result-dyn-990003-2ae32937.json")
-            self.assertEqual(write.call_args_list[1].args[1]["prompt_sha256"],
+            self.assertEqual(write.call_args_list[1].args[0], "ack-dyn-990003-2ae32937.json")
+            self.assertEqual(write.call_args_list[2].args[0], "result-dyn-990003-2ae32937.json")
+            self.assertEqual(write.call_args_list[2].args[1]["prompt_sha256"],
                              hashlib.sha256(b"STEER SCMessenger\n").hexdigest())
 
     def test_a_claimed_dispatch_is_never_re_run_by_the_watch(self):
@@ -1784,7 +1786,17 @@ class MonitorDrainAndStagedCarrierTests(unittest.TestCase):
         self.assertEqual(executed[0][3], 480)
         self.assertEqual(executed[1][1], watch.THREAD)
         self.assertIsNone(executed[1][2])
-        self.assertEqual(posted, [])
+        # Each claim acks before its input and files its result, and the two
+        # dispatches drain with nothing between them (pickup discipline: ack on
+        # claim, no idle gap, three stamps per verdict).
+        self.assertEqual(len(posted), 4)
+        self.assertIn("ack #7158410813", posted[0])
+        self.assertIn("result #7158410813", posted[1])
+        self.assertIn("ack #7159142905", posted[2])
+        self.assertIn("result #7159142905", posted[3])
+        for verdict in (posted[1], posted[3]):
+            self.assertIn(", claimed ", verdict)
+            self.assertIn(", completed ", verdict)
 
     def test_claimable_excludes_claimed_and_alerts_stale_pickup_over_300s(self):
         now = datetime(2026, 11, 25, 11, 30, tzinfo=timezone.utc)
@@ -2463,3 +2475,52 @@ class StandingPromptRegistryClaimTests(unittest.TestCase):
             command = popen.call_args.args[0]
             self.assertIn("-TextFile", command)
             self.assertEqual(command[command.index("-TextFile") + 1], str(prompt))
+
+    def test_claim_is_acked_immediately_and_the_verdict_carries_three_stamps(self):
+        """Pickup discipline (7157864331): ack on claim, then filed/claimed/completed."""
+        now = datetime(2026, 11, 28, 6, 0, tzinfo=timezone.utc)
+        comment = {
+            "id": 996001,
+            "user": {"id": watch.OWNER_ID},
+            "created_at": "2026-11-28T05:58:00Z",
+            "body": "RESTART DISPATCH\nLane: Lane 1\nAction for the runner: \"continue in full\"",
+        }
+        order = []
+        with tempfile.TemporaryDirectory() as tmp:
+            home = pinned_home(tmp, "Lane 1")
+            write = Mock()
+            posted = Mock(side_effect=lambda text: order.append(("comment", text)))
+            execute = Mock(side_effect=lambda *a, **k: order.append(("execute", "")) or 0)
+            with patch.dict("os.environ", {"LOCALAPPDATA": tmp,
+                                           "HARNESS_DRIVER_RUNTIME_ROOT": str(home)}), \
+                 patch.object(watch, "api", return_value=[comment]), \
+                 patch.object(watch, "guard_approval", Mock()), \
+                 patch.object(watch, "desktop_idle", lambda: True), \
+                 patch.object(watch, "foreground_blocker", return_value=None), \
+                 patch.object(watch, "checkpoint", write), \
+                 patch.object(watch, "issue_comment", posted), \
+                 patch.object(watch, "advance_cursor", Mock()), \
+                 runtime_present(), \
+                 patch.object(watch, "execute", execute):
+                self.assertTrue(watch.poll_dynamic_dispatches(set(), now=now))
+        # The ack is the first word on the issue and it precedes any input.
+        self.assertEqual(order[0][0], "comment")
+        self.assertIn("ack #996001", order[0][1])
+        self.assertIn("claimed 2026-11-28T", order[0][1])
+        self.assertIn("filed 2026-11-28T05:58:00Z", order[0][1])
+        self.assertEqual(order[1][0], "execute")
+        verdict = [text for kind, text in order if kind == "comment" and "result #996001" in text]
+        self.assertEqual(len(verdict), 1)
+        for stamp in ("filed 2026-11-28T05:58:00Z", ", claimed 2026-11-28T",
+                      ", completed 2026-11-28T", "pickup ", "execution "):
+            self.assertIn(stamp, verdict[0])
+        saved = {call.args[0]: call.args[1] for call in write.call_args_list}
+        self.assertIn("ack-dyn-996001-315608d2.json", saved)
+        result = saved["result-dyn-996001-315608d2.json"]
+        self.assertEqual(result["filed_at"], "2026-11-28T05:58:00Z")
+        self.assertTrue(result["claimed_at"].startswith("2026-11-28T"))
+        self.assertTrue(result["completed_at"].startswith("2026-11-28T"))
+        # The stamps are wall-clock at claim; only the shape is asserted here.
+        self.assertIsInstance(result["pickup_seconds"], int)
+        self.assertGreaterEqual(result["pickup_seconds"], 0)
+        self.assertEqual(result["execution_seconds"], 0)

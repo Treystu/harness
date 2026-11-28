@@ -1175,6 +1175,11 @@ def _age_seconds(parsed, now):
     return max(0.0, (now - _parse_iso(filed)).total_seconds())
 
 
+def _utc_stamp(moment):
+    """The one timestamp shape every pickup receipt uses."""
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def skipped_verdict(known, parsed, reason):
     """File the verdict for a dispatch the watch deliberately did not run.
 
@@ -1471,7 +1476,9 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
                 known.add(parked_name)
             issue_comment(
                 f"Vision watch #{cid} / `{thread}` parked: {error.reason} - {error.detail}. "
-                "No input was sent; a continuation text is never improvised.")
+                "No input was sent; a continuation text is never improvised. "
+                f"(filed {parsed.get('filed_at') or 'unknown'}, "
+                f"dispositioned {_utc_stamp(datetime.now(timezone.utc))})")
             return True
         age_s = _age_seconds(parsed, now)
         if not desktop_idle():
@@ -1488,6 +1495,21 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
         checkpoint(claim, {"dispatch": cid, "thread": thread, "sha256": parsed["digest"]})
         if isinstance(known, set):
             known.add(claim)
+        # Pickup discipline (oversight 7157864331): ACK ON CLAIM, as an
+        # invariant rather than the fast path's exception. The ack names the
+        # filed and claimed stamps, so a dispatch is never claimable-and-silent;
+        # it is posted before the first desktop action and is also what makes
+        # ``filed_on_issue`` treat this dispatch as spoken for on the next scan.
+        claimed_at = datetime.now(timezone.utc)
+        ack_name = f"ack-{item}.json"
+        checkpoint(ack_name, {"dispatch": cid, "thread": thread, "state": "claimed",
+                              "filed_at": parsed.get("filed_at") or None,
+                              "claimed_at": _utc_stamp(claimed_at)})
+        if isinstance(known, set):
+            known.add(ack_name)
+        issue_comment(
+            f"Vision watch ack #{cid} / `{thread}`: claimed {_utc_stamp(claimed_at)} "
+            f"(filed {parsed.get('filed_at') or 'unknown'}); executing now.")
         out = state_dir / item
         try:
             out.mkdir(parents=True, exist_ok=True)
@@ -1514,11 +1536,26 @@ def poll_dynamic_dispatches(known, *, now=None, unclaimed=None, cancelled=()):
             issue_comment(f"Vision watch #{cid} / `{thread}` {status}.")
         finally:
             _clear_comments_etag()
+        # Latency receipts (oversight 7157864331 rule 3): every verdict carries
+        # filed, claimed and completed, so pickup latency is auditable from the
+        # filings alone instead of reconstructed from checkpoint mtimes.
+        completed_at = datetime.now(timezone.utc)
+        pickup_s = max(0, int((claimed_at - _parse_iso(parsed["filed_at"])).total_seconds())) if parsed.get("filed_at") else None
+        execution_s = max(0, int((completed_at - claimed_at).total_seconds()))
+        pickup_text = f"{pickup_s}s" if pickup_s is not None else "unknown"
         result_name = f"result-{item}.json"
         checkpoint(result_name, {"dispatch": cid, "thread": thread, "state": status,
+                                 "filed_at": parsed.get("filed_at") or None,
+                                 "claimed_at": _utc_stamp(claimed_at),
+                                 "completed_at": _utc_stamp(completed_at),
+                                 "pickup_seconds": pickup_s, "execution_seconds": execution_s,
                                  "prompt_sha256": prompt["sha256"], "prompt_file": prompt["file"]})
         if isinstance(known, set):
             known.add(result_name)
+        issue_comment(
+            f"Vision watch result #{cid} / `{thread}`: {status} "
+            f"(filed {parsed.get('filed_at') or 'unknown'}, claimed {_utc_stamp(claimed_at)}, "
+            f"completed {_utc_stamp(completed_at)}; pickup {pickup_text}, execution {execution_s}s).")
         return True
     return False
 
