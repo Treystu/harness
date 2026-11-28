@@ -2354,7 +2354,7 @@ class PinnedRuntimeHomeTests(unittest.TestCase):
         import subprocess
 
         if shutil.which("git") is None:
-            self.skipTest("git is required to materialize a runtime home")
+            self.skipTest("deps: git is required to materialize a runtime home")
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "dev"
             (source / "scripts").mkdir(parents=True)
