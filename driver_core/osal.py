@@ -1967,6 +1967,41 @@ def _bind_input_events(*, ctypes_module=None):
     return ctypes, user32, POINT, (INPUT, KEYBDINPUT, _INPUTUNION)
 
 
+VK_RETURN = 0x0D
+
+
+def type_units(text):
+    """Split literal text into Unicode characters and explicit key presses.
+
+    Pure so the rule is testable on any host: a newline becomes a Return press, a
+    CRLF pair is one Return, any other C0 control is refused by name rather than
+    typed as a character the editor will not act on, and a character above the
+    BMP is emitted as the two UTF-16 units the batch needs.
+    """
+    if not isinstance(text, str) or not text:
+        raise OsalError(f"typing needs a non-empty string, got {text!r}")
+    units = []
+    for character in text.replace("\r\n", "\n"):
+        if character == "\n":
+            units.append(("key", (VK_RETURN,)))
+            continue
+        unit = ord(character)
+        if unit < 0x20 or unit == 0x7F:
+            raise OsalError(
+                f"control character {character!r} is refused rather than typed; "
+                "only a newline is interpreted")
+        if unit > 0xFFFF:
+            # A character above the BMP is two UTF-16 code units. The pair is
+            # emitted together in one atomic batch, so the character arrives
+            # whole rather than as half a surrogate pair (#683 finding 21).
+            encoded = character.encode("utf-16-le")
+            units.append(("unicode", encoded[0] | (encoded[1] << 8)))
+            units.append(("unicode", encoded[2] | (encoded[3] << 8)))
+            continue
+        units.append(("unicode", unit))
+    return units
+
+
 class _WindowsInputApi:
     """The input half of the native backend: geometry and synthetic events.
 
@@ -2011,7 +2046,20 @@ class _WindowsInputApi:
         self._user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
     def type_text(self, text):
-        """Type one literal string as one atomic ``SendInput`` batch."""
+        """Type one literal string as one atomic ``SendInput`` batch.
+
+        A newline is emitted as an actual Return key press, not as Unicode U+000A:
+        the launch mission of record is 2972 bytes of prose whose paragraphs only
+        survive if the composer receives line breaks, and a Unicode control
+        character reaches Chromium as text the editor never breaks on. Every
+        other C0 control is refused before the first event, so a mission cannot be
+        half-typed by a character the keyboard cannot express.
+
+        The whole string is one ``SendInput`` batch because ``keybd_event`` takes
+        the character in a ``BYTE`` and cannot carry text above U+00FF (#683
+        finding 21) - and because a refusal halfway through a batch would leave
+        half the text typed.
+        """
         if not isinstance(text, str) or not text:
             raise OsalError(f"typing needs a non-empty string, got {text!r}")
         send_input = getattr(self._user32, "SendInput", None)
@@ -2019,29 +2067,26 @@ class _WindowsInputApi:
             raise OsalError(
                 "the Windows SendInput entry point is unavailable; literal "
                 "text cannot be typed without it")
-        # UTF-16 code units, not code points: Windows injects one record per
-        # unit, and a character above the BMP is two units (a surrogate
-        # pair). Building the whole array first is what makes the batch
-        # atomic -- a refusal halfway would leave half the text typed.
-        encoded = text.encode("utf-16-le")
-        units = [encoded[i] | (encoded[i + 1] << 8)
-                 for i in range(0, len(encoded), 2)]
-        records = (self._INPUT * (len(units) * 2))()
-        for index, unit in enumerate(units):
-            records[index * 2] = self._INPUT(
+        specs = []
+        for kind, value in type_units(text):
+            if kind == "key":
+                for code in value:
+                    specs.append((int(code), 0))
+                for code in reversed(value):
+                    specs.append((int(code), KEYEVENTF_KEYUP))
+                continue
+            specs.append((int(value), KEYEVENTF_UNICODE))
+            specs.append((int(value), KEYEVENTF_UNICODE | KEYEVENTF_KEYUP))
+        records = (self._INPUT * len(specs))()
+        for index, (unit, flags) in enumerate(specs):
+            records[index] = self._INPUT(
                 type=INPUT_KEYBOARD,
-                u=self._INPUTUNION(ki=self._KEYBDINPUT(
-                    0, unit, KEYEVENTF_UNICODE, 0, None)))
-            records[index * 2 + 1] = self._INPUT(
-                type=INPUT_KEYBOARD,
-                u=self._INPUTUNION(ki=self._KEYBDINPUT(
-                    0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0, None)))
-        sent = send_input(len(records), records,
-                          self._ctypes.sizeof(self._INPUT))
+                u=self._INPUTUNION(ki=self._KEYBDINPUT(0, unit, flags, 0, None)))
+        sent = send_input(len(records), records, self._ctypes.sizeof(self._INPUT))
         if sent != len(records):
             raise OsalError(
-                f"SendInput accepted {sent} of {len(records)} unicode input "
-                "records; the text was not typed atomically")
+                f"SendInput accepted {sent} of {len(records)} input records; "
+                "the text was not typed atomically")
 
     def key(self, codes):
         """Press the codes in order and release them in reverse."""

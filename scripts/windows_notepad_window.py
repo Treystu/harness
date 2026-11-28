@@ -1,0 +1,299 @@
+"""Window-scoped Windows capture and typing for the Notepad proof."""
+
+import ctypes
+import io
+from ctypes import wintypes
+from pathlib import Path
+from threading import Event
+from time import monotonic, sleep
+
+from driver_core.observation import Capture, fingerprint
+
+from .windows_focus import activate_exact
+
+
+class NotepadWindow:
+    def __init__(self):
+        self.user = ctypes.WinDLL("user32", use_last_error=True)
+        self.user.GetForegroundWindow.restype = wintypes.HWND
+        self.user.GetWindowThreadProcessId.argtypes = (
+            wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
+        self.user.GetWindowThreadProcessId.restype = wintypes.DWORD
+        self.user.GetAncestor.argtypes = (wintypes.HWND, wintypes.UINT)
+        self.user.GetAncestor.restype = wintypes.HWND
+        self.user.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
+        self.user.GetWindow.restype = wintypes.HWND
+        self.user.GetDlgCtrlID.argtypes = (wintypes.HWND,)
+        self.user.PostMessageW.argtypes = (
+            wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+        self.user.GetClassNameW.argtypes = (
+            wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+        self.user.GetWindowTextW.argtypes = (
+            wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
+        self.user.IsWindowVisible.argtypes = (wintypes.HWND,)
+        self.user.IsWindowEnabled.argtypes = (wintypes.HWND,)
+        self.user.SetForegroundWindow.argtypes = (wintypes.HWND,)
+        self.user.SwitchToThisWindow.argtypes = (wintypes.HWND, wintypes.BOOL)
+        self.user.SwitchToThisWindow.restype = None
+        self.user.SendMessageTimeoutW.argtypes = (
+            wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM,
+            wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t))
+        self.user.SendMessageTimeoutW.restype = wintypes.LPARAM
+        self.user.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+        callback = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        self.callback = callback
+        self.user.EnumWindows.argtypes = (callback, wintypes.LPARAM)
+        self.user.EnumChildWindows.argtypes = (wintypes.HWND, callback, wintypes.LPARAM)
+        self.owner = None
+        self.owner_pid = None
+
+    def foreground(self):
+        return self.user.GetForegroundWindow()
+
+    def handles(self, notepad_pids):
+        handles = []
+
+        @self.callback
+        def visit(hwnd, _):
+            if (self.pid(hwnd) in notepad_pids and self.user.IsWindowVisible(hwnd)
+                    and self.class_name(hwnd) == "Notepad"):
+                handles.append(hwnd)
+            return True
+
+        if not self.user.EnumWindows(visit, 0):
+            raise RuntimeError("could not enumerate visible Notepad windows")
+        return handles
+
+    def pid(self, hwnd):
+        pid = wintypes.DWORD()
+        self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return pid.value
+
+    def class_name(self, hwnd):
+        name = ctypes.create_unicode_buffer(128)
+        self.user.GetClassNameW(hwnd, name, len(name))
+        return name.value
+
+    def activate(self, hwnd):
+        return activate_exact(hwnd, self.foreground)
+
+    def is_untitled(self, hwnd):
+        return self.title(hwnd).casefold().startswith("untitled")
+
+    def title(self, hwnd):
+        title = ctypes.create_unicode_buffer(256)
+        self.user.GetWindowTextW(hwnd, title, len(title))
+        return title.value
+
+    def bind(self, hwnd):
+        self.owner = hwnd
+        self.owner_pid = self.pid(hwnd)
+        self.require_window()
+
+    def require_window(self):
+        if (not self.owner_pid or self.pid(self.owner) != self.owner_pid
+                or self.class_name(self.owner) != "Notepad"):
+            raise RuntimeError("the mission Notepad window is no longer available")
+        return self.owner
+
+    def editor(self):
+        owner = self.require_window()
+        if not self.user.IsWindowEnabled(owner):
+            raise RuntimeError("an owned dialog blocks the Notepad editor")
+        editors = []
+
+        @self.callback
+        def visit(hwnd, _):
+            if (self.pid(hwnd) == self.owner_pid and self.user.IsWindowVisible(hwnd)
+                    and self.class_name(hwnd) in ("RichEditD2DPT", "Edit")):
+                editors.append(hwnd)
+            return True
+
+        self.user.EnumChildWindows(owner, visit, 0)
+        if len(editors) != 1:
+            raise RuntimeError("could not identify one editor in the mission Notepad window")
+        return editors[0]
+
+    def send_message(self, hwnd, message, value=0, data=0):
+        owner = self.require_window()
+        if self.pid(hwnd) != self.owner_pid or self.user.GetAncestor(hwnd, 3) != owner:
+            raise RuntimeError("the Notepad target changed ownership")
+        result = ctypes.c_size_t()
+        if not self.user.SendMessageTimeoutW(
+                hwnd, message, value, data, 0x22, 750, ctypes.byref(result)):
+            raise RuntimeError("the Notepad target did not answer the window message")
+        return result.value
+
+    def text_length(self):
+        return self.send_message(self.editor(), 0x000E)  # WM_GETTEXTLENGTH
+
+    def type_text(self, text):
+        editor = self.editor()
+        for char in text:
+            self.send_message(editor, 0x0102, ord(char), 1)  # WM_CHAR
+
+    def owned_dialog(self, owner, title):
+        dialogs = []
+
+        @self.callback
+        def visit(hwnd, _):
+            if (self.user.GetWindow(hwnd, 4) == owner and self.pid(hwnd) == self.owner_pid
+                    and self.class_name(hwnd) == "#32770" and self.title(hwnd).casefold() == title):
+                dialogs.append(hwnd)
+            return True
+
+        self.user.EnumWindows(visit, 0)
+        return dialogs[0] if len(dialogs) == 1 else None
+
+    def save_dialog(self):
+        return self.owned_dialog(self.require_window(), "save as")
+
+    def dialog_control(self, dialog, control_id, class_name, *, wait=0):
+        controls = []
+
+        @self.callback
+        def visit(hwnd, _):
+            if (self.pid(hwnd) == self.owner_pid and self.class_name(hwnd) == class_name
+                    and self.user.GetDlgCtrlID(hwnd) == control_id):
+                controls.append(hwnd)
+            return True
+
+        deadline = monotonic() + wait
+        while True:
+            controls.clear()
+            self.user.EnumChildWindows(dialog, visit, 0)
+            if len(controls) == 1:
+                return controls[0]
+            if monotonic() >= deadline:
+                raise RuntimeError(f"could not identify Save As {class_name} control {control_id}")
+            sleep(0.1)
+
+    def save_to(self, destination):
+        deadline = monotonic() + 3
+        dialog = self.save_dialog()
+        while dialog is None and monotonic() < deadline:
+            sleep(0.1)
+            dialog = self.save_dialog()
+        if dialog is None:
+            raise RuntimeError("the resolved Notepad window has no owned Save As dialog")
+        entry = self.dialog_control(dialog, 1001, "Edit", wait=5)
+        self.dialog_control(dialog, 1, "Button", wait=2)
+        deadline = monotonic() + 3
+        while self.send_message(entry, 0x000E) == 0:  # WM_GETTEXTLENGTH
+            if monotonic() >= deadline:
+                raise RuntimeError("Save As did not initialize its suggested filename")
+            sleep(0.1)
+        # Typing through the edit control sends the change notifications the
+        # shell dialog needs to update its pending filename.
+        self.send_message(entry, 0x00B1, 0, -1)  # EM_SETSEL (select all)
+        for char in str(destination):
+            self.send_message(entry, 0x0102, ord(char), 1)  # WM_CHAR
+        readback = ctypes.create_unicode_buffer(32768)
+        self.send_message(entry, 0x000D, len(readback), ctypes.addressof(readback))
+        if readback.value != str(destination) or destination.exists():
+            raise RuntimeError("Save As filename readback or destination changed")
+        if self.save_dialog() != dialog or self.user.GetAncestor(entry, 3) != self.owner:
+            raise RuntimeError("the owned Save As filename control changed")
+        # Queue Enter for this edit control so the dialog message loop invokes Save.
+        if not self.user.PostMessageW(entry, 0x0100, 0x0D, 0x001C0001):  # WM_KEYDOWN
+            raise RuntimeError("Notepad refused the Save As Enter message")
+
+    def cancel_save(self):
+        dialog = self.save_dialog()
+        if dialog:
+            confirmation = self.owned_dialog(dialog, "confirm save as")
+            if confirmation:
+                self.send_message(confirmation, 0x0010)  # WM_CLOSE, never confirm overwrite.
+            self.cancel_dialog(dialog)
+
+    def cancel_dialog(self, dialog):
+        button = self.dialog_control(dialog, 2, "Button")
+        self.send_message(dialog, 0x0111, 2, button)  # WM_COMMAND / IDCANCEL
+
+    def release_foreground(self):
+        if self.owner and self.pid(self.owner) == self.owner_pid:
+            self.user.ShowWindow(self.owner, 7)  # Minimize without activating another window.
+
+
+class WindowsWindowScreen:
+    def __init__(self, window, *, source):
+        self.window = window
+        self.source = source
+        self.last_png = None
+        self.capture_seconds = None
+
+    def capture_isolated(self, target, path, *, attempts=2, timeout=25):
+        """Capture in a child process so a native capture fault is not fatal.
+
+        The backend faults inside GraphicsCapture.dll (0xc0000005), which no
+        exception handler can see: dispatch 7122154514 and its retry both died
+        that way mid-walk. A fault here kills only the worker, so it is re-taken
+        once; two dead workers are still refused by name, with the exit codes.
+        """
+        import subprocess
+        import sys
+
+        path = Path(path)
+        root = Path(__file__).resolve().parents[1]
+        codes = []
+        for _ in range(attempts):
+            hwnd = self.window.require_window()
+            path.unlink(missing_ok=True)
+            try:
+                finished = subprocess.run(
+                    [sys.executable, "-m", "scripts.windows_freebuff_capture",
+                     "--capture-once", str(hwnd), "--out", str(path)],
+                    cwd=str(root), capture_output=True, timeout=timeout, check=False)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                codes.append(f"worker failed to run: {error}")
+                continue
+            if finished.returncode == 0 and path.is_file() and path.stat().st_size:
+                payload = path.read_bytes()
+                self.last_png = payload
+                return Capture(self.source, target, payload, fingerprint=fingerprint(payload))
+            detail = (finished.stderr or finished.stdout or b"").decode("utf-8", "replace").strip()
+            codes.append(f"exit {finished.returncode}" + (f": {detail.splitlines()[-1][:160]}" if detail else ""))
+        raise RuntimeError(f"the capture worker died {attempts} times ({'; '.join(codes)})")
+
+    def capture(self, target):
+        from PIL import Image
+        from windows_capture import WindowsCapture
+
+        started = monotonic()
+        hwnd = self.window.require_window()
+        capture = WindowsCapture(window_hwnd=hwnd, cursor_capture=False, secondary_window=False)
+        ready = Event()
+        images = []
+
+        @capture.event
+        def on_frame_arrived(frame, control):
+            try:
+                images.append(Image.frombytes(
+                    "RGB", (frame.width, frame.height), frame.frame_buffer.tobytes(),
+                    "raw", "BGRX"))
+            finally:
+                control.stop()
+                ready.set()
+
+        @capture.event
+        def on_closed():
+            ready.set()
+
+        session = capture.start_free_threaded()
+        if not ready.wait(1.5):
+            session.stop()
+            raise RuntimeError("window compositor capture did not return a frame")
+        session.wait()
+        if not images:
+            raise RuntimeError("the window capture closed without a frame")
+        frame = images[0]
+        if self.window.require_window() != hwnd:
+            raise RuntimeError("the target window changed during capture")
+        if all(low == high for low, high in frame.getextrema()):
+            raise RuntimeError("window-scoped capture returned uniform pixels")
+        png = io.BytesIO()
+        frame.save(png, format="PNG", compress_level=1)
+        self.last_png = png.getvalue()
+        self.capture_seconds = round(monotonic() - started, 3)
+        return Capture(self.source, target, self.last_png,
+                       fingerprint=fingerprint(self.last_png))

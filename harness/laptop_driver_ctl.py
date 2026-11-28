@@ -217,15 +217,43 @@ def pinned_runtime_root(driver_root: str) -> tuple[str, str, str, str]:
     if module is None:
         return (driver_root, "unavailable",
                 "driver checkout carries no scripts/driver_runtime_home.py", sha)
+    # G13: the standing-prompt registry is pinned INTO the home, so the claim
+    # path reads a lane's continuation from these bytes and a registration
+    # change takes effect without a new driver commit.
+    raw_registry = os.environ.get("HARNESS_DRIVER_REGISTRY_DIR", "").strip()
+    registry = (Path(raw_registry) if raw_registry
+                else Path(driver_root) / "dispatch" / "laptop-driver" / "standing-prompts")
+    registry_arg = registry if registry.is_dir() else None
     home = home_root / sha[:12]
     try:
         pin = module.read_pin(home)
         if pin and module.verify(home, pin)[0]:
+            if registry_arg is not None:
+                pin = module.refresh_registry(home, registry_arg)
             return str(home), "pinned", "", str(pin.get("sha") or sha)
-        pin = module.install(Path(driver_root), home, sha=sha)
+        pin = module.install(Path(driver_root), home, sha=sha, registry=registry_arg)
     except Exception as exc:
         return driver_root, "unavailable", f"{type(exc).__name__}: {exc}", sha
     return str(home), "pinned", "", str(pin.get("sha") or sha)
+
+
+def _dispatch_issue(control: dict) -> str:
+    """The queue the driver is actually posting to, for alerts too.
+
+    ``control.json`` keeps the id that was live at install time; the queue file
+    is what the runner and the watch read, and it moves when #684's ceiling is
+    hit or oversight designates a successor. An alert sent to the install-time
+    id would answer 403 exactly when a failure needs reporting.
+    """
+    raw = os.environ.get("HARNESS_FREEBUFF_QUEUE_STATE", "").strip()
+    target = Path(raw) if raw else Path.home() / ".harness" / "driver-watch" / "queue.json"
+    try:
+        current = int(json.loads(target.read_text(encoding="utf-8")).get("current"))
+    except (OSError, ValueError, TypeError, AttributeError):
+        current = 0
+    if current > 0:
+        return str(current)
+    return str(control.get("dispatch_issue") or 684)
 
 
 def _emit_failure_alert(control: dict, exit_code: int, error_text: str, failures: int) -> bool:
@@ -234,7 +262,7 @@ def _emit_failure_alert(control: dict, exit_code: int, error_text: str, failures
     if not control.get("alert_on_failure", True):
         return False
     repo = str(control.get("repo") or "Treystu/harness")
-    issue = str(control.get("dispatch_issue") or 684)
+    issue = _dispatch_issue(control)
     msg = (
         f"Vision watch service failure alert (self-heal monitor): "
         f"exit_code={exit_code}, consecutive_failures={failures}, "
@@ -460,6 +488,32 @@ exit $LASTEXITCODE
 """
 
 
+#: The queue file the driver writes (``scripts/freebuff_queue.py``); ctl reads
+#: that file instead of keeping a queue number of its own.
+QUEUE_STATE_PATH = Path.home() / ".harness" / "driver-watch" / "queue.json"
+#: The queue every dispatch predates any state file; only a missing file uses it.
+LEGACY_DISPATCH_ISSUE = 684
+
+
+def dispatch_issue(control: dict) -> str:
+    """The live dispatch queue: one file, read by the runner, the watch and ctl.
+
+    #684 became comment-capped (GitHub's 2,500 ceiling), so a hardcoded id here
+    would keep pointing ctl's status and alerts at a queue that cannot accept a
+    comment. An explicit ``dispatch_issue`` in control.json still wins when no
+    state file exists yet.
+    """
+    raw = os.environ.get("HARNESS_FREEBUFF_QUEUE_STATE", "").strip()
+    target = Path(raw) if raw else QUEUE_STATE_PATH
+    try:
+        current = int(json.loads(target.read_text(encoding="utf-8")).get("current"))
+    except (OSError, ValueError, TypeError, AttributeError):
+        current = 0
+    if current:
+        return str(current)
+    return str(control.get("dispatch_issue") or LEGACY_DISPATCH_ISSUE)
+
+
 def watch_dir() -> Path:
     override = os.environ.get("HARNESS_DRIVER_WATCH_DIR", "").strip()
     if override:
@@ -593,7 +647,7 @@ def driver_watch_status() -> dict:
         "python": DEFAULT_PYTHONW,
         "driver_root": DEFAULT_DRIVER_ROOT,
         "repo": "Treystu/harness",
-        "dispatch_issue": 684,
+        "dispatch_issue": int(dispatch_issue({})),
         "interval_minutes": 2,
     }
     ctl = _read_json(control_path(), default_ctl)
@@ -618,6 +672,7 @@ def driver_watch_status() -> dict:
         "runtime_home": tick.get("runtime_home") or "",
         "runtime_state": tick.get("runtime_state") or "unknown",
         "runtime_detail": tick.get("runtime_detail") or "",
+        "dispatch_issue": int(dispatch_issue(ctl)),
         "last_error": tick.get("last_error") or "",
         "control_file": str(control_path()),
         "log_tail": _log_tail(),
@@ -637,7 +692,7 @@ def driver_watch_control(action: str, *, driver_root: str | None = None, by: str
         "python": DEFAULT_PYTHONW,
         "driver_root": driver_root or DEFAULT_DRIVER_ROOT,
         "repo": "Treystu/harness",
-        "dispatch_issue": 684,
+        "dispatch_issue": int(dispatch_issue({})),
         "interval_minutes": 2,
     })
     if driver_root:
@@ -678,7 +733,7 @@ def install_laptop_watch(
         "python": pythonw,
         "driver_root": driver_root or DEFAULT_DRIVER_ROOT,
         "repo": "Treystu/harness",
-        "dispatch_issue": 684,
+        "dispatch_issue": int(dispatch_issue({})),
         "interval_minutes": 2,
         "updated_at": _utc_now(),
         "updated_by": "install",

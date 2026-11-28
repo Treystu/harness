@@ -30,3 +30,5 @@ dogfood_matrix_results.json
 
 # Hermetic test env created by scripts/hermetic-env.sh (isolated HOME/TMP/ledger)
 .hermetic/
+
+.rx/

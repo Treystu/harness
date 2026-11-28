@@ -1,0 +1,27 @@
+00:10:35 {"Kalshi": "unclaimed", "HarnessAudit": "unclaimed", "CivicScope": "observe-running: driver tree terminated after deadline"}
+00:10:55 {"Kalshi": "unclaimed", "HarnessAudit": "unclaimed", "CivicScope": "observe-running: driver tree terminated after deadline"}
+00:11:15 {"Kalshi": "unclaimed", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:11:35 {"Kalshi": "unclaimed", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:11:55 {"Kalshi": "unclaimed", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:12:16 {"Kalshi": "unclaimed", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:12:36 {"Kalshi": "unclaimed", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:12:56 {"Kalshi": "claimed", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:13:16 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:13:36 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:13:56 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:14:16 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:14:36 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:14:56 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:15:16 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:15:36 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:15:56 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:16:16 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:16:36 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:16:56 {"Kalshi": "observe-running: BLOCKED: locate-bystander-lane: exact OCR label 'Lane 1' was not verified", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:17:16 {"Kalshi": "parked: search: BLOCKED: the project session list does not hold 'Kalshi Paper Burndown' and no candidate exposes this th", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:17:36 {"Kalshi": "parked: search: BLOCKED: the project session list does not hold 'Kalshi Paper Burndown' and no candidate exposes this th", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:17:56 {"Kalshi": "parked: search: BLOCKED: the project session list does not hold 'Kalshi Paper Burndown' and no candidate exposes this th", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:18:16 {"Kalshi": "parked: search: BLOCKED: the project session list does not hold 'Kalshi Paper Burndown' and no candidate exposes this th", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:18:36 {"Kalshi": "parked: search: BLOCKED: the project session list does not hold 'Kalshi Paper Burndown' and no candidate exposes this th", "HarnessAudit": "unclaimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:18:56 {"Kalshi": "parked: search: BLOCKED: the project session list does not hold 'Kalshi Paper Burndown' and no candidate exposes this th", "HarnessAudit": "claimed", "CivicScope": "parked: search: driver tree terminated after deadline"}
+00:19:16 {"Kalshi": "parked: search: BLOCKED: the project session list does not hold 'Kalshi Paper Burndown' and no candidate exposes this th", "HarnessAudit": "parked: search: BLOCKED: search-foreground: executor failed: Windows did not grant exact FreeBuff foreground", "CivicScope": "parked: search: driver tree terminated after deadline"}
